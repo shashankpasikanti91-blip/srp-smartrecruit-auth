@@ -31,6 +31,9 @@ services:
       PORT: "3000"
     networks:
       - srp_auth_net
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     mem_limit: 256m
     mem_reservation: 96m
     healthcheck:
