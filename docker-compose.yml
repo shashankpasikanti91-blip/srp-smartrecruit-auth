@@ -1,0 +1,51 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# SRP AI Labs SmartRecruit — Production Docker Compose
+# Server: Hetzner 5.223.67.236  |  Domain: app.srpailabs.com
+# Port:   127.0.0.1:3010:3000 (nginx reverse proxy — NOT exposed to internet)
+# DB:     Supabase (external) — no local postgres needed
+# Other projects (srp-ats on 8009, mediflow, n8n) are NOT affected.
+#
+# Usage on Hetzner server:
+#   cd /opt/srp-smartrecruit-auth
+#   cp .env.production .env
+#   # fill in all values in .env
+#   docker compose up -d --build
+#   docker compose logs -f
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+    image: srp-smartrecruit-auth:latest
+    container_name: srp-auth-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3010:3000"   # nginx proxies; NOT open to internet
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    networks:
+      - srp_auth_net
+    mem_limit: 256m
+    mem_reservation: 96m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health 2>/dev/null | grep -q ok || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  srp_auth_net:
+    driver: bridge
+    name: srp_auth_net

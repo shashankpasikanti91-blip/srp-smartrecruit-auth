@@ -1,0 +1,65 @@
+name: Deploy to Hetzner
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: nextjs-auth/package-lock.json
+
+      - name: Install dependencies
+        working-directory: nextjs-auth
+        run: npm ci
+
+      - name: Type check
+        working-directory: nextjs-auth
+        run: npx tsc --noEmit
+
+      - name: Build
+        working-directory: nextjs-auth
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        run: npm run build
+
+      - name: Deploy to Hetzner via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/srp-smartrecruit-auth
+
+            # Pull latest code
+            git pull origin main
+
+            # Write env file from secret
+            echo '${{ secrets.PRODUCTION_ENV }}' > .env
+
+            # Build and restart container
+            docker compose pull 2>/dev/null || true
+            docker compose build --no-cache
+            docker compose up -d --force-recreate
+
+            # Health check
+            sleep 8
+            curl -sf http://localhost:3010/api/health && echo "✅ Health check passed"
+
+            # Cleanup old images
+            docker image prune -f
