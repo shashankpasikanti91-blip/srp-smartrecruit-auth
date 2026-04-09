@@ -109,7 +109,12 @@ async function callAI(messages: { role: string; content: string }[]): Promise<st
 
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://recruit.srpailabs.com',
+      'X-Title': 'SRP SmartRecruit',
+    },
     body: JSON.stringify({ model, messages, temperature: 0.2 }),
   })
   if (!res.ok) {
