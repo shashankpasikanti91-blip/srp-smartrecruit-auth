@@ -1,10 +1,36 @@
 import { AuthOptions } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
-import { upsertUser, logActivity } from './db'
+import CredentialsProvider from 'next-auth/providers/credentials'
+import bcrypt from 'bcryptjs'
+import { supabaseAdmin, upsertUser, logActivity } from './db'
 import { notifyNewSignup, notifyLogin, notifyError } from './notifications'
 
 export const authOptions: AuthOptions = {
   providers: [
+    CredentialsProvider({
+      name: 'credentials',
+      credentials: {
+        email:    { label: 'Email',    type: 'email' },
+        password: { label: 'Password', type: 'password' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null
+        try {
+          const { data: user } = await supabaseAdmin
+            .from('auth_users')
+            .select('id, name, email, image, role, product_access, is_active, password_hash')
+            .eq('email', credentials.email.toLowerCase())
+            .maybeSingle()
+          if (!user || !user.password_hash || !user.is_active) return null
+          const valid = await bcrypt.compare(credentials.password, user.password_hash as string)
+          if (!valid) return null
+          return { id: user.id, name: user.name, email: user.email, image: user.image }
+        } catch (err) {
+          console.error('[auth] credentials error:', err)
+          return null
+        }
+      },
+    }),
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
@@ -31,6 +57,22 @@ export const authOptions: AuthOptions = {
 
   callbacks: {
     async signIn({ user, account }) {
+      // Credentials sign-in: user already validated in authorize(), just log activity
+      if (account?.provider === 'credentials') {
+        try {
+          const { getUserByEmail } = await import('./db')
+          const dbUser = await getUserByEmail(user.email!)
+          if (!dbUser) return false
+          await logActivity({
+            user_id: dbUser.id,
+            event_type: 'login',
+            event_data: { email: user.email, provider: 'credentials' },
+            severity: 'info',
+          })
+          await notifyLogin({ name: user.name ?? null, email: user.email! })
+        } catch { /* non-fatal */ }
+        return true
+      }
       if (account?.provider !== 'google') return false
       try {
         const { user: dbUser, isNew } = await upsertUser({
@@ -76,10 +118,10 @@ export const authOptions: AuthOptions = {
     },
 
     async jwt({ token, account, user }) {
-      if (account?.provider === 'google') {
+      if (account?.provider) {
         token.provider = account.provider
       }
-      // Attach role from DB on first sign-in
+      // Attach role from DB on first sign-in (both Google and credentials)
       if (user?.email && !token.role) {
         const { getUserByEmail } = await import('./db')
         const dbUser = await getUserByEmail(user.email)

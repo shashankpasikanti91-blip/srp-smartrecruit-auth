@@ -35,7 +35,7 @@ export default function Navbar({ transparent = false }: NavbarProps) {
               <Zap className="w-4 h-4 text-white" />
             </div>
             <span className="font-bold text-white text-lg tracking-tight">
-              SRP <span className="gradient-text">AI Labs</span>
+              SRP <span className="gradient-text">Recruit AI Labs</span>
             </span>
           </Link>
 

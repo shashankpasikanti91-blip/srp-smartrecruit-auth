@@ -3,12 +3,12 @@ import './globals.css'
 import Providers from './providers'
 
 export const metadata: Metadata = {
-  title: 'SRP AI Labs — Smart Recruiting Platform',
+  title: 'SRP Recruit AI Labs — Smart Recruiting Platform',
   description:
-    'Hire smarter with AI. SRP AI Labs automates candidate screening, job matching, and hiring workflows at scale.',
-  keywords: ['AI recruiting', 'ATS', 'hiring automation', 'candidate screening', 'SRP AI Labs'],
+    'Hire smarter with AI. SRP Recruit AI Labs automates candidate screening, job matching, and hiring workflows at scale.',
+  keywords: ['AI recruiting', 'ATS', 'hiring automation', 'candidate screening', 'SRP Recruit AI Labs'],
   openGraph: {
-    title: 'SRP AI Labs — Smart Recruiting Platform',
+    title: 'SRP Recruit AI Labs — Smart Recruiting Platform',
     description: 'Hire smarter with AI.',
     type: 'website',
     url: 'https://recruit.srpailabs.com',

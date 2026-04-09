@@ -183,7 +183,7 @@ export default function DashboardPage() {
                 <Zap className="w-4 h-4 text-white" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white leading-none">SRP AI Labs</p>
+                <p className="text-sm font-bold text-white leading-none">SRP Recruit AI Labs</p>
                 <p className="text-xs text-indigo-400 leading-none mt-0.5">SmartRecruit</p>
               </div>
             </div>

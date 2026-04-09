@@ -4,6 +4,10 @@
 -- Run in Supabase Dashboard → SQL Editor
 -- ============================================================
 
+-- ── Add password_hash column for email/password auth ─────────────────────────
+ALTER TABLE public.auth_users
+  ADD COLUMN IF NOT EXISTS password_hash TEXT DEFAULT NULL;
+
 -- ── Sequences for human-readable IDs ─────────────────────────────────────────
 CREATE SEQUENCE IF NOT EXISTS users_short_id_seq       START 1;
 CREATE SEQUENCE IF NOT EXISTS jobs_short_id_seq        START 1;

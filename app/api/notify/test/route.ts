@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   try {
     await sendTelegram(
-      `🔔 <b>SRP AI Labs — Test Alert</b>\n\nNotification system is working correctly.\n🕒 ${new Date().toISOString()}`
+      `🔔 <b>SRP Recruit AI Labs — Test Alert</b>\n\nNotification system is working correctly.\n🕒 ${new Date().toISOString()}`
     )
     results.telegram = 'sent'
   } catch (e) {
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   try {
     await sendEmail({
-      subject: '🔔 SRP AI Labs — Test Alert',
+      subject: '🔔 SRP Recruit AI Labs — Test Alert',
       html: '<p>Notification system is working correctly.</p><p>Time: ' + new Date().toISOString() + '</p>',
     })
     results.email = 'sent'

@@ -193,7 +193,7 @@ export default function OwnerDashboard() {
             <h1 className="text-xl font-extrabold text-white">
               {TABS.find(t => t.id === tab)?.label}
             </h1>
-            <p className="text-xs text-gray-600 mt-0.5">SRP AI Labs · Owner Dashboard</p>
+            <p className="text-xs text-gray-600 mt-0.5">SRP Recruit AI Labs · Owner Dashboard</p>
           </div>
           <button
             onClick={() => fetchTab(tab)}
