@@ -154,7 +154,7 @@ const pricing = [
 export default function Home() {
   return (
     <main className="overflow-x-hidden">
-      <Navbar transparent />
+      <Navbar />
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-4 overflow-hidden bg-[#0a0a0f]">

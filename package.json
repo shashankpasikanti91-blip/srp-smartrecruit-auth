@@ -9,13 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.4",
     "@types/bcryptjs": "^2.4.6",
+    "@types/pg": "^8.20.0",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^0.468.0",
     "next": "^16.2.3",
     "next-auth": "^4.24.11",
     "nodemailer": "^8.0.5",
+    "pg": "^8.20.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

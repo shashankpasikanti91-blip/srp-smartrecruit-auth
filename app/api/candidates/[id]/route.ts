@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { supabaseAdmin } from '@/lib/db'
+import { pool } from '@/lib/db'
 
 export async function PATCH(
   req: NextRequest,
@@ -15,24 +15,25 @@ export async function PATCH(
     const { id } = await params
     const body = await req.json()
     const allowed = ['pipeline_stage', 'status', 'reviewer_notes', 'ai_score', 'ai_summary']
-    const updates: Record<string, unknown> = {}
+    const sets: string[] = []
+    const values: unknown[] = []
+    let idx = 1
     for (const key of allowed) {
-      if (body[key] !== undefined) updates[key] = body[key]
+      if (body[key] !== undefined) { sets.push(`${key} = $${idx}`); values.push(body[key]); idx++ }
     }
-    if (Object.keys(updates).length === 0) {
+    if (sets.length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
     }
-
-    const { data, error } = await supabaseAdmin
-      .from('resumes')
-      .update(updates)
-      .eq('id', id)
-      .select('id, short_id, pipeline_stage, status, match_category')
-      .single()
-
-    if (error) throw error
-    return NextResponse.json({ candidate: data })
+    values.push(id)
+    const { rows } = await pool.query(
+      `UPDATE resumes SET ${sets.join(', ')} WHERE id = $${idx}
+       RETURNING id, short_id, pipeline_stage, status, match_category`,
+      values
+    )
+    if (!rows[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json({ candidate: rows[0] })
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
+

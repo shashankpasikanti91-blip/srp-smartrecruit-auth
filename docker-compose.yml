@@ -2,38 +2,57 @@
 # SRP AI Labs SmartRecruit — Production Docker Compose
 # Server: Hetzner 5.223.67.236  |  Domain: recruit.srpailabs.com
 # Port:   127.0.0.1:3010:3000 (nginx reverse proxy — NOT exposed to internet)
-# DB:     Supabase (external) — no local postgres needed
+# DB:     Local PostgreSQL container (data persisted in srp_auth_pgdata volume)
 # Other projects (srp-ats on 8009, mediflow, n8n) are NOT affected.
 #
 # Usage on Hetzner server:
 #   cd /opt/srp-smartrecruit-auth
-#   cp .env.production .env
-#   # fill in all values in .env
-#   docker compose up -d --build
+#   cp .env.production .env   # fill in all values
+#   docker compose up -d
 #   docker compose logs -f
 # ──────────────────────────────────────────────────────────────────────────────
 
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: srp-auth-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: srp_auth
+      POSTGRES_USER: srp_auth
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - srp_auth_pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./db/schema_password.sql:/docker-entrypoint-initdb.d/02_password.sql:ro
+    networks:
+      - srp_auth_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U srp_auth -d srp_auth"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   app:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
     image: srp-smartrecruit-auth:latest
     container_name: srp-auth-app
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "127.0.0.1:3010:3000"   # nginx proxies; NOT open to internet
     env_file: .env
     environment:
       NODE_ENV: production
       PORT: "3000"
+      DATABASE_URL: postgresql://srp_auth:${POSTGRES_PASSWORD}@db:5432/srp_auth
     networks:
       - srp_auth_net
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     mem_limit: 256m
     mem_reservation: 96m
     healthcheck:
@@ -47,6 +66,10 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  srp_auth_pgdata:
+    name: srp_auth_pgdata
 
 networks:
   srp_auth_net:

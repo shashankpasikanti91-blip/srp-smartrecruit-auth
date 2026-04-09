@@ -2,7 +2,7 @@ import { AuthOptions } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
-import { supabaseAdmin, upsertUser, logActivity } from './db'
+import { pool, upsertUser, logActivity } from './db'
 import { notifyNewSignup, notifyLogin, notifyError } from './notifications'
 
 export const authOptions: AuthOptions = {
@@ -16,11 +16,12 @@ export const authOptions: AuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
         try {
-          const { data: user } = await supabaseAdmin
-            .from('auth_users')
-            .select('id, name, email, image, role, product_access, is_active, password_hash')
-            .eq('email', credentials.email.toLowerCase())
-            .maybeSingle()
+          const { rows } = await pool.query(
+            `SELECT id, name, email, image, role, product_access, is_active, password_hash
+             FROM auth_users WHERE email = $1`,
+            [credentials.email.toLowerCase()]
+          )
+          const user = rows[0]
           if (!user || !user.password_hash || !user.is_active) return null
           const valid = await bcrypt.compare(credentials.password, user.password_hash as string)
           if (!valid) return null

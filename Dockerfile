@@ -17,10 +17,6 @@ COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps
 COPY . .
 
-# Inline env vars needed at build time (non-secret public vars only)
-ARG NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-
 RUN npm run build
 RUN mkdir -p public
 

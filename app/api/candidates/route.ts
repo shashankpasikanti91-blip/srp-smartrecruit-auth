@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { supabaseAdmin } from '@/lib/db'
+import { pool } from '@/lib/db'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -10,51 +10,57 @@ export async function GET(req: NextRequest) {
   }
   try {
     const { searchParams } = new URL(req.url)
-    const q          = searchParams.get('q') ?? ''
-    const stage      = searchParams.get('stage') ?? ''
-    const match      = searchParams.get('match') ?? ''
-    const jobId      = searchParams.get('job_id') ?? ''
-    const limit      = parseInt(searchParams.get('limit') ?? '50')
+    const q      = searchParams.get('q') ?? ''
+    const stage  = searchParams.get('stage') ?? ''
+    const match  = searchParams.get('match') ?? ''
+    const jobId  = searchParams.get('job_id') ?? ''
+    const limit  = parseInt(searchParams.get('limit') ?? '50')
 
-    // Get user id
-    const { data: user } = await supabaseAdmin
-      .from('auth_users')
-      .select('id')
-      .eq('email', session.user.email)
-      .single()
+    const userRes = await pool.query<{ id: string }>(
+      'SELECT id FROM auth_users WHERE email = $1',
+      [session.user.email]
+    )
+    if (!userRes.rows[0]) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    const userId = userRes.rows[0].id
 
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    const conditions: string[] = ['r.user_id = $1']
+    const params: unknown[] = [userId]
+    let idx = 2
 
-    // Query resumes as candidates (with pipeline info)
-    let query = supabaseAdmin
-      .from('resumes')
-      .select('id, short_id, candidate_name, candidate_email, candidate_phone, ai_score, match_category, pipeline_stage, status, reviewer_notes, ai_summary, ai_skills, job_post_id, created_at, job_posts(id, short_id, title, company)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(limit)
+    if (q) { conditions.push(`(r.candidate_name ILIKE $${idx} OR r.candidate_email ILIKE $${idx})`); params.push(`%${q}%`); idx++ }
+    if (stage) { conditions.push(`r.pipeline_stage = $${idx}`); params.push(stage); idx++ }
+    if (match)  { conditions.push(`r.match_category = $${idx}`); params.push(match); idx++ }
+    if (jobId)  { conditions.push(`r.job_post_id = $${idx}`); params.push(jobId); idx++ }
 
-    if (q) {
-      query = query.or(`candidate_name.ilike.%${q}%,candidate_email.ilike.%${q}%`)
-    }
-    if (stage) query = query.eq('pipeline_stage', stage)
-    if (match)  query = query.eq('match_category', match)
-    if (jobId)  query = query.eq('job_post_id', jobId)
+    const where = conditions.join(' AND ')
+    const sql = `
+      SELECT r.id, r.short_id, r.candidate_name, r.candidate_email, r.candidate_phone,
+             r.ai_score, r.match_category, r.pipeline_stage, r.status, r.reviewer_notes,
+             r.ai_summary, r.ai_skills, r.job_post_id, r.created_at,
+             jp.id AS jp_id, jp.short_id AS jp_short_id, jp.title AS jp_title, jp.company AS jp_company
+      FROM resumes r
+      LEFT JOIN job_posts jp ON jp.id = r.job_post_id
+      WHERE ${where}
+      ORDER BY r.created_at DESC
+      LIMIT $${idx}
+    `
+    params.push(limit)
+    const { rows } = await pool.query(sql, params)
+    const candidates = rows.map(r => ({
+      ...r,
+      job_posts: r.jp_id ? { id: r.jp_id, short_id: r.jp_short_id, title: r.jp_title, company: r.jp_company } : null,
+    }))
 
-    const { data, error } = await query
-    if (error) throw error
-
-    // Pipeline stage counts
-    const { data: stageCounts } = await supabaseAdmin
-      .from('resumes')
-      .select('pipeline_stage')
-      .eq('user_id', user.id)
-
+    const stageRes = await pool.query<{ pipeline_stage: string }>(
+      'SELECT pipeline_stage FROM resumes WHERE user_id = $1',
+      [userId]
+    )
     const counts: Record<string, number> = {}
-    for (const row of (stageCounts ?? [])) {
+    for (const row of stageRes.rows) {
       counts[row.pipeline_stage] = (counts[row.pipeline_stage] ?? 0) + 1
     }
 
-    return NextResponse.json({ candidates: data ?? [], stageCounts: counts })
+    return NextResponse.json({ candidates, stageCounts: counts })
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
@@ -72,33 +78,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'candidate_name required' }, { status: 400 })
     }
 
-    const { data: user } = await supabaseAdmin
-      .from('auth_users')
-      .select('id')
-      .eq('email', session.user.email)
-      .single()
+    const userRes = await pool.query<{ id: string }>(
+      'SELECT id FROM auth_users WHERE email = $1',
+      [session.user.email]
+    )
+    if (!userRes.rows[0]) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    const userId = userRes.rows[0].id
 
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    const { rows } = await pool.query(
+      `INSERT INTO resumes (user_id, candidate_name, candidate_email, candidate_phone, ai_skills, ai_score, ai_summary, job_post_id, pipeline_stage, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending')
+       RETURNING *`,
+      [userId, candidate_name, candidate_email ?? null, candidate_phone ?? null,
+       JSON.stringify(ai_skills ?? []), ai_score ?? null, ai_summary ?? null,
+       job_post_id ?? null, pipeline_stage ?? 'sourced']
+    )
 
-    const { data, error } = await supabaseAdmin
-      .from('resumes')
-      .insert({
-        user_id: user.id,
-        candidate_name,
-        candidate_email,
-        candidate_phone,
-        ai_skills: ai_skills ?? [],
-        ai_score: ai_score ?? null,
-        ai_summary: ai_summary ?? null,
-        job_post_id: job_post_id ?? null,
-        pipeline_stage: pipeline_stage ?? 'sourced',
-        status: 'pending',
-      })
-      .select()
-      .single()
-
-    if (error) throw error
-    return NextResponse.json({ candidate: data }, { status: 201 })
+    return NextResponse.json({ candidate: rows[0] }, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }

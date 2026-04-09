@@ -1,14 +1,28 @@
-import { createClient } from '@supabase/supabase-js'
+import { Pool } from 'pg'
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL) throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL')
-if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY')
+// Lazy pool — only throws at runtime (query time), not at module load / build time
+let _pool: Pool | null = null
 
-// Server-side admin client — NEVER exposed to the browser
-export const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+export function getPool(): Pool {
+  if (!_pool) {
+    if (!process.env.DATABASE_URL) throw new Error('Missing DATABASE_URL')
+    _pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    })
+  }
+  return _pool
+}
+
+// Convenience re-export so existing callers can swap import with minimal change
+export const pool = new Proxy({} as Pool, {
+  get(_target, prop) {
+    return (getPool() as unknown as Record<string | symbol, unknown>)[prop]
+  },
+})
+
 
 // ─────────────────────────── Types ───────────────────────────────────────────
 
@@ -95,31 +109,34 @@ export interface ActivityLog {
 // ─────────────────────────── Users ───────────────────────────────────────────
 
 export async function getUserByEmail(email: string): Promise<AuthUser | null> {
-  const { data, error } = await supabaseAdmin
-    .from('auth_users').select('*').eq('email', email).single()
-  if (error || !data) return null
-  return data as AuthUser
+  const { rows } = await pool.query<AuthUser>(
+    'SELECT * FROM auth_users WHERE email = $1', [email]
+  )
+  return rows[0] ?? null
 }
 
 export async function getUserById(id: string): Promise<AuthUser | null> {
-  const { data, error } = await supabaseAdmin
-    .from('auth_users').select('*').eq('id', id).single()
-  if (error || !data) return null
-  return data as AuthUser
+  const { rows } = await pool.query<AuthUser>(
+    'SELECT * FROM auth_users WHERE id = $1', [id]
+  )
+  return rows[0] ?? null
 }
 
 export async function createUser(user: {
   name?: string | null; email: string; image?: string | null
   provider: string; provider_id?: string | null
 }): Promise<AuthUser | null> {
-  const { data, error } = await supabaseAdmin
-    .from('auth_users')
-    .insert({ name: user.name ?? null, email: user.email, image: user.image ?? null,
-              provider: user.provider, provider_id: user.provider_id ?? null,
-              role: 'user', product_access: ['recruit'] })
-    .select().single()
-  if (error) { console.error('[db] createUser:', error.message); return null }
-  return data as AuthUser
+  try {
+    const { rows } = await pool.query<AuthUser>(
+      `INSERT INTO auth_users (name, email, image, provider, provider_id, role, product_access)
+       VALUES ($1, $2, $3, $4, $5, 'user', ARRAY['recruit']) RETURNING *`,
+      [user.name ?? null, user.email, user.image ?? null, user.provider, user.provider_id ?? null]
+    )
+    return rows[0] ?? null
+  } catch (err) {
+    console.error('[db] createUser:', err)
+    return null
+  }
 }
 
 export async function upsertUser(user: {
@@ -128,8 +145,10 @@ export async function upsertUser(user: {
 }): Promise<{ user: AuthUser | null; isNew: boolean }> {
   const existing = await getUserByEmail(user.email)
   if (existing) {
-    await supabaseAdmin.from('auth_users')
-      .update({ name: user.name, image: user.image }).eq('id', existing.id)
+    await pool.query(
+      'UPDATE auth_users SET name = $1, image = $2, updated_at = NOW() WHERE id = $3',
+      [user.name ?? existing.name, user.image ?? existing.image, existing.id]
+    )
     return { user: existing, isNew: false }
   }
   const created = await createUser(user)
@@ -137,11 +156,11 @@ export async function upsertUser(user: {
 }
 
 export async function getAllUsers(limit = 100) {
-  const { data } = await supabaseAdmin
-    .from('auth_users')
-    .select('id, name, email, image, role, product_access, is_active, created_at')
-    .order('created_at', { ascending: false }).limit(limit)
-  return data ?? []
+  const { rows } = await pool.query(
+    'SELECT id, name, email, image, role, product_access, is_active, created_at FROM auth_users ORDER BY created_at DESC LIMIT $1',
+    [limit]
+  )
+  return rows
 }
 
 // ─────────────────────────── Job Posts ───────────────────────────────────────
@@ -152,34 +171,46 @@ export async function createJobPost(job: {
   salary_min?: number | null; salary_max?: number | null; currency?: string
   status?: string; ai_generated?: boolean; tags?: string[]
 }): Promise<JobPost | null> {
-  const { data, error } = await supabaseAdmin
-    .from('job_posts')
-    .insert({ ...job, applications_count: 0 })
-    .select().single()
-  if (error) { console.error('[db] createJobPost:', error.message); return null }
-  return data as JobPost
+  try {
+    const { rows } = await pool.query<JobPost>(
+      `INSERT INTO job_posts (user_id, title, company, location, type, description, requirements,
+         salary_min, salary_max, currency, status, ai_generated, tags, applications_count)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0) RETURNING *`,
+      [job.user_id, job.title, job.company ?? null, job.location ?? null,
+       job.type ?? 'full-time', job.description ?? null, job.requirements ?? null,
+       job.salary_min ?? null, job.salary_max ?? null, job.currency ?? 'USD',
+       job.status ?? 'active', job.ai_generated ?? false, job.tags ?? []]
+    )
+    return rows[0] ?? null
+  } catch (err) {
+    console.error('[db] createJobPost:', err)
+    return null
+  }
 }
 
 export async function getJobPosts(userId: string): Promise<JobPost[]> {
-  const { data } = await supabaseAdmin
-    .from('job_posts').select('*').eq('user_id', userId)
-    .order('created_at', { ascending: false })
-  return (data ?? []) as JobPost[]
+  const { rows } = await pool.query<JobPost>(
+    'SELECT * FROM job_posts WHERE user_id = $1 ORDER BY created_at DESC', [userId]
+  )
+  return rows
 }
 
 export async function getJobPostById(id: string): Promise<JobPost | null> {
-  const { data, error } = await supabaseAdmin
-    .from('job_posts').select('*').eq('id', id).single()
-  if (error || !data) return null
-  return data as JobPost
+  const { rows } = await pool.query<JobPost>(
+    'SELECT * FROM job_posts WHERE id = $1', [id]
+  )
+  return rows[0] ?? null
 }
 
 export async function getAllJobPosts(limit = 200) {
-  const { data } = await supabaseAdmin
-    .from('job_posts')
-    .select('*, auth_users(name, email)')
-    .order('created_at', { ascending: false }).limit(limit)
-  return data ?? []
+  const { rows } = await pool.query(
+    `SELECT jp.*, json_build_object('name', u.name, 'email', u.email) AS auth_users
+     FROM job_posts jp
+     LEFT JOIN auth_users u ON u.id = jp.user_id
+     ORDER BY jp.created_at DESC LIMIT $1`,
+    [limit]
+  )
+  return rows
 }
 
 // ─────────────────────────── Resumes ─────────────────────────────────────────
@@ -191,52 +222,83 @@ export async function createResume(resume: {
   raw_text?: string | null; ai_score?: number | null; ai_summary?: string | null
   ai_skills?: string[]; status?: string
 }): Promise<Resume | null> {
-  const { data, error } = await supabaseAdmin
-    .from('resumes').insert(resume).select().single()
-  if (error) { console.error('[db] createResume:', error.message); return null }
-  return data as Resume
+  try {
+    const { rows } = await pool.query<Resume>(
+      `INSERT INTO resumes (user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
+         file_name, file_url, file_size_bytes, raw_text, ai_score, ai_summary, ai_skills, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [resume.user_id, resume.job_post_id ?? null, resume.candidate_name ?? null,
+       resume.candidate_email ?? null, resume.candidate_phone ?? null,
+       resume.file_name ?? null, resume.file_url ?? null, resume.file_size_bytes ?? null,
+       resume.raw_text ?? null, resume.ai_score ?? null, resume.ai_summary ?? null,
+       resume.ai_skills ?? [], resume.status ?? 'pending']
+    )
+    return rows[0] ?? null
+  } catch (err) {
+    console.error('[db] createResume:', err)
+    return null
+  }
 }
 
 export async function getResumes(userId: string, jobPostId?: string): Promise<Resume[]> {
-  let query = supabaseAdmin.from('resumes').select('*').eq('user_id', userId)
-  if (jobPostId) query = query.eq('job_post_id', jobPostId)
-  const { data } = await query.order('ai_score', { ascending: false, nullsFirst: false })
-  return (data ?? []) as Resume[]
+  if (jobPostId) {
+    const { rows } = await pool.query<Resume>(
+      'SELECT * FROM resumes WHERE user_id = $1 AND job_post_id = $2 ORDER BY ai_score DESC NULLS LAST',
+      [userId, jobPostId]
+    )
+    return rows
+  }
+  const { rows } = await pool.query<Resume>(
+    'SELECT * FROM resumes WHERE user_id = $1 ORDER BY ai_score DESC NULLS LAST', [userId]
+  )
+  return rows
 }
 
 export async function getResumeById(id: string): Promise<Resume | null> {
-  const { data, error } = await supabaseAdmin
-    .from('resumes').select('*').eq('id', id).single()
-  if (error || !data) return null
-  return data as Resume
+  const { rows } = await pool.query<Resume>(
+    'SELECT * FROM resumes WHERE id = $1', [id]
+  )
+  return rows[0] ?? null
 }
 
 export async function updateResumeStatus(id: string, status: string, notes?: string): Promise<void> {
-  await supabaseAdmin.from('resumes').update({ status, reviewer_notes: notes ?? null }).eq('id', id)
+  await pool.query(
+    'UPDATE resumes SET status = $1, reviewer_notes = $2, updated_at = NOW() WHERE id = $3',
+    [status, notes ?? null, id]
+  )
 }
 
 export async function getAllResumes(limit = 500) {
-  const { data } = await supabaseAdmin
-    .from('resumes')
-    .select('*, auth_users(name, email), job_posts(title)')
-    .order('created_at', { ascending: false }).limit(limit)
-  return data ?? []
+  const { rows } = await pool.query(
+    `SELECT r.*,
+       json_build_object('name', u.name, 'email', u.email) AS auth_users,
+       json_build_object('title', jp.title) AS job_posts
+     FROM resumes r
+     LEFT JOIN auth_users u ON u.id = r.user_id
+     LEFT JOIN job_posts jp ON jp.id = r.job_post_id
+     ORDER BY r.created_at DESC LIMIT $1`,
+    [limit]
+  )
+  return rows
 }
-
 // ─────────────────────────── Subscriptions ───────────────────────────────────
 
 export async function getUserSubscription(userId: string): Promise<Subscription | null> {
-  const { data } = await supabaseAdmin
-    .from('subscriptions').select('*').eq('user_id', userId)
-    .order('created_at', { ascending: false }).limit(1).single()
-  return (data as Subscription) ?? null
+  const { rows } = await pool.query<Subscription>(
+    'SELECT * FROM subscriptions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+    [userId]
+  )
+  return rows[0] ?? null
 }
 
 export async function getAllSubscriptions() {
-  const { data } = await supabaseAdmin
-    .from('subscriptions').select('*, auth_users(name, email)')
-    .order('created_at', { ascending: false })
-  return data ?? []
+  const { rows } = await pool.query(
+    `SELECT s.*, json_build_object('name', u.name, 'email', u.email) AS auth_users
+     FROM subscriptions s
+     LEFT JOIN auth_users u ON u.id = s.user_id
+     ORDER BY s.created_at DESC`
+  )
+  return rows
 }
 
 // ─────────────────────────── Token Usage ─────────────────────────────────────
@@ -246,15 +308,20 @@ export async function logTokenUsage(entry: {
   prompt_tokens: number; completion_tokens: number
   cost_usd: number; metadata?: Record<string, unknown>
 }): Promise<void> {
-  await supabaseAdmin.from('token_usage').insert(entry)
+  await pool.query(
+    `INSERT INTO token_usage (user_id, model, operation, prompt_tokens, completion_tokens, cost_usd, metadata)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [entry.user_id, entry.model, entry.operation, entry.prompt_tokens,
+     entry.completion_tokens, entry.cost_usd, entry.metadata ?? null]
+  )
 }
 
 export async function getTokenStats() {
-  const { data } = await supabaseAdmin
-    .from('token_usage')
-    .select('user_id, model, operation, prompt_tokens, completion_tokens, cost_usd, created_at')
-    .order('created_at', { ascending: false }).limit(1000)
-  return data ?? []
+  const { rows } = await pool.query(
+    `SELECT user_id, model, operation, prompt_tokens, completion_tokens, cost_usd, created_at
+     FROM token_usage ORDER BY created_at DESC LIMIT 1000`
+  )
+  return rows
 }
 
 // ─────────────────────────── Activity Log ────────────────────────────────────
@@ -265,37 +332,43 @@ export async function logActivity(entry: {
   ip_address?: string | null; user_agent?: string | null
   severity?: 'info' | 'warning' | 'error' | 'critical'
 }): Promise<void> {
-  await supabaseAdmin.from('activity_log').insert({
-    ...entry, severity: entry.severity ?? 'info', notified: false,
-  })
+  await pool.query(
+    `INSERT INTO activity_log (user_id, event_type, event_data, ip_address, user_agent, severity, notified)
+     VALUES ($1,$2,$3,$4,$5,$6,false)`,
+    [entry.user_id ?? null, entry.event_type, entry.event_data ?? null,
+     entry.ip_address ?? null, entry.user_agent ?? null, entry.severity ?? 'info']
+  )
 }
 
 export async function getActivityLog(limit = 200): Promise<ActivityLog[]> {
-  const { data } = await supabaseAdmin
-    .from('activity_log')
-    .select('*, auth_users(name, email)')
-    .order('created_at', { ascending: false }).limit(limit)
-  return (data ?? []) as ActivityLog[]
+  const { rows } = await pool.query(
+    `SELECT al.*, json_build_object('name', u.name, 'email', u.email) AS auth_users
+     FROM activity_log al
+     LEFT JOIN auth_users u ON u.id = al.user_id
+     ORDER BY al.created_at DESC LIMIT $1`,
+    [limit]
+  )
+  return rows as ActivityLog[]
 }
 
 // ─────────────────────────── Admin Stats ─────────────────────────────────────
 
 export async function getOwnerStats() {
   const [usersRes, jobsRes, resumesRes, subsRes, tokenRes] = await Promise.all([
-    supabaseAdmin.from('auth_users').select('id', { count: 'exact', head: true }),
-    supabaseAdmin.from('job_posts').select('id', { count: 'exact', head: true }),
-    supabaseAdmin.from('resumes').select('id', { count: 'exact', head: true }),
-    supabaseAdmin.from('subscriptions').select('plan'),
-    supabaseAdmin.from('token_usage').select('cost_usd'),
+    pool.query<{ count: string }>('SELECT COUNT(*) FROM auth_users'),
+    pool.query<{ count: string }>('SELECT COUNT(*) FROM job_posts'),
+    pool.query<{ count: string }>('SELECT COUNT(*) FROM resumes'),
+    pool.query<{ plan: string }>('SELECT plan FROM subscriptions'),
+    pool.query<{ cost_usd: number }>('SELECT cost_usd FROM token_usage'),
   ])
-  const totalTokenCost = (tokenRes.data ?? []).reduce(
-    (sum: number, r: { cost_usd: number }) => sum + (r.cost_usd ?? 0), 0)
+  const totalTokenCost = tokenRes.rows.reduce(
+    (sum, r) => sum + (Number(r.cost_usd) ?? 0), 0)
   return {
-    totalUsers: usersRes.count ?? 0,
-    totalJobs: jobsRes.count ?? 0,
-    totalResumes: resumesRes.count ?? 0,
-    totalSubs: subsRes.data?.length ?? 0,
+    totalUsers: parseInt(usersRes.rows[0]?.count ?? '0'),
+    totalJobs: parseInt(jobsRes.rows[0]?.count ?? '0'),
+    totalResumes: parseInt(resumesRes.rows[0]?.count ?? '0'),
+    totalSubs: subsRes.rows.length,
     totalTokenCostUsd: totalTokenCost.toFixed(4),
-    proUsers: (subsRes.data ?? []).filter((s: { plan: string }) => s.plan === 'pro').length,
+    proUsers: subsRes.rows.filter(s => s.plan === 'pro').length,
   }
 }

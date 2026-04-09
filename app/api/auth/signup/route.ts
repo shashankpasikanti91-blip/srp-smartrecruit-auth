@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { supabaseAdmin } from '@/lib/db'
+import { pool } from '@/lib/db'
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,13 +21,10 @@ export async function POST(req: NextRequest) {
     const normalizedEmail = email.trim().toLowerCase()
 
     // Check for existing account
-    const { data: existing } = await supabaseAdmin
-      .from('auth_users')
-      .select('id')
-      .eq('email', normalizedEmail)
-      .maybeSingle()
-
-    if (existing) {
+    const { rows: existing } = await pool.query(
+      'SELECT id FROM auth_users WHERE email = $1', [normalizedEmail]
+    )
+    if (existing.length > 0) {
       return NextResponse.json({ error: 'An account with this email already exists.' }, { status: 409 })
     }
 
@@ -35,26 +32,16 @@ export async function POST(req: NextRequest) {
     const password_hash = await bcrypt.hash(password, 12)
 
     // Create user
-    const { data: user, error } = await supabaseAdmin
-      .from('auth_users')
-      .insert({
-        name: name?.trim() || null,
-        email: normalizedEmail,
-        image: null,
-        provider: 'credentials',
-        provider_id: null,
-        password_hash,
-        role: 'user',
-        product_access: ['recruit'],
-        is_active: true,
-      })
-      .select('id, email, name')
-      .single()
-
-    if (error) {
-      console.error('[signup] DB error:', error.message)
+    const { rows, rowCount } = await pool.query(
+      `INSERT INTO auth_users (name, email, image, provider, provider_id, password_hash, role, product_access, is_active)
+       VALUES ($1,$2,NULL,'credentials',NULL,$3,'user',ARRAY['recruit'],true)
+       RETURNING id, email, name`,
+      [name?.trim() || null, normalizedEmail, password_hash]
+    )
+    if (!rowCount) {
       return NextResponse.json({ error: 'Failed to create account.' }, { status: 500 })
     }
+    const user = rows[0]
 
     return NextResponse.json({ ok: true, userId: user.id }, { status: 201 })
   } catch (err) {
