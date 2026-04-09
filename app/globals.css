@@ -80,3 +80,20 @@ body {
 .animate-fade-in-up {
   animation: fadeInUp 0.6s ease-out both;
 }
+
+/* ── Dark form controls (prevent white-on-white in modals) ── */
+select,
+select option {
+  background-color: #1a1a2e;
+  color: #e5e7eb;
+}
+
+input, textarea, select {
+  color-scheme: dark;
+}
+
+/* Force dark background for browser-native select dropdowns */
+option {
+  background-color: #1a1a2e !important;
+  color: #e5e7eb !important;
+}

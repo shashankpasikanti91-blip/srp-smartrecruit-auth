@@ -118,7 +118,7 @@ export default function DashboardPage() {
   const [screenError, setScreenError] = useState('')
 
   // Compose state
-  const [composeMode, setComposeMode] = useState<'generate' | 'rewrite'>('generate')
+  const [composeMode, setComposeMode] = useState<'generate' | 'rewrite' | 'paraphrase' | 'reply'>('generate')
   const [emailType, setEmailType] = useState('interview_invite')
   const [platform, setPlatform] = useState('Gmail')
   const [tone, setTone] = useState('professional')
@@ -230,7 +230,11 @@ export default function DashboardPage() {
       const res = await fetch('/api/compose', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: composeMode, email_type: emailType, platform, tone, raw_input: rawInput, ...composeFields }),
+        body: JSON.stringify({
+          mode: composeMode === 'generate' ? 'generate' : 'rewrite',
+          action: composeMode, // 'generate' | 'rewrite' | 'paraphrase' | 'reply'
+          email_type: emailType, platform, tone, raw_input: rawInput, ...composeFields,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setComposeError(data.error ?? 'Generation failed'); return }
@@ -370,7 +374,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="relative">
                     <select value={selectedJob} onChange={e => setSelectedJob(e.target.value)}
-                      className="appearance-none pl-3 pr-8 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 cursor-pointer focus:outline-none focus:border-indigo-500">
+                      className="appearance-none pl-3 pr-8 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 cursor-pointer focus:outline-none focus:border-indigo-500">
                       <option value="">All Jobs</option>
                       {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0,8)})</option>)}
                     </select>
@@ -438,15 +442,15 @@ export default function DashboardPage() {
                     <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
                     <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
                       placeholder="Search by name or email…"
-                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
                   </div>
                   <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
-                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 focus:outline-none focus:border-indigo-500">
+                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
                     <option value="">All Stages</option>
                     {PIPELINE_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                   </select>
                   <select value={filterMatch} onChange={e => setFilterMatch(e.target.value)}
-                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 focus:outline-none focus:border-indigo-500">
+                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
                     <option value="">All Matches</option>
                     <option value="best">Best Match</option>
                     <option value="good">Good Match</option>
@@ -546,7 +550,7 @@ export default function DashboardPage() {
                     <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Job Description</label>
                     <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={10}
                       placeholder="Paste the full job description here…"
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 resize-none" />
+                      className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 resize-none" />
                     <p className="text-xs text-gray-600">Or upload JD file:</p>
                     <FileUploadZone label="Upload JD (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
                       onTexts={([t]) => setJdText(t.text)} disabled={screening} />
@@ -561,7 +565,7 @@ export default function DashboardPage() {
                       <>
                         <textarea value={resumeText} onChange={e => setResumeText(e.target.value)} rows={10}
                           placeholder="Paste the candidate's resume text here…"
-                          className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 resize-none" />
+                          className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 resize-none" />
                         <p className="text-xs text-gray-600">Or upload resume file:</p>
                         <FileUploadZone label="Upload Resume (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
                           onTexts={([t]) => setResumeText(t.text)} disabled={screening} />
@@ -573,7 +577,7 @@ export default function DashboardPage() {
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">Link to Job (optional)</label>
                       <select value={screenJobId} onChange={e => setScreenJobId(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 focus:outline-none focus:border-purple-500">
+                        className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-purple-500">
                         <option value="">— No job —</option>
                         {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0,8)})</option>)}
                       </select>
@@ -608,141 +612,291 @@ export default function DashboardPage() {
             {/* ── COMPOSE ──────────────────────────────────────────────────── */}
             {activeTab === 'compose' && (
               <div>
+                {/* Header */}
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-9 h-9 rounded-xl bg-indigo-500/20 flex items-center justify-center">
                     <Mail className="w-5 h-5 text-indigo-400" />
                   </div>
                   <div>
                     <h1 className="text-xl font-bold text-white">AI Compose</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">Generate personalised recruitment emails & messages</p>
-                  </div>
-                  <div className="ml-auto flex gap-2">
-                    {(['generate', 'rewrite'] as const).map(m => (
-                      <button key={m} onClick={() => setComposeMode(m)}
-                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${composeMode === m ? 'bg-indigo-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
-                        {m === 'generate' ? 'Generate' : 'Rewrite'}
-                      </button>
-                    ))}
+                    <p className="text-sm text-gray-500 mt-0.5">Generate, rewrite or reply to recruitment messages</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  {/* Left: controls */}
-                  <div className="space-y-5">
-                    {/* Email type grid */}
-                    <div>
-                      <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 block">Email Type</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {([
-                          { key: 'rejection',       label: '❌ Rejection' },
-                          { key: 'shortlist',       label: '✅ Shortlist' },
-                          { key: 'interview_invite',label: '📅 Interview Invite' },
-                          { key: 'offer',           label: '🎉 Offer Letter' },
-                          { key: 'followup',        label: '🔁 Follow-up' },
-                          { key: 'technical_test',  label: '🧪 Technical Test' },
-                          { key: 'thank_you',       label: '🙏 Thank You' },
-                          { key: 'on_hold',         label: '⏸ On Hold' },
-                          { key: 'reference_check', label: '📋 Reference Check' },
-                          { key: 'whatsapp_followup',label: '💬 WhatsApp Follow-up' },
-                        ] as const).map(({ key, label }) => (
-                          <button key={key} onClick={() => setEmailType(key)}
-                            className={`text-left px-3 py-2 rounded-lg text-xs font-medium transition-all ${emailType === key ? 'bg-indigo-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/8 hover:text-gray-200'}`}>
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                {/* ── Two mode cards ─────────────────────────────────── */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
 
-                    {/* Platform + Tone */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">Platform</label>
-                        <select value={platform} onChange={e => setPlatform(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 focus:outline-none focus:border-indigo-500">
-                          {['Gmail', 'LinkedIn', 'WhatsApp', 'Outlook', 'Telegram'].map(p => <option key={p}>{p}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">Tone</label>
-                        <select value={tone} onChange={e => setTone(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 focus:outline-none focus:border-indigo-500">
-                          {['formal', 'professional', 'semi-formal', 'friendly', 'casual'].map(t => <option key={t}>{t}</option>)}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Detail fields */}
-                    <div className="grid grid-cols-2 gap-3">
-                      {([
-                        { key: 'candidate_name',  label: "Candidate's Name",  placeholder: 'Priya Sharma' },
-                        { key: 'role_title',       label: 'Role Title',         placeholder: 'Senior Engineer' },
-                        { key: 'company_name',     label: 'Company Name',       placeholder: 'SRP AI Labs' },
-                        { key: 'recruiter_name',   label: 'Recruiter Name',     placeholder: 'Rahul' },
-                        { key: 'interview_date',   label: 'Interview Date',     placeholder: 'Mon 14 Jul, 3:00 PM' },
-                        { key: 'interview_format', label: 'Interview Format',   placeholder: 'Video – Zoom' },
-                        { key: 'salary_package',   label: 'Salary Package',     placeholder: '₹12 LPA' },
-                        { key: 'start_date',       label: 'Start Date',         placeholder: '1 Aug 2025' },
-                      ] as const).map(({ key, label, placeholder }) => (
-                        <div key={key}>
-                          <label className="text-xs text-gray-500 mb-1 block">{label}</label>
-                          <input value={composeFields[key]} onChange={e => setComposeFields(p => ({ ...p, [key]: e.target.value }))}
-                            placeholder={placeholder}
-                            className="w-full px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                  {/* ── Panel A: Generate New Email ── */}
+                  <div className={`rounded-2xl border p-5 transition-all ${
+                    composeMode === 'generate'
+                      ? 'border-indigo-500/50 bg-indigo-500/5 ring-1 ring-indigo-500/20'
+                      : 'border-white/8 bg-white/[0.02] opacity-60 hover:opacity-80'
+                  }`}>
+                    <button
+                      className="w-full text-left mb-4"
+                      onClick={() => setComposeMode('generate')}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${composeMode === 'generate' ? 'border-indigo-400 bg-indigo-400' : 'border-gray-600'}`}>
+                          {composeMode === 'generate' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                         </div>
-                      ))}
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1 block">Custom Notes (optional)</label>
-                      <textarea value={composeFields.custom_notes} onChange={e => setComposeFields(p => ({ ...p, custom_notes: e.target.value }))}
-                        rows={2} placeholder="Any specific details for the AI to include…"
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none" />
-                    </div>
-                    {composeMode === 'rewrite' && (
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">Original message to rewrite</label>
-                        <textarea value={rawInput} onChange={e => setRawInput(e.target.value)}
-                          rows={4} placeholder="Paste the message you want to rewrite…"
-                          className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none" />
+                        <span className="text-sm font-semibold text-white">Generate New Email</span>
+                        <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">From scratch</span>
                       </div>
-                    )}
-                    <button onClick={runCompose} disabled={composing}
-                      className="w-full flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold text-sm transition-all disabled:opacity-50">
-                      {composing ? <><Loader2 className="w-4 h-4 animate-spin" /> Composing…</> : <><Sparkles className="w-4 h-4" /> {composeMode === 'generate' ? 'Generate Message' : 'Rewrite Message'}</>}
+                      <p className="text-xs text-gray-500 pl-5">Choose email type, fill in details — AI writes it for you</p>
                     </button>
-                    {composeError && (
-                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
-                        <AlertCircle className="w-3.5 h-3.5" /> {composeError}
+
+                    {composeMode === 'generate' && (
+                      <div className="space-y-4">
+                        {/* Email type grid */}
+                        <div>
+                          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 block">Email Type</label>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {([
+                              { key: 'rejection',        label: '❌ Rejection' },
+                              { key: 'shortlist',        label: '✅ Shortlist' },
+                              { key: 'interview_invite', label: '📅 Interview Invite' },
+                              { key: 'offer',            label: '🎉 Offer Letter' },
+                              { key: 'followup',         label: '🔁 Follow-up' },
+                              { key: 'technical_test',   label: '🧪 Technical Test' },
+                              { key: 'thank_you',        label: '🙏 Thank You' },
+                              { key: 'on_hold',          label: '⏸ On Hold' },
+                              { key: 'reference_check',  label: '📋 Reference Check' },
+                              { key: 'whatsapp_followup',label: '💬 WhatsApp Follow-up' },
+                            ] as const).map(({ key, label }) => (
+                              <button key={key} onClick={() => setEmailType(key)}
+                                className={`text-left px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                                  emailType === key
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                                }`}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Platform + Tone */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-gray-400 font-medium mb-1 block">Platform</label>
+                            <select value={platform} onChange={e => setPlatform(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+                              {['Gmail', 'LinkedIn', 'WhatsApp', 'Outlook', 'Telegram'].map(p => <option key={p} className="bg-[#1a1a2e] text-gray-200">{p}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-400 font-medium mb-1 block">Tone</label>
+                            <select value={tone} onChange={e => setTone(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+                              {['formal', 'professional', 'semi-formal', 'friendly', 'casual'].map(t => <option key={t} className="bg-[#1a1a2e] text-gray-200">{t}</option>)}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Detail fields */}
+                        <div className="grid grid-cols-2 gap-2.5">
+                          {([
+                            { key: 'candidate_name',  label: "Candidate Name",    placeholder: 'Priya Sharma' },
+                            { key: 'role_title',       label: 'Role Title',        placeholder: 'Senior Engineer' },
+                            { key: 'company_name',     label: 'Company Name',      placeholder: 'SRP AI Labs' },
+                            { key: 'recruiter_name',   label: 'Recruiter Name',    placeholder: 'Rahul' },
+                            { key: 'interview_date',   label: 'Interview Date',    placeholder: 'Mon 14 Jul, 3:00 PM' },
+                            { key: 'interview_format', label: 'Interview Format',  placeholder: 'Video – Zoom' },
+                            { key: 'salary_package',   label: 'Salary Package',    placeholder: '₹12 LPA' },
+                            { key: 'start_date',       label: 'Start Date',        placeholder: '1 Aug 2025' },
+                          ] as const).map(({ key, label, placeholder }) => (
+                            <div key={key}>
+                              <label className="text-xs text-gray-400 font-medium mb-1 block">{label}</label>
+                              <input value={composeFields[key]} onChange={e => setComposeFields(p => ({ ...p, [key]: e.target.value }))}
+                                placeholder={placeholder}
+                                className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                            </div>
+                          ))}
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-400 font-medium mb-1 block">Custom Notes (optional)</label>
+                          <textarea value={composeFields.custom_notes} onChange={e => setComposeFields(p => ({ ...p, custom_notes: e.target.value }))}
+                            rows={2} placeholder="Any extra details for the AI to include…"
+                            className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none" />
+                        </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Right: output */}
-                  <div className="flex flex-col">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Output</label>
+                  {/* ── Panel B: Rewrite / Paraphrase / Reply ── */}
+                  <div className={`rounded-2xl border p-5 transition-all ${
+                    composeMode !== 'generate'
+                      ? 'border-purple-500/50 bg-purple-500/5 ring-1 ring-purple-500/20'
+                      : 'border-white/8 bg-white/[0.02] opacity-60 hover:opacity-80'
+                  }`}>
+                    <div className="mb-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className={`w-3 h-3 rounded-full border-2 ${composeMode !== 'generate' ? 'border-purple-400 bg-purple-400' : 'border-gray-600'}`} />
+                        <span className="text-sm font-semibold text-white">Rewrite / Paraphrase / Reply</span>
+                        <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">Existing message</span>
+                      </div>
+                      <p className="text-xs text-gray-500 pl-5">Paste a message — AI rewrites, rephrases, or drafts a reply</p>
+                    </div>
+
+                    {/* Action type selector */}
+                    <div className="flex gap-2 mb-4">
+                      {([
+                        { key: 'rewrite',     label: '✏️ Rewrite',     desc: 'Improve clarity & tone' },
+                        { key: 'paraphrase',  label: '🔄 Paraphrase',  desc: 'Same meaning, new words' },
+                        { key: 'reply',       label: '↩️ Reply',       desc: 'Compose a response' },
+                      ] as const).map(({ key, label, desc }) => (
+                        <button key={key} onClick={() => setComposeMode(key)}
+                          className={`flex-1 flex flex-col items-center py-2.5 px-2 rounded-xl text-xs font-medium transition-all border ${
+                            composeMode === key
+                              ? 'bg-purple-600 border-purple-500 text-white'
+                              : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                          }`}>
+                          <span className="text-sm mb-0.5">{label.split(' ')[0]}</span>
+                          <span className="font-semibold">{label.split(' ')[1]}</span>
+                          <span className={`text-[10px] mt-0.5 ${composeMode === key ? 'text-purple-200' : 'text-gray-600'}`}>{desc}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {composeMode !== 'generate' && (
+                      <div className="space-y-3">
+                        {/* Original message */}
+                        <div>
+                          <label className="text-xs text-gray-400 font-medium mb-1 block">
+                            {composeMode === 'reply' ? 'Message to reply to' : 'Original message'}
+                          </label>
+                          <textarea value={rawInput} onChange={e => setRawInput(e.target.value)}
+                            rows={7} placeholder={
+                              composeMode === 'reply'
+                                ? 'Paste the message you received and want to reply to…'
+                                : 'Paste the message you want to rewrite or paraphrase…'
+                            }
+                            className="w-full px-3 py-2.5 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 resize-none" />
+                        </div>
+
+                        {/* Context for reply */}
+                        {composeMode === 'reply' && (
+                          <div className="grid grid-cols-2 gap-2.5">
+                            {([
+                              { key: 'candidate_name', label: 'Candidate Name',  placeholder: 'Priya Sharma' },
+                              { key: 'role_title',      label: 'Role Title',      placeholder: 'Senior Engineer' },
+                              { key: 'company_name',    label: 'Company Name',    placeholder: 'SRP AI Labs' },
+                              { key: 'recruiter_name',  label: 'Recruiter Name',  placeholder: 'Rahul' },
+                            ] as const).map(({ key, label, placeholder }) => (
+                              <div key={key}>
+                                <label className="text-xs text-gray-400 font-medium mb-1 block">{label}</label>
+                                <input value={composeFields[key]} onChange={e => setComposeFields(p => ({ ...p, [key]: e.target.value }))}
+                                  placeholder={placeholder}
+                                  className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500" />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Tone for rewrite/paraphrase */}
+                        {composeMode !== 'reply' && (
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs text-gray-400 font-medium mb-1 block">Tone</label>
+                              <select value={tone} onChange={e => setTone(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-purple-500">
+                                {['formal', 'professional', 'semi-formal', 'friendly', 'casual'].map(t => <option key={t} className="bg-[#1a1a2e] text-gray-200">{t}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-400 font-medium mb-1 block">Platform</label>
+                              <select value={platform} onChange={e => setPlatform(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-purple-500">
+                                {['Gmail', 'LinkedIn', 'WhatsApp', 'Outlook', 'Telegram'].map(p => <option key={p} className="bg-[#1a1a2e] text-gray-200">{p}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="text-xs text-gray-400 font-medium mb-1 block">Extra instructions (optional)</label>
+                          <input value={composeFields.custom_notes} onChange={e => setComposeFields(p => ({ ...p, custom_notes: e.target.value }))}
+                            placeholder="e.g. keep it under 3 sentences, mention the referral bonus…"
+                            className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Generate button (always visible) ── */}
+                {true && (
+                  <div className="flex items-center gap-3 mb-5">
+                    <button onClick={runCompose}
+                      disabled={composing || (composeMode !== 'generate' && !rawInput.trim())}
+                      className={`flex items-center gap-2 px-8 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-50 ${
+                        composeMode === 'generate'
+                          ? 'bg-indigo-600 hover:bg-indigo-500'
+                          : 'bg-purple-600 hover:bg-purple-500'
+                      }`}>
+                      {composing
+                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Composing…</>
+                        : composeMode === 'generate'
+                          ? <><Sparkles className="w-4 h-4" /> Generate Email</>
+                          : composeMode === 'rewrite'
+                            ? <><RefreshCw className="w-4 h-4" /> Rewrite Message</>
+                            : composeMode === 'paraphrase'
+                              ? <><RefreshCw className="w-4 h-4" /> Paraphrase</>
+                              : <><Send className="w-4 h-4" /> Draft Reply</>
+                      }
+                    </button>
+                    {composeOutput && (
+                      <>
+                        <button onClick={copyOutput}
+                          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
+                          {copied ? <><Check className="w-3.5 h-3.5 text-green-400" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                        </button>
+                        <button onClick={runCompose}
+                          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
+                          <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+                        </button>
+                      </>
+                    )}
+                    {composeError && (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {composeError}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Output panel ── */}
+                <div className={`rounded-2xl border transition-all ${
+                  composeOutput ? 'border-white/10 bg-white/[0.03]' : 'border-white/5 bg-white/[0.01]'
+                }`}>
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-white/5">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-gray-600" />
+                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Output</span>
                       {composeOutput && (
-                        <div className="flex gap-2">
-                          <button onClick={copyOutput}
-                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-white px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 transition-all">
-                            {copied ? <><Check className="w-3 h-3 text-green-400" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy</>}
-                          </button>
-                          <button onClick={runCompose}
-                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-white px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 transition-all">
-                            <RefreshCw className="w-3 h-3" /> Regenerate
-                          </button>
-                        </div>
+                        <span className="text-xs text-gray-600">· {composeOutput.split(' ').length} words</span>
                       )}
                     </div>
-                    <div className={`flex-1 min-h-[420px] rounded-xl border p-4 text-sm whitespace-pre-wrap leading-relaxed ${
-                      composeOutput ? 'bg-white/[0.03] border-white/10 text-gray-200' : 'bg-white/[0.015] border-white/5 text-gray-700 flex items-center justify-center'
-                    }`}>
-                      {composeOutput || (
-                        <div className="text-center">
-                          <Mail className="w-8 h-8 text-gray-700 mx-auto mb-2" />
-                          <p>Fill in the details and click Generate</p>
-                        </div>
-                      )}
-                    </div>
+                    {composeMode !== 'generate' && composeOutput && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300">
+                        {composeMode === 'reply' ? 'Reply drafted' : composeMode === 'paraphrase' ? 'Paraphrased' : 'Rewritten'}
+                      </span>
+                    )}
+                  </div>
+                  <div className={`px-5 py-5 text-sm leading-relaxed whitespace-pre-wrap min-h-[200px] ${
+                    composeOutput ? 'text-gray-200' : 'text-gray-700 flex items-center justify-center'
+                  }`}>
+                    {composeOutput || (
+                      <div className="text-center py-4 w-full">
+                        <Mail className="w-8 h-8 text-gray-800 mx-auto mb-2" />
+                        <p className="text-gray-600 text-xs">
+                          {composeMode === 'generate'
+                            ? 'Choose an email type and fill in details, then click Generate'
+                            : 'Paste a message in the panel above, then click the action button'}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -892,13 +1046,13 @@ export default function DashboardPage() {
                   <label className="text-xs text-gray-500 mb-1 block">{label}</label>
                   <input value={newJob[key]} onChange={e => setNewJob(p => ({ ...p, [key]: e.target.value }))}
                     placeholder={placeholder}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                    className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
                 </div>
               ))}
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Type</label>
                 <select value={newJob.type} onChange={e => setNewJob(p => ({ ...p, type: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 focus:outline-none focus:border-indigo-500">
+                  className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
                   {['full-time', 'part-time', 'contract', 'remote', 'internship'].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
@@ -906,7 +1060,7 @@ export default function DashboardPage() {
                 <label className="text-xs text-gray-500 mb-1 block">Description</label>
                 <textarea value={newJob.description} onChange={e => setNewJob(p => ({ ...p, description: e.target.value }))}
                   rows={3} placeholder="Role overview…"
-                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none" />
+                  className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none" />
               </div>
             </div>
             <div className="flex gap-3 mt-5">
@@ -939,13 +1093,13 @@ export default function DashboardPage() {
                   <label className="text-xs text-gray-500 mb-1 block">{label}</label>
                   <input value={newCand[key]} onChange={e => setNewCand(p => ({ ...p, [key]: e.target.value }))}
                     placeholder={placeholder}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                    className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
                 </div>
               ))}
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Assign to Job (optional)</label>
                 <select value={newCand.job_post_id} onChange={e => setNewCand(p => ({ ...p, job_post_id: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 focus:outline-none focus:border-indigo-500">
+                  className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
                   <option value="">— No job —</option>
                   {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0, 8)})</option>)}
                 </select>

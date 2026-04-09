@@ -101,19 +101,50 @@ export async function POST(req: NextRequest) {
       salary_package,
       start_date,
       custom_notes,
-      raw_input,    // for rewrite/paraphrase mode
-      mode,         // 'generate' | 'rewrite' | 'paraphrase'
+      raw_input,    // for rewrite/paraphrase/reply mode
+      mode,         // 'generate' | 'rewrite'
+      action,       // 'generate' | 'rewrite' | 'paraphrase' | 'reply' (new granular field)
     } = body as Record<string, string>
 
-    if (!email_type && !raw_input) {
-      return NextResponse.json({ error: 'email_type or raw_input required' }, { status: 400 })
+    const effectiveAction = action ?? mode ?? 'generate'
+
+    if (effectiveAction === 'generate' && !email_type) {
+      return NextResponse.json({ error: 'email_type required for generate mode' }, { status: 400 })
+    }
+    if ((effectiveAction === 'rewrite' || effectiveAction === 'paraphrase' || effectiveAction === 'reply') && !raw_input) {
+      return NextResponse.json({ error: 'raw_input required for rewrite/paraphrase/reply mode' }, { status: 400 })
     }
 
     let userMessage = ''
 
-    if (mode === 'rewrite' || mode === 'paraphrase') {
-      userMessage = `${mode === 'rewrite' ? 'Rewrite' : 'Paraphrase'} the following message for the ${platform ?? 'email'} platform with a ${tone ?? 'professional'} tone:\n\n${raw_input}`
+    if (effectiveAction === 'rewrite') {
+      userMessage = `Rewrite the following message to improve clarity, flow and professionalism. Keep the same intent and key information. Platform: ${platform ?? 'Email'}. Tone: ${tone ?? 'professional'}.${custom_notes ? ` Additional instructions: ${custom_notes}` : ''}
+
+Original message:
+${raw_input}
+
+Rewritten version:`
+    } else if (effectiveAction === 'paraphrase') {
+      userMessage = `Paraphrase the following message — convey the same meaning using different words and sentence structure. Platform: ${platform ?? 'Email'}. Tone: ${tone ?? 'professional'}.${custom_notes ? ` Additional instructions: ${custom_notes}` : ''}
+
+Original message:
+${raw_input}
+
+Paraphrased version:`
+    } else if (effectiveAction === 'reply') {
+      userMessage = `Draft a professional reply to the following message. Platform: ${platform ?? 'Email'}. Tone: ${tone ?? 'professional'}.
+${recruiter_name ? `The person replying is: ${recruiter_name}` : ''}
+${candidate_name ? `Replying to: ${candidate_name}` : ''}
+${role_title ? `Role context: ${role_title}` : ''}
+${company_name ? `Company: ${company_name}` : ''}
+${custom_notes ? `Additional instructions: ${custom_notes}` : ''}
+
+Message to reply to:
+${raw_input}
+
+Reply:`
     } else {
+      // Generate new email from scratch
       const typePrompt = EMAIL_TYPE_PROMPTS[email_type] ?? `Generate a professional recruitment email of type: ${email_type}.`
       userMessage = `${typePrompt}
 
