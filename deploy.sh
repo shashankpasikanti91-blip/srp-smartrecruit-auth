@@ -8,7 +8,7 @@ set -euo pipefail
 
 APP_DIR="/opt/srp-smartrecruit-auth"
 REPO_URL="https://github.com/SRP-AI-Labs/srp-smartrecruit-auth.git"
-DOMAIN="app.srpailabs.com"
+DOMAIN="recruit.srpailabs.com"
 NGINX_CONF="/etc/nginx/sites-available/${DOMAIN}"
 
 echo "=== SRP AI Labs SmartRecruit — Hetzner Deploy ==="

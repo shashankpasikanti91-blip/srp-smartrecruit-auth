@@ -1,6 +1,6 @@
 # SRP AI Labs — SmartRecruit
 
-**Live:** https://app.srpailabs.com  
+**Live:** https://recruit.srpailabs.com  
 **Stack:** Next.js 16 · NextAuth v4 · Supabase · Tailwind CSS · TypeScript
 
 > Agentic AI recruiting platform — source, match, engage, and manage talent.
@@ -48,7 +48,7 @@ npm run dev
 | Variable | Where | Description |
 |---|---|---|
 | `NEXTAUTH_SECRET` | server | Random 32-byte base64 string |
-| `NEXTAUTH_URL` | server | Full URL (`https://app.srpailabs.com`) |
+| `NEXTAUTH_URL` | server | Full URL (`https://recruit.srpailabs.com`) |
 | `GOOGLE_CLIENT_ID` | server | From Google Cloud Console |
 | `GOOGLE_CLIENT_SECRET` | server | From Google Cloud Console |
 | `NEXT_PUBLIC_SUPABASE_URL` | public | Supabase project URL |
@@ -76,7 +76,7 @@ bash deploy.sh
 ### DNS record
 Add an `A` record in Cloudflare / your DNS provider:
 ```
-app.srpailabs.com  →  5.223.67.236
+recruit.srpailabs.com  →  5.223.67.236
 ```
 
 ### GitHub Actions (automatic deploy on push to main)
@@ -100,7 +100,7 @@ git pull && docker compose up -d --build
 ## Architecture
 
 ```
-app.srpailabs.com (Cloudflare)
+recruit.srpailabs.com (Cloudflare)
     │
     ▼
 Nginx on Hetzner 5.223.67.236  (port 443 SSL)

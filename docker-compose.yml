@@ -1,6 +1,6 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # SRP AI Labs SmartRecruit — Production Docker Compose
-# Server: Hetzner 5.223.67.236  |  Domain: app.srpailabs.com
+# Server: Hetzner 5.223.67.236  |  Domain: recruit.srpailabs.com
 # Port:   127.0.0.1:3010:3000 (nginx reverse proxy — NOT exposed to internet)
 # DB:     Supabase (external) — no local postgres needed
 # Other projects (srp-ats on 8009, mediflow, n8n) are NOT affected.
