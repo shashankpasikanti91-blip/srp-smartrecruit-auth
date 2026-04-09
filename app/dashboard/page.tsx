@@ -1,12 +1,15 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import {
   Briefcase, Users, Search, Plus, ChevronDown, LogOut,
-  Zap, Star, TrendingUp, Filter, X, Crown,
-  ArrowRight, BarChart3, Target, Inbox, Clock, CheckCircle
+  Zap, Star, TrendingUp, X, Crown, Filter,
+  ArrowRight, BarChart3, Target, Inbox, Clock, CheckCircle,
+  Upload, FileText, Sparkles, Copy, Check, Mail,
+  RefreshCw, AlertCircle, Layers, Brain, ChevronRight,
+  MoreVertical, Send, Loader2, Download
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -26,6 +29,16 @@ interface Candidate {
 }
 
 interface StageCounts { [stage: string]: number }
+
+interface ScreenResult {
+  name: string; email: string; contact_number?: string; current_company?: string
+  score: number; decision: string
+  evaluation?: {
+    strengths?: string[]; weaknesses?: string[]; missing_skills?: string[]
+    risk_flags?: string[]; justification?: string
+  }
+  candidate_id?: string
+}
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const PIPELINE_STAGES = [
@@ -70,7 +83,7 @@ export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const [activeTab, setActiveTab] = useState<'pipeline' | 'candidates' | 'jobs' | 'analytics'>('pipeline')
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'candidates' | 'screen' | 'compose' | 'jobs' | 'analytics'>('pipeline')
   const [jobs, setJobs] = useState<Job[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [stageCounts, setStageCounts] = useState<StageCounts>({})
@@ -89,6 +102,35 @@ export default function DashboardPage() {
   const [showNewCandidate, setShowNewCandidate] = useState(false)
   const [newCand, setNewCand] = useState({ candidate_name: '', candidate_email: '', candidate_phone: '', ai_skills: '', job_post_id: '' })
   const [savingCand, setSavingCand] = useState(false)
+
+  // Drag & drop state
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null)
+
+  // AI Screen state
+  const [screenMode, setScreenMode] = useState<'single' | 'bulk'>('single')
+  const [jdText, setJdText] = useState('')
+  const [resumeText, setResumeText] = useState('')
+  const [bulkTexts, setBulkTexts] = useState<Array<{ text: string; filename: string }>>([])
+  const [screenJobId, setScreenJobId] = useState('')
+  const [screening, setScreening] = useState(false)
+  const [screenResults, setScreenResults] = useState<ScreenResult[]>([])
+  const [screenError, setScreenError] = useState('')
+
+  // Compose state
+  const [composeMode, setComposeMode] = useState<'generate' | 'rewrite'>('generate')
+  const [emailType, setEmailType] = useState('interview_invite')
+  const [platform, setPlatform] = useState('Gmail')
+  const [tone, setTone] = useState('professional')
+  const [composeFields, setComposeFields] = useState({
+    candidate_name: '', role_title: '', company_name: '', recruiter_name: '',
+    interview_date: '', interview_format: '', salary_package: '', start_date: '', custom_notes: '',
+  })
+  const [rawInput, setRawInput] = useState('')
+  const [composing, setComposing] = useState(false)
+  const [composeOutput, setComposeOutput] = useState('')
+  const [composeError, setComposeError] = useState('')
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login')
@@ -146,12 +188,63 @@ export default function DashboardPage() {
   }
 
   const moveStage = async (candidateId: string, stage: string) => {
+    // Optimistic update
+    setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, pipeline_stage: stage } : c))
+    setStageCounts(prev => {
+      const old = candidates.find(c => c.id === candidateId)?.pipeline_stage
+      if (!old) return prev
+      return { ...prev, [old]: Math.max(0, (prev[old] ?? 1) - 1), [stage]: (prev[stage] ?? 0) + 1 }
+    })
     await fetch(`/api/candidates/${candidateId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pipeline_stage: stage }),
     })
-    loadData()
+  }
+
+  const runScreening = async () => {
+    setScreening(true); setScreenError(''); setScreenResults([])
+    try {
+      const resumes = screenMode === 'single'
+        ? [{ text: resumeText, filename: 'pasted_resume' }]
+        : bulkTexts
+      const res = await fetch('/api/screen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jd_text: jdText, resumes, job_post_id: screenJobId || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setScreenError(data.error ?? 'Screening failed'); return }
+      setScreenResults(data.results ?? [])
+      if ((data.results?.length ?? 0) > 0) loadData()
+    } catch (e) {
+      setScreenError(String(e))
+    } finally {
+      setScreening(false)
+    }
+  }
+
+  const runCompose = async () => {
+    setComposing(true); setComposeError(''); setComposeOutput('')
+    try {
+      const res = await fetch('/api/compose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: composeMode, email_type: emailType, platform, tone, raw_input: rawInput, ...composeFields }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setComposeError(data.error ?? 'Generation failed'); return }
+      setComposeOutput(data.content ?? '')
+    } catch (e) {
+      setComposeError(String(e))
+    } finally {
+      setComposing(false)
+    }
+  }
+
+  const copyOutput = async () => {
+    await navigator.clipboard.writeText(composeOutput)
+    setCopied(true); setTimeout(() => setCopied(false), 2000)
   }
 
   if (status === 'loading') {
@@ -191,18 +284,22 @@ export default function DashboardPage() {
 
           <nav className="flex-1 px-3 py-4 space-y-1">
             {([
-              { tab: 'pipeline',   icon: BarChart3,  label: 'Pipeline'   },
-              { tab: 'candidates', icon: Users,       label: 'Candidates' },
-              { tab: 'jobs',       icon: Briefcase,   label: 'Jobs'       },
-              { tab: 'analytics',  icon: TrendingUp,  label: 'Analytics'  },
-            ] as const).map(({ tab, icon: Icon, label }) => (
+              { tab: 'pipeline',   icon: Layers,      label: 'Pipeline',   badge: null },
+              { tab: 'candidates', icon: Users,        label: 'Candidates', badge: null },
+              { tab: 'screen',     icon: Brain,        label: 'AI Screen',  badge: 'AI' },
+              { tab: 'compose',    icon: Mail,         label: 'Compose',    badge: 'AI' },
+              { tab: 'jobs',       icon: Briefcase,    label: 'Jobs',       badge: null },
+              { tab: 'analytics',  icon: BarChart3,    label: 'Analytics',  badge: null },
+            ] as const).map(({ tab, icon: Icon, label, badge }) => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   activeTab === tab
                     ? 'bg-indigo-600 text-white'
                     : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}>
-                <Icon className="w-4 h-4" /> {label}
+                <Icon className="w-4 h-4" />
+                <span className="flex-1 text-left">{label}</span>
+                {badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300">{badge}</span>}
               </button>
             ))}
 
@@ -269,7 +366,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h1 className="text-xl font-bold text-white">Pipeline</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">Track candidates across every hiring stage</p>
+                    <p className="text-sm text-gray-500 mt-0.5">Drag & drop candidates across stages</p>
                   </div>
                   <div className="relative">
                     <select value={selectedJob} onChange={e => setSelectedJob(e.target.value)}
@@ -289,17 +386,32 @@ export default function DashboardPage() {
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                     {PIPELINE_STAGES.map(stage => {
                       const stageCands = candidates.filter(c => c.pipeline_stage === stage.key)
+                      const isOver = dragOverStage === stage.key
                       return (
-                        <div key={stage.key} className="flex flex-col">
+                        <div key={stage.key} className="flex flex-col"
+                          onDragOver={e => { e.preventDefault(); setDragOverStage(stage.key) }}
+                          onDragLeave={() => setDragOverStage(null)}
+                          onDrop={e => {
+                            e.preventDefault()
+                            if (draggingId) moveStage(draggingId, stage.key)
+                            setDraggingId(null); setDragOverStage(null)
+                          }}>
                           <div className={`flex items-center justify-between px-3 py-2 rounded-t-lg ${stage.color}`}>
                             <span className={`text-xs font-semibold ${stage.text}`}>{stage.label}</span>
                             <span className={`text-xs font-bold ${stage.text}`}>{stageCands.length}</span>
                           </div>
-                          <div className="flex-1 bg-white/[0.02] border border-t-0 border-white/5 rounded-b-lg p-2 space-y-2 min-h-[280px]">
+                          <div className={`flex-1 border border-t-0 rounded-b-lg p-2 space-y-2 min-h-[280px] transition-colors ${
+                            isOver ? 'bg-indigo-500/10 border-indigo-500/40' : 'bg-white/[0.02] border-white/5'
+                          }`}>
                             {stageCands.length === 0
-                              ? <p className="text-center text-xs text-gray-700 pt-6">Empty</p>
+                              ? <p className={`text-center text-xs pt-6 ${isOver ? 'text-indigo-400' : 'text-gray-700'}`}>
+                                  {isOver ? 'Drop here' : 'Empty'}
+                                </p>
                               : stageCands.map(c => (
-                                  <CandidateCard key={c.id} candidate={c} onMove={moveStage} />
+                                  <KanbanCard key={c.id} candidate={c} onMove={moveStage}
+                                    dragging={draggingId === c.id}
+                                    onDragStart={() => setDraggingId(c.id)}
+                                    onDragEnd={() => { setDraggingId(null); setDragOverStage(null) }} />
                                 ))
                             }
                           </div>
@@ -407,6 +519,235 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {/* ── AI SCREEN ────────────────────────────────────────────────── */}
+            {activeTab === 'screen' && (
+              <div>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                    <Brain className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-bold text-white">AI Screening</h1>
+                    <p className="text-sm text-gray-500 mt-0.5">Score & rank candidates against your job description</p>
+                  </div>
+                  <div className="ml-auto flex gap-2">
+                    {(['single', 'bulk'] as const).map(m => (
+                      <button key={m} onClick={() => setScreenMode(m)}
+                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${screenMode === m ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                        {m === 'single' ? 'Single CV' : 'Bulk CVs'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+                  {/* JD panel */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Job Description</label>
+                    <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={10}
+                      placeholder="Paste the full job description here…"
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 resize-none" />
+                    <p className="text-xs text-gray-600">Or upload JD file:</p>
+                    <FileUploadZone label="Upload JD (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
+                      onTexts={([t]) => setJdText(t.text)} disabled={screening} />
+                  </div>
+
+                  {/* Resume panel */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      {screenMode === 'single' ? 'Candidate Resume' : `Bulk Resumes (${bulkTexts.length} loaded)`}
+                    </label>
+                    {screenMode === 'single' ? (
+                      <>
+                        <textarea value={resumeText} onChange={e => setResumeText(e.target.value)} rows={10}
+                          placeholder="Paste the candidate's resume text here…"
+                          className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 resize-none" />
+                        <p className="text-xs text-gray-600">Or upload resume file:</p>
+                        <FileUploadZone label="Upload Resume (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
+                          onTexts={([t]) => setResumeText(t.text)} disabled={screening} />
+                      </>
+                    ) : (
+                      <FileUploadZone label="Upload multiple CVs (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple
+                        onTexts={ts => setBulkTexts(ts)} disabled={screening} />
+                    )}
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Link to Job (optional)</label>
+                      <select value={screenJobId} onChange={e => setScreenJobId(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 focus:outline-none focus:border-purple-500">
+                        <option value="">— No job —</option>
+                        {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0,8)})</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {screenError && (
+                  <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm mb-4">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" /> {screenError}
+                    {screenError.includes('OPENAI_API_KEY') && <span className="ml-1 text-gray-500">— add <code className="text-red-300">OPENAI_API_KEY</code> to your .env file</span>}
+                  </div>
+                )}
+
+                <button onClick={runScreening}
+                  disabled={screening || !jdText || (screenMode === 'single' ? !resumeText : bulkTexts.length === 0)}
+                  className="mb-6 flex items-center gap-2 px-6 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 font-semibold text-sm transition-all disabled:opacity-50">
+                  {screening ? <><Loader2 className="w-4 h-4 animate-spin" /> Screening…</> : <><Sparkles className="w-4 h-4" /> Run AI Screening</>}
+                </button>
+
+                {screenResults.length > 0 && (
+                  <div className="space-y-3">
+                    <h2 className="text-sm font-semibold text-gray-300">{screenResults.length} result{screenResults.length > 1 ? 's' : ''}</h2>
+                    {screenResults.map((r, i) => (
+                      <ScreenResultCard key={i} result={r} onAddCandidate={(cid) => { loadData() }} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── COMPOSE ──────────────────────────────────────────────────── */}
+            {activeTab === 'compose' && (
+              <div>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/20 flex items-center justify-center">
+                    <Mail className="w-5 h-5 text-indigo-400" />
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-bold text-white">AI Compose</h1>
+                    <p className="text-sm text-gray-500 mt-0.5">Generate personalised recruitment emails & messages</p>
+                  </div>
+                  <div className="ml-auto flex gap-2">
+                    {(['generate', 'rewrite'] as const).map(m => (
+                      <button key={m} onClick={() => setComposeMode(m)}
+                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${composeMode === m ? 'bg-indigo-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                        {m === 'generate' ? 'Generate' : 'Rewrite'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  {/* Left: controls */}
+                  <div className="space-y-5">
+                    {/* Email type grid */}
+                    <div>
+                      <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 block">Email Type</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {([
+                          { key: 'rejection',       label: '❌ Rejection' },
+                          { key: 'shortlist',       label: '✅ Shortlist' },
+                          { key: 'interview_invite',label: '📅 Interview Invite' },
+                          { key: 'offer',           label: '🎉 Offer Letter' },
+                          { key: 'followup',        label: '🔁 Follow-up' },
+                          { key: 'technical_test',  label: '🧪 Technical Test' },
+                          { key: 'thank_you',       label: '🙏 Thank You' },
+                          { key: 'on_hold',         label: '⏸ On Hold' },
+                          { key: 'reference_check', label: '📋 Reference Check' },
+                          { key: 'whatsapp_followup',label: '💬 WhatsApp Follow-up' },
+                        ] as const).map(({ key, label }) => (
+                          <button key={key} onClick={() => setEmailType(key)}
+                            className={`text-left px-3 py-2 rounded-lg text-xs font-medium transition-all ${emailType === key ? 'bg-indigo-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/8 hover:text-gray-200'}`}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Platform + Tone */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Platform</label>
+                        <select value={platform} onChange={e => setPlatform(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 focus:outline-none focus:border-indigo-500">
+                          {['Gmail', 'LinkedIn', 'WhatsApp', 'Outlook', 'Telegram'].map(p => <option key={p}>{p}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Tone</label>
+                        <select value={tone} onChange={e => setTone(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300 focus:outline-none focus:border-indigo-500">
+                          {['formal', 'professional', 'semi-formal', 'friendly', 'casual'].map(t => <option key={t}>{t}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Detail fields */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {([
+                        { key: 'candidate_name',  label: "Candidate's Name",  placeholder: 'Priya Sharma' },
+                        { key: 'role_title',       label: 'Role Title',         placeholder: 'Senior Engineer' },
+                        { key: 'company_name',     label: 'Company Name',       placeholder: 'SRP AI Labs' },
+                        { key: 'recruiter_name',   label: 'Recruiter Name',     placeholder: 'Rahul' },
+                        { key: 'interview_date',   label: 'Interview Date',     placeholder: 'Mon 14 Jul, 3:00 PM' },
+                        { key: 'interview_format', label: 'Interview Format',   placeholder: 'Video – Zoom' },
+                        { key: 'salary_package',   label: 'Salary Package',     placeholder: '₹12 LPA' },
+                        { key: 'start_date',       label: 'Start Date',         placeholder: '1 Aug 2025' },
+                      ] as const).map(({ key, label, placeholder }) => (
+                        <div key={key}>
+                          <label className="text-xs text-gray-500 mb-1 block">{label}</label>
+                          <input value={composeFields[key]} onChange={e => setComposeFields(p => ({ ...p, [key]: e.target.value }))}
+                            placeholder={placeholder}
+                            className="w-full px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                        </div>
+                      ))}
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Custom Notes (optional)</label>
+                      <textarea value={composeFields.custom_notes} onChange={e => setComposeFields(p => ({ ...p, custom_notes: e.target.value }))}
+                        rows={2} placeholder="Any specific details for the AI to include…"
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none" />
+                    </div>
+                    {composeMode === 'rewrite' && (
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Original message to rewrite</label>
+                        <textarea value={rawInput} onChange={e => setRawInput(e.target.value)}
+                          rows={4} placeholder="Paste the message you want to rewrite…"
+                          className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none" />
+                      </div>
+                    )}
+                    <button onClick={runCompose} disabled={composing}
+                      className="w-full flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold text-sm transition-all disabled:opacity-50">
+                      {composing ? <><Loader2 className="w-4 h-4 animate-spin" /> Composing…</> : <><Sparkles className="w-4 h-4" /> {composeMode === 'generate' ? 'Generate Message' : 'Rewrite Message'}</>}
+                    </button>
+                    {composeError && (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+                        <AlertCircle className="w-3.5 h-3.5" /> {composeError}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: output */}
+                  <div className="flex flex-col">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Output</label>
+                      {composeOutput && (
+                        <div className="flex gap-2">
+                          <button onClick={copyOutput}
+                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-white px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 transition-all">
+                            {copied ? <><Check className="w-3 h-3 text-green-400" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy</>}
+                          </button>
+                          <button onClick={runCompose}
+                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-white px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 transition-all">
+                            <RefreshCw className="w-3 h-3" /> Regenerate
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className={`flex-1 min-h-[420px] rounded-xl border p-4 text-sm whitespace-pre-wrap leading-relaxed ${
+                      composeOutput ? 'bg-white/[0.03] border-white/10 text-gray-200' : 'bg-white/[0.015] border-white/5 text-gray-700 flex items-center justify-center'
+                    }`}>
+                      {composeOutput || (
+                        <div className="text-center">
+                          <Mail className="w-8 h-8 text-gray-700 mx-auto mb-2" />
+                          <p>Fill in the details and click Generate</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ── JOBS ─────────────────────────────────────────────────────── */}
             {activeTab === 'jobs' && (
               <div>
@@ -466,14 +807,47 @@ export default function DashboardPage() {
             {activeTab === 'analytics' && (
               <div>
                 <h1 className="text-xl font-bold text-white mb-6">Analytics</h1>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                  {PIPELINE_STAGES.map(s => (
-                    <div key={s.key} className="glass-card rounded-xl p-4 border border-white/5">
-                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{s.label}</p>
-                      <p className="text-3xl font-extrabold text-white">{stageCounts[s.key] ?? 0}</p>
+
+                {/* KPI cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  {[
+                    { label: 'Total Candidates', value: totalCandidates,  icon: Users,       color: 'text-indigo-400' },
+                    { label: 'Hired',             value: hiredCount,        icon: CheckCircle, color: 'text-green-400' },
+                    { label: 'Interviews',        value: interviewCount,    icon: Clock,       color: 'text-amber-400' },
+                    { label: 'Conversion Rate',   value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '0%', icon: TrendingUp, color: 'text-purple-400' },
+                  ].map(({ label, value, icon: Icon, color }) => (
+                    <div key={label} className="glass-card rounded-xl p-5 border border-white/5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Icon className={`w-4 h-4 ${color}`} />
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
+                      </div>
+                      <p className="text-3xl font-extrabold text-white">{value}</p>
                     </div>
                   ))}
                 </div>
+
+                {/* Hiring funnel */}
+                <div className="glass-card rounded-xl p-5 border border-white/5 mb-5">
+                  <h2 className="text-sm font-semibold text-gray-300 mb-4">Hiring Funnel</h2>
+                  <div className="space-y-3">
+                    {PIPELINE_STAGES.map(s => {
+                      const count = stageCounts[s.key] ?? 0
+                      const pct = totalCandidates > 0 ? Math.round((count / totalCandidates) * 100) : 0
+                      return (
+                        <div key={s.key} className="flex items-center gap-3">
+                          <span className={`text-xs w-20 font-medium ${s.text}`}>{s.label}</span>
+                          <div className="flex-1 h-2.5 bg-white/5 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${s.color}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs text-gray-500 w-8 text-right">{count}</span>
+                          <span className="text-xs text-gray-600 w-10 text-right">{pct}%</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* AI match distribution */}
                 <div className="glass-card rounded-xl p-5 border border-white/5">
                   <h2 className="text-sm font-semibold text-gray-300 mb-4">AI Match Distribution</h2>
                   <div className="space-y-3">
@@ -483,11 +857,12 @@ export default function DashboardPage() {
                       const cfg = MATCH_CONFIG[m]
                       return (
                         <div key={m} className="flex items-center gap-3">
-                          <span className={`text-xs w-24 ${cfg.text}`}>{cfg.label}</span>
-                          <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                          <span className={`text-xs w-24 font-medium ${cfg.text}`}>{cfg.label}</span>
+                          <div className="flex-1 h-2.5 bg-white/5 rounded-full overflow-hidden">
                             <div className={`h-full rounded-full ${cfg.bg.replace('/20', '/60')}`} style={{ width: `${pct}%` }} />
                           </div>
-                          <span className="text-xs text-gray-500 w-10 text-right">{count}</span>
+                          <span className="text-xs text-gray-500 w-8 text-right">{count}</span>
+                          <span className="text-xs text-gray-600 w-10 text-right">{pct}%</span>
                         </div>
                       )
                     })}
@@ -590,18 +965,158 @@ export default function DashboardPage() {
   )
 }
 
-// ── Candidate Card (pipeline kanban) ──────────────────────────────────────────
-function CandidateCard({ candidate: c, onMove }: {
-  candidate: Candidate
-  onMove: (id: string, stage: string) => void
+// ── ScoreRing ─────────────────────────────────────────────────────────────────
+function ScoreRing({ score, size = 52 }: { score: number; size?: number }) {
+  const r = (size / 2) - 5
+  const circ = 2 * Math.PI * r
+  const offset = circ * (1 - Math.min(100, Math.max(0, score)) / 100)
+  const color = score >= 75 ? '#10b981' : score >= 60 ? '#3b82f6' : score >= 45 ? '#f59e0b' : '#ef4444'
+  return (
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={4.5} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={4.5}
+        strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" style={{ transition: 'stroke-dashoffset .6s ease' }} />
+      <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central"
+        style={{ transform: 'rotate(90deg)', transformOrigin: '50% 50%', fill: color, fontSize: size * 0.22, fontWeight: 700 }}>
+        {Math.round(score)}
+      </text>
+    </svg>
+  )
+}
+
+// ── FileUploadZone ────────────────────────────────────────────────────────────
+function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
+  label: string; accept: string; multiple: boolean
+  onTexts: (items: Array<{ text: string; filename: string }>) => void; disabled?: boolean
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  const [dragging, setDragging] = useState(false)
+  const [parsing, setParsing] = useState(false)
+  const [names, setNames] = useState<string[]>([])
+
+  const parseFiles = async (files: FileList) => {
+    setParsing(true)
+    const results: Array<{ text: string; filename: string }> = []
+    for (const file of Array.from(files)) {
+      const fd = new FormData(); fd.append('file', file)
+      try {
+        const res = await fetch('/api/parse', { method: 'POST', body: fd })
+        if (res.ok) { const d = await res.json(); results.push({ text: d.text, filename: file.name }) }
+      } catch { /* skip failed files */ }
+    }
+    setParsing(false)
+    setNames(results.map(r => r.filename))
+    onTexts(results)
+  }
+
+  return (
+    <div className={`relative border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
+      dragging ? 'border-indigo-500 bg-indigo-500/10' : 'border-white/10 bg-white/[0.02] hover:border-white/20'
+    } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+      onDragOver={e => { e.preventDefault(); setDragging(true) }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={e => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) parseFiles(e.dataTransfer.files) }}
+      onClick={() => ref.current?.click()}>
+      <input ref={ref} type="file" accept={accept} multiple={multiple} className="hidden"
+        onChange={e => { if (e.target.files?.length) parseFiles(e.target.files) }} />
+      {parsing ? (
+        <div className="flex items-center justify-center gap-2 text-sm text-indigo-400">
+          <Loader2 className="w-4 h-4 animate-spin" /> Parsing…
+        </div>
+      ) : names.length > 0 ? (
+        <div>
+          <CheckCircle className="w-4 h-4 text-green-400 mx-auto mb-1" />
+          <p className="text-xs text-green-400 font-medium">{names.length} file{names.length > 1 ? 's' : ''} loaded</p>
+          {names.slice(0, 3).map(n => <p key={n} className="text-xs text-gray-500 truncate">{n}</p>)}
+          {names.length > 3 && <p className="text-xs text-gray-600">+{names.length - 3} more</p>}
+        </div>
+      ) : (
+        <div>
+          <Upload className="w-5 h-5 text-gray-600 mx-auto mb-1" />
+          <p className="text-xs text-gray-500">{label}</p>
+          <p className="text-xs text-gray-700 mt-0.5">Click or drag & drop</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── ScreenResultCard ──────────────────────────────────────────────────────────
+function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate: (id?: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const decisionColor = r.decision === 'Shortlisted' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+    : r.decision === 'On Hold' ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+    : 'text-red-400 bg-red-500/10 border-red-500/20'
+  return (
+    <div className="glass-card rounded-xl border border-white/5 p-4 hover:border-white/10 transition-all">
+      <div className="flex items-center gap-4">
+        <ScoreRing score={r.score} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-bold text-white">{r.name}</p>
+            <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${decisionColor}`}>{r.decision}</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-0.5">{r.email}{r.contact_number ? ` · ${r.contact_number}` : ''}</p>
+          {r.current_company && <p className="text-xs text-gray-600">{r.current_company}</p>}
+        </div>
+        <button onClick={() => setOpen(v => !v)} className="text-gray-600 hover:text-gray-400 transition-colors ml-auto">
+          <ChevronRight className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`} />
+        </button>
+      </div>
+      {open && r.evaluation && (
+        <div className="mt-4 pt-4 border-t border-white/5 space-y-3 text-xs">
+          {r.evaluation.strengths?.length ? (
+            <div>
+              <p className="text-gray-500 font-semibold mb-1">Strengths</p>
+              <ul className="space-y-0.5">{r.evaluation.strengths.map((s, i) => <li key={i} className="text-emerald-400">✓ {s}</li>)}</ul>
+            </div>
+          ) : null}
+          {r.evaluation.weaknesses?.length ? (
+            <div>
+              <p className="text-gray-500 font-semibold mb-1">Weaknesses</p>
+              <ul className="space-y-0.5">{r.evaluation.weaknesses.map((s, i) => <li key={i} className="text-amber-400">△ {s}</li>)}</ul>
+            </div>
+          ) : null}
+          {r.evaluation.missing_skills?.length ? (
+            <div>
+              <p className="text-gray-500 font-semibold mb-1">Missing Skills</p>
+              <div className="flex flex-wrap gap-1">{r.evaluation.missing_skills.map(s => <span key={s} className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">{s}</span>)}</div>
+            </div>
+          ) : null}
+          {r.evaluation.justification && (
+            <div>
+              <p className="text-gray-500 font-semibold mb-1">Justification</p>
+              <p className="text-gray-400 leading-relaxed">{r.evaluation.justification}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── KanbanCard ────────────────────────────────────────────────────────────────
+function KanbanCard({ candidate: c, onMove, dragging, onDragStart, onDragEnd }: {
+  candidate: Candidate; onMove: (id: string, stage: string) => void
+  dragging: boolean; onDragStart: () => void; onDragEnd: () => void
 }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="bg-white/[0.03] border border-white/5 rounded-lg p-2.5 hover:border-indigo-500/20 transition-all">
+    <div draggable
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart() }}
+      onDragEnd={onDragEnd}
+      className={`bg-white/[0.03] border rounded-lg p-2.5 cursor-grab active:cursor-grabbing transition-all select-none ${
+        dragging ? 'opacity-40 border-indigo-500/50 scale-95' : 'border-white/5 hover:border-indigo-500/20'
+      }`}>
       <div className="flex items-start justify-between gap-1">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-white truncate">{c.candidate_name}</p>
-          <p className="text-xs text-gray-600 truncate">{c.candidate_email}</p>
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-6 h-6 rounded-full bg-indigo-600 flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white">
+            {c.candidate_name?.[0] ?? '?'}
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-white truncate">{c.candidate_name}</p>
+            <p className="text-[10px] text-gray-600 truncate">{c.candidate_email}</p>
+          </div>
         </div>
         <button onClick={() => setOpen(v => !v)} className="flex-shrink-0 text-gray-600 hover:text-gray-400">
           <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -612,19 +1127,19 @@ function CandidateCard({ candidate: c, onMove }: {
       </div>
       {open && (
         <div className="mt-2 pt-2 border-t border-white/5">
-          <p className="text-xs text-gray-500 mb-1">Move to stage:</p>
+          <p className="text-[10px] text-gray-600 mb-1">Move to:</p>
           <div className="flex flex-wrap gap-1">
             {PIPELINE_STAGES.filter(s => s.key !== c.pipeline_stage).map(s => (
               <button key={s.key} onClick={() => onMove(c.id, s.key)}
-                className={`text-xs px-2 py-0.5 rounded ${s.color} ${s.text} hover:opacity-80 transition-opacity`}>
+                className={`text-[10px] px-1.5 py-0.5 rounded ${s.color} ${s.text} hover:opacity-80`}>
                 {s.label}
               </button>
             ))}
           </div>
-          {c.ai_summary && <p className="text-xs text-gray-600 mt-2 line-clamp-2">{c.ai_summary}</p>}
-          <div className="mt-1.5 flex flex-wrap gap-1">
+          {c.ai_summary && <p className="text-[10px] text-gray-600 mt-1.5 line-clamp-2">{c.ai_summary}</p>}
+          <div className="mt-1 flex flex-wrap gap-1">
             {(c.ai_skills ?? []).slice(0, 4).map(s => (
-              <span key={s} className="text-xs bg-white/5 text-gray-500 px-1.5 py-0.5 rounded">{s}</span>
+              <span key={s} className="text-[10px] bg-white/5 text-gray-500 px-1 py-0.5 rounded">{s}</span>
             ))}
           </div>
         </div>

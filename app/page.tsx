@@ -166,7 +166,7 @@ export default function Home() {
         {/* Badge */}
         <div className="relative z-10 mb-6 inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-card text-xs font-medium text-indigo-300">
           <Rocket className="w-3.5 h-3.5" />
-          Powered by GPT-4 · Now with Bulk Screening
+          Powered by Advanced AI · Now with Bulk Screening
         </div>
 
         {/* Headline */}

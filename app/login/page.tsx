@@ -98,17 +98,10 @@ function LoginContent() {
         <div className="w-full max-w-sm">
           <div className="glass-card rounded-2xl p-8 shadow-2xl border border-white/10">
 
-            {/* Icon */}
-            <div className="flex justify-center mb-5">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-                <Zap className="w-7 h-7 text-white" />
-              </div>
-            </div>
-
             {/* Heading */}
             <div className="text-center mb-6">
               <h1 className="text-2xl font-extrabold text-white">Welcome back</h1>
-              <p className="mt-1.5 text-sm text-gray-500">Sign in to SRP Recruit AI Labs</p>
+              <p className="mt-1.5 text-sm text-gray-500">Sign in to continue to SmartRecruit</p>
             </div>
 
             {/* Error */}
