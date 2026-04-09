@@ -22,6 +22,7 @@ ARG NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 
 RUN npm run build
+RUN mkdir -p public
 
 # Stage 3: Production runner
 FROM node:22-alpine AS runner
