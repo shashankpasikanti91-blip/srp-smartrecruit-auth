@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { upsertJobPostContents } from '@/lib/db'
 
 export const maxDuration = 60
 
@@ -8,8 +9,11 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const userId = (session.user as Record<string, unknown>).userId as string
+
   try {
     const body = await req.json() as {
+      job_post_id?: string
       title: string; company?: string; location?: string; type?: string
       description?: string; requirements?: string; custom_prompt?: string
     }
@@ -71,6 +75,12 @@ Return ONLY valid JSON with exactly these 7 keys: linkedin, whatsapp, email, twi
     const data = await res.json()
     const raw = data.choices?.[0]?.message?.content ?? '{}'
     const posts = JSON.parse(raw) as Record<string, string>
+
+    // Persist to DB if we have a job_post_id (scoped to the authenticated user)
+    if (body.job_post_id) {
+      await upsertJobPostContents({ job_post_id: body.job_post_id, user_id: userId, posts })
+    }
+
     return NextResponse.json({ posts })
   } catch (err) {
     console.error('[api/jobs/generate-posts]', err)

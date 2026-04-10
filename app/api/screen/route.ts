@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { pool } from '@/lib/db'
+import { checkAiScreenLimit } from '@/lib/limits'
 
 export const maxDuration = 60
 
@@ -144,6 +145,14 @@ export async function POST(req: NextRequest) {
 
     const userRes = await pool.query<{ id: string }>('SELECT id FROM auth_users WHERE email = $1', [session.user.email])
     const userId = userRes.rows[0]?.id
+
+    // Check monthly AI screen limit
+    if (userId) {
+      const limit = await checkAiScreenLimit(userId)
+      if (!limit.allowed) {
+        return NextResponse.json({ error: limit.reason }, { status: 403 })
+      }
+    }
 
     const results = []
     for (const resume of resumes) {

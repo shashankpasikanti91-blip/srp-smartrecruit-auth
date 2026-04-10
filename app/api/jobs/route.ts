@@ -2,16 +2,28 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { createJobPost, getJobPosts } from '@/lib/db'
-import { logActivity } from '@/lib/db'
+import { logActivity, pool } from '@/lib/db'
+import { checkJobPostLimit } from '@/lib/limits'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  const { searchParams } = new URL(req.url)
   const userId = (session.user as Record<string, unknown>).userId as string
   const jobs = await getJobPosts(userId)
+
+  // Attach persisted social posts to each job (one query, no N+1)
+  if (jobs.length > 0) {
+    const jobIds = jobs.map(j => j.id)
+    const { rows: contents } = await pool.query(
+      `SELECT * FROM job_post_contents WHERE job_post_id = ANY($1::uuid[])`,
+      [jobIds]
+    )
+    const contentMap = new Map(contents.map(c => [c.job_post_id, c]))
+    return NextResponse.json({ jobs: jobs.map(j => ({ ...j, post_contents: contentMap.get(j.id) ?? null })) })
+  }
+
   return NextResponse.json({ jobs })
 }
 
@@ -26,6 +38,12 @@ export async function POST(req: NextRequest) {
 
     if (!body.title?.trim()) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 })
+    }
+
+    // Check subscription plan limits
+    const limit = await checkJobPostLimit(userId)
+    if (!limit.allowed) {
+      return NextResponse.json({ error: limit.reason }, { status: 403 })
     }
 
     const job = await createJobPost({

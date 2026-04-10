@@ -152,6 +152,15 @@ export async function upsertUser(user: {
     return { user: existing, isNew: false }
   }
   const created = await createUser(user)
+  // Auto-provision free subscription for every new user
+  if (created?.id) {
+    await pool.query(
+      `INSERT INTO subscriptions (user_id, plan, status, billing_cycle, amount_cents, currency)
+       VALUES ($1, 'free', 'active', 'monthly', 0, 'usd')
+       ON CONFLICT DO NOTHING`,
+      [created.id]
+    )
+  }
   return { user: created, isNew: true }
 }
 
@@ -371,4 +380,59 @@ export async function getOwnerStats() {
     totalTokenCostUsd: totalTokenCost.toFixed(4),
     proUsers: subsRes.rows.filter(s => s.plan === 'pro').length,
   }
+}
+
+// ─────────────────────────── Job Post Contents ───────────────────────────────
+
+export interface JobPostContents {
+  id: string
+  job_post_id: string
+  user_id: string
+  linkedin: string | null
+  whatsapp: string | null
+  email: string | null
+  twitter: string | null
+  indeed: string | null
+  telegram: string | null
+  facebook: string | null
+  created_at: string
+  updated_at: string
+}
+
+export async function upsertJobPostContents(entry: {
+  job_post_id: string
+  user_id: string
+  posts: Record<string, string>
+}): Promise<void> {
+  await pool.query(
+    `INSERT INTO job_post_contents (job_post_id, user_id, linkedin, whatsapp, email, twitter, indeed, telegram, facebook)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     ON CONFLICT (job_post_id) DO UPDATE SET
+       linkedin = EXCLUDED.linkedin,
+       whatsapp = EXCLUDED.whatsapp,
+       email    = EXCLUDED.email,
+       twitter  = EXCLUDED.twitter,
+       indeed   = EXCLUDED.indeed,
+       telegram = EXCLUDED.telegram,
+       facebook = EXCLUDED.facebook,
+       updated_at = NOW()`,
+    [
+      entry.job_post_id,
+      entry.user_id,
+      entry.posts.linkedin ?? null,
+      entry.posts.whatsapp ?? null,
+      entry.posts.email ?? null,
+      entry.posts.twitter ?? null,
+      entry.posts.indeed ?? null,
+      entry.posts.telegram ?? null,
+      entry.posts.facebook ?? null,
+    ]
+  )
+}
+
+export async function getJobPostContents(jobPostId: string): Promise<JobPostContents | null> {
+  const { rows } = await pool.query<JobPostContents>(
+    'SELECT * FROM job_post_contents WHERE job_post_id = $1', [jobPostId]
+  )
+  return rows[0] ?? null
 }
