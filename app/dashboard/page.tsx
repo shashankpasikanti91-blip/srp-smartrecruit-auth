@@ -16,6 +16,7 @@ import {
 interface Job {
   id: string; short_id: string; title: string; company: string
   location: string; type: string; status: string; applications_count: number
+  description?: string; requirements?: string
   created_at: string
   // saved social posts attached by /api/jobs GET
   post_contents?: Record<string, string> | null
@@ -315,8 +316,13 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           job_post_id: job.id,
-          title: job.title, company: job.company, location: job.location,
-          type: job.type, custom_prompt: genCustomPrompt,
+          title: job.title,
+          company: job.company,
+          location: job.location,
+          type: job.type,
+          description: job.description,
+          requirements: job.requirements,
+          custom_prompt: genCustomPrompt,
         }),
       })
       const data = await res.json()
@@ -324,6 +330,7 @@ export default function DashboardPage() {
       setGeneratedPosts(data.posts ?? {})
       const firstKey = Object.keys(data.posts ?? {})[0]
       if (firstKey) setGenPostTab(firstKey)
+      await loadData()
     } catch (e) {
       setGenPostError(String(e))
     } finally {
@@ -1044,6 +1051,11 @@ export default function DashboardPage() {
                           </div>
                           <h3 className="font-bold text-white text-base mb-1">{job.title}</h3>
                           <p className="text-sm text-gray-400">{job.company}{job.location && ` · ${job.location}`}</p>
+                          {(job.description || job.requirements) && (
+                            <p className="text-xs text-gray-500 mt-2 line-clamp-3 whitespace-pre-wrap">
+                              {job.description || job.requirements}
+                            </p>
+                          )}
                           <div className="mt-4 flex items-center justify-between">
                             <div className="flex items-center gap-1 text-xs text-gray-500">
                               <Users className="w-3.5 h-3.5" />
@@ -1067,7 +1079,7 @@ export default function DashboardPage() {
                                 setGenCustomPrompt(''); setGenPostError('')
                               }}
                                 className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300">
-                                <Sparkles className="w-3 h-3" /> {job.post_contents ? 'View Posts ✓' : 'Generate Posts'}
+                                <Sparkles className="w-3 h-3" /> {job.post_contents ? 'View Details & Posts ✓' : 'Generate Posts'}
                               </button>
                               <button onClick={() => { setSelectedJob(job.id); setActiveTab('pipeline') }}
                                 className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300">
@@ -1240,6 +1252,27 @@ export default function DashboardPage() {
                 <p className="text-xs text-gray-500 mt-0.5">{genPostJob.title}{genPostJob.company ? ` · ${genPostJob.company}` : ''}</p>
               </div>
               <button onClick={() => setGenPostJob(null)} className="text-gray-500 hover:text-gray-300"><X className="w-5 h-5" /></button>
+            </div>
+
+            {/* Source JD preview */}
+            <div className="mb-4 grid grid-cols-1 gap-3 flex-shrink-0">
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Job Description</label>
+                  {Object.keys(generatedPosts).length > 0 && (
+                    <span className="text-[11px] text-emerald-400">Saved posts loaded — no AI cost unless you click Regenerate</span>
+                  )}
+                </div>
+                <div className="max-h-24 overflow-auto whitespace-pre-wrap text-xs text-gray-300">
+                  {genPostJob.description?.trim() || 'No description saved for this job yet.'}
+                </div>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <label className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1 block">Requirements</label>
+                <div className="max-h-24 overflow-auto whitespace-pre-wrap text-xs text-gray-300">
+                  {genPostJob.requirements?.trim() || 'No requirements saved for this job yet.'}
+                </div>
+              </div>
             </div>
 
             {/* Custom prompt */}
