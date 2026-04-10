@@ -132,6 +132,15 @@ export default function DashboardPage() {
   const [composeError, setComposeError] = useState('')
   const [copied, setCopied] = useState(false)
 
+  // Job post generator state
+  const [genPostJob, setGenPostJob] = useState<Job | null>(null)
+  const [generatingPosts, setGeneratingPosts] = useState(false)
+  const [generatedPosts, setGeneratedPosts] = useState<Record<string, string>>({})
+  const [genPostError, setGenPostError] = useState('')
+  const [genPostTab, setGenPostTab] = useState('linkedin')
+  const [genCustomPrompt, setGenCustomPrompt] = useState('')
+  const [copiedPostKey, setCopiedPostKey] = useState('')
+
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login')
   }, [status, router])
@@ -247,8 +256,49 @@ export default function DashboardPage() {
   }
 
   const copyOutput = async () => {
-    await navigator.clipboard.writeText(composeOutput)
+    try {
+      await navigator.clipboard.writeText(composeOutput)
+    } catch {
+      // Fallback for HTTP contexts
+      const ta = document.createElement('textarea')
+      ta.value = composeOutput
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
+    }
     setCopied(true); setTimeout(() => setCopied(false), 2000)
+  }
+
+  const generateJobPosts = async (job: Job) => {
+    setGeneratingPosts(true); setGenPostError(''); setGeneratedPosts({})
+    try {
+      const res = await fetch('/api/jobs/generate-posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: job.title, company: job.company, location: job.location,
+          type: job.type, custom_prompt: genCustomPrompt,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setGenPostError(data.error ?? 'Failed to generate posts'); return }
+      setGeneratedPosts(data.posts ?? {})
+      const firstKey = Object.keys(data.posts ?? {})[0]
+      if (firstKey) setGenPostTab(firstKey)
+    } catch (e) {
+      setGenPostError(String(e))
+    } finally {
+      setGeneratingPosts(false)
+    }
+  }
+
+  const copyPostContent = async (key: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
+    }
+    setCopiedPostKey(key); setTimeout(() => setCopiedPostKey(''), 2000)
   }
 
   if (status === 'loading') {
@@ -794,25 +844,23 @@ export default function DashboardPage() {
                           </div>
                         )}
 
-                        {/* Tone for rewrite/paraphrase */}
-                        {composeMode !== 'reply' && (
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-xs text-gray-400 font-medium mb-1 block">Tone</label>
-                              <select value={tone} onChange={e => setTone(e.target.value)}
-                                className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-purple-500">
-                                {['formal', 'professional', 'semi-formal', 'friendly', 'casual'].map(t => <option key={t} className="bg-[#1a1a2e] text-gray-200">{t}</option>)}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="text-xs text-gray-400 font-medium mb-1 block">Platform</label>
-                              <select value={platform} onChange={e => setPlatform(e.target.value)}
-                                className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-purple-500">
-                                {['Gmail', 'LinkedIn', 'WhatsApp', 'Outlook', 'Telegram'].map(p => <option key={p} className="bg-[#1a1a2e] text-gray-200">{p}</option>)}
-                              </select>
-                            </div>
+                        {/* Platform + Tone — always shown in Panel B */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-gray-400 font-medium mb-1 block">Platform</label>
+                            <select value={platform} onChange={e => setPlatform(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-purple-500">
+                              {['Gmail', 'LinkedIn', 'WhatsApp', 'Outlook', 'Telegram'].map(p => <option key={p} className="bg-[#1a1a2e] text-gray-200">{p}</option>)}
+                            </select>
                           </div>
-                        )}
+                          <div>
+                            <label className="text-xs text-gray-400 font-medium mb-1 block">Tone</label>
+                            <select value={tone} onChange={e => setTone(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-purple-500">
+                              {['formal', 'professional', 'semi-formal', 'friendly', 'casual'].map(t => <option key={t} className="bg-[#1a1a2e] text-gray-200">{t}</option>)}
+                            </select>
+                          </div>
+                        </div>
 
                         <div>
                           <label className="text-xs text-gray-400 font-medium mb-1 block">Extra instructions (optional)</label>
@@ -944,10 +992,16 @@ export default function DashboardPage() {
                               <Users className="w-3.5 h-3.5" />
                               {jobCands.length} candidates
                             </div>
-                            <button onClick={() => { setSelectedJob(job.id); setActiveTab('pipeline') }}
-                              className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300">
-                              View pipeline <ArrowRight className="w-3 h-3" />
-                            </button>
+                            <div className="flex items-center gap-3">
+                              <button onClick={() => { setGenPostJob(job); setGeneratedPosts({}); setGenCustomPrompt(''); setGenPostError('') }}
+                                className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300">
+                                <Sparkles className="w-3 h-3" /> Posts
+                              </button>
+                              <button onClick={() => { setSelectedJob(job.id); setActiveTab('pipeline') }}
+                                className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300">
+                                View pipeline <ArrowRight className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )
@@ -1074,6 +1128,71 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ── Generate Job Posts Modal ─────────────────────────────────────── */}
+      {genPostJob && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-card rounded-2xl p-6 w-full max-w-2xl border border-white/10 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
+              <div>
+                <h2 className="text-lg font-bold text-white">Generate Social Posts</h2>
+                <p className="text-xs text-gray-500 mt-0.5">{genPostJob.title}{genPostJob.company ? ` · ${genPostJob.company}` : ''}</p>
+              </div>
+              <button onClick={() => setGenPostJob(null)} className="text-gray-500 hover:text-gray-300"><X className="w-5 h-5" /></button>
+            </div>
+
+            {/* Custom prompt */}
+            <div className="mb-4 flex-shrink-0">
+              <label className="text-xs text-gray-500 mb-1 block">Extra context / instructions (optional)</label>
+              <input value={genCustomPrompt} onChange={e => setGenCustomPrompt(e.target.value)}
+                placeholder="e.g. Highlight remote work, mention 5LPA stipend, target freshers…"
+                className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500" />
+            </div>
+
+            <button
+              onClick={() => generateJobPosts(genPostJob)}
+              disabled={generatingPosts}
+              className="mb-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 font-semibold text-sm transition-all disabled:opacity-50 flex-shrink-0">
+              {generatingPosts ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating for all platforms…</> : <><Sparkles className="w-4 h-4" /> Generate for LinkedIn · WhatsApp · Email · Twitter · Indeed · Telegram · Facebook</>}
+            </button>
+
+            {genPostError && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs mb-3 flex-shrink-0">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {genPostError}
+              </div>
+            )}
+
+            {Object.keys(generatedPosts).length > 0 && (
+              <div className="flex flex-col min-h-0 flex-1">
+                {/* Platform tabs */}
+                <div className="flex gap-1 flex-wrap mb-3 flex-shrink-0">
+                  {(['linkedin', 'whatsapp', 'email', 'twitter', 'indeed', 'telegram', 'facebook'] as const).map(p => (
+                    generatedPosts[p] && (
+                      <button key={p} onClick={() => setGenPostTab(p)}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold capitalize transition-all ${genPostTab === p ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                        {p === 'twitter' ? 'Twitter/X' : p === 'facebook' ? 'Facebook' : p.charAt(0).toUpperCase() + p.slice(1)}
+                      </button>
+                    )
+                  ))}
+                </div>
+                {/* Post content */}
+                <div className="relative flex-1 min-h-0">
+                  <textarea
+                    readOnly
+                    value={generatedPosts[genPostTab] ?? ''}
+                    rows={10}
+                    className="w-full h-full min-h-[200px] px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 resize-none focus:outline-none" />
+                  <button
+                    onClick={() => copyPostContent(genPostTab, generatedPosts[genPostTab] ?? '')}
+                    className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-xs text-gray-300 transition-all">
+                    {copiedPostKey === genPostTab ? <><Check className="w-3 h-3 text-green-400" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy</>}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── New Candidate Modal ──────────────────────────────────────────────── */}
       {showNewCandidate && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1147,28 +1266,42 @@ function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
   const [dragging, setDragging] = useState(false)
   const [parsing, setParsing] = useState(false)
   const [names, setNames] = useState<string[]>([])
+  const [parseError, setParseError] = useState('')
 
   const parseFiles = async (files: FileList) => {
-    setParsing(true)
+    setParsing(true); setParseError(''); setNames([])
     const results: Array<{ text: string; filename: string }> = []
+    let lastError = ''
     for (const file of Array.from(files)) {
       const fd = new FormData(); fd.append('file', file)
       try {
         const res = await fetch('/api/parse', { method: 'POST', body: fd })
-        if (res.ok) { const d = await res.json(); results.push({ text: d.text, filename: file.name }) }
-      } catch { /* skip failed files */ }
+        const d = await res.json()
+        if (res.ok && d.text) {
+          results.push({ text: d.text, filename: file.name })
+        } else {
+          lastError = d.error ?? `Failed to parse ${file.name}`
+        }
+      } catch (e) {
+        lastError = `Network error: ${String(e)}`
+      }
     }
     setParsing(false)
-    setNames(results.map(r => r.filename))
-    onTexts(results)
+    if (results.length > 0) {
+      setNames(results.map(r => r.filename))
+      onTexts(results)
+    } else {
+      setParseError(lastError || 'No files could be parsed')
+    }
   }
 
   return (
     <div className={`relative border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
-      dragging ? 'border-indigo-500 bg-indigo-500/10' : 'border-white/10 bg-white/[0.02] hover:border-white/20'
+      dragging ? 'border-indigo-500 bg-indigo-500/10' : parseError ? 'border-red-500/40 bg-red-500/5' : 'border-white/10 bg-white/[0.02] hover:border-white/20'
     } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+      onDragEnter={e => { e.preventDefault(); setDragging(true) }}
       onDragOver={e => { e.preventDefault(); setDragging(true) }}
-      onDragLeave={() => setDragging(false)}
+      onDragLeave={e => { e.preventDefault(); setDragging(false) }}
       onDrop={e => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) parseFiles(e.dataTransfer.files) }}
       onClick={() => ref.current?.click()}>
       <input ref={ref} type="file" accept={accept} multiple={multiple} className="hidden"
@@ -1176,6 +1309,12 @@ function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
       {parsing ? (
         <div className="flex items-center justify-center gap-2 text-sm text-indigo-400">
           <Loader2 className="w-4 h-4 animate-spin" /> Parsing…
+        </div>
+      ) : parseError ? (
+        <div>
+          <AlertCircle className="w-4 h-4 text-red-400 mx-auto mb-1" />
+          <p className="text-xs text-red-400">{parseError}</p>
+          <p className="text-xs text-gray-600 mt-0.5">Click to try again</p>
         </div>
       ) : names.length > 0 ? (
         <div>

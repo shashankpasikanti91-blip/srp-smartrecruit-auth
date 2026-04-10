@@ -21,8 +21,9 @@ export async function POST(req: NextRequest) {
     let text = ''
 
     if (name.endsWith('.pdf')) {
+      // Use internal module to avoid test-file loading bug in Docker standalone
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string }>
+      const pdfParse = require('pdf-parse/lib/pdf-parse.js') as (buffer: Buffer) => Promise<{ text: string }>
       const result = await pdfParse(buffer)
       text = result.text
     } else if (name.endsWith('.docx') || name.endsWith('.doc')) {
