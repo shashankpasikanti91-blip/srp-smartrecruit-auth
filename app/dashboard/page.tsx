@@ -1305,7 +1305,7 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {Object.keys(generatedPosts).length > 0 && (
+            {Object.keys(generatedPosts).length > 0 ? (
               <div className="flex flex-col min-h-0 flex-1">
                 {/* Platform tabs */}
                 <div className="flex gap-1 flex-wrap mb-3 flex-shrink-0">
@@ -1331,6 +1331,14 @@ export default function DashboardPage() {
                     {copiedPostKey === genPostTab ? <><Check className="w-3 h-3 text-green-400" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy</>}
                   </button>
                 </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
+                <p className="font-semibold mb-1">No saved posts yet for this job.</p>
+                <p className="text-xs text-amber-100/80">
+                  Click <span className="font-semibold">Generate Posts from Full JD</span> once to create and save them.
+                  After that, opening this job will show the saved posts without generating again.
+                </p>
               </div>
             )}
           </div>
