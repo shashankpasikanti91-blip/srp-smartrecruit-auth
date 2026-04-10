@@ -21,13 +21,13 @@ export async function POST(req: NextRequest) {
     let text = ''
 
     if (name.endsWith('.pdf')) {
-      // Use internal module to avoid test-file loading bug in Docker standalone
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require('pdf-parse/lib/pdf-parse.js') as (buffer: Buffer) => Promise<{ text: string }>
-      const result = await pdfParse(buffer)
+      const pdfParse = require('pdf-parse') as (buffer: Buffer, options?: Record<string, unknown>) => Promise<{ text: string }>
+      const result = await pdfParse(buffer, { max: 0 })
       text = result.text
     } else if (name.endsWith('.docx') || name.endsWith('.doc')) {
-      const mammoth = await import('mammoth')
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const mammoth = require('mammoth') as { extractRawText: (opts: { buffer: Buffer }) => Promise<{ value: string }> }
       const result = await mammoth.extractRawText({ buffer })
       text = result.value
     } else if (name.endsWith('.txt')) {

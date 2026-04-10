@@ -38,6 +38,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static     ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public           ./public
 
+# Copy runtime-require()'d packages not picked up by standalone tracing
+COPY --from=deps    --chown=nextjs:nodejs /app/node_modules/pdf-parse  ./node_modules/pdf-parse
+COPY --from=deps    --chown=nextjs:nodejs /app/node_modules/mammoth    ./node_modules/mammoth
+
 USER nextjs
 EXPOSE 3000
 

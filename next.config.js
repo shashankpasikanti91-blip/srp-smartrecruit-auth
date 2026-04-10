@@ -1,6 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  // Force standalone output to bundle these runtime-require()'d packages
+  outputFileTracingIncludes: {
+    '/api/parse': [
+      './node_modules/pdf-parse/**/*',
+      './node_modules/mammoth/**/*',
+    ],
+  },
   images: {
     remotePatterns: [
       {
