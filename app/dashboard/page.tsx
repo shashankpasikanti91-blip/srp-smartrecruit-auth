@@ -97,6 +97,7 @@ export default function DashboardPage() {
   const [showNewJob, setShowNewJob] = useState(false)
   const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '' })
   const [savingJob, setSavingJob] = useState(false)
+  const [seedingDemo, setSeedingDemo] = useState(false)
 
   // New Candidate modal state
   const [showNewCandidate, setShowNewCandidate] = useState(false)
@@ -180,6 +181,32 @@ export default function DashboardPage() {
     setShowNewJob(false)
     setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '' })
     loadData()
+  }
+
+  const createAndGenerate = async () => {
+    if (!newJob.title) return
+    setSavingJob(true)
+    const res = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newJob) })
+    const data = await res.json()
+    setSavingJob(false)
+    setShowNewJob(false)
+    setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '' })
+    await loadData()
+    if (data.job) {
+      setGenPostJob(data.job)
+      setGeneratedPosts({}); setGenCustomPrompt(''); setGenPostError('')
+    }
+  }
+
+  const seedDemo = async () => {
+    setSeedingDemo(true)
+    try {
+      const res = await fetch('/api/seed-demo', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) { await loadData(); setActiveTab('jobs') }
+      else alert(data.error ?? 'Failed to seed demo data')
+    } catch { alert('Network error while seeding') }
+    finally { setSeedingDemo(false) }
   }
 
   const createCandidate = async () => {
@@ -956,7 +983,17 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h1 className="text-xl font-bold text-white">Job Posts</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">{jobs.length} jobs</p>
+                    <p className="text-sm text-gray-500 mt-0.5">{jobs.length} active jobs</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={seedDemo} disabled={seedingDemo}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-xs font-semibold text-purple-300 transition-all disabled:opacity-50">
+                      {seedingDemo ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…</> : <><Sparkles className="w-3.5 h-3.5" /> Load Demo Data</>}
+                    </button>
+                    <button onClick={() => setShowNewJob(true)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-all">
+                      <Plus className="w-3.5 h-3.5" /> New Job
+                    </button>
                   </div>
                 </div>
 
@@ -1085,16 +1122,16 @@ export default function DashboardPage() {
       {/* ── New Job Modal ──────────────────────────────────────────────────────── */}
       {showNewJob && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-card rounded-2xl p-6 w-full max-w-lg border border-white/10">
-            <div className="flex items-center justify-between mb-5">
+          <div className="glass-card rounded-2xl p-6 w-full max-w-lg border border-white/10 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-5 flex-shrink-0">
               <h2 className="text-lg font-bold text-white">New Job Post</h2>
               <button onClick={() => setShowNewJob(false)} className="text-gray-500 hover:text-gray-300"><X className="w-5 h-5" /></button>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 overflow-y-auto flex-1 pr-1">
               {([
-                { key: 'title',       label: 'Job Title *',    placeholder: 'e.g. Senior Software Engineer' },
-                { key: 'company',     label: 'Company',        placeholder: 'e.g. SRP AI Labs' },
-                { key: 'location',    label: 'Location',       placeholder: 'e.g. Hyderabad / Remote' },
+                { key: 'title',    label: 'Job Title *',  placeholder: 'e.g. Senior Software Engineer' },
+                { key: 'company',  label: 'Company',      placeholder: 'e.g. SRP AI Labs' },
+                { key: 'location', label: 'Location',     placeholder: 'e.g. Hyderabad / Remote' },
               ] as const).map(({ key, label, placeholder }) => (
                 <div key={key}>
                   <label className="text-xs text-gray-500 mb-1 block">{label}</label>
@@ -1110,18 +1147,48 @@ export default function DashboardPage() {
                   {['full-time', 'part-time', 'contract', 'remote', 'internship'].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
+
+              {/* JD File Upload */}
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Upload JD File (auto-fills fields below)</label>
+                <FileUploadZone label="Drop JD — PDF / DOCX / TXT" accept=".pdf,.docx,.doc,.txt" multiple={false}
+                  onTexts={([t]) => {
+                    // Smart split: first half → description, second half → requirements
+                    const text = t.text
+                    const mid = Math.floor(text.length / 2)
+                    const splitAt = text.indexOf('\n', mid)
+                    const descPart = text.slice(0, splitAt > 0 ? splitAt : mid).trim()
+                    const reqPart  = text.slice(splitAt > 0 ? splitAt : mid).trim()
+                    setNewJob(p => ({
+                      ...p,
+                      description:  descPart.slice(0, 1000),
+                      requirements: reqPart.slice(0, 800),
+                    }))
+                  }} />
+              </div>
+
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Description</label>
                 <textarea value={newJob.description} onChange={e => setNewJob(p => ({ ...p, description: e.target.value }))}
-                  rows={3} placeholder="Role overview…"
+                  rows={3} placeholder="Role overview — or upload a JD file above to auto-fill…"
+                  className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Requirements</label>
+                <textarea value={newJob.requirements} onChange={e => setNewJob(p => ({ ...p, requirements: e.target.value }))}
+                  rows={3} placeholder="Key skills and experience required…"
                   className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none" />
               </div>
             </div>
-            <div className="flex gap-3 mt-5">
-              <button onClick={() => setShowNewJob(false)} className="flex-1 py-2 rounded-lg bg-white/5 text-sm text-gray-400 hover:bg-white/10">Cancel</button>
+            <div className="flex gap-2 mt-5 flex-shrink-0">
+              <button onClick={() => setShowNewJob(false)} className="px-4 py-2 rounded-lg bg-white/5 text-sm text-gray-400 hover:bg-white/10">Cancel</button>
               <button onClick={createJob} disabled={savingJob || !newJob.title}
                 className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold disabled:opacity-50 transition-colors">
                 {savingJob ? 'Creating…' : 'Create Job'}
+              </button>
+              <button onClick={createAndGenerate} disabled={savingJob || !newJob.title}
+                className="flex-1 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-sm font-semibold disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" /> Create & Generate Posts
               </button>
             </div>
           </div>
