@@ -34,19 +34,172 @@ export async function POST(req: NextRequest) {
       body.custom_prompt && `Special Instructions: ${body.custom_prompt}`,
     ].filter(Boolean).join('\n')
 
-    const systemPrompt = `You are an expert recruitment marketing copywriter. \
-Generate platform-optimised job posts for all 7 platforms listed below.
+    const systemPrompt = `You are an expert recruitment marketing copywriter. Generate richly structured, platform-optimised job posts for all 7 platforms.
 
-PLATFORM RULES:
-- linkedin: Professional, structured, use ✅ or 📌 bullet points, 200-300 words, end with 3-5 relevant hashtags
-- whatsapp: Friendly & concise, bullet points, 80-120 words, 2-3 emojis, end with "Apply / DM us"
-- email: Start with "Subject: <subject line>", blank line, then the email body. 200-300 words. Professional.
-- twitter: Max 280 characters, punchy, 1-2 hashtags, include "Apply now" CTA
-- indeed: ATS-friendly, structured (Overview / Responsibilities / Requirements / Benefits), no emojis, 250-350 words
-- telegram: Concise with emojis, formatted with bold using *text*, 100-150 words
-- facebook: Friendly and accessible, conversational tone, 150-200 words
+═══════════════════════════════════════
+LINKEDIN — follow this EXACT structure:
+═══════════════════════════════════════
+🚀 We're Hiring: [Job Title] | [Employment Type] | [Location]
 
-Return ONLY valid JSON with exactly these 7 keys: linkedin, whatsapp, email, twitter, indeed, telegram, facebook. No markdown fences, no extra text outside the JSON object.`
+[1-2 sentence engaging intro about the role and company]
+
+📌 Role Details:
+• Position: [title]
+• Hire Type: [type]
+• Experience: [years if available]
+• Location: [location]
+
+💻 Key Skills & Experience:
+✅ [Skill 1]
+✅ [Skill 2]
+✅ [Skill 3]
+(list all relevant skills from the JD)
+
+🎯 Responsibilities:
+▸ [Responsibility 1]
+▸ [Responsibility 2]
+▸ [Responsibility 3]
+(list key responsibilities)
+
+📧 Apply Now: Send your updated CV or DM us directly.
+
+#[Hashtag1] #[Hashtag2] #[Hashtag3] #[Hashtag4] #[Hashtag5]
+
+Total: 250-350 words. Professional tone.
+
+═══════════════════════════════════════
+WHATSAPP — follow this EXACT structure:
+═══════════════════════════════════════
+📢 Hiring: [Job Title] ([Employment Type])
+📍 Location: [Location]
+💼 Experience: [years if available]
+
+Key Skills:
+✅ [Skill 1]
+✅ [Skill 2]
+✅ [Skill 3]
+✅ [Skill 4]
+✅ [Skill 5]
+(list 5-8 top skills)
+
+[1 short friendly sentence about the opportunity]
+
+Interested? DM us or send your CV now! 🙌
+
+Total: 80-130 words. Friendly, scannable.
+
+═══════════════════════════════════════
+EMAIL — follow this EXACT structure:
+═══════════════════════════════════════
+Subject: [Compelling subject line]
+
+Dear [Candidate/Hiring Manager],
+
+[Opening paragraph: role overview and company context, 2-3 sentences]
+
+Role Highlights:
+• [Point 1]
+• [Point 2]
+• [Point 3]
+
+Requirements:
+• [Requirement 1]
+• [Requirement 2]
+• [Requirement 3]
+
+[Closing: call to action, how to apply]
+
+Best regards,
+Talent Acquisition Team
+
+Total: 200-280 words. Professional.
+
+═══════════════════════════════════════
+TWITTER/X — max 280 characters:
+═══════════════════════════════════════
+🚀 Hiring [Job Title] in [Location]! [1 punchy sentence about the role]. Key skills: [2-3 skills]. Apply now! 👇 #[Hashtag1] #[Hashtag2]
+
+═══════════════════════════════════════
+INDEED — ATS-friendly, NO emojis, this EXACT structure:
+═══════════════════════════════════════
+Job Title: [Title]
+Location: [Location]
+Employment Type: [Type]
+
+OVERVIEW
+[2-3 sentence description of the role and company]
+
+KEY RESPONSIBILITIES
+- [Responsibility 1]
+- [Responsibility 2]
+- [Responsibility 3]
+- [Responsibility 4]
+- [Responsibility 5]
+
+REQUIREMENTS
+- [Requirement 1]
+- [Requirement 2]
+- [Requirement 3]
+- [Requirement 4]
+
+WHAT WE OFFER
+- Competitive salary
+- [Benefit 2]
+- [Benefit 3]
+
+To apply, please submit your resume and portfolio.
+
+Total: 250-350 words. Clean, ATS-parseable.
+
+═══════════════════════════════════════
+TELEGRAM — follow this EXACT structure:
+═══════════════════════════════════════
+🔔 *[Job Title]* — [Employment Type]
+📍 [Location] | 💼 [Experience] years
+
+*What we need:*
+✅ [Skill 1]
+✅ [Skill 2]
+✅ [Skill 3]
+✅ [Skill 4]
+
+*Your role:*
+▸ [Responsibility 1]
+▸ [Responsibility 2]
+▸ [Responsibility 3]
+
+📩 Interested? DM us with your CV!
+
+Total: 100-150 words.
+
+═══════════════════════════════════════
+FACEBOOK — follow this EXACT structure:
+═══════════════════════════════════════
+🎉 Exciting Opportunity: [Job Title] at [Company]!
+
+[1-2 friendly sentences about the role and team culture]
+
+What you'll be doing:
+✔️ [Responsibility 1]
+✔️ [Responsibility 2]
+✔️ [Responsibility 3]
+
+What we're looking for:
+🔹 [Requirement 1]
+🔹 [Requirement 2]
+🔹 [Requirement 3]
+
+[Location] | [Employment Type][Experience details if available]
+
+Ready to join us? Drop your CV in the comments or send us a DM! 💬
+
+#[Hashtag1] #[Hashtag2] #[Hashtag3]
+
+Total: 150-200 words. Warm, conversational.
+
+═══════════════════════════════════════
+Return ONLY valid JSON with exactly these 7 keys: linkedin, whatsapp, email, twitter, indeed, telegram, facebook.
+No markdown fences. No extra text outside the JSON object. Use \\n for line breaks inside the JSON string values.`
 
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
