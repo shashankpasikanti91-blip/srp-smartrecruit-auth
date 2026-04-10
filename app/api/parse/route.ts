@@ -21,9 +21,10 @@ export async function POST(req: NextRequest) {
     let text = ''
 
     if (name.endsWith('.pdf')) {
-      // pdf-parse v1 — simple Node.js native, no browser deps
+      // Use the inner lib directly to avoid pdf-parse v1's self-test (opens ./test/data/05-versions-space.pdf)
+      // which fails in Docker standalone (no test directory present)
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>
+      const pdfParse = require('pdf-parse/lib/pdf-parse') as (buf: Buffer) => Promise<{ text: string }>
       const result = await pdfParse(buffer)
       text = result.text
     } else if (name.endsWith('.docx') || name.endsWith('.doc')) {
