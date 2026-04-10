@@ -21,9 +21,10 @@ export async function POST(req: NextRequest) {
     let text = ''
 
     if (name.endsWith('.pdf')) {
+      // pdf-parse v1 — simple Node.js native, no browser deps
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require('pdf-parse') as (buffer: Buffer, options?: Record<string, unknown>) => Promise<{ text: string }>
-      const result = await pdfParse(buffer, { max: 0 })
+      const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>
+      const result = await pdfParse(buffer)
       text = result.text
     } else if (name.endsWith('.docx') || name.endsWith('.doc')) {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
