@@ -34,9 +34,16 @@ interface ScreenResult {
   name: string; email: string; contact_number?: string; current_company?: string
   score: number; decision: string
   evaluation?: {
+    // AI returns these field names
+    candidate_strengths?: string[]; candidate_weaknesses?: string[]
+    low_or_missing_match_skills?: string[]; high_match_skills?: string[]
+    medium_match_skills?: string[]; risk_level?: string; risk_explanation?: string
+    justification?: string; overall_fit_rating?: number
+    // legacy aliases
     strengths?: string[]; weaknesses?: string[]; missing_skills?: string[]
-    risk_flags?: string[]; justification?: string
   }
+  // set by server after DB insert
+  db_id?: string; short_id?: string
   candidate_id?: string
 }
 
@@ -252,7 +259,11 @@ export default function DashboardPage() {
       const data = await res.json()
       if (!res.ok) { setScreenError(data.error ?? 'Screening failed'); return }
       setScreenResults(data.results ?? [])
-      if ((data.results?.length ?? 0) > 0) loadData()
+      if ((data.results?.length ?? 0) > 0) {
+        await loadData()
+        // Auto-switch to candidates tab so user sees the saved records
+        setActiveTab('candidates')
+      }
     } catch (e) {
       setScreenError(String(e))
     } finally {
@@ -677,7 +688,13 @@ export default function DashboardPage() {
 
                 {screenResults.length > 0 && (
                   <div className="space-y-3">
-                    <h2 className="text-sm font-semibold text-gray-300">{screenResults.length} result{screenResults.length > 1 ? 's' : ''}</h2>
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-sm font-semibold text-gray-300">{screenResults.length} result{screenResults.length > 1 ? 's' : ''} — saved to Candidates</h2>
+                      <button onClick={() => setActiveTab('candidates')}
+                        className="text-xs text-indigo-400 hover:text-indigo-300 underline underline-offset-2">
+                        View in Candidates →
+                      </button>
+                    </div>
                     {screenResults.map((r, i) => (
                       <ScreenResultCard key={i} result={r} onAddCandidate={(cid) => { loadData() }} />
                     ))}
@@ -1407,14 +1424,25 @@ function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate:
   const decisionColor = r.decision === 'Shortlisted' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
     : r.decision === 'On Hold' ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
     : 'text-red-400 bg-red-500/10 border-red-500/20'
+  // normalise field names — AI returns candidate_strengths, candidate_weaknesses, low_or_missing_match_skills
+  const ev = r.evaluation
+  const strengths = ev?.candidate_strengths ?? ev?.strengths ?? []
+  const weaknesses = ev?.candidate_weaknesses ?? ev?.weaknesses ?? []
+  const missingSkills = ev?.low_or_missing_match_skills ?? ev?.missing_skills ?? []
+  const highSkills = ev?.high_match_skills ?? []
   return (
     <div className="glass-card rounded-xl border border-white/5 p-4 hover:border-white/10 transition-all">
       <div className="flex items-center gap-4">
         <ScoreRing score={r.score} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-bold text-white">{r.name}</p>
+            <p className="font-bold text-white">{r.name || 'Unknown'}</p>
             <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${decisionColor}`}>{r.decision}</span>
+            {r.short_id && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-mono">
+                ✓ Saved · {r.short_id}
+              </span>
+            )}
           </div>
           <p className="text-xs text-gray-500 mt-0.5">{r.email}{r.contact_number ? ` · ${r.contact_number}` : ''}</p>
           {r.current_company && <p className="text-xs text-gray-600">{r.current_company}</p>}
@@ -1423,30 +1451,39 @@ function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate:
           <ChevronRight className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`} />
         </button>
       </div>
-      {open && r.evaluation && (
+      {open && ev && (
         <div className="mt-4 pt-4 border-t border-white/5 space-y-3 text-xs">
-          {r.evaluation.strengths?.length ? (
+          {highSkills.length > 0 && (
+            <div>
+              <p className="text-gray-500 font-semibold mb-1">Matched Skills</p>
+              <div className="flex flex-wrap gap-1">{highSkills.map(s => <span key={s} className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{s}</span>)}</div>
+            </div>
+          )}
+          {strengths.length > 0 && (
             <div>
               <p className="text-gray-500 font-semibold mb-1">Strengths</p>
-              <ul className="space-y-0.5">{r.evaluation.strengths.map((s, i) => <li key={i} className="text-emerald-400">✓ {s}</li>)}</ul>
+              <ul className="space-y-0.5">{strengths.map((s, i) => <li key={i} className="text-emerald-400">✓ {s}</li>)}</ul>
             </div>
-          ) : null}
-          {r.evaluation.weaknesses?.length ? (
+          )}
+          {weaknesses.length > 0 && (
             <div>
               <p className="text-gray-500 font-semibold mb-1">Weaknesses</p>
-              <ul className="space-y-0.5">{r.evaluation.weaknesses.map((s, i) => <li key={i} className="text-amber-400">△ {s}</li>)}</ul>
+              <ul className="space-y-0.5">{weaknesses.map((s, i) => <li key={i} className="text-amber-400">△ {s}</li>)}</ul>
             </div>
-          ) : null}
-          {r.evaluation.missing_skills?.length ? (
+          )}
+          {missingSkills.length > 0 && (
             <div>
-              <p className="text-gray-500 font-semibold mb-1">Missing Skills</p>
-              <div className="flex flex-wrap gap-1">{r.evaluation.missing_skills.map(s => <span key={s} className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">{s}</span>)}</div>
+              <p className="text-gray-500 font-semibold mb-1">Missing / Low Match Skills</p>
+              <div className="flex flex-wrap gap-1">{missingSkills.map(s => <span key={s} className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">{s}</span>)}</div>
             </div>
-          ) : null}
-          {r.evaluation.justification && (
+          )}
+          {ev.risk_level && (
+            <p className="text-gray-500">Risk: <span className="text-amber-400">{ev.risk_level}</span>{ev.risk_explanation ? ` — ${ev.risk_explanation}` : ''}</p>
+          )}
+          {ev.justification && (
             <div>
               <p className="text-gray-500 font-semibold mb-1">Justification</p>
-              <p className="text-gray-400 leading-relaxed">{r.evaluation.justification}</p>
+              <p className="text-gray-400 leading-relaxed">{ev.justification}</p>
             </div>
           )}
         </div>
