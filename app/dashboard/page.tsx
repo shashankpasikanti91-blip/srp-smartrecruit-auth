@@ -17,6 +17,8 @@ interface Job {
   id: string; short_id: string; title: string; company: string
   location: string; type: string; status: string; applications_count: number
   created_at: string
+  // saved social posts attached by /api/jobs GET
+  post_contents?: Record<string, string> | null
 }
 
 interface Candidate {
@@ -312,6 +314,7 @@ export default function DashboardPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          job_post_id: job.id,
           title: job.title, company: job.company, location: job.location,
           type: job.type, custom_prompt: genCustomPrompt,
         }),
@@ -1047,9 +1050,24 @@ export default function DashboardPage() {
                               {jobCands.length} candidates
                             </div>
                             <div className="flex items-center gap-3">
-                              <button onClick={() => { setGenPostJob(job); setGeneratedPosts({}); setGenCustomPrompt(''); setGenPostError('') }}
+                              <button onClick={() => {
+                                setGenPostJob(job)
+                                // Pre-load saved posts so user doesn't have to regenerate (costs money)
+                                const saved = job.post_contents
+                                const posts = saved
+                                  ? Object.fromEntries(
+                                      ['linkedin','whatsapp','email','twitter','indeed','telegram','facebook']
+                                        .filter(k => saved[k])
+                                        .map(k => [k, saved[k]])
+                                    )
+                                  : {}
+                                setGeneratedPosts(posts)
+                                const firstKey = Object.keys(posts)[0]
+                                if (firstKey) setGenPostTab(firstKey)
+                                setGenCustomPrompt(''); setGenPostError('')
+                              }}
                                 className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300">
-                                <Sparkles className="w-3 h-3" /> Posts
+                                <Sparkles className="w-3 h-3" /> {job.post_contents ? 'View Posts ✓' : 'Generate Posts'}
                               </button>
                               <button onClick={() => { setSelectedJob(job.id); setActiveTab('pipeline') }}
                                 className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300">
@@ -1236,7 +1254,12 @@ export default function DashboardPage() {
               onClick={() => generateJobPosts(genPostJob)}
               disabled={generatingPosts}
               className="mb-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 font-semibold text-sm transition-all disabled:opacity-50 flex-shrink-0">
-              {generatingPosts ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating for all platforms…</> : <><Sparkles className="w-4 h-4" /> Generate for LinkedIn · WhatsApp · Email · Twitter · Indeed · Telegram · Facebook</>}
+              {generatingPosts
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating for all platforms…</>
+                : Object.keys(generatedPosts).length > 0
+                  ? <><Sparkles className="w-4 h-4" /> Regenerate Posts</>
+                  : <><Sparkles className="w-4 h-4" /> Generate for LinkedIn · WhatsApp · Email · Twitter · Indeed · Telegram · Facebook</>
+              }
             </button>
 
             {genPostError && (
