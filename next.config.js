@@ -6,6 +6,7 @@ const nextConfig = {
     '/api/parse': [
       './node_modules/pdf-parse/**/*',
       './node_modules/mammoth/**/*',
+      './node_modules/node-ensure/**/*',
     ],
   },
   images: {

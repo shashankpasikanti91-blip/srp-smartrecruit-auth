@@ -16,6 +16,7 @@
     "mammoth": "^1.12.0",
     "next": "^16.2.3",
     "next-auth": "^4.24.11",
+    "node-ensure": "^0.0.0",
     "nodemailer": "^8.0.5",
     "pdf-parse": "^1.1.1",
     "pg": "^8.20.0",
