@@ -308,6 +308,23 @@ export default function DashboardPage() {
     setCopied(true); setTimeout(() => setCopied(false), 2000)
   }
 
+  const openJobDetails = (job: Job) => {
+    setGenPostJob(job)
+    const saved = job.post_contents
+    const posts = saved
+      ? Object.fromEntries(
+          ['linkedin','whatsapp','email','twitter','indeed','telegram','facebook']
+            .filter(k => saved[k])
+            .map(k => [k, saved[k]])
+        )
+      : {}
+    setGeneratedPosts(posts)
+    const firstKey = Object.keys(posts)[0]
+    setGenPostTab(firstKey || 'linkedin')
+    setGenCustomPrompt('')
+    setGenPostError('')
+  }
+
   const generateJobPosts = async (job: Job) => {
     setGeneratingPosts(true); setGenPostError(''); setGeneratedPosts({})
     try {
@@ -1042,7 +1059,9 @@ export default function DashboardPage() {
                     {jobs.map(job => {
                       const jobCands = candidates.filter(c => c.job_posts?.id === job.id)
                       return (
-                        <div key={job.id} className="glass-card rounded-xl p-5 border border-white/5 hover:border-indigo-500/30 transition-all">
+                        <div key={job.id}
+                          onClick={() => openJobDetails(job)}
+                          className="glass-card rounded-xl p-5 border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer">
                           <div className="flex items-start justify-between mb-3">
                             <ShortIdBadge id={job.short_id ?? job.id.slice(0, 8)} />
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${job.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
@@ -1062,26 +1081,11 @@ export default function DashboardPage() {
                               {jobCands.length} candidates
                             </div>
                             <div className="flex items-center gap-3">
-                              <button onClick={() => {
-                                setGenPostJob(job)
-                                // Pre-load saved posts so user doesn't have to regenerate (costs money)
-                                const saved = job.post_contents
-                                const posts = saved
-                                  ? Object.fromEntries(
-                                      ['linkedin','whatsapp','email','twitter','indeed','telegram','facebook']
-                                        .filter(k => saved[k])
-                                        .map(k => [k, saved[k]])
-                                    )
-                                  : {}
-                                setGeneratedPosts(posts)
-                                const firstKey = Object.keys(posts)[0]
-                                if (firstKey) setGenPostTab(firstKey)
-                                setGenCustomPrompt(''); setGenPostError('')
-                              }}
+                              <button onClick={(e) => { e.stopPropagation(); openJobDetails(job) }}
                                 className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300">
-                                <Sparkles className="w-3 h-3" /> {job.post_contents ? 'View Details & Posts ✓' : 'Generate Posts'}
+                                <Sparkles className="w-3 h-3" /> {job.post_contents ? 'View JD & Posts ✓' : 'Open JD Details'}
                               </button>
-                              <button onClick={() => { setSelectedJob(job.id); setActiveTab('pipeline') }}
+                              <button onClick={(e) => { e.stopPropagation(); setSelectedJob(job.id); setActiveTab('pipeline') }}
                                 className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300">
                                 View pipeline <ArrowRight className="w-3 h-3" />
                               </button>
@@ -1248,8 +1252,8 @@ export default function DashboardPage() {
           <div className="glass-card rounded-2xl p-6 w-full max-w-2xl border border-white/10 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
               <div>
-                <h2 className="text-lg font-bold text-white">Generate Social Posts</h2>
-                <p className="text-xs text-gray-500 mt-0.5">{genPostJob.title}{genPostJob.company ? ` · ${genPostJob.company}` : ''}</p>
+                <h2 className="text-lg font-bold text-white">Job Details & Social Posts</h2>
+                <p className="text-xs text-gray-500 mt-0.5">{genPostJob.title}{genPostJob.company ? ` · ${genPostJob.company}` : ''}{genPostJob.short_id ? ` · ${genPostJob.short_id}` : ''}</p>
               </div>
               <button onClick={() => setGenPostJob(null)} className="text-gray-500 hover:text-gray-300"><X className="w-5 h-5" /></button>
             </div>
@@ -1291,7 +1295,7 @@ export default function DashboardPage() {
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating for all platforms…</>
                 : Object.keys(generatedPosts).length > 0
                   ? <><Sparkles className="w-4 h-4" /> Regenerate Posts</>
-                  : <><Sparkles className="w-4 h-4" /> Generate for LinkedIn · WhatsApp · Email · Twitter · Indeed · Telegram · Facebook</>
+                  : <><Sparkles className="w-4 h-4" /> Generate Posts from Full JD</>
               }
             </button>
 
