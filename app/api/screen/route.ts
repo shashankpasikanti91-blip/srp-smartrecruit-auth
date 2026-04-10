@@ -134,10 +134,11 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { jd_text, resumes, candidate_id } = body as {
+    const { jd_text, resumes, candidate_id, job_post_id } = body as {
       jd_text: string
       resumes: { text: string; filename?: string; id?: string }[]
       candidate_id?: string
+      job_post_id?: string
     }
 
     if (!jd_text?.trim()) return NextResponse.json({ error: 'jd_text required' }, { status: 400 })
@@ -172,31 +173,56 @@ export async function POST(req: NextRequest) {
         parsed = { error: 'Failed to parse AI response', raw }
       }
 
-      // Save to DB if we have a candidate/resume id
-      const resumeId = resume.id ?? candidate_id
-      if (resumeId && userId && !parsed.error) {
+      // Save to DB — update existing candidate OR insert new one
+      if (userId && !parsed.error) {
         const p = parsed as Record<string, unknown>
         const evalData = p.evaluation as Record<string, unknown> | undefined
         const score = typeof p.score === 'number' ? p.score : null
-        const category = score != null ? (score >= 75 ? 'best' : score >= 60 ? 'good' : score >= 45 ? 'partial' : 'poor') : null
         const decision = (p.decision as string) ?? ''
         const skills = (evalData?.high_match_skills as string[]) ?? []
         const summary = (evalData?.justification as string) ?? ''
         const stage = decision === 'Shortlisted' ? 'screening' : 'applied'
+        const resumeId = resume.id ?? candidate_id
 
-        await pool.query(
-          `UPDATE resumes SET
-            ai_score = $1, match_category = $2, ai_summary = $3,
-            ai_skills = $4, pipeline_stage = $5,
-            candidate_name = COALESCE(NULLIF(candidate_name,''), $6),
-            candidate_email = COALESCE(NULLIF(candidate_email,''), $7),
-            candidate_phone = COALESCE(NULLIF(candidate_phone,''), $8),
-            status = 'reviewed', updated_at = NOW()
-          WHERE id = $9 AND user_id = $10`,
-          [score, category, summary, JSON.stringify(skills), stage,
-           p.name ?? null, p.email ?? null, p.contact_number ?? null,
-           resumeId, userId]
-        )
+        if (resumeId) {
+          // Update existing candidate — note: match_category is a GENERATED column, do NOT set it
+          await pool.query(
+            `UPDATE resumes SET
+              ai_score = $1, ai_summary = $2,
+              ai_skills = $3, pipeline_stage = $4,
+              candidate_name = COALESCE(NULLIF(candidate_name,''), $5),
+              candidate_email = COALESCE(NULLIF(candidate_email,''), $6),
+              candidate_phone = COALESCE(NULLIF(candidate_phone,''), $7),
+              status = 'reviewed', updated_at = NOW()
+            WHERE id = $8 AND user_id = $9`,
+            [score, summary, JSON.stringify(skills), stage,
+             p.name ?? null, p.email ?? null, p.contact_number ?? null,
+             resumeId, userId]
+          )
+        } else {
+          // Insert new candidate row from AI screening upload
+          // match_category is GENERATED from ai_score — do NOT include it
+          const insertRes = await pool.query<{ id: string; short_id: string }>(
+            `INSERT INTO resumes
+              (user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
+               file_name, raw_text, ai_score, ai_summary, ai_skills, pipeline_stage, status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'reviewed')
+             RETURNING id, short_id`,
+            [userId,
+             job_post_id || null,
+             (p.name as string) || resume.filename || 'Unknown',
+             (p.email as string) || null,
+             (p.contact_number as string) || null,
+             resume.filename || null,
+             resume.text,
+             score,
+             summary,
+             JSON.stringify(skills),
+             stage]
+          )
+          // Attach DB ids to result so client can display them
+          parsed = { ...parsed, db_id: insertRes.rows[0]?.id, short_id: insertRes.rows[0]?.short_id }
+        }
       }
 
       results.push({ ...parsed, filename: resume.filename })
