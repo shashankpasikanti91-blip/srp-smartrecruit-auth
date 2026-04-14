@@ -3,7 +3,7 @@ import GoogleProvider from 'next-auth/providers/google'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { pool, upsertUser, logActivity } from './db'
-import { notifyNewSignup, notifyLogin, notifyError } from './notifications'
+import { notifyNewSignup, notifyLogin, notifyError, sendWelcomeEmail } from './notifications'
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -101,6 +101,12 @@ export const authOptions: AuthOptions = {
             email: user.email!,
             provider: 'google',
           })
+          // Send welcome email to the new user
+          sendWelcomeEmail({
+            name: user.name ?? null,
+            email: user.email!,
+            provider: 'google',
+          }).catch(() => {})
         } else {
           await notifyLogin({ name: user.name ?? null, email: user.email! })
         }
@@ -149,4 +155,16 @@ export const authOptions: AuthOptions = {
 
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === 'development',
+
+  // Fix: ensure OAuth state & PKCE cookies work behind nginx reverse proxy
+  cookies: {
+    state: {
+      name: '__Secure-next-auth.state',
+      options: { httpOnly: true, sameSite: 'lax' as const, path: '/', secure: true, maxAge: 900 },
+    },
+    pkceCodeVerifier: {
+      name: '__Secure-next-auth.pkce.code_verifier',
+      options: { httpOnly: true, sameSite: 'lax' as const, path: '/', secure: true, maxAge: 900 },
+    },
+  },
 }

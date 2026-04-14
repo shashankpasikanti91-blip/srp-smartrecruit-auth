@@ -23,13 +23,6 @@ function LoginContent() {
   const [loading, setLoading]   = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
-  const fillDemo = () => {
-    setTab('email')
-    setEmail('demo@srpailabs.com')
-    setPassword('Demo@1234')
-    setFormError(null)
-  }
-
   // Redirect if already signed in
   useEffect(() => {
     if (status === 'authenticated') router.replace('/dashboard')
@@ -105,22 +98,6 @@ function LoginContent() {
         <div className="w-full max-w-sm">
           <div className="glass-card rounded-2xl p-8 shadow-2xl border border-white/10">
 
-            {/* Demo account banner */}
-            <button
-              type="button"
-              onClick={fillDemo}
-              className="w-full mb-5 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border border-indigo-500/30 hover:border-indigo-500/60 transition-all text-left group"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-indigo-300 mb-1">🎯 Try Demo Account</p>
-                  <p className="text-xs text-gray-400 font-mono">demo@srpailabs.com</p>
-                  <p className="text-xs text-gray-400 font-mono">Demo@1234</p>
-                </div>
-                <span className="text-xs text-indigo-400 group-hover:text-indigo-300 transition-colors font-medium">Click to fill →</span>
-              </div>
-            </button>
-
             {/* Heading */}
             <div className="text-center mb-6">
               <h1 className="text-2xl font-extrabold text-white">Welcome back</h1>
@@ -168,7 +145,7 @@ function LoginContent() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-medium text-gray-400">Password</label>
-                    <Link href="/login" className="text-xs text-indigo-400 hover:underline">Forgot password?</Link>
+                    <Link href="/forgot-password" className="text-xs text-indigo-400 hover:underline">Forgot password?</Link>
                   </div>
                   <div className="relative">
                     <input

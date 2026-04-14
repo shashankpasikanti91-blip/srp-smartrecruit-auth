@@ -86,7 +86,7 @@ export default function CustomersPage() {
         {/* Stats bar */}
         <section className="border-y border-white/5 bg-white/2">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
-            {[['500+', 'Companies served'], ['50K+', 'Hires powered'], ['30', 'Countries'], ['95%', 'AI accuracy']].map(([v, l]) => (
+            {[['< 3 min', 'Screening time'], ['95%', 'AI accuracy'], ['Zero', 'Manual effort'], ['10×', 'Faster hiring']].map(([v, l]) => (
               <div key={l}><p className="text-2xl font-bold text-white">{v}</p><p className="text-gray-500 text-sm mt-1">{l}</p></div>
             ))}
           </div>

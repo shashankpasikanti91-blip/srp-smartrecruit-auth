@@ -14,7 +14,7 @@ export async function PATCH(
   try {
     const { id } = await params
     const body = await req.json()
-    const allowed = ['pipeline_stage', 'status', 'reviewer_notes', 'ai_score', 'ai_summary']
+    const allowed = ['pipeline_stage', 'status', 'reviewer_notes', 'ai_score', 'ai_summary', 'job_post_id']
     const sets: string[] = []
     const values: unknown[] = []
     let idx = 1

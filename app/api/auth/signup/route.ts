@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { pool } from '@/lib/db'
+import { logActivity } from '@/lib/db'
+import { notifyNewSignup, sendWelcomeEmail } from '@/lib/notifications'
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,6 +44,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to create account.' }, { status: 500 })
     }
     const user = rows[0]
+
+    // Auto-provision free subscription for every new signup
+    await pool.query(
+      `INSERT INTO subscriptions (user_id, plan, status, billing_cycle, amount_cents, currency)
+       VALUES ($1, 'free', 'active', 'monthly', 0, 'usd')
+       ON CONFLICT DO NOTHING`,
+      [user.id]
+    )
+
+    // Log activity & notify owner (non-blocking)
+    logActivity({
+      user_id: user.id,
+      event_type: 'signup',
+      event_data: { email: normalizedEmail, provider: 'credentials', name: user.name },
+      severity: 'info',
+    }).catch(() => {})
+    notifyNewSignup({ name: user.name ?? null, email: normalizedEmail, provider: 'credentials' }).catch(() => {})
+
+    // Send professional welcome email to new user
+    sendWelcomeEmail({ name: user.name ?? null, email: normalizedEmail, provider: 'credentials' }).catch(() => {})
 
     return NextResponse.json({ ok: true, userId: user.id }, { status: 201 })
   } catch (err) {

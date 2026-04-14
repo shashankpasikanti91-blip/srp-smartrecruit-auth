@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { pool } from '@/lib/db'
 import { checkAiScreenLimit } from '@/lib/limits'
 
-export const maxDuration = 60
+export const maxDuration = 120
 
 const SCREENING_SYSTEM_PROMPT = `You are an expert recruiter with experience hiring across:
 - Technology & Software roles
@@ -108,22 +108,30 @@ async function callAI(messages: { role: string; content: string }[]): Promise<st
 
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
 
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      'HTTP-Referer': 'https://recruit.srpailabs.com',
-      'X-Title': 'SRP SmartRecruit',
-    },
-    body: JSON.stringify({ model, messages, temperature: 0.2 }),
-  })
-  if (!res.ok) {
-    const errText = await res.text()
-    throw new Error(`AI API error ${res.status}: ${errText}`)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 90000) // 90s timeout for AI
+
+  try {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://recruit.srpailabs.com',
+        'X-Title': 'SRP SmartRecruit',
+      },
+      body: JSON.stringify({ model, messages, temperature: 0.2 }),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const errText = await res.text()
+      throw new Error(`AI API error ${res.status}: ${errText}`)
+    }
+    const data = await res.json()
+    return data.choices?.[0]?.message?.content ?? ''
+  } finally {
+    clearTimeout(timer)
   }
-  const data = await res.json()
-  return data.choices?.[0]?.message?.content ?? ''
 }
 
 export async function POST(req: NextRequest) {
@@ -144,14 +152,24 @@ export async function POST(req: NextRequest) {
     if (!jd_text?.trim()) return NextResponse.json({ error: 'jd_text required' }, { status: 400 })
     if (!resumes?.length) return NextResponse.json({ error: 'resumes required' }, { status: 400 })
 
-    const userRes = await pool.query<{ id: string }>('SELECT id FROM auth_users WHERE email = $1', [session.user.email])
-    const userId = userRes.rows[0]?.id
+    // Try to get userId from DB — but don't block screening if DB is slow
+    let userId: string | undefined
+    try {
+      const userRes = await pool.query<{ id: string }>('SELECT id FROM auth_users WHERE email = $1', [session.user.email])
+      userId = userRes.rows[0]?.id
+    } catch (dbErr) {
+      console.warn('[api/screen] Could not fetch user from DB, proceeding without DB:', dbErr instanceof Error ? dbErr.message : dbErr)
+    }
 
-    // Check monthly AI screen limit
+    // Check monthly AI screen limit (skip if DB unavailable)
     if (userId) {
-      const limit = await checkAiScreenLimit(userId)
-      if (!limit.allowed) {
-        return NextResponse.json({ error: limit.reason }, { status: 403 })
+      try {
+        const limit = await checkAiScreenLimit(userId)
+        if (!limit.allowed) {
+          return NextResponse.json({ error: limit.reason }, { status: 403 })
+        }
+      } catch (limitErr) {
+        console.warn('[api/screen] Could not check limit, allowing:', limitErr instanceof Error ? limitErr.message : limitErr)
       }
     }
 
@@ -174,54 +192,60 @@ export async function POST(req: NextRequest) {
       }
 
       // Save to DB — update existing candidate OR insert new one
+      // Wrapped in try-catch: DB save failure should NOT block screening results
       if (userId && !parsed.error) {
-        const p = parsed as Record<string, unknown>
-        const evalData = p.evaluation as Record<string, unknown> | undefined
-        const score = typeof p.score === 'number' ? p.score : null
-        const decision = (p.decision as string) ?? ''
-        const skills = (evalData?.high_match_skills as string[]) ?? []
-        const summary = (evalData?.justification as string) ?? ''
-        const stage = decision === 'Shortlisted' ? 'screening' : 'applied'
-        const resumeId = resume.id ?? candidate_id
+        try {
+          const p = parsed as Record<string, unknown>
+          const evalData = p.evaluation as Record<string, unknown> | undefined
+          const score = typeof p.score === 'number' ? p.score : null
+          const decision = (p.decision as string) ?? ''
+          const skills = (evalData?.high_match_skills as string[]) ?? []
+          const summary = (evalData?.justification as string) ?? ''
+          const stage = decision === 'Shortlisted' ? 'screening' : 'applied'
+          const resumeId = resume.id ?? candidate_id
 
-        if (resumeId) {
-          // Update existing candidate — note: match_category is a GENERATED column, do NOT set it
-          await pool.query(
-            `UPDATE resumes SET
-              ai_score = $1, ai_summary = $2,
-              ai_skills = $3, pipeline_stage = $4,
-              candidate_name = COALESCE(NULLIF(candidate_name,''), $5),
-              candidate_email = COALESCE(NULLIF(candidate_email,''), $6),
-              candidate_phone = COALESCE(NULLIF(candidate_phone,''), $7),
-              status = 'reviewed', updated_at = NOW()
-            WHERE id = $8 AND user_id = $9`,
-            [score, summary, JSON.stringify(skills), stage,
-             p.name ?? null, p.email ?? null, p.contact_number ?? null,
-             resumeId, userId]
-          )
-        } else {
-          // Insert new candidate row from AI screening upload
-          // match_category is GENERATED from ai_score — do NOT include it
-          const insertRes = await pool.query<{ id: string; short_id: string }>(
-            `INSERT INTO resumes
-              (user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
-               file_name, raw_text, ai_score, ai_summary, ai_skills, pipeline_stage, status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'reviewed')
-             RETURNING id, short_id`,
-            [userId,
-             job_post_id || null,
-             (p.name as string) || resume.filename || 'Unknown',
-             (p.email as string) || null,
-             (p.contact_number as string) || null,
-             resume.filename || null,
-             resume.text,
-             score,
-             summary,
-             JSON.stringify(skills),
-             stage]
-          )
-          // Attach DB ids to result so client can display them
-          parsed = { ...parsed, db_id: insertRes.rows[0]?.id, short_id: insertRes.rows[0]?.short_id }
+          if (resumeId) {
+            // Update existing candidate — note: match_category is a GENERATED column, do NOT set it
+            await pool.query(
+              `UPDATE resumes SET
+                ai_score = $1, ai_summary = $2,
+                ai_skills = $3, pipeline_stage = $4,
+                candidate_name = COALESCE(NULLIF(candidate_name,''), $5),
+                candidate_email = COALESCE(NULLIF(candidate_email,''), $6),
+                candidate_phone = COALESCE(NULLIF(candidate_phone,''), $7),
+                status = 'reviewed', updated_at = NOW()
+              WHERE id = $8 AND user_id = $9`,
+              [score, summary, skills, stage,
+               p.name ?? null, p.email ?? null, p.contact_number ?? null,
+               resumeId, userId]
+            )
+          } else {
+            // Insert new candidate row from AI screening upload
+            // match_category is GENERATED from ai_score — do NOT include it
+            const insertRes = await pool.query<{ id: string; short_id: string }>(
+              `INSERT INTO resumes
+                (user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
+                 file_name, raw_text, ai_score, ai_summary, ai_skills, pipeline_stage, status)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'reviewed')
+               RETURNING id, short_id`,
+              [userId,
+               job_post_id || null,
+               (p.name as string) || resume.filename || 'Unknown',
+               (p.email as string) || null,
+               (p.contact_number as string) || null,
+               resume.filename || null,
+               resume.text,
+               score,
+               summary,
+               skills,
+               stage]
+            )
+            // Attach DB ids to result so client can display them
+            parsed = { ...parsed, db_id: insertRes.rows[0]?.id, short_id: insertRes.rows[0]?.short_id }
+          }
+        } catch (dbSaveErr) {
+          console.warn('[api/screen] DB save failed (results still returned):', dbSaveErr instanceof Error ? dbSaveErr.message : dbSaveErr)
+          parsed = { ...parsed, db_save_warning: 'Results generated but could not be saved. They will appear next time.' }
         }
       }
 

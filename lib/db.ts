@@ -1,4 +1,4 @@
-import { Pool } from 'pg'
+import { Pool, QueryResult, QueryResultRow } from 'pg'
 
 // Lazy pool — only throws at runtime (query time), not at module load / build time
 let _pool: Pool | null = null
@@ -8,17 +8,53 @@ export function getPool(): Pool {
     if (!process.env.DATABASE_URL) throw new Error('Missing DATABASE_URL')
     _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
+      max: 15,
+      idleTimeoutMillis: 60000,
+      connectionTimeoutMillis: 30000,
+    })
+    // Log pool errors instead of crashing
+    _pool.on('error', (err) => {
+      console.error('[db] Pool background error:', err.message)
     })
   }
   return _pool
 }
 
-// Convenience re-export so existing callers can swap import with minimal change
+/**
+ * Execute a query with automatic retry on connection errors.
+ * Retries up to 3 times with exponential backoff (1s, 2s, 4s).
+ */
+export async function queryWithRetry<T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params?: unknown[],
+  maxRetries = 3
+): Promise<QueryResult<T>> {
+  const p = getPool()
+  let lastError: Error | null = null
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await p.query<T>(text, params)
+    } catch (err: unknown) {
+      lastError = err instanceof Error ? err : new Error(String(err))
+      const isConnectionError =
+        lastError.message.includes('timeout') ||
+        lastError.message.includes('ECONNREFUSED') ||
+        lastError.message.includes('ECONNRESET') ||
+        lastError.message.includes('connection terminated') ||
+        lastError.message.includes('Connection terminated')
+      if (!isConnectionError || attempt === maxRetries) throw lastError
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 4000)
+      console.warn(`[db] Connection error (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`)
+      await new Promise(r => setTimeout(r, delay))
+    }
+  }
+  throw lastError!
+}
+
+// Convenience re-export — now uses retry wrapper for .query()
 export const pool = new Proxy({} as Pool, {
   get(_target, prop) {
+    if (prop === 'query') return queryWithRetry
     return (getPool() as unknown as Record<string | symbol, unknown>)[prop]
   },
 })

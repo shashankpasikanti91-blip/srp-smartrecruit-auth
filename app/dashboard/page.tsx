@@ -9,7 +9,8 @@ import {
   ArrowRight, BarChart3, Target, Inbox, Clock, CheckCircle,
   Upload, FileText, Sparkles, Copy, Check, Mail,
   RefreshCw, AlertCircle, Layers, Brain, ChevronRight,
-  MoreVertical, Send, Loader2, Download
+  MoreVertical, Send, Loader2, Download, Settings, User as UserIcon, CreditCard, Activity, Shield,
+  Key, Pencil, Eye, EyeOff, Link2, Trash2, ToggleLeft, ToggleRight, ExternalLink
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -24,9 +25,11 @@ interface Job {
 
 interface Candidate {
   id: string; short_id: string; candidate_name: string; candidate_email: string
+  candidate_phone: string | null
   ai_score: number | null
   match_category: 'best' | 'good' | 'partial' | 'poor' | null
   pipeline_stage: string; status: string; ai_skills: string[]; ai_summary: string
+  raw_text: string | null; file_name: string | null
   job_posts: { id: string; short_id: string; title: string; company: string } | null
   created_at: string
 }
@@ -52,19 +55,19 @@ interface ScreenResult {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const PIPELINE_STAGES = [
-  { key: 'sourced',    label: 'Sourced',    color: 'bg-slate-700',      text: 'text-slate-300',   icon: Inbox },
-  { key: 'applied',   label: 'Applied',    color: 'bg-blue-900/60',    text: 'text-blue-300',    icon: Briefcase },
-  { key: 'screening', label: 'Screening',  color: 'bg-purple-900/60',  text: 'text-purple-300',  icon: Target },
-  { key: 'interview', label: 'Interview',  color: 'bg-amber-900/60',   text: 'text-amber-300',   icon: Clock },
-  { key: 'offer',     label: 'Offer',      color: 'bg-emerald-900/60', text: 'text-emerald-300', icon: CheckCircle },
-  { key: 'hired',     label: 'Hired',      color: 'bg-green-900/60',   text: 'text-green-300',   icon: Star },
+  { key: 'sourced',    label: 'Sourced',    color: 'bg-slate-700',      text: 'text-slate-300',   bar: 'bg-slate-400',      icon: Inbox },
+  { key: 'applied',   label: 'Applied',    color: 'bg-blue-900/60',    text: 'text-blue-300',    bar: 'bg-blue-500',       icon: Briefcase },
+  { key: 'screening', label: 'Screening',  color: 'bg-purple-900/60',  text: 'text-purple-300',  bar: 'bg-purple-500',     icon: Target },
+  { key: 'interview', label: 'Interview',  color: 'bg-amber-900/60',   text: 'text-amber-300',   bar: 'bg-amber-500',      icon: Clock },
+  { key: 'offer',     label: 'Offer',      color: 'bg-emerald-900/60', text: 'text-emerald-300', bar: 'bg-emerald-500',    icon: CheckCircle },
+  { key: 'hired',     label: 'Hired',      color: 'bg-green-900/60',   text: 'text-green-300',   bar: 'bg-green-500',      icon: Star },
 ]
 
 const MATCH_CONFIG = {
-  best:    { label: 'Best Match',    bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30' },
-  good:    { label: 'Good Match',    bg: 'bg-blue-500/20',    text: 'text-blue-400',    border: 'border-blue-500/30' },
-  partial: { label: 'Partial Match', bg: 'bg-amber-500/20',   text: 'text-amber-400',   border: 'border-amber-500/30' },
-  poor:    { label: 'Low Match',     bg: 'bg-red-500/20',     text: 'text-red-400',     border: 'border-red-500/30' },
+  best:    { label: 'Best Match',    bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30', bar: 'bg-emerald-500' },
+  good:    { label: 'Good Match',    bg: 'bg-blue-500/20',    text: 'text-blue-400',    border: 'border-blue-500/30',    bar: 'bg-blue-500' },
+  partial: { label: 'Partial Match', bg: 'bg-amber-500/20',   text: 'text-amber-400',   border: 'border-amber-500/30',   bar: 'bg-amber-500' },
+  poor:    { label: 'Low Match',     bg: 'bg-red-500/20',     text: 'text-red-400',     border: 'border-red-500/30',     bar: 'bg-red-500' },
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -93,7 +96,7 @@ export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const [activeTab, setActiveTab] = useState<'pipeline' | 'candidates' | 'screen' | 'compose' | 'jobs' | 'analytics'>('pipeline')
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'candidates' | 'screen' | 'compose' | 'jobs' | 'analytics' | 'settings'>('pipeline')
   const [jobs, setJobs] = useState<Job[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [stageCounts, setStageCounts] = useState<StageCounts>({})
@@ -101,18 +104,27 @@ export default function DashboardPage() {
   const [searchQ, setSearchQ] = useState('')
   const [filterStage, setFilterStage] = useState('')
   const [filterMatch, setFilterMatch] = useState('')
+  const [filterJob, setFilterJob] = useState('')
+  const [filterSkill, setFilterSkill] = useState('')
   const [loading, setLoading] = useState(true)
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
+  const [matchCounts, setMatchCounts] = useState<Record<string, number>>({})
+  const [topSkills, setTopSkills] = useState<Array<{ skill: string; count: number }>>([])
 
   // New Job modal state
   const [showNewJob, setShowNewJob] = useState(false)
   const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '' })
   const [savingJob, setSavingJob] = useState(false)
-  const [seedingDemo, setSeedingDemo] = useState(false)
+
 
   // New Candidate modal state
   const [showNewCandidate, setShowNewCandidate] = useState(false)
   const [newCand, setNewCand] = useState({ candidate_name: '', candidate_email: '', candidate_phone: '', ai_skills: '', job_post_id: '' })
   const [savingCand, setSavingCand] = useState(false)
+  const [candResumeFile, setCandResumeFile] = useState<File | null>(null)
+  const [candResumeParsing, setCandResumeParsing] = useState(false)
+  const [candResumeText, setCandResumeText] = useState('')
+  const [candResumeError, setCandResumeError] = useState('')
 
   // Drag & drop state
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -152,6 +164,30 @@ export default function DashboardPage() {
   const [genCustomPrompt, setGenCustomPrompt] = useState('')
   const [copiedPostKey, setCopiedPostKey] = useState('')
 
+  // Upgrade prompt state
+  const [upgradePrompt, setUpgradePrompt] = useState<{ show: boolean; message: string; feature: string }>({ show: false, message: '', feature: '' })
+  const [subAlertDismissed, setSubAlertDismissed] = useState(false)
+
+  // Profile / Settings state
+  const [profileData, setProfileData] = useState<{
+    user: { id: string; name: string; email: string; image: string | null; provider: string; role: string; created_at: string }
+    subscription: { plan: string; status: string; billing_cycle: string; current_period_end: string | null; trial_ends_at: string | null }
+    usage: { screens_this_month: number; composes_this_month: number; total_candidates: number; active_jobs: number }
+  } | null>(null)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [editingName, setEditingName] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [savingName, setSavingName] = useState(false)
+  const [apiKeys, setApiKeys] = useState<{ key_prefix: string; label: string; is_active: boolean; created_at: string }[]>([])
+  const [generatedKey, setGeneratedKey] = useState('')
+  const [generatingKey, setGeneratingKey] = useState(false)
+  const [showKey, setShowKey] = useState(false)
+  const [integrations, setIntegrations] = useState<{ provider: string; webhook_url: string | null; config: Record<string, string>; is_active: boolean; has_api_key: boolean; created_at: string }[]>([])
+  const [intgProvider, setIntgProvider] = useState('')
+  const [intgApiKey, setIntgApiKey] = useState('')
+  const [intgWebhook, setIntgWebhook] = useState('')
+  const [savingIntg, setSavingIntg] = useState(false)
+
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login')
   }, [status, router])
@@ -163,30 +199,174 @@ export default function DashboardPage() {
       if (searchQ) params.set('q', searchQ)
       if (filterStage) params.set('stage', filterStage)
       if (filterMatch) params.set('match', filterMatch)
-      if (selectedJob) params.set('job_id', selectedJob)
+      const jobFilter = filterJob || selectedJob
+      if (jobFilter) params.set('job_id', jobFilter)
+      if (filterSkill) params.set('skill', filterSkill)
 
       const [jRes, cRes] = await Promise.all([
-        fetch('/api/jobs'),
-        fetch(`/api/candidates?${params.toString()}`),
+        fetch('/api/jobs').catch(() => null),
+        fetch(`/api/candidates?${params.toString()}`).catch(() => null),
       ])
-      const jData = await jRes.json()
-      const cData = await cRes.json()
-      setJobs(jData.jobs ?? [])
-      setCandidates(cData.candidates ?? [])
-      setStageCounts(cData.stageCounts ?? {})
+      if (jRes?.ok) {
+        const jData = await jRes.json()
+        setJobs(jData.jobs ?? [])
+      }
+      if (cRes?.ok) {
+        const cData = await cRes.json()
+        setCandidates(cData.candidates ?? [])
+        setStageCounts(cData.stageCounts ?? {})
+        setMatchCounts(cData.matchCounts ?? {})
+        setTopSkills(cData.topSkills ?? [])
+      }
     } finally {
       setLoading(false)
     }
-  }, [searchQ, filterStage, filterMatch, selectedJob])
+  }, [searchQ, filterStage, filterMatch, filterJob, filterSkill, selectedJob])
 
   useEffect(() => {
     if (status === 'authenticated') loadData()
   }, [status, loadData])
 
+  const loadProfile = useCallback(async () => {
+    setProfileLoading(true)
+    try {
+      const res = await fetch('/api/profile')
+      if (res.ok) {
+        const data = await res.json()
+        setProfileData(data)
+      }
+    } finally {
+      setProfileLoading(false)
+    }
+  }, [])
+
+  // Load profile eagerly for subscription alerts on any tab
+  useEffect(() => {
+    if (status === 'authenticated' && !profileData) loadProfile()
+  }, [status, profileData, loadProfile])
+
+  const saveName = async () => {
+    if (!editName.trim()) return
+    setSavingName(true)
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editName.trim() }),
+      })
+      if (res.ok) {
+        setProfileData(prev => prev ? { ...prev, user: { ...prev.user, name: editName.trim() } } : prev)
+        setEditingName(false)
+      }
+    } finally { setSavingName(false) }
+  }
+
+  const loadApiKeys = async () => {
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_api_keys' }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setApiKeys(data.keys ?? [])
+      }
+    } catch { /* ignore */ }
+  }
+
+  const generateApiKey = async () => {
+    setGeneratingKey(true); setGeneratedKey('')
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate_api_key', label: 'Default' }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setGeneratedKey(data.api_key)
+        setShowKey(true)
+        await loadApiKeys()
+      }
+    } finally { setGeneratingKey(false) }
+  }
+
+  const revokeApiKey = async () => {
+    await fetch('/api/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'revoke_api_key' }),
+    })
+    setGeneratedKey('')
+    await loadApiKeys()
+  }
+
+  const loadIntegrations = async () => {
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_integrations' }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setIntegrations(data.integrations ?? [])
+      }
+    } catch { /* ignore */ }
+  }
+
+  const saveIntegration = async () => {
+    if (!intgProvider) return
+    setSavingIntg(true)
+    try {
+      await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_integration',
+          provider: intgProvider,
+          api_key: intgApiKey || undefined,
+          webhook_url: intgWebhook || undefined,
+        }),
+      })
+      setIntgProvider(''); setIntgApiKey(''); setIntgWebhook('')
+      await loadIntegrations()
+    } finally { setSavingIntg(false) }
+  }
+
+  const deleteIntegration = async (provider: string) => {
+    await fetch('/api/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete_integration', provider }),
+    })
+    await loadIntegrations()
+  }
+
+  const toggleIntegration = async (provider: string, is_active: boolean) => {
+    await fetch('/api/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'toggle_integration', provider, is_active }),
+    })
+    await loadIntegrations()
+  }
+
+  useEffect(() => {
+    if (activeTab === 'settings') { loadApiKeys(); loadIntegrations() }
+  }, [activeTab])
+
   const createJob = async () => {
     if (!newJob.title) return
     setSavingJob(true)
-    await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newJob) })
+    const res = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newJob) })
+    if (res.status === 403) {
+      const data = await res.json()
+      setSavingJob(false)
+      setUpgradePrompt({ show: true, message: data.error || 'You have reached your plan limit.', feature: 'Job Posts' })
+      return
+    }
     setSavingJob(false)
     setShowNewJob(false)
     setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '' })
@@ -198,6 +378,11 @@ export default function DashboardPage() {
     setSavingJob(true)
     const res = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newJob) })
     const data = await res.json()
+    if (res.status === 403) {
+      setSavingJob(false)
+      setUpgradePrompt({ show: true, message: data.error || 'You have reached your plan limit.', feature: 'Job Posts' })
+      return
+    }
     setSavingJob(false)
     setShowNewJob(false)
     setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '' })
@@ -208,15 +393,26 @@ export default function DashboardPage() {
     }
   }
 
-  const seedDemo = async () => {
-    setSeedingDemo(true)
+
+
+  const handleCandResumeUpload = async (file: File) => {
+    setCandResumeFile(file)
+    setCandResumeError('')
+    setCandResumeText('')
+    setCandResumeParsing(true)
     try {
-      const res = await fetch('/api/seed-demo', { method: 'POST' })
+      const fd = new FormData(); fd.append('file', file)
+      const res = await fetch('/api/parse', { method: 'POST', body: fd })
       const data = await res.json()
-      if (res.ok) { await loadData(); setActiveTab('jobs') }
-      else alert(data.error ?? 'Failed to seed demo data')
-    } catch { alert('Network error while seeding') }
-    finally { setSeedingDemo(false) }
+      if (!res.ok) { setCandResumeError(data.error ?? 'Failed to parse resume'); return }
+      setCandResumeText(data.text ?? '')
+      // Auto-fill name/email/phone from parsed text if fields are empty
+      if (!newCand.candidate_name) {
+        const nameMatch = data.text.match(/^([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)/m)
+        if (nameMatch) setNewCand(p => ({ ...p, candidate_name: nameMatch[1] }))
+      }
+    } catch { setCandResumeError('Network error — please try again') }
+    finally { setCandResumeParsing(false) }
   }
 
   const createCandidate = async () => {
@@ -225,17 +421,22 @@ export default function DashboardPage() {
     const payload = {
       ...newCand,
       ai_skills: newCand.ai_skills.split(',').map(s => s.trim()).filter(Boolean),
+      raw_text: candResumeText || undefined,
+      file_name: candResumeFile?.name || undefined,
+      file_size_bytes: candResumeFile?.size || undefined,
     }
     await fetch('/api/candidates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     setSavingCand(false)
     setShowNewCandidate(false)
     setNewCand({ candidate_name: '', candidate_email: '', candidate_phone: '', ai_skills: '', job_post_id: '' })
+    setCandResumeFile(null); setCandResumeText(''); setCandResumeError('')
     loadData()
   }
 
   const moveStage = async (candidateId: string, stage: string) => {
     // Optimistic update
     setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, pipeline_stage: stage } : c))
+    setSelectedCandidate(prev => prev?.id === candidateId ? { ...prev, pipeline_stage: stage } : prev)
     setStageCounts(prev => {
       const old = candidates.find(c => c.id === candidateId)?.pipeline_stage
       if (!old) return prev
@@ -248,27 +449,57 @@ export default function DashboardPage() {
     })
   }
 
+  const changeJob = async (candidateId: string, jobId: string) => {
+    const job = jobId ? jobs.find(j => j.id === jobId) : null
+    const jp = job ? { id: job.id, short_id: job.short_id, title: job.title, company: job.company } : null
+    setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, job_posts: jp } : c))
+    setSelectedCandidate(prev => prev?.id === candidateId ? { ...prev, job_posts: jp } : prev)
+    await fetch(`/api/candidates/${candidateId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_post_id: jobId || null }),
+    })
+  }
+
   const runScreening = async () => {
     setScreening(true); setScreenError(''); setScreenResults([])
     try {
       const resumes = screenMode === 'single'
         ? [{ text: resumeText, filename: 'pasted_resume' }]
         : bulkTexts
-      const res = await fetch('/api/screen', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jd_text: jdText, resumes, job_post_id: screenJobId || undefined }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setScreenError(data.error ?? 'Screening failed'); return }
-      setScreenResults(data.results ?? [])
-      if ((data.results?.length ?? 0) > 0) {
-        await loadData()
-        // Auto-switch to candidates tab so user sees the saved records
-        setActiveTab('candidates')
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 150000) // 150s timeout
+      try {
+        const res = await fetch('/api/screen', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jd_text: jdText, resumes, job_post_id: screenJobId || undefined }),
+          signal: controller.signal,
+        })
+        clearTimeout(timer)
+        const data = await res.json()
+        if (res.status === 403) {
+          setUpgradePrompt({ show: true, message: data.error || 'You have reached your AI screening limit.', feature: 'AI Screening' })
+          return
+        }
+        if (!res.ok) { setScreenError(data.error ?? 'Screening failed'); return }
+        setScreenResults(data.results ?? [])
+        if ((data.results?.length ?? 0) > 0) {
+          await loadData()
+        }
+      } catch (fetchErr) {
+        clearTimeout(timer)
+        throw fetchErr
       }
     } catch (e) {
-      setScreenError(String(e))
+      const msg = String(e)
+      if (msg.includes('AbortError') || msg.includes('aborted')) {
+        setScreenError('Screening is taking longer than expected. Please try again in a moment.')
+      } else if (msg.includes('timeout') || msg.includes('ECONNREFUSED')) {
+        setScreenError('Server is temporarily busy. Please wait a few seconds and try again.')
+      } else {
+        setScreenError(msg)
+      }
     } finally {
       setScreening(false)
     }
@@ -343,6 +574,10 @@ export default function DashboardPage() {
         }),
       })
       const data = await res.json()
+      if (res.status === 403) {
+        setUpgradePrompt({ show: true, message: data.error || 'You have reached your plan limit.', feature: 'Job Post Generation' })
+        return
+      }
       if (!res.ok) { setGenPostError(data.error ?? 'Failed to generate posts'); return }
       setGeneratedPosts(data.posts ?? {})
       const firstKey = Object.keys(data.posts ?? {})[0]
@@ -383,6 +618,28 @@ export default function DashboardPage() {
   const hiredCount = stageCounts['hired'] ?? 0
   const interviewCount = stageCounts['interview'] ?? 0
 
+  // Subscription expiry alert logic
+  const subAlert = (() => {
+    if (!profileData?.subscription) return null
+    const { plan, billing_cycle, current_period_end, status: subStatus } = profileData.subscription
+    if (plan === 'free' || subStatus === 'cancelled') return null
+    if (!current_period_end) return null
+    const now = new Date()
+    const end = new Date(current_period_end)
+    const daysLeft = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    if (daysLeft <= 0) {
+      return { level: 'expired' as const, daysLeft, billing_cycle, message: `Your ${plan} subscription has expired. Renew now to continue using all features.` }
+    }
+    if (billing_cycle === 'yearly') {
+      if (daysLeft <= 7) return { level: 'urgent' as const, daysLeft, billing_cycle, message: `Your yearly ${plan} plan expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Renew now to avoid interruption.` }
+      if (daysLeft <= 30) return { level: 'warning' as const, daysLeft, billing_cycle, message: `Your yearly ${plan} plan expires in ${daysLeft} days. Consider renewing soon.` }
+    } else {
+      if (daysLeft <= 3) return { level: 'urgent' as const, daysLeft, billing_cycle, message: `Your monthly ${plan} plan expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Renew now to avoid losing access.` }
+      if (daysLeft <= 7) return { level: 'warning' as const, daysLeft, billing_cycle, message: `Your monthly ${plan} plan expires in ${daysLeft} days. Renew to continue unlimited access.` }
+    }
+    return null
+  })()
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
       <div className="flex h-screen overflow-hidden">
@@ -401,6 +658,21 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* Sidebar plan badge */}
+          {profileData?.subscription && profileData.subscription.plan !== 'free' && (
+            <div className="mx-3 mt-3 px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border border-indigo-500/20 flex items-center gap-2">
+              <Crown className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-xs font-semibold text-indigo-300 capitalize">{profileData.subscription.plan} Plan</span>
+            </div>
+          )}
+          {profileData?.subscription?.plan === 'free' && (
+            <button onClick={() => setUpgradePrompt({ show: true, message: 'Unlock unlimited AI screenings, job posts, and all premium features.', feature: 'Pro Plan' })}
+              className="mx-3 mt-3 px-3 py-2 rounded-lg bg-gradient-to-r from-amber-600/30 to-orange-600/30 border border-amber-500/30 flex items-center gap-2 hover:from-amber-600/40 hover:to-orange-600/40 transition-all group">
+              <Zap className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-semibold text-amber-300">Upgrade to Pro</span>
+            </button>
+          )}
+
           <nav className="flex-1 px-3 py-4 space-y-1">
             {([
               { tab: 'pipeline',   icon: Layers,      label: 'Pipeline',   badge: null },
@@ -409,6 +681,7 @@ export default function DashboardPage() {
               { tab: 'compose',    icon: Mail,         label: 'Compose',    badge: 'AI' },
               { tab: 'jobs',       icon: Briefcase,    label: 'Jobs',       badge: null },
               { tab: 'analytics',  icon: BarChart3,    label: 'Analytics',  badge: null },
+              { tab: 'settings',   icon: Settings,     label: 'Settings',   badge: null },
             ] as const).map(({ tab, icon: Icon, label, badge }) => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
@@ -440,16 +713,77 @@ export default function DashboardPage() {
                 <p className="text-xs font-semibold text-white truncate">{user?.name}</p>
                 <p className="text-xs text-gray-500 truncate">{user?.email}</p>
               </div>
-              <button onClick={() => signOut({ callbackUrl: '/login' })}
-                className="text-gray-600 hover:text-gray-400 transition-colors" title="Sign out">
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
             </div>
+            <button onClick={() => signOut({ callbackUrl: '/login' })}
+              className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-red-500/20 bg-red-500/5 text-red-400 hover:bg-red-500/15 text-sm font-medium transition-all">
+              <LogOut className="w-3.5 h-3.5" /> Sign Out
+            </button>
           </div>
         </aside>
 
         {/* ── Main ─────────────────────────────────────────────────────────── */}
         <main className="flex-1 overflow-y-auto">
+          {/* Subscription expiry alert banner */}
+          {subAlert && !subAlertDismissed && (
+            <div className={`px-6 py-3 flex items-center justify-between gap-4 ${
+              subAlert.level === 'expired' ? 'bg-red-600/20 border-b border-red-500/30' :
+              subAlert.level === 'urgent' ? 'bg-amber-600/20 border-b border-amber-500/30' :
+              'bg-yellow-600/15 border-b border-yellow-500/20'
+            }`}>
+              <div className="flex items-center gap-3 min-w-0">
+                {subAlert.level === 'expired' ? <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" /> :
+                 subAlert.level === 'urgent' ? <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" /> :
+                 <Clock className="w-4 h-4 text-yellow-400 flex-shrink-0" />}
+                <p className={`text-sm font-medium ${
+                  subAlert.level === 'expired' ? 'text-red-300' :
+                  subAlert.level === 'urgent' ? 'text-amber-300' : 'text-yellow-300'
+                }`}>
+                  {subAlert.message}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <a href="mailto:pasikantishashank24@gmail.com?subject=Renew%20Subscription%20-%20SRP%20SmartRecruit&body=Hi%2C%20I%27d%20like%20to%20renew%20my%20subscription.%0A%0AEmail%3A%20"
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    subAlert.level === 'expired' ? 'bg-red-600 hover:bg-red-500 text-white' :
+                    'bg-amber-600 hover:bg-amber-500 text-white'
+                  }`}>
+                  <Zap className="w-3 h-3" /> Renew Now
+                </a>
+                {subAlert.level !== 'expired' && (
+                  <button onClick={() => setSubAlertDismissed(true)} className="text-gray-500 hover:text-gray-300">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Free plan usage warning banner */}
+          {profileData?.subscription?.plan === 'free' && profileData.usage && (
+            (profileData.usage.active_jobs >= 4 || profileData.usage.screens_this_month >= 15) && !subAlertDismissed
+          ) && (
+            <div className="px-6 py-3 flex items-center justify-between gap-4 bg-amber-600/15 border-b border-amber-500/20">
+              <div className="flex items-center gap-3 min-w-0">
+                <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <p className="text-sm font-medium text-amber-300">
+                  {profileData.usage.active_jobs >= 4
+                    ? `You've used ${profileData.usage.active_jobs} of 5 free job posts.`
+                    : `You've used ${profileData.usage.screens_this_month} of 20 free AI screens this month.`}
+                  {' '}Upgrade to Pro for unlimited access.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button onClick={() => setUpgradePrompt({ show: true, message: 'Unlock unlimited features with a Pro plan.', feature: 'Pro Plan' })}
+                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-all flex items-center gap-1.5">
+                  <Zap className="w-3 h-3" /> Upgrade
+                </button>
+                <button onClick={() => setSubAlertDismissed(true)} className="text-gray-500 hover:text-gray-300">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Stats bar */}
           <div className="px-6 py-4 border-b border-white/5 bg-black/20 flex items-center gap-6 flex-wrap">
             {[
@@ -528,6 +862,7 @@ export default function DashboardPage() {
                                 </p>
                               : stageCands.map(c => (
                                   <KanbanCard key={c.id} candidate={c} onMove={moveStage}
+                                    onOpen={setSelectedCandidate}
                                     dragging={draggingId === c.id}
                                     onDragStart={() => setDraggingId(c.id)}
                                     onDragEnd={() => { setDraggingId(null); setDragOverStage(null) }} />
@@ -548,16 +883,28 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h1 className="text-xl font-bold text-white">Candidates</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">{candidates.length} total</p>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      {filterSkill ? <><span className="text-indigo-400 font-semibold">{candidates.length}</span> with &quot;{filterSkill}&quot;</> : `${candidates.length} total`}
+                    </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 mb-5 flex-wrap">
-                  <div className="relative flex-1 max-w-sm">
+                  <div className="relative flex-1 min-w-[160px]">
                     <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
                     <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
-                      placeholder="Search by name or email…"
+                      placeholder="Name or email…"
                       className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-indigo-500/70" />
+                    <input value={filterSkill} onChange={e => setFilterSkill(e.target.value)}
+                      placeholder="Filter by skill…"
+                      list="skill-suggestions"
+                      className="pl-9 pr-3 py-2 rounded-lg bg-[#1a1a2e] border border-indigo-500/30 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 w-40" />
+                    <datalist id="skill-suggestions">
+                      {topSkills.map(({ skill }) => <option key={skill} value={skill} />)}
+                    </datalist>
                   </div>
                   <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
                     className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
@@ -571,8 +918,13 @@ export default function DashboardPage() {
                     <option value="good">Good Match</option>
                     <option value="partial">Partial Match</option>
                   </select>
-                  {(searchQ || filterStage || filterMatch) && (
-                    <button onClick={() => { setSearchQ(''); setFilterStage(''); setFilterMatch('') }}
+                  <select value={filterJob} onChange={e => setFilterJob(e.target.value)}
+                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+                    <option value="">All Jobs</option>
+                    {jobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
+                  </select>
+                  {(searchQ || filterStage || filterMatch || filterJob || filterSkill) && (
+                    <button onClick={() => { setSearchQ(''); setFilterStage(''); setFilterMatch(''); setFilterJob(''); setFilterSkill('') }}
                       className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300">
                       <X className="w-3.5 h-3.5" /> Clear
                     </button>
@@ -600,7 +952,7 @@ export default function DashboardPage() {
                         {candidates.length === 0 ? (
                           <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-600">No candidates found</td></tr>
                         ) : candidates.map((c, i) => (
-                          <tr key={c.id} className={`border-b border-white/[0.03] hover:bg-white/[0.02] ${i % 2 ? 'bg-white/[0.01]' : ''}`}>
+                          <tr key={c.id} onClick={() => setSelectedCandidate(c)} className={`border-b border-white/[0.03] hover:bg-white/[0.04] cursor-pointer ${i % 2 ? 'bg-white/[0.01]' : ''}`}>
                             <td className="px-4 py-3"><ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} /></td>
                             <td className="px-4 py-3">
                               <p className="font-semibold text-white">{c.candidate_name}</p>
@@ -623,7 +975,7 @@ export default function DashboardPage() {
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                               <select defaultValue={c.pipeline_stage} onChange={e => moveStage(c.id, e.target.value)}
                                 className="text-xs bg-white/5 border border-white/10 text-gray-400 rounded px-2 py-1 cursor-pointer focus:outline-none">
                                 {PIPELINE_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
@@ -1030,10 +1382,6 @@ export default function DashboardPage() {
                     <p className="text-sm text-gray-500 mt-0.5">{jobs.length} active jobs</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={seedDemo} disabled={seedingDemo}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-xs font-semibold text-purple-300 transition-all disabled:opacity-50">
-                      {seedingDemo ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…</> : <><Sparkles className="w-3.5 h-3.5" /> Load Demo Data</>}
-                    </button>
                     <button onClick={() => setShowNewJob(true)}
                       className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-all">
                       <Plus className="w-3.5 h-3.5" /> New Job
@@ -1132,10 +1480,10 @@ export default function DashboardPage() {
                       return (
                         <div key={s.key} className="flex items-center gap-3">
                           <span className={`text-xs w-20 font-medium ${s.text}`}>{s.label}</span>
-                          <div className="flex-1 h-2.5 bg-white/5 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full transition-all ${s.color}`} style={{ width: `${pct}%` }} />
+                          <div className="flex-1 h-3 bg-white/5 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${s.bar}`} style={{ width: `${Math.max(pct, pct > 0 ? 3 : 0)}%` }} />
                           </div>
-                          <span className="text-xs text-gray-500 w-8 text-right">{count}</span>
+                          <span className="text-xs text-gray-400 w-8 text-right font-semibold">{count}</span>
                           <span className="text-xs text-gray-600 w-10 text-right">{pct}%</span>
                         </div>
                       )
@@ -1148,22 +1496,428 @@ export default function DashboardPage() {
                   <h2 className="text-sm font-semibold text-gray-300 mb-4">AI Match Distribution</h2>
                   <div className="space-y-3">
                     {(['best', 'good', 'partial', 'poor'] as const).map(m => {
-                      const count = candidates.filter(c => c.match_category === m).length
-                      const pct = totalCandidates > 0 ? Math.round((count / totalCandidates) * 100) : 0
+                      const count = matchCounts[m] ?? 0
+                      const total = Object.values(matchCounts).reduce((a, b) => a + b, 0)
+                      const pct = total > 0 ? Math.round((count / total) * 100) : 0
                       const cfg = MATCH_CONFIG[m]
                       return (
                         <div key={m} className="flex items-center gap-3">
                           <span className={`text-xs w-24 font-medium ${cfg.text}`}>{cfg.label}</span>
-                          <div className="flex-1 h-2.5 bg-white/5 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${cfg.bg.replace('/20', '/60')}`} style={{ width: `${pct}%` }} />
+                          <div className="flex-1 h-3 bg-white/5 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${cfg.bar}`} style={{ width: `${Math.max(pct, pct > 0 ? 3 : 0)}%` }} />
                           </div>
-                          <span className="text-xs text-gray-500 w-8 text-right">{count}</span>
+                          <span className="text-xs text-gray-400 w-8 text-right font-semibold">{count}</span>
                           <span className="text-xs text-gray-600 w-10 text-right">{pct}%</span>
                         </div>
                       )
                     })}
                   </div>
                 </div>
+
+                {/* Top Skills chart */}
+                {topSkills.length > 0 && (
+                  <div className="glass-card rounded-xl p-5 border border-white/5 mt-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-sm font-semibold text-gray-300">Top Skills Across All Candidates</h2>
+                      <span className="text-xs text-gray-600">{topSkills.length} unique skills tracked</span>
+                    </div>
+                    <div className="space-y-2">
+                      {topSkills.map(({ skill, count }) => {
+                        const pct = Math.round((count / topSkills[0].count) * 100)
+                        return (
+                          <div key={skill} className="flex items-center gap-3">
+                            <button
+                              onClick={() => { setFilterSkill(skill); setActiveTab('candidates') }}
+                              className="text-xs text-gray-300 w-36 truncate text-left hover:text-indigo-400 transition-colors"
+                              title={`Click to filter candidates with ${skill}`}>
+                              {skill}
+                            </button>
+                            <div className="flex-1 h-2.5 bg-white/5 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${Math.max(pct, 3)}%` }} />
+                            </div>
+                            <span className="text-xs text-gray-400 w-8 text-right font-semibold">{count}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <p className="text-xs text-gray-600 mt-3">Click any skill name to jump to filtered candidate list.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── SETTINGS ─────────────────────────────────────────────────── */}
+            {activeTab === 'settings' && (
+              <div className="max-w-3xl">
+                <h1 className="text-xl font-bold text-white mb-6">Account Settings</h1>
+
+                {profileLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+                  </div>
+                ) : profileData ? (
+                  <div className="space-y-5">
+
+                    {/* Profile Card */}
+                    <div className="glass-card rounded-xl p-6 border border-white/5">
+                      <div className="flex items-center justify-between mb-5">
+                        <div className="flex items-center gap-2">
+                          <UserIcon className="w-4 h-4 text-indigo-400" />
+                          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Profile</h2>
+                        </div>
+                        {!editingName && (
+                          <button onClick={() => { setEditName(profileData.user.name || ''); setEditingName(true) }}
+                            className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+                            <Pencil className="w-3 h-3" /> Edit
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-start gap-5">
+                        {profileData.user.image
+                          ? <img src={profileData.user.image} alt="" className="w-16 h-16 rounded-full ring-2 ring-indigo-500/30" />
+                          : <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-xl font-bold text-white ring-2 ring-indigo-500/30">
+                              {profileData.user.name?.[0]?.toUpperCase() ?? '?'}
+                            </div>
+                        }
+                        <div className="flex-1 space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <p className="text-xs text-gray-500 mb-0.5">Full Name</p>
+                              {editingName ? (
+                                <div className="flex items-center gap-2">
+                                  <input value={editName} onChange={e => setEditName(e.target.value)}
+                                    className="w-full px-2 py-1 rounded bg-[#1a1a2e] border border-white/15 text-sm text-white focus:outline-none focus:border-indigo-500"
+                                    autoFocus />
+                                  <button onClick={saveName} disabled={savingName}
+                                    className="px-2 py-1 rounded bg-indigo-600 text-white text-xs hover:bg-indigo-500 disabled:opacity-50">
+                                    {savingName ? '...' : 'Save'}
+                                  </button>
+                                  <button onClick={() => setEditingName(false)} className="text-gray-500 hover:text-gray-300 text-xs">Cancel</button>
+                                </div>
+                              ) : (
+                                <p className="text-sm font-semibold text-white">{profileData.user.name || '—'}</p>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 mb-0.5">Email</p>
+                              <p className="text-sm text-gray-300">{profileData.user.email}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 mb-0.5">Sign-in Method</p>
+                              <p className="text-sm text-gray-300 capitalize">{profileData.user.provider === 'credentials' ? 'Email & Password' : profileData.user.provider}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 mb-0.5">Member Since</p>
+                              <p className="text-sm text-gray-300">{new Date(profileData.user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Subscription Card */}
+                    <div className="glass-card rounded-xl p-6 border border-white/5">
+                      <div className="flex items-center gap-2 mb-5">
+                        <CreditCard className="w-4 h-4 text-purple-400" />
+                        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Subscription</h2>
+                      </div>
+                      <div className="flex items-center gap-4 mb-5">
+                        <div className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider ${
+                          profileData.subscription.plan === 'pro'
+                            ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
+                            : profileData.subscription.plan === 'enterprise'
+                            ? 'bg-amber-600/20 text-amber-300 border border-amber-500/30'
+                            : 'bg-white/5 text-gray-400 border border-white/10'
+                        }`}>
+                          {profileData.subscription.plan === 'pro' ? 'Pro Plan' : profileData.subscription.plan === 'enterprise' ? 'Enterprise Plan' : 'Free Plan'}
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                          profileData.subscription.status === 'active' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+                        }`}>
+                          {profileData.subscription.status === 'active' ? 'Active' : profileData.subscription.status}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-xs text-gray-500 mb-0.5">Plan</p>
+                          <p className="text-sm font-semibold text-white capitalize">{profileData.subscription.plan}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-0.5">Billing Cycle</p>
+                          <p className="text-sm text-gray-300 capitalize">{profileData.subscription.billing_cycle || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-0.5">Access Level</p>
+                          <p className="text-sm text-gray-300">
+                            {profileData.subscription.plan === 'free'
+                              ? '20 AI screens/mo, 5 active jobs'
+                              : 'Unlimited AI screens & jobs'
+                            }
+                          </p>
+                        </div>
+                      </div>
+                      {profileData.subscription.plan === 'free' && (
+                        <div className="mt-5 p-4 rounded-lg bg-gradient-to-r from-indigo-600/15 to-purple-600/15 border border-indigo-500/20">
+                          <div className="flex items-start gap-3">
+                            <Sparkles className="w-5 h-5 text-indigo-400 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-indigo-200 mb-1">Upgrade to Pro</p>
+                              <p className="text-xs text-indigo-300/80 mb-3">Unlock unlimited AI screenings, unlimited job posts, priority support, and API access.</p>
+                              <div className="flex flex-wrap gap-2">
+                                <a href="mailto:pasikantishashank24@gmail.com?subject=Upgrade%20to%20Pro%20Plan%20-%20SRP%20SmartRecruit&body=Hi%2C%20I%27d%20like%20to%20upgrade%20my%20account%20to%20the%20Pro%20plan.%0A%0AEmail%3A%20" 
+                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-lg shadow-indigo-600/20">
+                                  <Zap className="w-3.5 h-3.5" /> Upgrade Now
+                                </a>
+                                <a href="https://srpailabs.com" target="_blank" rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-white/10 hover:bg-white/5 text-gray-300 text-xs font-medium transition-all">
+                                  <ExternalLink className="w-3.5 h-3.5" /> View Plans
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-4 grid grid-cols-3 gap-2">
+                            <div className="text-center p-2 rounded bg-white/5">
+                              <p className="text-sm font-bold text-white">∞</p>
+                              <p className="text-[10px] text-gray-400">AI Screens</p>
+                            </div>
+                            <div className="text-center p-2 rounded bg-white/5">
+                              <p className="text-sm font-bold text-white">∞</p>
+                              <p className="text-[10px] text-gray-400">Job Posts</p>
+                            </div>
+                            <div className="text-center p-2 rounded bg-white/5">
+                              <p className="text-sm font-bold text-white">24/7</p>
+                              <p className="text-[10px] text-gray-400">Support</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {(profileData.subscription.plan === 'pro' || profileData.subscription.plan === 'enterprise') && (
+                        <div className="mt-5 flex items-center gap-3 p-3 rounded-lg bg-green-600/10 border border-green-500/20">
+                          <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
+                          <p className="text-xs text-green-300">You have full access to all features. Thank you for being a {profileData.subscription.plan === 'pro' ? 'Pro' : 'Enterprise'} member!</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Usage Stats Card */}
+                    <div className="glass-card rounded-xl p-6 border border-white/5">
+                      <div className="flex items-center gap-2 mb-5">
+                        <Activity className="w-4 h-4 text-emerald-400" />
+                        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Usage This Month</h2>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[
+                          { label: 'AI Screens',   value: profileData.usage.screens_this_month,  limit: profileData.subscription.plan === 'free' ? 20 : null, icon: Brain,      color: 'text-purple-400' },
+                          { label: 'AI Compose',   value: profileData.usage.composes_this_month, limit: null,                                                  icon: Mail,       color: 'text-blue-400' },
+                          { label: 'Candidates',   value: profileData.usage.total_candidates,    limit: null,                                                  icon: Users,      color: 'text-indigo-400' },
+                          { label: 'Active Jobs',  value: profileData.usage.active_jobs,         limit: profileData.subscription.plan === 'free' ? 5 : null,   icon: Briefcase,  color: 'text-amber-400' },
+                        ].map(({ label, value, limit, icon: Icon, color }) => (
+                          <div key={label} className="bg-white/[0.02] rounded-lg p-4 border border-white/5">
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <Icon className={`w-3.5 h-3.5 ${color}`} />
+                              <p className="text-xs text-gray-500">{label}</p>
+                            </div>
+                            <p className="text-2xl font-bold text-white">{value}</p>
+                            {limit !== null && (
+                              <div className="mt-2">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs text-gray-600">{value} / {limit}</span>
+                                </div>
+                                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full transition-all ${value >= limit ? 'bg-red-500' : 'bg-indigo-500'}`}
+                                    style={{ width: `${Math.min((value / limit) * 100, 100)}%` }} />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Account Info Card */}
+                    <div className="glass-card rounded-xl p-6 border border-white/5">
+                      <div className="flex items-center gap-2 mb-5">
+                        <Shield className="w-4 h-4 text-gray-400" />
+                        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Account</h2>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                        <div>
+                          <p className="text-xs text-gray-500 mb-0.5">Account ID</p>
+                          <p className="text-xs font-mono text-gray-400">{profileData.user.id}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-0.5">Role</p>
+                          <p className="text-sm text-gray-300 capitalize">{profileData.user.role === 'owner' ? 'Owner' : profileData.user.role === 'pro' ? 'Pro' : profileData.user.role}</p>
+                        </div>
+                      </div>
+                      <div className="pt-4 border-t border-white/5">
+                        <button onClick={() => signOut({ callbackUrl: '/login' })}
+                          className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-sm font-semibold transition-all">
+                          <LogOut className="w-4 h-4" /> Sign Out of Account
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* API Keys for n8n / ATS Integration */}
+                    <div className="glass-card rounded-xl p-6 border border-white/5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Key className="w-4 h-4 text-amber-400" />
+                        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">API Integration</h2>
+                      </div>
+                      <p className="text-xs text-gray-500 mb-5">Generate an API key to integrate SmartRecruit with n8n, your ATS, or any external system.</p>
+
+                      {generatedKey && (
+                        <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                          <p className="text-xs text-amber-300 mb-2 font-medium">Your new API key (copy it now — it won't be shown again):</p>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 text-xs font-mono text-white bg-black/30 px-3 py-2 rounded break-all">
+                              {showKey ? generatedKey : '•'.repeat(40)}
+                            </code>
+                            <button onClick={() => setShowKey(v => !v)} className="text-gray-400 hover:text-white transition-colors">
+                              {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                            <button onClick={() => { navigator.clipboard.writeText(generatedKey); }}
+                              className="text-gray-400 hover:text-white transition-colors">
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {apiKeys.length > 0 && (
+                        <div className="mb-4 space-y-2">
+                          {apiKeys.map((k, i) => (
+                            <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.02] border border-white/5">
+                              <div className="flex items-center gap-3">
+                                <code className="text-xs font-mono text-gray-400">{k.key_prefix}••••••••</code>
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${k.is_active ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                                  {k.is_active ? 'Active' : 'Revoked'}
+                                </span>
+                              </div>
+                              <span className="text-xs text-gray-600">{new Date(k.created_at).toLocaleDateString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-3">
+                        <button onClick={generateApiKey} disabled={generatingKey}
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-all disabled:opacity-50">
+                          {generatingKey ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
+                          {generatingKey ? 'Generating...' : 'Generate API Key'}
+                        </button>
+                        {apiKeys.some(k => k.is_active) && (
+                          <button onClick={revokeApiKey}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 text-sm font-medium transition-all">
+                            Revoke All Keys
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="mt-4 p-3 rounded-lg bg-white/[0.02] border border-white/5">
+                        <p className="text-xs text-gray-500 mb-1 font-medium">Usage Example:</p>
+                        <code className="text-xs font-mono text-gray-400 block">
+                          curl -H &quot;Authorization: Bearer srp_your_key_here&quot; \<br />
+                          &nbsp;&nbsp;https://recruit.srpailabs.com/api/screen
+                        </code>
+                      </div>
+                    </div>
+
+                    {/* External Integrations — n8n, Monster, Naukri, etc. */}
+                    <div className="glass-card rounded-xl p-6 border border-white/5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Link2 className="w-4 h-4 text-emerald-400" />
+                        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">External Integrations</h2>
+                      </div>
+                      <p className="text-xs text-gray-500 mb-5">Connect your ATS, n8n workflows, or job portals like Monster, Naukri, Indeed, LinkedIn by adding their API keys or webhook URLs.</p>
+
+                      {/* Existing integrations */}
+                      {integrations.length > 0 && (
+                        <div className="mb-5 space-y-2">
+                          {integrations.map(intg => (
+                            <div key={intg.provider} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-white/5">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold uppercase ${
+                                  intg.provider === 'n8n' ? 'bg-orange-500/20 text-orange-400' :
+                                  intg.provider === 'naukri' ? 'bg-blue-500/20 text-blue-400' :
+                                  intg.provider === 'monster' ? 'bg-purple-500/20 text-purple-400' :
+                                  intg.provider === 'indeed' ? 'bg-indigo-500/20 text-indigo-400' :
+                                  intg.provider === 'linkedin' ? 'bg-sky-500/20 text-sky-400' :
+                                  'bg-gray-500/20 text-gray-400'
+                                }`}>
+                                  {intg.provider.slice(0, 2)}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-white capitalize">{intg.provider}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {intg.has_api_key ? 'API Key configured' : ''}
+                                    {intg.has_api_key && intg.webhook_url ? ' • ' : ''}
+                                    {intg.webhook_url ? 'Webhook set' : ''}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => toggleIntegration(intg.provider, !intg.is_active)}
+                                  className={`transition-colors ${intg.is_active ? 'text-green-400' : 'text-gray-600'}`}
+                                  title={intg.is_active ? 'Disable' : 'Enable'}>
+                                  {intg.is_active ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
+                                </button>
+                                <button onClick={() => deleteIntegration(intg.provider)}
+                                  className="text-gray-600 hover:text-red-400 transition-colors" title="Remove">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Add new integration form */}
+                      <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5 space-y-3">
+                        <p className="text-xs text-gray-400 font-medium">Add Integration</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="text-xs text-gray-500 mb-1 block">Platform</label>
+                            <select value={intgProvider} onChange={e => setIntgProvider(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+                              <option value="">Select...</option>
+                              <option value="n8n">n8n (Workflow)</option>
+                              <option value="naukri">Naukri</option>
+                              <option value="monster">Monster</option>
+                              <option value="indeed">Indeed</option>
+                              <option value="linkedin">LinkedIn</option>
+                              <option value="greenhouse">Greenhouse ATS</option>
+                              <option value="lever">Lever ATS</option>
+                              <option value="workday">Workday</option>
+                              <option value="custom">Custom ATS</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500 mb-1 block">API Key</label>
+                            <input type="password" value={intgApiKey} onChange={e => setIntgApiKey(e.target.value)}
+                              placeholder="Paste API key"
+                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500 mb-1 block">Webhook URL <span className="text-gray-600">(optional)</span></label>
+                            <input value={intgWebhook} onChange={e => setIntgWebhook(e.target.value)}
+                              placeholder="https://..."
+                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                          </div>
+                        </div>
+                        <button onClick={saveIntegration} disabled={!intgProvider || savingIntg}
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-all disabled:opacity-50">
+                          {savingIntg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                          {savingIntg ? 'Saving...' : 'Connect Integration'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-20 text-gray-500 text-sm">Failed to load profile data.
+                    <button onClick={loadProfile} className="ml-2 text-indigo-400 hover:underline">Retry</button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1172,8 +1926,8 @@ export default function DashboardPage() {
 
       {/* ── New Job Modal ──────────────────────────────────────────────────────── */}
       {showNewJob && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-card rounded-2xl p-6 w-full max-w-lg border border-white/10 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 overflow-y-auto flex items-start justify-center p-4">
+          <div className="glass-card rounded-2xl p-6 w-full max-w-lg border border-white/10 my-auto flex flex-col">
             <div className="flex items-center justify-between mb-5 flex-shrink-0">
               <h2 className="text-lg font-bold text-white">New Job Post</h2>
               <button onClick={() => setShowNewJob(false)} className="text-gray-500 hover:text-gray-300"><X className="w-5 h-5" /></button>
@@ -1248,8 +2002,8 @@ export default function DashboardPage() {
 
       {/* ── Generate Job Posts Modal ─────────────────────────────────────── */}
       {genPostJob && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-card rounded-2xl p-6 w-full max-w-2xl border border-white/10 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 overflow-y-auto flex items-start justify-center p-4">
+          <div className="glass-card rounded-2xl p-6 w-full max-w-2xl border border-white/10 my-auto flex flex-col">
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
               <div>
                 <h2 className="text-lg font-bold text-white">Job Details & Social Posts</h2>
@@ -1345,6 +2099,17 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ── Candidate Detail Modal ──────────────────────────────────────────── */}
+      {selectedCandidate && (
+        <CandidateDetailModal
+          candidate={selectedCandidate}
+          jobs={jobs}
+          onClose={() => setSelectedCandidate(null)}
+          onStageChange={moveStage}
+          onJobChange={changeJob}
+        />
+      )}
+
       {/* ── New Candidate Modal ──────────────────────────────────────────────── */}
       {showNewCandidate && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1375,6 +2140,29 @@ export default function DashboardPage() {
                   {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0, 8)})</option>)}
                 </select>
               </div>
+
+              {/* Resume Upload */}
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Resume (PDF / DOCX / TXT — optional)</label>
+                <label className={`flex items-center gap-3 w-full px-3 py-3 rounded-lg border border-dashed cursor-pointer transition-colors ${
+                  candResumeFile
+                    ? 'border-indigo-500/60 bg-indigo-500/10 text-indigo-300'
+                    : 'border-white/15 bg-[#1a1a2e] text-gray-500 hover:border-indigo-500/40'
+                }`}>
+                  <input type="file" accept=".pdf,.docx,.doc,.txt" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleCandResumeUpload(f) }} />
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                  <span className="text-sm truncate">
+                    {candResumeParsing ? 'Parsing…' : candResumeFile ? candResumeFile.name : 'Click to upload resume'}
+                  </span>
+                </label>
+                {candResumeError && <p className="mt-1 text-xs text-red-400">{candResumeError}</p>}
+                {candResumeText && !candResumeError && (
+                  <p className="mt-1 text-xs text-green-400">✓ Resume parsed — {candResumeText.length.toLocaleString()} characters extracted</p>
+                )}
+              </div>
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setShowNewCandidate(false)} className="flex-1 py-2 rounded-lg bg-white/5 text-sm text-gray-400 hover:bg-white/10">Cancel</button>
@@ -1382,6 +2170,59 @@ export default function DashboardPage() {
                 className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold disabled:opacity-50 transition-colors">
                 {savingCand ? 'Adding…' : 'Add Candidate'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Upgrade Plan Modal ────────────────────────────────────────────── */}
+      {upgradePrompt.show && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-card rounded-2xl p-0 w-full max-w-md border border-white/10 overflow-hidden">
+            {/* Gradient header */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-5 text-center">
+              <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-3">
+                <Crown className="w-6 h-6 text-amber-300" />
+              </div>
+              <h2 className="text-lg font-bold text-white">Upgrade Your Plan</h2>
+              <p className="text-sm text-indigo-100/80 mt-1">{upgradePrompt.message}</p>
+            </div>
+
+            {/* Feature list */}
+            <div className="px-6 py-5">
+              <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-3">What you get with Pro</p>
+              <div className="space-y-3">
+                {[
+                  { icon: Sparkles, text: 'Unlimited AI Screenings', desc: 'Screen as many resumes as you need' },
+                  { icon: Briefcase, text: 'Unlimited Job Posts', desc: 'Create and manage unlimited openings' },
+                  { icon: Mail, text: 'AI Compose & Social Posts', desc: 'Generate content for any platform' },
+                  { icon: Shield, text: 'Priority Support', desc: 'Get help when you need it most' },
+                  { icon: Key, text: 'API Access', desc: 'Integrate with your existing tools' },
+                ].map(({ icon: Icon, text, desc }) => (
+                  <div key={text} className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-4 h-4 text-indigo-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-white">{text}</p>
+                      <p className="text-xs text-gray-500">{desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="px-6 py-4 bg-white/[0.02] border-t border-white/5 flex gap-3">
+              <button onClick={() => setUpgradePrompt({ show: false, message: '', feature: '' })}
+                className="flex-1 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm font-medium text-gray-400 transition-colors">
+                Maybe Later
+              </button>
+              <a href="mailto:pasikantishashank24@gmail.com?subject=Upgrade%20to%20Pro%20Plan%20-%20SRP%20SmartRecruit&body=Hi%2C%20I%27d%20like%20to%20upgrade%20my%20account%20to%20the%20Pro%20plan.%0A%0AMy%20Email%3A%20"
+                onClick={() => setUpgradePrompt({ show: false, message: '', feature: '' })}
+                className="flex-1 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-sm font-semibold text-white transition-all flex items-center justify-center gap-2">
+                <Zap className="w-4 h-4" /> Upgrade Now
+              </a>
             </div>
           </div>
         </div>
@@ -1488,7 +2329,7 @@ function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
 
 // ── ScreenResultCard ──────────────────────────────────────────────────────────
 function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate: (id?: string) => void }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const decisionColor = r.decision === 'Shortlisted' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
     : r.decision === 'On Hold' ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
     : 'text-red-400 bg-red-500/10 border-red-500/20'
@@ -1561,8 +2402,9 @@ function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate:
 }
 
 // ── KanbanCard ────────────────────────────────────────────────────────────────
-function KanbanCard({ candidate: c, onMove, dragging, onDragStart, onDragEnd }: {
+function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDragEnd }: {
   candidate: Candidate; onMove: (id: string, stage: string) => void
+  onOpen: (c: Candidate) => void
   dragging: boolean; onDragStart: () => void; onDragEnd: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -1578,8 +2420,8 @@ function KanbanCard({ candidate: c, onMove, dragging, onDragStart, onDragEnd }: 
           <div className="w-6 h-6 rounded-full bg-indigo-600 flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white">
             {c.candidate_name?.[0] ?? '?'}
           </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-white truncate">{c.candidate_name}</p>
+          <div className="min-w-0 cursor-pointer" onClick={e => { e.stopPropagation(); onOpen(c) }}>
+            <p className="text-xs font-semibold text-white truncate hover:text-indigo-300">{c.candidate_name}</p>
             <p className="text-[10px] text-gray-600 truncate">{c.candidate_email}</p>
           </div>
         </div>
@@ -1609,6 +2451,134 @@ function KanbanCard({ candidate: c, onMove, dragging, onDragStart, onDragEnd }: 
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── CandidateDetailModal ──────────────────────────────────────────────────────
+function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJobChange }: {
+  candidate: Candidate
+  jobs: Job[]
+  onClose: () => void
+  onStageChange: (id: string, stage: string) => void
+  onJobChange: (id: string, jobId: string) => void
+}) {
+  const [tab, setTab] = useState<'profile' | 'resume'>('profile')
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] overflow-y-auto flex items-start justify-center p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="glass-card rounded-2xl w-full max-w-2xl border border-white/10 my-auto">
+
+        {/* Header */}
+        <div className="flex items-start gap-4 p-6 border-b border-white/5">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex-shrink-0 flex items-center justify-center text-lg font-bold text-white">
+            {c.candidate_name?.[0]?.toUpperCase() ?? '?'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-bold text-white">{c.candidate_name}</h2>
+            <p className="text-sm text-gray-400 mt-0.5">{c.candidate_email}</p>
+            {c.candidate_phone && <p className="text-sm text-gray-500">{c.candidate_phone}</p>}
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <MatchBadge category={c.match_category} score={c.ai_score} />
+              <StagePill stage={c.pipeline_stage} />
+              <ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} />
+            </div>
+          </div>
+          <button onClick={onClose} className="flex-shrink-0 text-gray-500 hover:text-white transition-colors mt-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-white/5">
+          {(['profile', 'resume'] as const).map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`px-6 py-3 text-sm font-medium transition-all ${
+                tab === t ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-500 hover:text-gray-300'
+              }`}>
+              {t === 'resume' ? 'Resume / CV' : 'Profile & Actions'}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'profile' && (
+          <div className="p-6 space-y-5">
+
+            {/* Pipeline Stage */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pipeline Stage</p>
+              <div className="flex flex-wrap gap-2">
+                {PIPELINE_STAGES.map(s => (
+                  <button key={s.key} onClick={() => onStageChange(c.id, s.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      c.pipeline_stage === s.key
+                        ? `${s.color} ${s.text} ring-2 ring-white/20`
+                        : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                    }`}>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Assign to Job */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Assigned Job</p>
+              <select value={c.job_posts?.id ?? ''}
+                onChange={e => onJobChange(c.id, e.target.value)}
+                className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+                <option value="">— No Job Assigned —</option>
+                {jobs.map(j => <option key={j.id} value={j.id}>{j.title} · {j.company} ({j.short_id})</option>)}
+              </select>
+              <p className="text-xs text-gray-600 mt-1">Reassign this resume to a different job opening.</p>
+            </div>
+
+            {/* Skills */}
+            {(c.ai_skills?.length ?? 0) > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Extracted Skills</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {c.ai_skills.map(s => (
+                    <span key={s} className="px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-xs">{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* AI Assessment */}
+            {c.ai_summary && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">AI Assessment</p>
+                <p className="text-sm text-gray-300 leading-relaxed bg-white/[0.02] rounded-lg p-3 border border-white/5">{c.ai_summary}</p>
+              </div>
+            )}
+
+            {/* Meta */}
+            <div className="flex items-center gap-4 text-xs text-gray-600 pt-2 border-t border-white/5">
+              {c.file_name && (
+                <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5" />{c.file_name}</span>
+              )}
+              <span>Added {new Date(c.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+            </div>
+          </div>
+        )}
+
+        {tab === 'resume' && (
+          <div className="p-6">
+            {c.raw_text ? (
+              <pre className="text-xs text-gray-400 leading-relaxed whitespace-pre-wrap bg-[#0d0d1a] rounded-lg p-4 border border-white/5 max-h-[60vh] overflow-y-auto font-mono">
+                {c.raw_text}
+              </pre>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-40 text-gray-600">
+                <FileText className="w-10 h-10 mb-2 opacity-20" />
+                <p className="text-sm">No resume text stored for this candidate</p>
+                <p className="text-xs mt-1">Run AI Screening with a CV file to extract and save text</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

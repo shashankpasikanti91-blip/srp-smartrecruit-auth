@@ -15,6 +15,7 @@ const contactOptions = [
     accent: 'text-indigo-400',
     bg: 'bg-indigo-500/10',
     border: 'border-indigo-500/20',
+    href: 'mailto:support@srpailabs.com?subject=Demo%20Request%20%E2%80%93%20SRP%20SmartRecruit',
   },
   {
     icon: <MessageSquare className="w-6 h-6" />,
@@ -24,15 +25,17 @@ const contactOptions = [
     accent: 'text-purple-400',
     bg: 'bg-purple-500/10',
     border: 'border-purple-500/20',
+    href: 'mailto:support@srpailabs.com?subject=Sales%20Enquiry%20%E2%80%93%20SRP%20SmartRecruit',
   },
   {
     icon: <Mail className="w-6 h-6" />,
     title: 'Email us',
-    desc: 'Prefer email? Reach us at sales@srpailabs.com — we reply within 1 business day.',
+    desc: 'Prefer email? Reach us at support@srpailabs.com — we reply within 1 business day.',
     cta: 'Send email',
     accent: 'text-cyan-400',
     bg: 'bg-cyan-500/10',
     border: 'border-cyan-500/20',
+    href: 'mailto:support@srpailabs.com',
   },
 ]
 
@@ -54,12 +57,13 @@ export default function ContactPage() {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
-    // Simulate submission
-    await new Promise(r => setTimeout(r, 1200))
-    setLoading(false)
+    const subject = encodeURIComponent(form.subject || 'Contact from SRP Website')
+    const body = encodeURIComponent(
+      `Name: ${form.name}\nEmail: ${form.email}\nCompany: ${form.company || 'N/A'}\n\n${form.message}`
+    )
+    window.location.href = `mailto:support@srpailabs.com?subject=${subject}&body=${body}`
     setSubmitted(true)
   }
 
@@ -84,7 +88,7 @@ export default function ContactPage() {
         {/* Contact options */}
         <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid grid-cols-1 sm:grid-cols-3 gap-4">
           {contactOptions.map((opt) => (
-            <div key={opt.title} className={`bg-white/3 border ${opt.border} rounded-xl p-6 text-center`}>
+            <a key={opt.title} href={opt.href} className={`bg-white/3 border ${opt.border} rounded-xl p-6 text-center hover:bg-white/5 transition-colors block`}>
               <div className={`w-12 h-12 rounded-xl ${opt.bg} flex items-center justify-center ${opt.accent} mx-auto mb-4`}>
                 {opt.icon}
               </div>
@@ -93,7 +97,7 @@ export default function ContactPage() {
               <span className={`text-sm font-medium ${opt.accent} flex items-center gap-1 justify-center`}>
                 {opt.cta} <ArrowRight className="w-3.5 h-3.5" />
               </span>
-            </div>
+            </a>
           ))}
         </section>
 

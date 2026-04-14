@@ -120,10 +120,10 @@ export default function VideosPage() {
         <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pb-20 text-center">
           <h2 className="text-xl font-bold text-white mb-3">Want a live demo?</h2>
           <p className="text-gray-400 text-sm mb-6">Schedule a personalized walkthrough with our team.</p>
-          <Link href="/support/contact"
+          <a href="mailto:support@srpailabs.com?subject=Demo%20Request%20%E2%80%93%20SRP%20SmartRecruit"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-all shadow-lg">
             Book a demo <ArrowRight className="w-4 h-4" />
-          </Link>
+          </a>
         </section>
       </main>
       <Footer />

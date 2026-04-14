@@ -20,10 +20,10 @@ import {
 // ── Data ──────────────────────────────────────────────────────────────────────
 
 const stats = [
-  { value: '500+', label: 'Companies Using SRP' },
-  { value: '50K+', label: 'Candidates Processed' },
-  { value: '95%', label: 'Screening Accuracy' },
-  { value: '3×', label: 'Faster Hiring' },
+  { value: '< 3 min', label: 'Resume Screening Time' },
+  { value: '95%', label: 'AI Match Accuracy' },
+  { value: 'Zero', label: 'Manual Effort Needed' },
+  { value: '10×', label: 'Faster Than Traditional' },
 ]
 
 const features = [
@@ -373,7 +373,7 @@ export default function Home() {
                 Ready to transform your hiring?
               </h2>
               <p className="text-gray-300 text-lg mb-10 max-w-xl mx-auto">
-                Join 500+ companies already using SRP AI Labs to hire faster, smarter, and at scale.
+                Join the teams already using SRP AI Labs to hire faster, smarter, and at scale.
               </p>
               <Link
                 href="/login"

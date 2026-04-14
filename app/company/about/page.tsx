@@ -8,7 +8,7 @@ const timeline = [
   { year: '2023', title: 'AI Screening Launch', desc: 'Released the first LLM-powered resume ranking engine, cutting screening time by 80%.' },
   { year: '2024', title: 'All-in-One Platform', desc: 'Launched the full hiring suite — pipeline, analytics, outreach, and bulk processing.' },
   { year: '2025', title: 'Agentic AI', desc: 'Introduced autonomous AI agents that source candidates, schedule interviews, and surface insights without manual input.' },
-  { year: '2026', title: 'Global Scale', desc: 'Serving 500+ companies across 30 countries. Powering 50,000+ hires and counting.' },
+  { year: '2026', title: 'Growing Fast', desc: 'Expanding globally with agentic AI hiring workflows — helping companies of every size hire smarter.' },
 ]
 
 const values = [
@@ -21,10 +21,10 @@ const values = [
 ]
 
 const stats = [
-  { value: '500+', label: 'Companies using SRP' },
-  { value: '50K+', label: 'Candidates processed' },
-  { value: '30', label: 'Countries served' },
-  { value: '95%', label: 'Screening accuracy' },
+  { value: '< 3 min', label: 'Average screening time' },
+  { value: '95%', label: 'AI match accuracy' },
+  { value: 'Zero', label: 'Manual effort to rank' },
+  { value: '10×', label: 'Faster than manual review' },
 ]
 
 export default function AboutPage() {

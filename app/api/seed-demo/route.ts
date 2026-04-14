@@ -149,12 +149,12 @@ export async function POST() {
       await pool.query(
         `INSERT INTO resumes
            (user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
-            ai_score, match_category, pipeline_stage, ai_skills, ai_summary, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11)`,
+            ai_score, pipeline_stage, ai_skills, ai_summary, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10)`,
         [
           userId, jobId,
           c.candidate_name, c.candidate_email, c.candidate_phone,
-          c.ai_score, c.match_category, c.pipeline_stage,
+          c.ai_score, c.pipeline_stage,
           JSON.stringify(c.ai_skills), c.ai_summary, c.status,
         ]
       )

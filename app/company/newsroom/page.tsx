@@ -24,9 +24,9 @@ const pressReleases = [
   },
   {
     date: 'October 4, 2024',
-    tag: 'Growth',
-    title: 'SRP Recruit AI Crosses 500 Company Milestone, Processes 50,000+ Candidate Applications',
-    excerpt: 'The platform now serves clients across 30 countries with a 95%+ AI screening accuracy rate confirmed via independent audit.',
+    tag: 'Product',
+    title: 'SRP Recruit AI Launches Agentic Screening Engine with 95%+ Match Accuracy',
+    excerpt: 'Independent benchmarks confirm the platform\'s AI screening accuracy exceeds 95%, cutting manual review time by 10× for growing teams.',
   },
   {
     date: 'July 18, 2024',
