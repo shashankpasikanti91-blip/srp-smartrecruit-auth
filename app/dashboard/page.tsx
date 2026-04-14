@@ -1126,16 +1126,16 @@ export default function DashboardPage() {
                           <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 block">Email Type</label>
                           <div className="grid grid-cols-2 gap-1.5">
                             {([
-                              { key: 'rejection',        label: '❌ Rejection' },
-                              { key: 'shortlist',        label: '✅ Shortlist' },
-                              { key: 'interview_invite', label: '📅 Interview Invite' },
-                              { key: 'offer',            label: '🎉 Offer Letter' },
-                              { key: 'followup',         label: '🔁 Follow-up' },
-                              { key: 'technical_test',   label: '🧪 Technical Test' },
-                              { key: 'thank_you',        label: '🙏 Thank You' },
-                              { key: 'on_hold',          label: '⏸ On Hold' },
-                              { key: 'reference_check',  label: '📋 Reference Check' },
-                              { key: 'whatsapp_followup',label: '💬 WhatsApp Follow-up' },
+                              { key: 'rejection',        label: 'Rejection' },
+                              { key: 'shortlist',        label: 'Shortlist' },
+                              { key: 'interview_invite', label: 'Interview Invite' },
+                              { key: 'offer',            label: 'Offer Letter' },
+                              { key: 'followup',         label: 'Follow-up' },
+                              { key: 'technical_test',   label: 'Technical Test' },
+                              { key: 'thank_you',        label: 'Thank You' },
+                              { key: 'on_hold',          label: 'On Hold' },
+                              { key: 'reference_check',  label: 'Reference Check' },
+                              { key: 'whatsapp_followup',label: 'WhatsApp Follow-up' },
                             ] as const).map(({ key, label }) => (
                               <button key={key} onClick={() => setEmailType(key)}
                                 className={`text-left px-3 py-2 rounded-lg text-xs font-medium transition-all ${
@@ -1215,9 +1215,9 @@ export default function DashboardPage() {
                     {/* Action type selector */}
                     <div className="flex gap-2 mb-4">
                       {([
-                        { key: 'rewrite',     label: '✏️ Rewrite',     desc: 'Improve clarity & tone' },
-                        { key: 'paraphrase',  label: '🔄 Paraphrase',  desc: 'Same meaning, new words' },
-                        { key: 'reply',       label: '↩️ Reply',       desc: 'Compose a response' },
+                        { key: 'rewrite',     label: 'Rewrite',     desc: 'Improve clarity & tone' },
+                        { key: 'paraphrase',  label: 'Paraphrase',  desc: 'Same meaning, new words' },
+                        { key: 'reply',       label: 'Reply',       desc: 'Compose a response' },
                       ] as const).map(({ key, label, desc }) => (
                         <button key={key} onClick={() => setComposeMode(key)}
                           className={`flex-1 flex flex-col items-center py-2.5 px-2 rounded-xl text-xs font-medium transition-all border ${
@@ -1225,8 +1225,7 @@ export default function DashboardPage() {
                               ? 'bg-purple-600 border-purple-500 text-white'
                               : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-gray-200'
                           }`}>
-                          <span className="text-sm mb-0.5">{label.split(' ')[0]}</span>
-                          <span className="font-semibold">{label.split(' ')[1]}</span>
+                          <span className="font-semibold text-sm">{label}</span>
                           <span className={`text-[10px] mt-0.5 ${composeMode === key ? 'text-purple-200' : 'text-gray-600'}`}>{desc}</span>
                         </button>
                       ))}
@@ -1431,7 +1430,7 @@ export default function DashboardPage() {
                             <div className="flex items-center gap-3">
                               <button onClick={(e) => { e.stopPropagation(); openJobDetails(job) }}
                                 className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300">
-                                <Sparkles className="w-3 h-3" /> {job.post_contents ? 'View JD & Posts ✓' : 'Open JD Details'}
+                                <Sparkles className="w-3 h-3" /> {job.post_contents ? 'View JD & Posts' : 'Open JD Details'}
                               </button>
                               <button onClick={(e) => { e.stopPropagation(); setSelectedJob(job.id); setActiveTab('pipeline') }}
                                 className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300">
@@ -2160,7 +2159,7 @@ export default function DashboardPage() {
                 </label>
                 {candResumeError && <p className="mt-1 text-xs text-red-400">{candResumeError}</p>}
                 {candResumeText && !candResumeError && (
-                  <p className="mt-1 text-xs text-green-400">✓ Resume parsed — {candResumeText.length.toLocaleString()} characters extracted</p>
+                  <p className="mt-1 text-xs text-green-400">Resume parsed — {candResumeText.length.toLocaleString()} characters extracted</p>
                 )}
               </div>
             </div>
@@ -2349,7 +2348,7 @@ function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate:
             <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${decisionColor}`}>{r.decision}</span>
             {r.short_id && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-mono">
-                ✓ Saved · {r.short_id}
+                Saved · {r.short_id}
               </span>
             )}
           </div>
@@ -2371,13 +2370,13 @@ function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate:
           {strengths.length > 0 && (
             <div>
               <p className="text-gray-500 font-semibold mb-1">Strengths</p>
-              <ul className="space-y-0.5">{strengths.map((s, i) => <li key={i} className="text-emerald-400">✓ {s}</li>)}</ul>
+              <ul className="space-y-0.5">{strengths.map((s, i) => <li key={i} className="text-emerald-400">• {s}</li>)}</ul>
             </div>
           )}
           {weaknesses.length > 0 && (
             <div>
               <p className="text-gray-500 font-semibold mb-1">Weaknesses</p>
-              <ul className="space-y-0.5">{weaknesses.map((s, i) => <li key={i} className="text-amber-400">△ {s}</li>)}</ul>
+              <ul className="space-y-0.5">{weaknesses.map((s, i) => <li key={i} className="text-amber-400">• {s}</li>)}</ul>
             </div>
           )}
           {missingSkills.length > 0 && (

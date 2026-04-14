@@ -12,15 +12,15 @@ const pressReleases = [
   },
   {
     date: 'March 22, 2025',
-    tag: 'Company',
-    title: 'SRP Recruit AI Named a Top 10 Most Innovative HR Tech Platform of 2025',
-    excerpt: 'Recognized by HR Technology Magazine for its breakthrough LLM-powered resume intelligence and bulk screening engine.',
+    tag: 'Product',
+    title: 'SRP Recruit AI Adds Agentic Email Composer — Draft, Rewrite, and Send Candidate Emails in Seconds',
+    excerpt: 'The new AI-powered email tool generates personalized outreach, rejection, and interview invite emails directly from candidate profiles.',
   },
   {
     date: 'January 15, 2025',
-    tag: 'Partnership',
-    title: 'SRP Recruit AI Announces Strategic Integration Partnership with Workday and SAP SuccessFactors',
-    excerpt: 'Bi-directional sync now live, enabling enterprise customers to manage end-to-end talent workflows without leaving their HRIS.',
+    tag: 'Product',
+    title: 'New Dashboard Experience: Pipeline View, Analytics, and Candidate Profiles in One Place',
+    excerpt: 'A redesigned dashboard gives recruiters a unified view of jobs, candidates, screening results, and email history without switching tabs.',
   },
   {
     date: 'October 4, 2024',

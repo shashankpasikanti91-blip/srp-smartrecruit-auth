@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Zap, Twitter, Linkedin, Youtube, Instagram, Facebook } from 'lucide-react'
+import { Zap, Linkedin, Mail } from 'lucide-react'
 
 const footerNav = {
   'Get Started': [
@@ -42,11 +42,8 @@ const footerNav = {
 }
 
 const socials = [
-  { icon: <Linkedin className="w-4 h-4" />, href: 'https://linkedin.com', label: 'LinkedIn' },
-  { icon: <Twitter className="w-4 h-4" />, href: 'https://twitter.com', label: 'Twitter / X' },
-  { icon: <Youtube className="w-4 h-4" />, href: 'https://youtube.com', label: 'YouTube' },
-  { icon: <Facebook className="w-4 h-4" />, href: 'https://facebook.com', label: 'Facebook' },
-  { icon: <Instagram className="w-4 h-4" />, href: 'https://instagram.com', label: 'Instagram' },
+  { icon: <Linkedin className="w-4 h-4" />, href: 'https://www.linkedin.com/company/srp-ai-labs', label: 'LinkedIn' },
+  { icon: <Mail className="w-4 h-4" />, href: 'mailto:support@srpailabs.com', label: 'Email' },
 ]
 
 export default function Footer() {

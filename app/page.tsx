@@ -10,7 +10,6 @@ import {
   Clock,
   CheckCircle2,
   ArrowRight,
-  Star,
   Rocket,
   Search,
   FileText,
@@ -95,27 +94,24 @@ const steps = [
   },
 ]
 
-const testimonials = [
+const howItWorks = [
   {
-    quote:
-      '"SRP cut our time-to-screen from 5 days to 20 minutes. The AI recommendations are frighteningly accurate."',
-    name: 'Sarah Chen',
-    role: 'Head of Talent, TechCorp',
-    rating: 5,
+    step: '1',
+    title: 'Post a job & upload resumes',
+    description: 'Create a job description or paste one in. Drag and drop resumes — PDF, DOCX, or bulk upload.',
+    color: 'text-indigo-400',
   },
   {
-    quote:
-      '"We process 2,000+ applications a month. Without SRP it would be impossible. Best tool in our stack."',
-    name: 'James Wright',
-    role: 'Recruiting Lead, ScaleUp',
-    rating: 5,
+    step: '2',
+    title: 'AI screens & ranks instantly',
+    description: 'Our agentic AI reads every resume, scores candidates against your requirements, and ranks them.',
+    color: 'text-sky-400',
   },
   {
-    quote:
-      '"The bias-reduction features helped us increase diversity hires by 40%. It is a game-changer."',
-    name: 'Priya Nair',
-    role: 'VP People, Finova',
-    rating: 5,
+    step: '3',
+    title: 'Review, email & hire',
+    description: 'Review AI summaries, send personalized outreach, and move top picks through the pipeline.',
+    color: 'text-emerald-400',
   },
 ]
 
@@ -273,29 +269,22 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Testimonials ──────────────────────────────────────────────────── */}
+      {/* ── How It Works ──────────────────────────────────────────────────── */}
       <section className="py-28 px-4 bg-[#0d0d1a]">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <p className="text-emerald-400 text-sm font-semibold uppercase tracking-widest mb-3">Testimonials</p>
+            <p className="text-emerald-400 text-sm font-semibold uppercase tracking-widest mb-3">How It Works</p>
             <h2 className="text-4xl md:text-5xl font-extrabold text-white">
-              Teams that trust SRP
+              Screen candidates in 3 steps
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((t) => (
-              <div key={t.name} className="glass-card rounded-2xl p-7 flex flex-col">
-                <div className="flex gap-1 mb-4">
-                  {Array.from({ length: t.rating }).map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                  ))}
-                </div>
-                <p className="text-gray-300 text-sm leading-relaxed flex-1 italic">{t.quote}</p>
-                <div className="mt-6 pt-4 border-t border-white/5">
-                  <p className="text-white font-semibold text-sm">{t.name}</p>
-                  <p className="text-gray-500 text-xs mt-0.5">{t.role}</p>
-                </div>
+            {howItWorks.map((s) => (
+              <div key={s.step} className="glass-card rounded-2xl p-7 flex flex-col">
+                <p className={`text-3xl font-bold ${s.color} mb-4`}>{s.step}</p>
+                <p className="text-white font-semibold text-lg mb-2">{s.title}</p>
+                <p className="text-gray-400 text-sm leading-relaxed flex-1">{s.description}</p>
               </div>
             ))}
           </div>
