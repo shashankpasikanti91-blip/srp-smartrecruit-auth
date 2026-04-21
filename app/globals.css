@@ -1,12 +1,45 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ══════════════════════════════════════════════════════════
+   SRP RECRUIT AI LABS — ENTERPRISE DESIGN SYSTEM
+   Sidebar: Premium Navy Blue  |  Dashboard: Clean White
+   ══════════════════════════════════════════════════════════ */
+
 :root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start: #0f0c29;
-  --background-end: #24243e;
+  /* ── Sidebar Navy Theme ─────────────────────────────── */
+  --sidebar-bg:          #0B1F3A;
+  --sidebar-hover:       #16345F;
+  --sidebar-active:      #1E4E8C;
+  --sidebar-active-text: #FFFFFF;
+  --sidebar-text:        #FFFFFF;
+  --sidebar-muted:       #B8C7E0;
+  --sidebar-border:      rgba(255,255,255,0.08);
+  --sidebar-brand:       #4A90D9;
+
+  /* ── Dashboard White Theme ──────────────────────────── */
+  --dash-bg:             #F8FAFC;
+  --dash-surface:        #FFFFFF;
+  --dash-border:         #E5E7EB;
+  --dash-text:           #111827;
+  --dash-text-2:         #6B7280;
+  --dash-text-3:         #9CA3AF;
+
+  /* ── Semantic colours ───────────────────────────────── */
+  --color-primary:       #1E4E8C;
+  --color-primary-hover: #16345F;
+  --color-success:       #10B981;
+  --color-warning:       #F59E0B;
+  --color-danger:        #EF4444;
+  --color-purple:        #7C3AED;
+  --color-indigo:        #4F46E5;
+
+  /* ── Shadows ────────────────────────────────────────── */
+  --shadow-card:   0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-hover:  0 4px 16px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-modal:  0 20px 60px rgba(0,0,0,0.18);
 }
 
 * {
@@ -20,40 +53,242 @@ html {
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: #0a0a0f;
-  color: #f9fafb;
+  font-family: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--dash-bg);
+  color: var(--dash-text);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ── Custom scrollbar ─────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #1a1a2e;
-}
-::-webkit-scrollbar-thumb {
-  background: #4f46e5;
-  border-radius: 3px;
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #F1F5F9; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+/* ── Sidebar scrollbar overrides ────────────────────────── */
+aside ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+aside ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
+
+/* ══════════════════════════════════════════════════════════
+   DASHBOARD LAYOUT
+   ══════════════════════════════════════════════════════════ */
+
+/* Main wrapper — white right, navy left */
+.dashboard-root {
+  background: var(--dash-bg);
+  color: var(--dash-text);
 }
 
-/* ── Gradient text utility ───────────────────────────────── */
-.gradient-text {
-  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #f472b6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* Right main area */
+.dashboard-main {
+  background: var(--dash-bg);
+  color: var(--dash-text);
 }
 
-/* ── Glassmorphism card ──────────────────────────────────── */
+/* ── Sidebar ─────────────────────────────────────────────── */
+.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+}
+
+.sidebar-nav-item {
+  color: var(--sidebar-muted);
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+.sidebar-nav-item:hover {
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text);
+}
+.sidebar-nav-item.active {
+  background: var(--sidebar-active);
+  color: var(--sidebar-active-text);
+  font-weight: 600;
+}
+
+/* ── Enterprise KPI cards ───────────────────────────────── */
+.kpi-card {
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.kpi-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+
+/* ── Job cards ───────────────────────────────────────────── */
+.job-card {
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  cursor: pointer;
+}
+.job-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+  border-color: #C7D7F0;
+}
+
+/* ── Candidate cards / rows ─────────────────────────────── */
+.candidate-row {
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border);
+  border-radius: 10px;
+  transition: box-shadow 0.15s ease;
+}
+.candidate-row:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+/* ── Section / module cards ─────────────────────────────── */
+.section-card {
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+}
+
+/* ── Glass card (dark modals only) ──────────────────────── */
 .glass-card {
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* ── Animated gradient orb ──────────────────────────────── */
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn-primary {
+  background: var(--color-primary);
+  color: #FFFFFF;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 16px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  border: none;
+  cursor: pointer;
+}
+.btn-primary:hover {
+  background: var(--color-primary-hover);
+  box-shadow: 0 4px 12px rgba(30,78,140,0.35);
+}
+
+.btn-secondary {
+  background: #FFFFFF;
+  color: var(--dash-text);
+  border: 1px solid var(--dash-border);
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 16px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+}
+.btn-secondary:hover {
+  background: #F3F4F6;
+  border-color: #D1D5DB;
+}
+
+/* ── Status badges ───────────────────────────────────────── */
+.badge-active   { background: #D1FAE5; color: #065F46; border: 1px solid #A7F3D0; }
+.badge-rejected { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
+.badge-pending  { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; }
+.badge-hired    { background: #DBEAFE; color: #1E40AF; border: 1px solid #BFDBFE; }
+
+/* ── Data table ──────────────────────────────────────────── */
+.data-table th {
+  background: #F9FAFB;
+  color: #6B7280;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--dash-border);
+  padding: 10px 16px;
+}
+.data-table td {
+  border-bottom: 1px solid #F3F4F6;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--dash-text);
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: #F9FAFB; }
+
+/* ── Input / form controls ───────────────────────────────── */
+.form-input {
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border);
+  border-radius: 8px;
+  color: var(--dash-text);
+  padding: 9px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.form-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(30,78,140,0.08);
+}
+.form-input::placeholder { color: var(--dash-text-3); }
+
+/* Override dark mode browser selects for the main dashboard */
+.dashboard-main select,
+.dashboard-main select option {
+  background-color: var(--dash-surface);
+  color: var(--dash-text);
+}
+.dashboard-main input,
+.dashboard-main textarea,
+.dashboard-main select {
+  color-scheme: light;
+}
+
+/* Dark modal overrides — keep modals dark */
+.modal-dark select,
+.modal-dark select option { background-color: #1a1a2e; color: #e5e7eb; }
+.modal-dark input,
+.modal-dark textarea,
+.modal-dark select { color-scheme: dark; }
+option { background-color: #1a1a2e; color: #e5e7eb; }
+
+/* ── Gradient text ───────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #1E4E8C 0%, #4A90D9 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Section heading line ────────────────────────────────── */
+.section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--dash-text);
+  letter-spacing: -0.02em;
+}
+
+/* ── Animations ──────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up { animation: fadeInUp 0.4s ease-out both; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50%       { transform: translateY(-20px) scale(1.05); }
+}
 .orb {
   position: absolute;
   border-radius: 50%;
@@ -62,38 +297,23 @@ body {
   animation: float 8s ease-in-out infinite;
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0px) scale(1); }
-  50%       { transform: translateY(-20px) scale(1.05); }
+/* ── Divider ─────────────────────────────────────────────── */
+.divider { border-top: 1px solid var(--dash-border); }
+
+/* ── Pipeline stage columns ─────────────────────────────── */
+.pipeline-col {
+  background: #F9FAFB;
+  border: 1px solid var(--dash-border);
+  border-radius: 10px;
+  padding: 12px;
+  min-height: 200px;
+}
+.pipeline-col-header {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dash-text-2);
+  margin-bottom: 10px;
 }
 
-/* ── Button hover glow ───────────────────────────────────── */
-.btn-glow:hover {
-  box-shadow: 0 0 30px rgba(99, 102, 241, 0.5);
-}
-
-/* ── Section fade-in ─────────────────────────────────────── */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(24px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in-up {
-  animation: fadeInUp 0.6s ease-out both;
-}
-
-/* ── Dark form controls (prevent white-on-white in modals) ── */
-select,
-select option {
-  background-color: #1a1a2e;
-  color: #e5e7eb;
-}
-
-input, textarea, select {
-  color-scheme: dark;
-}
-
-/* Force dark background for browser-native select dropdowns */
-option {
-  background-color: #1a1a2e !important;
-  color: #e5e7eb !important;
-}

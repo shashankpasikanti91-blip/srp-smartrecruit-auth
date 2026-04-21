@@ -234,7 +234,12 @@ export default function DashboardPage() {
       if (res.ok) {
         const data = await res.json()
         setProfileData(data)
+      } else {
+        console.error('[profile] HTTP', res.status, await res.text().catch(() => ''))
+        // profileData stays null → shows error UI with Retry button
       }
+    } catch (e) {
+      console.error('[profile] fetch error:', e)
     } finally {
       setProfileLoading(false)
     }
@@ -641,39 +646,40 @@ export default function DashboardPage() {
   })()
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
+    <div className="min-h-screen bg-[#F8FAFC]">
       <div className="flex h-screen overflow-hidden">
 
         {/* ── Sidebar ──────────────────────────────────────────────────────── */}
-        <aside className="w-60 flex-shrink-0 border-r border-white/5 bg-black/40 flex flex-col">
-          <div className="px-5 py-5 border-b border-white/5">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+        <aside className="w-60 flex-shrink-0 flex flex-col" style={{ background: '#0B1F3A', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-md">
                 <Zap className="w-4 h-4 text-white" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white leading-none">SRP Recruit AI Labs</p>
-                <p className="text-xs text-indigo-400 leading-none mt-0.5">SmartRecruit</p>
+                <p className="text-sm font-bold text-white leading-none tracking-tight">SRP Recruit AI Labs</p>
+                <p className="text-[11px] leading-none mt-0.5" style={{ color: '#4A90D9' }}>SmartRecruit</p>
               </div>
             </div>
           </div>
 
           {/* Sidebar plan badge */}
           {profileData?.subscription && profileData.subscription.plan !== 'free' && (
-            <div className="mx-3 mt-3 px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border border-indigo-500/20 flex items-center gap-2">
+            <div className="mx-3 mt-3 px-3 py-1.5 rounded-lg flex items-center gap-2" style={{ background: 'rgba(74,144,217,0.15)', border: '1px solid rgba(74,144,217,0.25)' }}>
               <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-xs font-semibold text-indigo-300 capitalize">{profileData.subscription.plan} Plan</span>
+              <span className="text-xs font-semibold capitalize" style={{ color: '#7EB3FF' }}>{profileData.subscription.plan} Plan</span>
             </div>
           )}
           {profileData?.subscription?.plan === 'free' && (
             <button onClick={() => setUpgradePrompt({ show: true, message: 'Unlock unlimited AI screenings, job posts, and all premium features.', feature: 'Pro Plan' })}
-              className="mx-3 mt-3 px-3 py-2 rounded-lg bg-gradient-to-r from-amber-600/30 to-orange-600/30 border border-amber-500/30 flex items-center gap-2 hover:from-amber-600/40 hover:to-orange-600/40 transition-all group">
+              className="mx-3 mt-3 px-3 py-2 rounded-lg flex items-center gap-2 transition-all group"
+              style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.25)' }}>
               <Zap className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
               <span className="text-xs font-semibold text-amber-300">Upgrade to Pro</span>
             </button>
           )}
 
-          <nav className="flex-1 px-3 py-4 space-y-1">
+          <nav className="flex-1 px-3 py-4 space-y-0.5">
             {([
               { tab: 'pipeline',   icon: Layers,      label: 'Pipeline',   badge: null },
               { tab: 'candidates', icon: Users,        label: 'Candidates', badge: null },
@@ -684,14 +690,15 @@ export default function DashboardPage() {
               { tab: 'settings',   icon: Settings,     label: 'Settings',   badge: null },
             ] as const).map(({ tab, icon: Icon, label, badge }) => (
               <button key={tab} onClick={() => setActiveTab(tab)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  activeTab === tab
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}>
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
+                style={activeTab === tab
+                  ? { background: '#1E4E8C', color: '#FFFFFF' }
+                  : { color: '#B8C7E0' }}
+                onMouseEnter={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = '#16345F'; (e.currentTarget as HTMLButtonElement).style.color = '#FFFFFF' } }}
+                onMouseLeave={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#B8C7E0' } }}>
                 <Icon className="w-4 h-4" />
                 <span className="flex-1 text-left">{label}</span>
-                {badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300">{badge}</span>}
+                {badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(124,58,237,0.3)', color: '#C4B5FD' }}>{badge}</span>}
               </button>
             ))}
 
@@ -703,26 +710,27 @@ export default function DashboardPage() {
             )}
           </nav>
 
-          <div className="px-3 py-4 border-t border-white/5">
+          <div className="px-3 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
             <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
               {user?.image
-                ? <img src={user.image} alt="" className="w-8 h-8 rounded-full" />
-                : <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-xs font-bold">{user?.name?.[0] ?? '?'}</div>
+                ? <img src={user.image} alt="" className="w-8 h-8 rounded-full ring-2" style={{ ringColor: 'rgba(74,144,217,0.4)' }} />
+                : <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: '#1E4E8C' }}>{user?.name?.[0] ?? '?'}</div>
               }
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-white truncate">{user?.name}</p>
-                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                <p className="text-[11px] truncate" style={{ color: '#7EB3FF' }}>{user?.email}</p>
               </div>
             </div>
             <button onClick={() => signOut({ callbackUrl: '/login' })}
-              className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-red-500/20 bg-red-500/5 text-red-400 hover:bg-red-500/15 text-sm font-medium transition-all">
+              className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-red-400 hover:bg-red-500/15 text-sm font-medium transition-all"
+              style={{ border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.05)' }}>
               <LogOut className="w-3.5 h-3.5" /> Sign Out
             </button>
           </div>
         </aside>
 
         {/* ── Main ─────────────────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto bg-[#F8FAFC]">
           {/* Subscription expiry alert banner */}
           {subAlert && !subAlertDismissed && (
             <div className={`px-6 py-3 flex items-center justify-between gap-4 ${
@@ -785,27 +793,32 @@ export default function DashboardPage() {
           )}
 
           {/* Stats bar */}
-          <div className="px-6 py-4 border-b border-white/5 bg-black/20 flex items-center gap-6 flex-wrap">
+          <div className="px-6 py-3.5 bg-white border-b border-gray-200 flex items-center gap-5 flex-wrap">
             {[
-              { icon: Briefcase,     color: 'text-indigo-400', label: 'Jobs',       value: jobs.length },
-              { icon: Users,         color: 'text-purple-400', label: 'Candidates', value: totalCandidates },
-              { icon: Clock,         color: 'text-amber-400',  label: 'Interviews', value: interviewCount },
-              { icon: CheckCircle,   color: 'text-green-400',  label: 'Hired',      value: hiredCount },
-            ].map(({ icon: Icon, color, label, value }) => (
-              <div key={label} className="flex items-center gap-2">
-                <Icon className={`w-4 h-4 ${color}`} />
-                <span className="text-sm text-gray-400">{label}</span>
-                <span className="text-sm font-bold text-white">{value}</span>
-                <div className="w-px h-4 bg-white/10 ml-4" />
+              { icon: Briefcase,     color: 'text-[#1E4E8C]', bg: 'bg-blue-50',   label: 'Jobs',       value: jobs.length },
+              { icon: Users,         color: 'text-purple-600', bg: 'bg-purple-50', label: 'Candidates', value: totalCandidates },
+              { icon: Clock,         color: 'text-amber-600',  bg: 'bg-amber-50',  label: 'Interviews', value: interviewCount },
+              { icon: CheckCircle,   color: 'text-emerald-600',bg: 'bg-emerald-50',label: 'Hired',      value: hiredCount },
+            ].map(({ icon: Icon, color, bg, label, value }) => (
+              <div key={label} className="flex items-center gap-2.5">
+                <div className={`w-7 h-7 rounded-lg ${bg} flex items-center justify-center`}>
+                  <Icon className={`w-3.5 h-3.5 ${color}`} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 font-medium leading-none">{label}</p>
+                  <p className="text-sm font-bold text-gray-900 leading-tight">{value}</p>
+                </div>
+                <div className="w-px h-6 bg-gray-200 ml-2" />
               </div>
             ))}
             <div className="ml-auto flex items-center gap-2">
               <button onClick={() => setShowNewCandidate(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-gray-300 transition-all">
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 border border-gray-300 text-sm text-gray-700 font-medium transition-all">
                 <Plus className="w-3.5 h-3.5" /> Add Candidate
               </button>
               <button onClick={() => setShowNewJob(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold transition-all">
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90 shadow-sm"
+                style={{ background: '#0B1F3A' }}>
                 <Plus className="w-3.5 h-3.5" /> New Job
               </button>
             </div>
@@ -818,12 +831,12 @@ export default function DashboardPage() {
               <div>
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h1 className="text-xl font-bold text-white">Pipeline</h1>
+                    <h1 className="text-xl font-bold text-gray-900">Pipeline</h1>
                     <p className="text-sm text-gray-500 mt-0.5">Drag & drop candidates across stages</p>
                   </div>
                   <div className="relative">
                     <select value={selectedJob} onChange={e => setSelectedJob(e.target.value)}
-                      className="appearance-none pl-3 pr-8 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 cursor-pointer focus:outline-none focus:border-indigo-500">
+                      className="appearance-none pl-3 pr-8 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-700 cursor-pointer focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30">
                       <option value="">All Jobs</option>
                       {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0,8)})</option>)}
                     </select>
@@ -854,10 +867,10 @@ export default function DashboardPage() {
                             <span className={`text-xs font-bold ${stage.text}`}>{stageCands.length}</span>
                           </div>
                           <div className={`flex-1 border border-t-0 rounded-b-lg p-2 space-y-2 min-h-[280px] transition-colors ${
-                            isOver ? 'bg-indigo-500/10 border-indigo-500/40' : 'bg-white/[0.02] border-white/5'
+                            isOver ? 'bg-blue-50 border-blue-400/50' : 'bg-gray-50 border-gray-200'
                           }`}>
                             {stageCands.length === 0
-                              ? <p className={`text-center text-xs pt-6 ${isOver ? 'text-indigo-400' : 'text-gray-700'}`}>
+                              ? <p className={`text-center text-xs pt-6 ${isOver ? 'text-blue-500' : 'text-gray-400'}`}>
                                   {isOver ? 'Drop here' : 'Empty'}
                                 </p>
                               : stageCands.map(c => (
@@ -882,55 +895,55 @@ export default function DashboardPage() {
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h1 className="text-xl font-bold text-white">Candidates</h1>
+                    <h1 className="text-xl font-bold text-gray-900">Candidates</h1>
                     <p className="text-sm text-gray-500 mt-0.5">
-                      {filterSkill ? <><span className="text-indigo-400 font-semibold">{candidates.length}</span> with &quot;{filterSkill}&quot;</> : `${candidates.length} total`}
+                      {filterSkill ? <><span className="text-[#1E4E8C] font-semibold">{candidates.length}</span> with &quot;{filterSkill}&quot;</> : `${candidates.length} total`}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 mb-5 flex-wrap">
                   <div className="relative flex-1 min-w-[160px]">
-                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                     <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
                       placeholder="Name or email…"
-                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
                   </div>
                   <div className="relative">
-                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-indigo-500/70" />
+                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-blue-500/70" />
                     <input value={filterSkill} onChange={e => setFilterSkill(e.target.value)}
                       placeholder="Filter by skill…"
                       list="skill-suggestions"
-                      className="pl-9 pr-3 py-2 rounded-lg bg-[#1a1a2e] border border-indigo-500/30 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 w-40" />
+                      className="pl-9 pr-3 py-2 rounded-lg bg-white border border-blue-300/60 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 w-40" />
                     <datalist id="skill-suggestions">
                       {topSkills.map(({ skill }) => <option key={skill} value={skill} />)}
                     </datalist>
                   </div>
                   <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
-                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-700 focus:outline-none focus:border-blue-500">
                     <option value="">All Stages</option>
                     {PIPELINE_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                   </select>
                   <select value={filterMatch} onChange={e => setFilterMatch(e.target.value)}
-                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-700 focus:outline-none focus:border-blue-500">
                     <option value="">All Matches</option>
                     <option value="best">Best Match</option>
                     <option value="good">Good Match</option>
                     <option value="partial">Partial Match</option>
                   </select>
                   <select value={filterJob} onChange={e => setFilterJob(e.target.value)}
-                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-700 focus:outline-none focus:border-blue-500">
                     <option value="">All Jobs</option>
                     {jobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
                   </select>
                   {(searchQ || filterStage || filterMatch || filterJob || filterSkill) && (
                     <button onClick={() => { setSearchQ(''); setFilterStage(''); setFilterMatch(''); setFilterJob(''); setFilterSkill('') }}
-                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300">
+                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
                       <X className="w-3.5 h-3.5" /> Clear
                     </button>
                   )}
-                  <button onClick={loadData} className="ml-auto p-2 rounded hover:bg-white/5">
-                    <Filter className="w-4 h-4 text-gray-500 hover:text-gray-300" />
+                  <button onClick={loadData} className="ml-auto p-2 rounded hover:bg-gray-100">
+                    <Filter className="w-4 h-4 text-gray-400 hover:text-gray-600" />
                   </button>
                 </div>
 
@@ -939,10 +952,10 @@ export default function DashboardPage() {
                     <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-white/5">
+                  <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-white/5">
+                        <tr className="border-b border-gray-200 bg-gray-50">
                           {['ID', 'Candidate', 'Match', 'Stage', 'Job', 'Skills', 'Move Stage'].map(h => (
                             <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                           ))}
@@ -950,17 +963,17 @@ export default function DashboardPage() {
                       </thead>
                       <tbody>
                         {candidates.length === 0 ? (
-                          <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-600">No candidates found</td></tr>
+                          <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No candidates found</td></tr>
                         ) : candidates.map((c, i) => (
-                          <tr key={c.id} onClick={() => setSelectedCandidate(c)} className={`border-b border-white/[0.03] hover:bg-white/[0.04] cursor-pointer ${i % 2 ? 'bg-white/[0.01]' : ''}`}>
+                          <tr key={c.id} onClick={() => setSelectedCandidate(c)} className={`border-b border-gray-100 hover:bg-blue-50/40 cursor-pointer transition-colors ${i % 2 ? 'bg-gray-50/40' : ''}`}>
                             <td className="px-4 py-3"><ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} /></td>
                             <td className="px-4 py-3">
-                              <p className="font-semibold text-white">{c.candidate_name}</p>
+                              <p className="font-semibold text-gray-900">{c.candidate_name}</p>
                               <p className="text-xs text-gray-500">{c.candidate_email}</p>
                             </td>
                             <td className="px-4 py-3"><MatchBadge category={c.match_category} score={c.ai_score} /></td>
                             <td className="px-4 py-3"><StagePill stage={c.pipeline_stage} /></td>
-                            <td className="px-4 py-3 text-xs text-gray-400">
+                            <td className="px-4 py-3 text-xs text-gray-500">
                               {c.job_posts ? (
                                 <><p>{c.job_posts.title}</p><ShortIdBadge id={c.job_posts.short_id ?? ''} /></>
                               ) : '—'}
@@ -968,16 +981,16 @@ export default function DashboardPage() {
                             <td className="px-4 py-3">
                               <div className="flex flex-wrap gap-1 max-w-[140px]">
                                 {(c.ai_skills ?? []).slice(0, 3).map(s => (
-                                  <span key={s} className="text-xs bg-white/5 text-gray-400 px-1.5 py-0.5 rounded">{s}</span>
+                                  <span key={s} className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">{s}</span>
                                 ))}
                                 {(c.ai_skills?.length ?? 0) > 3 && (
-                                  <span className="text-xs text-gray-600">+{c.ai_skills.length - 3}</span>
+                                  <span className="text-xs text-gray-400">+{c.ai_skills.length - 3}</span>
                                 )}
                               </div>
                             </td>
                             <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                               <select defaultValue={c.pipeline_stage} onChange={e => moveStage(c.id, e.target.value)}
-                                className="text-xs bg-white/5 border border-white/10 text-gray-400 rounded px-2 py-1 cursor-pointer focus:outline-none">
+                                className="text-xs bg-white border border-gray-300 text-gray-600 rounded px-2 py-1 cursor-pointer focus:outline-none focus:border-blue-400">
                                 {PIPELINE_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                               </select>
                             </td>
@@ -998,13 +1011,13 @@ export default function DashboardPage() {
                     <Brain className="w-5 h-5 text-purple-400" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-white">AI Screening</h1>
+                    <h1 className="text-xl font-bold text-gray-900">AI Screening</h1>
                     <p className="text-sm text-gray-500 mt-0.5">Score & rank candidates against your job description</p>
                   </div>
                   <div className="ml-auto flex gap-2">
                     {(['single', 'bulk'] as const).map(m => (
                       <button key={m} onClick={() => setScreenMode(m)}
-                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${screenMode === m ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${screenMode === m ? 'bg-purple-600 text-white shadow-sm' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
                         {m === 'single' ? 'Single CV' : 'Bulk CVs'}
                       </button>
                     ))}
@@ -1068,9 +1081,9 @@ export default function DashboardPage() {
                 {screenResults.length > 0 && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h2 className="text-sm font-semibold text-gray-300">{screenResults.length} result{screenResults.length > 1 ? 's' : ''} — saved to Candidates</h2>
+                      <h2 className="text-sm font-semibold text-gray-700">{screenResults.length} result{screenResults.length > 1 ? 's' : ''} — saved to Candidates</h2>
                       <button onClick={() => setActiveTab('candidates')}
-                        className="text-xs text-indigo-400 hover:text-indigo-300 underline underline-offset-2">
+                        className="text-xs text-[#1E4E8C] hover:text-blue-800 underline underline-offset-2">
                         View in Candidates →
                       </button>
                     </div>
@@ -1091,7 +1104,7 @@ export default function DashboardPage() {
                     <Mail className="w-5 h-5 text-indigo-400" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-white">AI Compose</h1>
+                    <h1 className="text-xl font-bold text-gray-900">AI Compose</h1>
                     <p className="text-sm text-gray-500 mt-0.5">Generate, rewrite or reply to recruitment messages</p>
                   </div>
                 </div>
@@ -1377,12 +1390,13 @@ export default function DashboardPage() {
               <div>
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h1 className="text-xl font-bold text-white">Job Posts</h1>
+                    <h1 className="text-xl font-bold text-gray-900">Job Posts</h1>
                     <p className="text-sm text-gray-500 mt-0.5">{jobs.length} active jobs</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button onClick={() => setShowNewJob(true)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-all">
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white transition-all hover:opacity-90 shadow-sm"
+                      style={{ background: '#0B1F3A' }}>
                       <Plus className="w-3.5 h-3.5" /> New Job
                     </button>
                   </div>
@@ -1394,10 +1408,11 @@ export default function DashboardPage() {
                   </div>
                 ) : jobs.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-60 text-center">
-                    <Briefcase className="w-10 h-10 text-gray-700 mb-3" />
+                    <Briefcase className="w-10 h-10 text-gray-300 mb-3" />
                     <p className="text-gray-500 mb-4">No jobs yet. Create your first job post.</p>
                     <button onClick={() => setShowNewJob(true)}
-                      className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold transition-colors">
+                      className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors hover:opacity-90"
+                      style={{ background: '#0B1F3A' }}>
                       Create Job Post
                     </button>
                   </div>
@@ -1408,32 +1423,32 @@ export default function DashboardPage() {
                       return (
                         <div key={job.id}
                           onClick={() => openJobDetails(job)}
-                          className="glass-card rounded-xl p-5 border border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer">
+                          className="bg-white rounded-xl p-5 border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer shadow-sm">
                           <div className="flex items-start justify-between mb-3">
                             <ShortIdBadge id={job.short_id ?? job.id.slice(0, 8)} />
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${job.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${job.status === 'active' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
                               {job.status}
                             </span>
                           </div>
-                          <h3 className="font-bold text-white text-base mb-1">{job.title}</h3>
-                          <p className="text-sm text-gray-400">{job.company}{job.location && ` · ${job.location}`}</p>
+                          <h3 className="font-bold text-gray-900 text-base mb-1">{job.title}</h3>
+                          <p className="text-sm text-gray-500">{job.company}{job.location && ` · ${job.location}`}</p>
                           {(job.description || job.requirements) && (
-                            <p className="text-xs text-gray-500 mt-2 line-clamp-3 whitespace-pre-wrap">
+                            <p className="text-xs text-gray-400 mt-2 line-clamp-3 whitespace-pre-wrap">
                               {job.description || job.requirements}
                             </p>
                           )}
                           <div className="mt-4 flex items-center justify-between">
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                            <div className="flex items-center gap-1 text-xs text-gray-400">
                               <Users className="w-3.5 h-3.5" />
                               {jobCands.length} candidates
                             </div>
                             <div className="flex items-center gap-3">
                               <button onClick={(e) => { e.stopPropagation(); openJobDetails(job) }}
-                                className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300">
+                                className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700">
                                 <Sparkles className="w-3 h-3" /> {job.post_contents ? 'View JD & Posts' : 'Open JD Details'}
                               </button>
                               <button onClick={(e) => { e.stopPropagation(); setSelectedJob(job.id); setActiveTab('pipeline') }}
-                                className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300">
+                                className="flex items-center gap-1 text-xs hover:text-blue-800" style={{ color: '#1E4E8C' }}>
                                 View pipeline <ArrowRight className="w-3 h-3" />
                               </button>
                             </div>
@@ -1449,29 +1464,31 @@ export default function DashboardPage() {
             {/* ── ANALYTICS ────────────────────────────────────────────────── */}
             {activeTab === 'analytics' && (
               <div>
-                <h1 className="text-xl font-bold text-white mb-6">Analytics</h1>
+                <h1 className="text-xl font-bold text-gray-900 mb-6">Analytics</h1>
 
                 {/* KPI cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                   {[
-                    { label: 'Total Candidates', value: totalCandidates,  icon: Users,       color: 'text-indigo-400' },
-                    { label: 'Hired',             value: hiredCount,        icon: CheckCircle, color: 'text-green-400' },
-                    { label: 'Interviews',        value: interviewCount,    icon: Clock,       color: 'text-amber-400' },
-                    { label: 'Conversion Rate',   value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '0%', icon: TrendingUp, color: 'text-purple-400' },
-                  ].map(({ label, value, icon: Icon, color }) => (
-                    <div key={label} className="glass-card rounded-xl p-5 border border-white/5">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Icon className={`w-4 h-4 ${color}`} />
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
+                    { label: 'Total Candidates', value: totalCandidates,  icon: Users,       color: 'text-[#1E4E8C]', bg: 'bg-blue-50' },
+                    { label: 'Hired',             value: hiredCount,        icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { label: 'Interviews',        value: interviewCount,    icon: Clock,       color: 'text-amber-600', bg: 'bg-amber-50' },
+                    { label: 'Conversion Rate',   value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '0%', icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-50' },
+                  ].map(({ label, value, icon: Icon, color, bg }) => (
+                    <div key={label} className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center`}>
+                          <Icon className={`w-4 h-4 ${color}`} />
+                        </div>
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{label}</p>
                       </div>
-                      <p className="text-3xl font-extrabold text-white">{value}</p>
+                      <p className="text-3xl font-extrabold text-gray-900">{value}</p>
                     </div>
                   ))}
                 </div>
 
                 {/* Hiring funnel */}
-                <div className="glass-card rounded-xl p-5 border border-white/5 mb-5">
-                  <h2 className="text-sm font-semibold text-gray-300 mb-4">Hiring Funnel</h2>
+                <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm mb-5">
+                  <h2 className="text-sm font-semibold text-gray-700 mb-4">Hiring Funnel</h2>
                   <div className="space-y-3">
                     {PIPELINE_STAGES.map(s => {
                       const count = stageCounts[s.key] ?? 0
@@ -1479,11 +1496,11 @@ export default function DashboardPage() {
                       return (
                         <div key={s.key} className="flex items-center gap-3">
                           <span className={`text-xs w-20 font-medium ${s.text}`}>{s.label}</span>
-                          <div className="flex-1 h-3 bg-white/5 rounded-full overflow-hidden">
+                          <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
                             <div className={`h-full rounded-full transition-all ${s.bar}`} style={{ width: `${Math.max(pct, pct > 0 ? 3 : 0)}%` }} />
                           </div>
-                          <span className="text-xs text-gray-400 w-8 text-right font-semibold">{count}</span>
-                          <span className="text-xs text-gray-600 w-10 text-right">{pct}%</span>
+                          <span className="text-xs text-gray-600 w-8 text-right font-semibold">{count}</span>
+                          <span className="text-xs text-gray-400 w-10 text-right">{pct}%</span>
                         </div>
                       )
                     })}
@@ -1491,8 +1508,8 @@ export default function DashboardPage() {
                 </div>
 
                 {/* AI match distribution */}
-                <div className="glass-card rounded-xl p-5 border border-white/5">
-                  <h2 className="text-sm font-semibold text-gray-300 mb-4">AI Match Distribution</h2>
+                <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                  <h2 className="text-sm font-semibold text-gray-700 mb-4">AI Match Distribution</h2>
                   <div className="space-y-3">
                     {(['best', 'good', 'partial', 'poor'] as const).map(m => {
                       const count = matchCounts[m] ?? 0
@@ -1502,11 +1519,11 @@ export default function DashboardPage() {
                       return (
                         <div key={m} className="flex items-center gap-3">
                           <span className={`text-xs w-24 font-medium ${cfg.text}`}>{cfg.label}</span>
-                          <div className="flex-1 h-3 bg-white/5 rounded-full overflow-hidden">
+                          <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
                             <div className={`h-full rounded-full ${cfg.bar}`} style={{ width: `${Math.max(pct, pct > 0 ? 3 : 0)}%` }} />
                           </div>
-                          <span className="text-xs text-gray-400 w-8 text-right font-semibold">{count}</span>
-                          <span className="text-xs text-gray-600 w-10 text-right">{pct}%</span>
+                          <span className="text-xs text-gray-600 w-8 text-right font-semibold">{count}</span>
+                          <span className="text-xs text-gray-400 w-10 text-right">{pct}%</span>
                         </div>
                       )
                     })}
@@ -1515,10 +1532,10 @@ export default function DashboardPage() {
 
                 {/* Top Skills chart */}
                 {topSkills.length > 0 && (
-                  <div className="glass-card rounded-xl p-5 border border-white/5 mt-5">
+                  <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm mt-5">
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-sm font-semibold text-gray-300">Top Skills Across All Candidates</h2>
-                      <span className="text-xs text-gray-600">{topSkills.length} unique skills tracked</span>
+                      <h2 className="text-sm font-semibold text-gray-700">Top Skills Across All Candidates</h2>
+                      <span className="text-xs text-gray-400">{topSkills.length} unique skills tracked</span>
                     </div>
                     <div className="space-y-2">
                       {topSkills.map(({ skill, count }) => {
@@ -1527,19 +1544,19 @@ export default function DashboardPage() {
                           <div key={skill} className="flex items-center gap-3">
                             <button
                               onClick={() => { setFilterSkill(skill); setActiveTab('candidates') }}
-                              className="text-xs text-gray-300 w-36 truncate text-left hover:text-indigo-400 transition-colors"
+                              className="text-xs text-gray-700 w-36 truncate text-left hover:text-[#1E4E8C] transition-colors"
                               title={`Click to filter candidates with ${skill}`}>
                               {skill}
                             </button>
-                            <div className="flex-1 h-2.5 bg-white/5 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${Math.max(pct, 3)}%` }} />
+                            <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full bg-[#1E4E8C] transition-all" style={{ width: `${Math.max(pct, 3)}%` }} />
                             </div>
-                            <span className="text-xs text-gray-400 w-8 text-right font-semibold">{count}</span>
+                            <span className="text-xs text-gray-600 w-8 text-right font-semibold">{count}</span>
                           </div>
                         )
                       })}
                     </div>
-                    <p className="text-xs text-gray-600 mt-3">Click any skill name to jump to filtered candidate list.</p>
+                    <p className="text-xs text-gray-400 mt-3">Click any skill name to jump to filtered candidate list.</p>
                   </div>
                 )}
               </div>
@@ -1548,33 +1565,33 @@ export default function DashboardPage() {
             {/* ── SETTINGS ─────────────────────────────────────────────────── */}
             {activeTab === 'settings' && (
               <div className="max-w-3xl">
-                <h1 className="text-xl font-bold text-white mb-6">Account Settings</h1>
+                <h1 className="text-xl font-bold text-gray-900 mb-6">Account Settings</h1>
 
                 {profileLoading ? (
                   <div className="flex items-center justify-center py-20">
-                    <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+                    <Loader2 className="w-6 h-6 animate-spin text-[#1E4E8C]" />
                   </div>
                 ) : profileData ? (
                   <div className="space-y-5">
 
                     {/* Profile Card */}
-                    <div className="glass-card rounded-xl p-6 border border-white/5">
+                    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                       <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2">
-                          <UserIcon className="w-4 h-4 text-indigo-400" />
-                          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Profile</h2>
+                          <UserIcon className="w-4 h-4 text-[#1E4E8C]" />
+                          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Profile</h2>
                         </div>
                         {!editingName && (
                           <button onClick={() => { setEditName(profileData.user.name || ''); setEditingName(true) }}
-                            className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+                            className="flex items-center gap-1 text-xs text-[#1E4E8C] hover:text-blue-800 transition-colors">
                             <Pencil className="w-3 h-3" /> Edit
                           </button>
                         )}
                       </div>
                       <div className="flex items-start gap-5">
                         {profileData.user.image
-                          ? <img src={profileData.user.image} alt="" className="w-16 h-16 rounded-full ring-2 ring-indigo-500/30" />
-                          : <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-xl font-bold text-white ring-2 ring-indigo-500/30">
+                          ? <img src={profileData.user.image} alt="" className="w-16 h-16 rounded-full ring-2 ring-blue-200" />
+                          : <div className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold text-white ring-2 ring-blue-200" style={{ background: '#1E4E8C' }}>
                               {profileData.user.name?.[0]?.toUpperCase() ?? '?'}
                             </div>
                         }
@@ -1585,29 +1602,30 @@ export default function DashboardPage() {
                               {editingName ? (
                                 <div className="flex items-center gap-2">
                                   <input value={editName} onChange={e => setEditName(e.target.value)}
-                                    className="w-full px-2 py-1 rounded bg-[#1a1a2e] border border-white/15 text-sm text-white focus:outline-none focus:border-indigo-500"
+                                    className="w-full px-2 py-1 rounded bg-white border border-gray-300 text-sm text-gray-900 focus:outline-none focus:border-blue-500"
                                     autoFocus />
                                   <button onClick={saveName} disabled={savingName}
-                                    className="px-2 py-1 rounded bg-indigo-600 text-white text-xs hover:bg-indigo-500 disabled:opacity-50">
+                                    className="px-2 py-1 rounded text-white text-xs hover:opacity-90 disabled:opacity-50"
+                                    style={{ background: '#1E4E8C' }}>
                                     {savingName ? '...' : 'Save'}
                                   </button>
-                                  <button onClick={() => setEditingName(false)} className="text-gray-500 hover:text-gray-300 text-xs">Cancel</button>
+                                  <button onClick={() => setEditingName(false)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
                                 </div>
                               ) : (
-                                <p className="text-sm font-semibold text-white">{profileData.user.name || '—'}</p>
+                                <p className="text-sm font-semibold text-gray-900">{profileData.user.name || '—'}</p>
                               )}
                             </div>
                             <div>
                               <p className="text-xs text-gray-500 mb-0.5">Email</p>
-                              <p className="text-sm text-gray-300">{profileData.user.email}</p>
+                              <p className="text-sm text-gray-700">{profileData.user.email}</p>
                             </div>
                             <div>
                               <p className="text-xs text-gray-500 mb-0.5">Sign-in Method</p>
-                              <p className="text-sm text-gray-300 capitalize">{profileData.user.provider === 'credentials' ? 'Email & Password' : profileData.user.provider}</p>
+                              <p className="text-sm text-gray-700 capitalize">{profileData.user.provider === 'credentials' ? 'Email & Password' : profileData.user.provider}</p>
                             </div>
                             <div>
                               <p className="text-xs text-gray-500 mb-0.5">Member Since</p>
-                              <p className="text-sm text-gray-300">{new Date(profileData.user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                              <p className="text-sm text-gray-700">{new Date(profileData.user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                             </div>
                           </div>
                         </div>
@@ -1615,23 +1633,23 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Subscription Card */}
-                    <div className="glass-card rounded-xl p-6 border border-white/5">
+                    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                       <div className="flex items-center gap-2 mb-5">
-                        <CreditCard className="w-4 h-4 text-purple-400" />
-                        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Subscription</h2>
+                        <CreditCard className="w-4 h-4 text-purple-600" />
+                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Subscription</h2>
                       </div>
                       <div className="flex items-center gap-4 mb-5">
                         <div className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider ${
                           profileData.subscription.plan === 'pro'
-                            ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
+                            ? 'bg-blue-50 text-[#1E4E8C] border border-blue-200'
                             : profileData.subscription.plan === 'enterprise'
-                            ? 'bg-amber-600/20 text-amber-300 border border-amber-500/30'
-                            : 'bg-white/5 text-gray-400 border border-white/10'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-gray-100 text-gray-600 border border-gray-200'
                         }`}>
                           {profileData.subscription.plan === 'pro' ? 'Pro Plan' : profileData.subscription.plan === 'enterprise' ? 'Enterprise Plan' : 'Free Plan'}
                         </div>
                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                          profileData.subscription.status === 'active' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+                          profileData.subscription.status === 'active' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-600 border border-red-200'
                         }`}>
                           {profileData.subscription.status === 'active' ? 'Active' : profileData.subscription.status}
                         </span>
@@ -1639,15 +1657,15 @@ export default function DashboardPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                           <p className="text-xs text-gray-500 mb-0.5">Plan</p>
-                          <p className="text-sm font-semibold text-white capitalize">{profileData.subscription.plan}</p>
+                          <p className="text-sm font-semibold text-gray-900 capitalize">{profileData.subscription.plan}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 mb-0.5">Billing Cycle</p>
-                          <p className="text-sm text-gray-300 capitalize">{profileData.subscription.billing_cycle || 'N/A'}</p>
+                          <p className="text-sm text-gray-700 capitalize">{profileData.subscription.billing_cycle || 'N/A'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 mb-0.5">Access Level</p>
-                          <p className="text-sm text-gray-300">
+                          <p className="text-sm text-gray-700">
                             {profileData.subscription.plan === 'free'
                               ? '20 AI screens/mo, 5 active jobs'
                               : 'Unlimited AI screens & jobs'
@@ -1656,74 +1674,77 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       {profileData.subscription.plan === 'free' && (
-                        <div className="mt-5 p-4 rounded-lg bg-gradient-to-r from-indigo-600/15 to-purple-600/15 border border-indigo-500/20">
+                        <div className="mt-5 p-4 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
                           <div className="flex items-start gap-3">
-                            <Sparkles className="w-5 h-5 text-indigo-400 flex-shrink-0 mt-0.5" />
+                            <Sparkles className="w-5 h-5 text-[#1E4E8C] flex-shrink-0 mt-0.5" />
                             <div className="flex-1">
-                              <p className="text-sm font-semibold text-indigo-200 mb-1">Upgrade to Pro</p>
-                              <p className="text-xs text-indigo-300/80 mb-3">Unlock unlimited AI screenings, unlimited job posts, priority support, and API access.</p>
+                              <p className="text-sm font-semibold text-gray-900 mb-1">Upgrade to Pro</p>
+                              <p className="text-xs text-gray-600 mb-3">Unlock unlimited AI screenings, unlimited job posts, priority support, and API access.</p>
                               <div className="flex flex-wrap gap-2">
                                 <a href="mailto:pasikantishashank24@gmail.com?subject=Upgrade%20to%20Pro%20Plan%20-%20SRP%20SmartRecruit&body=Hi%2C%20I%27d%20like%20to%20upgrade%20my%20account%20to%20the%20Pro%20plan.%0A%0AEmail%3A%20" 
-                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-lg shadow-indigo-600/20">
+                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-white text-xs font-semibold transition-all shadow-sm hover:opacity-90"
+                                  style={{ background: '#0B1F3A' }}>
                                   <Zap className="w-3.5 h-3.5" /> Upgrade Now
                                 </a>
                                 <a href="https://srpailabs.com" target="_blank" rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-white/10 hover:bg-white/5 text-gray-300 text-xs font-medium transition-all">
+                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-medium transition-all">
                                   <ExternalLink className="w-3.5 h-3.5" /> View Plans
                                 </a>
                               </div>
                             </div>
                           </div>
                           <div className="mt-4 grid grid-cols-3 gap-2">
-                            <div className="text-center p-2 rounded bg-white/5">
-                              <p className="text-sm font-bold text-white">∞</p>
-                              <p className="text-[10px] text-gray-400">AI Screens</p>
+                            <div className="text-center p-2 rounded bg-white border border-blue-100">
+                              <p className="text-sm font-bold text-gray-900">∞</p>
+                              <p className="text-[10px] text-gray-500">AI Screens</p>
                             </div>
-                            <div className="text-center p-2 rounded bg-white/5">
-                              <p className="text-sm font-bold text-white">∞</p>
-                              <p className="text-[10px] text-gray-400">Job Posts</p>
+                            <div className="text-center p-2 rounded bg-white border border-blue-100">
+                              <p className="text-sm font-bold text-gray-900">∞</p>
+                              <p className="text-[10px] text-gray-500">Job Posts</p>
                             </div>
-                            <div className="text-center p-2 rounded bg-white/5">
-                              <p className="text-sm font-bold text-white">24/7</p>
-                              <p className="text-[10px] text-gray-400">Support</p>
+                            <div className="text-center p-2 rounded bg-white border border-blue-100">
+                              <p className="text-sm font-bold text-gray-900">24/7</p>
+                              <p className="text-[10px] text-gray-500">Support</p>
                             </div>
                           </div>
                         </div>
                       )}
                       {(profileData.subscription.plan === 'pro' || profileData.subscription.plan === 'enterprise') && (
-                        <div className="mt-5 flex items-center gap-3 p-3 rounded-lg bg-green-600/10 border border-green-500/20">
-                          <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
-                          <p className="text-xs text-green-300">You have full access to all features. Thank you for being a {profileData.subscription.plan === 'pro' ? 'Pro' : 'Enterprise'} member!</p>
+                        <div className="mt-5 flex items-center gap-3 p-3 rounded-lg bg-green-50 border border-green-200">
+                          <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                          <p className="text-xs text-green-700">You have full access to all features. Thank you for being a {profileData.subscription.plan === 'pro' ? 'Pro' : 'Enterprise'} member!</p>
                         </div>
                       )}
                     </div>
 
                     {/* Usage Stats Card */}
-                    <div className="glass-card rounded-xl p-6 border border-white/5">
+                    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                       <div className="flex items-center gap-2 mb-5">
-                        <Activity className="w-4 h-4 text-emerald-400" />
-                        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Usage This Month</h2>
+                        <Activity className="w-4 h-4 text-emerald-600" />
+                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Usage This Month</h2>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {[
-                          { label: 'AI Screens',   value: profileData.usage.screens_this_month,  limit: profileData.subscription.plan === 'free' ? 20 : null, icon: Brain,      color: 'text-purple-400' },
-                          { label: 'AI Compose',   value: profileData.usage.composes_this_month, limit: null,                                                  icon: Mail,       color: 'text-blue-400' },
-                          { label: 'Candidates',   value: profileData.usage.total_candidates,    limit: null,                                                  icon: Users,      color: 'text-indigo-400' },
-                          { label: 'Active Jobs',  value: profileData.usage.active_jobs,         limit: profileData.subscription.plan === 'free' ? 5 : null,   icon: Briefcase,  color: 'text-amber-400' },
-                        ].map(({ label, value, limit, icon: Icon, color }) => (
-                          <div key={label} className="bg-white/[0.02] rounded-lg p-4 border border-white/5">
+                          { label: 'AI Screens',   value: profileData.usage.screens_this_month,  limit: profileData.subscription.plan === 'free' ? 20 : null, icon: Brain,      color: 'text-purple-600', bg: 'bg-purple-50' },
+                          { label: 'AI Compose',   value: profileData.usage.composes_this_month, limit: null,                                                  icon: Mail,       color: 'text-blue-600',   bg: 'bg-blue-50' },
+                          { label: 'Candidates',   value: profileData.usage.total_candidates,    limit: null,                                                  icon: Users,      color: 'text-[#1E4E8C]',  bg: 'bg-blue-50' },
+                          { label: 'Active Jobs',  value: profileData.usage.active_jobs,         limit: profileData.subscription.plan === 'free' ? 5 : null,   icon: Briefcase,  color: 'text-amber-600',  bg: 'bg-amber-50' },
+                        ].map(({ label, value, limit, icon: Icon, color, bg }) => (
+                          <div key={label} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                             <div className="flex items-center gap-1.5 mb-2">
-                              <Icon className={`w-3.5 h-3.5 ${color}`} />
-                              <p className="text-xs text-gray-500">{label}</p>
+                              <div className={`w-6 h-6 rounded ${bg} flex items-center justify-center`}>
+                                <Icon className={`w-3.5 h-3.5 ${color}`} />
+                              </div>
+                              <p className="text-xs text-gray-500 font-medium">{label}</p>
                             </div>
-                            <p className="text-2xl font-bold text-white">{value}</p>
+                            <p className="text-2xl font-bold text-gray-900">{value}</p>
                             {limit !== null && (
                               <div className="mt-2">
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs text-gray-600">{value} / {limit}</span>
+                                  <span className="text-xs text-gray-400">{value} / {limit}</span>
                                 </div>
-                                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                  <div className={`h-full rounded-full transition-all ${value >= limit ? 'bg-red-500' : 'bg-indigo-500'}`}
+                                <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full transition-all ${value >= limit ? 'bg-red-500' : 'bg-[#1E4E8C]'}`}
                                     style={{ width: `${Math.min((value / limit) * 100, 100)}%` }} />
                                 </div>
                               </div>
@@ -1734,49 +1755,49 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Account Info Card */}
-                    <div className="glass-card rounded-xl p-6 border border-white/5">
+                    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                       <div className="flex items-center gap-2 mb-5">
-                        <Shield className="w-4 h-4 text-gray-400" />
-                        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Account</h2>
+                        <Shield className="w-4 h-4 text-gray-500" />
+                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Account</h2>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
                         <div>
                           <p className="text-xs text-gray-500 mb-0.5">Account ID</p>
-                          <p className="text-xs font-mono text-gray-400">{profileData.user.id}</p>
+                          <p className="text-xs font-mono text-gray-600 bg-gray-50 px-2 py-1 rounded border border-gray-200">{profileData.user.id}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 mb-0.5">Role</p>
-                          <p className="text-sm text-gray-300 capitalize">{profileData.user.role === 'owner' ? 'Owner' : profileData.user.role === 'pro' ? 'Pro' : profileData.user.role}</p>
+                          <p className="text-sm text-gray-700 capitalize">{profileData.user.role === 'owner' ? 'Owner' : profileData.user.role === 'pro' ? 'Pro' : profileData.user.role}</p>
                         </div>
                       </div>
-                      <div className="pt-4 border-t border-white/5">
+                      <div className="pt-4 border-t border-gray-200">
                         <button onClick={() => signOut({ callbackUrl: '/login' })}
-                          className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-sm font-semibold transition-all">
+                          className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2.5 rounded-lg border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 text-sm font-semibold transition-all">
                           <LogOut className="w-4 h-4" /> Sign Out of Account
                         </button>
                       </div>
                     </div>
 
                     {/* API Keys for n8n / ATS Integration */}
-                    <div className="glass-card rounded-xl p-6 border border-white/5">
+                    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                       <div className="flex items-center gap-2 mb-2">
-                        <Key className="w-4 h-4 text-amber-400" />
-                        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">API Integration</h2>
+                        <Key className="w-4 h-4 text-amber-600" />
+                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">API Integration</h2>
                       </div>
                       <p className="text-xs text-gray-500 mb-5">Generate an API key to integrate SmartRecruit with n8n, your ATS, or any external system.</p>
 
                       {generatedKey && (
-                        <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                          <p className="text-xs text-amber-300 mb-2 font-medium">Your new API key (copy it now — it won't be shown again):</p>
+                        <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                          <p className="text-xs text-amber-700 mb-2 font-medium">Your new API key (copy it now — it won't be shown again):</p>
                           <div className="flex items-center gap-2">
-                            <code className="flex-1 text-xs font-mono text-white bg-black/30 px-3 py-2 rounded break-all">
+                            <code className="flex-1 text-xs font-mono text-gray-800 bg-white px-3 py-2 rounded border border-amber-200 break-all">
                               {showKey ? generatedKey : '•'.repeat(40)}
                             </code>
-                            <button onClick={() => setShowKey(v => !v)} className="text-gray-400 hover:text-white transition-colors">
+                            <button onClick={() => setShowKey(v => !v)} className="text-gray-500 hover:text-gray-800 transition-colors">
                               {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                             <button onClick={() => { navigator.clipboard.writeText(generatedKey); }}
-                              className="text-gray-400 hover:text-white transition-colors">
+                              className="text-gray-500 hover:text-gray-800 transition-colors">
                               <Copy className="w-4 h-4" />
                             </button>
                           </div>
@@ -1786,14 +1807,14 @@ export default function DashboardPage() {
                       {apiKeys.length > 0 && (
                         <div className="mb-4 space-y-2">
                           {apiKeys.map((k, i) => (
-                            <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.02] border border-white/5">
+                            <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-200">
                               <div className="flex items-center gap-3">
-                                <code className="text-xs font-mono text-gray-400">{k.key_prefix}••••••••</code>
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${k.is_active ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                                <code className="text-xs font-mono text-gray-600">{k.key_prefix}••••••••</code>
+                                <span className={`text-xs px-2 py-0.5 rounded-full border ${k.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
                                   {k.is_active ? 'Active' : 'Revoked'}
                                 </span>
                               </div>
-                              <span className="text-xs text-gray-600">{new Date(k.created_at).toLocaleDateString()}</span>
+                              <span className="text-xs text-gray-400">{new Date(k.created_at).toLocaleDateString()}</span>
                             </div>
                           ))}
                         </div>
@@ -1801,21 +1822,22 @@ export default function DashboardPage() {
 
                       <div className="flex items-center gap-3">
                         <button onClick={generateApiKey} disabled={generatingKey}
-                          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-all disabled:opacity-50">
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-50 hover:opacity-90"
+                          style={{ background: '#1E4E8C' }}>
                           {generatingKey ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
                           {generatingKey ? 'Generating...' : 'Generate API Key'}
                         </button>
                         {apiKeys.some(k => k.is_active) && (
                           <button onClick={revokeApiKey}
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 text-sm font-medium transition-all">
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 text-sm font-medium transition-all">
                             Revoke All Keys
                           </button>
                         )}
                       </div>
 
-                      <div className="mt-4 p-3 rounded-lg bg-white/[0.02] border border-white/5">
+                      <div className="mt-4 p-3 rounded-lg bg-gray-50 border border-gray-200">
                         <p className="text-xs text-gray-500 mb-1 font-medium">Usage Example:</p>
-                        <code className="text-xs font-mono text-gray-400 block">
+                        <code className="text-xs font-mono text-gray-600 block">
                           curl -H &quot;Authorization: Bearer srp_your_key_here&quot; \<br />
                           &nbsp;&nbsp;https://recruit.srpailabs.com/api/screen
                         </code>
@@ -1823,10 +1845,10 @@ export default function DashboardPage() {
                     </div>
 
                     {/* External Integrations — n8n, Monster, Naukri, etc. */}
-                    <div className="glass-card rounded-xl p-6 border border-white/5">
+                    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                       <div className="flex items-center gap-2 mb-2">
-                        <Link2 className="w-4 h-4 text-emerald-400" />
-                        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">External Integrations</h2>
+                        <Link2 className="w-4 h-4 text-emerald-600" />
+                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">External Integrations</h2>
                       </div>
                       <p className="text-xs text-gray-500 mb-5">Connect your ATS, n8n workflows, or job portals like Monster, Naukri, Indeed, LinkedIn by adding their API keys or webhook URLs.</p>
 
@@ -1834,21 +1856,21 @@ export default function DashboardPage() {
                       {integrations.length > 0 && (
                         <div className="mb-5 space-y-2">
                           {integrations.map(intg => (
-                            <div key={intg.provider} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-white/5">
+                            <div key={intg.provider} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-200">
                               <div className="flex items-center gap-3">
                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold uppercase ${
-                                  intg.provider === 'n8n' ? 'bg-orange-500/20 text-orange-400' :
-                                  intg.provider === 'naukri' ? 'bg-blue-500/20 text-blue-400' :
-                                  intg.provider === 'monster' ? 'bg-purple-500/20 text-purple-400' :
-                                  intg.provider === 'indeed' ? 'bg-indigo-500/20 text-indigo-400' :
-                                  intg.provider === 'linkedin' ? 'bg-sky-500/20 text-sky-400' :
-                                  'bg-gray-500/20 text-gray-400'
+                                  intg.provider === 'n8n' ? 'bg-orange-50 text-orange-600 border border-orange-200' :
+                                  intg.provider === 'naukri' ? 'bg-blue-50 text-blue-600 border border-blue-200' :
+                                  intg.provider === 'monster' ? 'bg-purple-50 text-purple-600 border border-purple-200' :
+                                  intg.provider === 'indeed' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200' :
+                                  intg.provider === 'linkedin' ? 'bg-sky-50 text-sky-600 border border-sky-200' :
+                                  'bg-gray-100 text-gray-600 border border-gray-200'
                                 }`}>
                                   {intg.provider.slice(0, 2)}
                                 </div>
                                 <div>
-                                  <p className="text-sm font-medium text-white capitalize">{intg.provider}</p>
-                                  <p className="text-xs text-gray-500">
+                                  <p className="text-sm font-medium text-gray-900 capitalize">{intg.provider}</p>
+                                  <p className="text-xs text-gray-400">
                                     {intg.has_api_key ? 'API Key configured' : ''}
                                     {intg.has_api_key && intg.webhook_url ? ' • ' : ''}
                                     {intg.webhook_url ? 'Webhook set' : ''}
@@ -1857,12 +1879,12 @@ export default function DashboardPage() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <button onClick={() => toggleIntegration(intg.provider, !intg.is_active)}
-                                  className={`transition-colors ${intg.is_active ? 'text-green-400' : 'text-gray-600'}`}
+                                  className={`transition-colors ${intg.is_active ? 'text-green-600' : 'text-gray-400'}`}
                                   title={intg.is_active ? 'Disable' : 'Enable'}>
                                   {intg.is_active ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
                                 </button>
                                 <button onClick={() => deleteIntegration(intg.provider)}
-                                  className="text-gray-600 hover:text-red-400 transition-colors" title="Remove">
+                                  className="text-gray-400 hover:text-red-500 transition-colors" title="Remove">
                                   <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>
@@ -1872,13 +1894,13 @@ export default function DashboardPage() {
                       )}
 
                       {/* Add new integration form */}
-                      <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5 space-y-3">
-                        <p className="text-xs text-gray-400 font-medium">Add Integration</p>
+                      <div className="p-4 rounded-lg bg-gray-50 border border-gray-200 space-y-3">
+                        <p className="text-xs text-gray-600 font-medium">Add Integration</p>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div>
                             <label className="text-xs text-gray-500 mb-1 block">Platform</label>
                             <select value={intgProvider} onChange={e => setIntgProvider(e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-700 focus:outline-none focus:border-blue-500">
                               <option value="">Select...</option>
                               <option value="n8n">n8n (Workflow)</option>
                               <option value="naukri">Naukri</option>
@@ -1895,17 +1917,17 @@ export default function DashboardPage() {
                             <label className="text-xs text-gray-500 mb-1 block">API Key</label>
                             <input type="password" value={intgApiKey} onChange={e => setIntgApiKey(e.target.value)}
                               placeholder="Paste API key"
-                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500" />
                           </div>
                           <div>
-                            <label className="text-xs text-gray-500 mb-1 block">Webhook URL <span className="text-gray-600">(optional)</span></label>
+                            <label className="text-xs text-gray-500 mb-1 block">Webhook URL <span className="text-gray-400">(optional)</span></label>
                             <input value={intgWebhook} onChange={e => setIntgWebhook(e.target.value)}
                               placeholder="https://..."
-                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500" />
                           </div>
                         </div>
                         <button onClick={saveIntegration} disabled={!intgProvider || savingIntg}
-                          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-all disabled:opacity-50">
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-all disabled:opacity-50">
                           {savingIntg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
                           {savingIntg ? 'Saving...' : 'Connect Integration'}
                         </button>
@@ -1914,7 +1936,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="text-center py-20 text-gray-500 text-sm">Failed to load profile data.
-                    <button onClick={loadProfile} className="ml-2 text-indigo-400 hover:underline">Retry</button>
+                    <button onClick={loadProfile} className="ml-2 text-[#1E4E8C] hover:underline">Retry</button>
                   </div>
                 )}
               </div>
