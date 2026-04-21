@@ -91,12 +91,1018 @@ function ShortIdBadge({ id }: { id: string }) {
   return <span className="font-mono text-xs text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">{id}</span>
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// JD Intelligence Tab
+// ─────────────────────────────────────────────────────────────────────────────
+function JDTab() {
+  const [jobTitle, setJobTitle] = useState('')
+  const [skills, setSkills] = useState('')
+  const [experience, setExperience] = useState('')
+  const [location, setLocation] = useState('')
+  const [employmentType, setEmploymentType] = useState('Full-Time')
+  const [salary, setSalary] = useState('')
+  const [companyName, setCompanyName] = useState('')
+  const [analyzeText, setAnalyzeText] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<Record<string, unknown> | null>(null)
+  const [mode, setMode] = useState<'generate' | 'analyze'>('generate')
+  const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [history, setHistory] = useState<{id: string; title: string; created_at: string}[]>([])
+
+  useEffect(() => {
+    fetch('/api/jd').then(r => r.json()).then(d => setHistory(d.jds ?? []))
+  }, [result])
+
+  async function submit() {
+    setError(''); setLoading(true); setResult(null)
+    try {
+      const payload = mode === 'generate'
+        ? { action: 'generate', job_title: jobTitle, skills: skills.split(',').map(s => s.trim()).filter(Boolean),
+            experience, location, employment_type: employmentType, salary, company_name: companyName }
+        : { action: 'analyze', jd_text: analyzeText }
+      const res = await fetch('/api/jd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed')
+      setResult(data)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Error') }
+    setLoading(false)
+  }
+
+  const jdText = result?.full_jd_text as string | undefined
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">JD Intelligence</h1>
+          <p className="text-sm text-gray-500 mt-0.5">AI-powered Job Description writer + analyzer</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => { setMode('generate'); setResult(null) }}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'generate' ? 'bg-[#1E4E8C] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            Generate JD
+          </button>
+          <button onClick={() => { setMode('analyze'); setResult(null) }}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'analyze' ? 'bg-[#1E4E8C] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            Analyze JD
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            {mode === 'generate' ? (
+              <div className="space-y-3">
+                <h2 className="text-sm font-semibold text-gray-700 mb-4">Generate Job Description</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Job Title *</label>
+                    <input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. Senior React Developer"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Company Name</label>
+                    <input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="e.g. Acme Corp"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-gray-500 mb-1 block">Required Skills</label>
+                    <input value={skills} onChange={e => setSkills(e.target.value)} placeholder="React, TypeScript, Node.js, PostgreSQL"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Experience</label>
+                    <input value={experience} onChange={e => setExperience(e.target.value)} placeholder="3–5 years"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Location</label>
+                    <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Hyderabad / Remote"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Employment Type</label>
+                    <select value={employmentType} onChange={e => setEmploymentType(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500">
+                      {['Full-Time','Part-Time','Contract','Internship','Remote','Hybrid'].map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Salary / CTC (optional)</label>
+                    <input value={salary} onChange={e => setSalary(e.target.value)} placeholder="₹12–18 LPA or $80k–100k"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-700 mb-3">Analyze Existing JD</h2>
+                <p className="text-xs text-gray-500 mb-3">Paste a JD to extract skills, suggest interview questions, identify skill clusters, and generate boolean search strings.</p>
+                <textarea value={analyzeText} onChange={e => setAnalyzeText(e.target.value)}
+                  rows={10} placeholder="Paste the full job description here…"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm resize-none focus:outline-none focus:border-blue-500" />
+              </div>
+            )}
+
+            {error && <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>}
+
+            <button onClick={submit} disabled={loading || (mode === 'generate' ? !jobTitle.trim() : !analyzeText.trim())}
+              className="mt-4 w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
+              style={{ background: '#1E4E8C' }}>
+              {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Processing…</> : <><Sparkles className="w-4 h-4" />{mode === 'generate' ? 'Generate Job Description' : 'Analyze JD'}</>}
+            </button>
+          </div>
+
+          {result && (
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+              {mode === 'generate' && jdText ? (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-gray-700">Generated JD</h3>
+                    <div className="flex gap-2">
+                      <button onClick={() => { navigator.clipboard.writeText(jdText); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 text-xs text-gray-600 hover:bg-gray-50">
+                        {copied ? <><Check className="w-3 h-3 text-green-500" />Copied!</> : <><Copy className="w-3 h-3" />Copy</>}
+                      </button>
+                      <button onClick={() => {
+                        const blob = new Blob([jdText], { type: 'text/plain' })
+                        const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+                        a.download = `${(result.job_title as string) ?? 'JD'}.txt`; a.click()
+                      }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 text-xs text-gray-600 hover:bg-gray-50">
+                        <Download className="w-3 h-3" />Download
+                      </button>
+                    </div>
+                  </div>
+                  <pre className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed max-h-[60vh] overflow-y-auto bg-gray-50 rounded-lg p-4 border border-gray-200">{jdText}</pre>
+                </div>
+              ) : mode === 'analyze' ? (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-700">Analysis Results</h3>
+                  {(result.must_have_skills as string[] | undefined)?.length ? (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Must-Have Skills</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(result.must_have_skills as string[]).map(s => <span key={s} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs">{s}</span>)}
+                      </div>
+                    </div>
+                  ) : null}
+                  {(result.nice_to_have_skills as string[] | undefined)?.length ? (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Nice-to-Have Skills</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(result.nice_to_have_skills as string[]).map(s => <span key={s} className="px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 text-xs">{s}</span>)}
+                      </div>
+                    </div>
+                  ) : null}
+                  {(result.suggested_questions as string[] | undefined)?.length ? (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Suggested Interview Questions</p>
+                      <ol className="space-y-1">
+                        {(result.suggested_questions as string[]).map((q, i) => <li key={i} className="text-sm text-gray-700 flex gap-2"><span className="flex-shrink-0 font-semibold text-gray-400">{i+1}.</span>{q}</li>)}
+                      </ol>
+                    </div>
+                  ) : null}
+                  {(result.alternate_titles as string[] | undefined)?.length ? (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Alternate Titles</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(result.alternate_titles as string[]).map(t => <span key={t} className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-xs">{t}</span>)}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+
+        {/* History sidebar */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm h-fit">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Recent JDs</h3>
+          {history.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-4">No JDs generated yet</p>
+          ) : (
+            <div className="space-y-2">
+              {history.map(j => (
+                <div key={j.id} className="p-2 rounded-lg border border-gray-100 hover:border-gray-300 cursor-pointer transition-all">
+                  <p className="text-xs font-medium text-gray-800 truncate">{j.title}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{new Date(j.created_at).toLocaleDateString()}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Boolean Search Tab
+// ─────────────────────────────────────────────────────────────────────────────
+function BooleanTab() {
+  const [jobTitle, setJobTitle] = useState('')
+  const [skills, setSkills] = useState('')
+  const [experience, setExperience] = useState('')
+  const [jdText, setJdText] = useState('')
+  const [mode, setMode] = useState<'simple' | 'fromjd'>('simple')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<Record<string, unknown> | null>(null)
+  const [error, setError] = useState('')
+  const [copied, setCopied] = useState<string | null>(null)
+  const [history, setHistory] = useState<{id: string; job_title: string; short_boolean: string; created_at: string}[]>([])
+
+  useEffect(() => {
+    fetch('/api/boolean-search').then(r => r.json()).then(d => setHistory(d.searches ?? []))
+  }, [result])
+
+  async function submit() {
+    setError(''); setLoading(true); setResult(null)
+    try {
+      const payload = mode === 'fromjd'
+        ? { jd_text: jdText }
+        : { job_title: jobTitle, skills: skills.split(',').map(s => s.trim()).filter(Boolean), experience }
+      const res = await fetch('/api/boolean-search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed')
+      setResult(data)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Error') }
+    setLoading(false)
+  }
+
+  function copyStr(key: string, val: string) {
+    navigator.clipboard.writeText(val); setCopied(key); setTimeout(() => setCopied(null), 2000)
+  }
+
+  const boolFields = [
+    { key: 'short_boolean', label: 'Short Boolean', color: 'bg-blue-50 border-blue-200' },
+    { key: 'advanced_boolean', label: 'Advanced Boolean', color: 'bg-purple-50 border-purple-200' },
+    { key: 'alternate_boolean', label: 'Alternate Titles', color: 'bg-green-50 border-green-200' },
+    { key: 'linkedin_search', label: 'LinkedIn Search', color: 'bg-sky-50 border-sky-200' },
+    { key: 'naukri_search', label: 'Naukri Search', color: 'bg-orange-50 border-orange-200' },
+    { key: 'indeed_search', label: 'Indeed Search', color: 'bg-yellow-50 border-yellow-200' },
+  ]
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      <div>
+        <h1 className="text-xl font-bold text-gray-900">Boolean Search Generator</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Generate precise boolean strings for LinkedIn, Naukri, Indeed and more</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setMode('simple')}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === 'simple' ? 'bg-[#1E4E8C] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                From Title + Skills
+              </button>
+              <button onClick={() => setMode('fromjd')}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === 'fromjd' ? 'bg-[#1E4E8C] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                From JD Text
+              </button>
+            </div>
+
+            {mode === 'simple' ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Job Title *</label>
+                  <input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. Full Stack Developer"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Skills (comma-separated)</label>
+                  <input value={skills} onChange={e => setSkills(e.target.value)} placeholder="React, Node.js, MongoDB"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Experience</label>
+                  <input value={experience} onChange={e => setExperience(e.target.value)} placeholder="3+ years"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Paste Job Description</label>
+                <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={8} placeholder="Paste the full JD here to auto-generate boolean strings…"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm resize-none focus:outline-none focus:border-blue-500" />
+              </div>
+            )}
+
+            {error && <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>}
+
+            <button onClick={submit} disabled={loading || (mode === 'simple' ? !jobTitle.trim() : !jdText.trim())}
+              className="mt-4 w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
+              style={{ background: '#1E4E8C' }}>
+              {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : <><Sparkles className="w-4 h-4" />Generate Boolean Strings</>}
+            </button>
+          </div>
+
+          {result && (
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-3">
+              <h3 className="text-sm font-semibold text-gray-700">Generated Boolean Strings</h3>
+              {boolFields.map(({ key, label, color }) => {
+                const val = result[key] as string | undefined
+                if (!val) return null
+                return (
+                  <div key={key} className={`rounded-lg border p-3 ${color}`}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-semibold text-gray-600">{label}</span>
+                      <button onClick={() => copyStr(key, val)}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-gray-500 hover:bg-white/60 transition-all">
+                        {copied === key ? <><Check className="w-3 h-3 text-green-500" />Copied!</> : <><Copy className="w-3 h-3" />Copy</>}
+                      </button>
+                    </div>
+                    <code className="text-xs text-gray-800 break-all leading-relaxed">{val}</code>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* History */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm h-fit">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Recent Searches</h3>
+          {history.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-4">No searches yet</p>
+          ) : (
+            <div className="space-y-2">
+              {history.map(s => (
+                <div key={s.id} className="p-2 rounded-lg border border-gray-100 hover:border-gray-300 cursor-pointer transition-all">
+                  <p className="text-xs font-medium text-gray-800 truncate">{s.job_title}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5 truncate font-mono">{s.short_boolean}</p>
+                  <p className="text-[10px] text-gray-400">{new Date(s.created_at).toLocaleDateString()}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Import Engine Tab
+// ─────────────────────────────────────────────────────────────────────────────
+function ImportTab() {
+  const [file, setFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadResult, setUploadResult] = useState<Record<string, unknown> | null>(null)
+  const [error, setError] = useState('')
+  const [batches, setBatches] = useState<Record<string, unknown>[]>([])
+  const [loadingBatches, setLoadingBatches] = useState(true)
+  const [selectedBatch, setSelectedBatch] = useState<Record<string, unknown> | null>(null)
+  const [batchErrors, setBatchErrors] = useState<Record<string, unknown>[]>([])
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  async function loadBatches() {
+    setLoadingBatches(true)
+    const res = await fetch('/api/import')
+    const data = await res.json()
+    setBatches(data.batches ?? [])
+    setLoadingBatches(false)
+  }
+
+  useEffect(() => { loadBatches() }, [uploadResult])
+
+  async function upload() {
+    if (!file) return
+    setError(''); setUploading(true); setUploadResult(null)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const res = await fetch('/api/import', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed')
+      setUploadResult(data)
+      setFile(null)
+      if (fileRef.current) fileRef.current.value = ''
+    } catch (e) { setError(e instanceof Error ? e.message : 'Error') }
+    setUploading(false)
+  }
+
+  async function viewBatch(batchId: string) {
+    const res = await fetch(`/api/import?batch_id=${batchId}`)
+    const data = await res.json()
+    setSelectedBatch(data.batch ?? null)
+    setBatchErrors(data.errors ?? [])
+  }
+
+  const statusColor: Record<string, string> = {
+    processing: 'bg-amber-50 text-amber-700 border-amber-200',
+    complete: 'bg-green-50 text-green-700 border-green-200',
+    partial: 'bg-blue-50 text-blue-700 border-blue-200',
+    failed: 'bg-red-50 text-red-700 border-red-200',
+    pending: 'bg-gray-50 text-gray-700 border-gray-200',
+  }
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      <div>
+        <h1 className="text-xl font-bold text-gray-900">Import Engine</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Bulk import candidates from Naukri, Indeed, LinkedIn, or any CSV export</p>
+      </div>
+
+      {/* Upload Card */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-gray-700 mb-1">Upload Candidate CSV</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Accepts CSV exports from Naukri, Indeed, LinkedIn Recruiter, Monster, or any system.
+          Auto-detects columns for: name, email, phone, skills, experience, current_company, current_title.
+          Max 5 MB.
+        </p>
+        <div
+          className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${file ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/30'}`}
+          onClick={() => fileRef.current?.click()}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f?.name.endsWith('.csv')) setFile(f) }}>
+          <Upload className={`w-8 h-8 mx-auto mb-2 ${file ? 'text-blue-600' : 'text-gray-400'}`} />
+          {file ? (
+            <div>
+              <p className="text-sm font-medium text-blue-700">{file.name}</p>
+              <p className="text-xs text-blue-500 mt-0.5">{(file.size / 1024).toFixed(1)} KB — ready to import</p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm text-gray-600">Drop a CSV file here or click to browse</p>
+              <p className="text-xs text-gray-400 mt-1">Naukri export, Indeed export, LinkedIn export…</p>
+            </div>
+          )}
+          <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => setFile(e.target.files?.[0] ?? null)} />
+        </div>
+
+        {error && <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>}
+        {uploadResult && (
+          <div className="mt-3 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">
+            <p className="font-semibold">Import started: {uploadResult.batch_ref as string}</p>
+            <p className="text-xs mt-0.5">{uploadResult.total_rows as number} rows detected. Processing in background…</p>
+            {(uploadResult.detected_columns as string[])?.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {(uploadResult.detected_columns as string[]).map(c => <span key={c} className="px-1.5 py-0.5 rounded bg-green-100 text-green-800 text-[10px] font-mono">{c}</span>)}
+              </div>
+            )}
+          </div>
+        )}
+
+        <button onClick={upload} disabled={!file || uploading}
+          className="mt-4 flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:opacity-90"
+          style={{ background: '#1E4E8C' }}>
+          {uploading ? <><Loader2 className="w-4 h-4 animate-spin" />Uploading…</> : <><Upload className="w-4 h-4" />Start Import</>}
+        </button>
+      </div>
+
+      {/* Batch History */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-700">Import History</h2>
+          <button onClick={loadBatches} className="flex items-center gap-1 text-xs text-[#1E4E8C] hover:underline">
+            <RefreshCw className="w-3 h-3" />Refresh
+          </button>
+        </div>
+        {loadingBatches ? (
+          <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+        ) : batches.length === 0 ? (
+          <div className="text-center py-10 text-gray-400 text-sm">No imports yet</div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {batches.map(b => (
+              <div key={b.id as string} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-all">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{b.filename as string ?? 'Import'}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 font-mono">{b.batch_ref as string}</p>
+                  <div className="flex gap-3 mt-1 text-[10px] text-gray-400">
+                    <span>Total: {b.total_rows as number}</span>
+                    <span className="text-green-600">✓ {b.success_rows as number}</span>
+                    <span className="text-amber-600">⟳ {b.skipped_rows as number}</span>
+                    <span className="text-red-500">✗ {b.error_rows as number}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`px-2 py-0.5 rounded-full text-xs border capitalize ${statusColor[b.status as string] ?? statusColor.pending}`}>
+                    {b.status as string}
+                  </span>
+                  <button onClick={() => viewBatch(b.id as string)}
+                    className="text-xs text-[#1E4E8C] hover:underline">Details</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Batch detail modal */}
+      {selectedBatch && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setSelectedBatch(null)}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900">Batch: {selectedBatch.batch_ref as string}</h3>
+              <button onClick={() => setSelectedBatch(null)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="grid grid-cols-4 gap-3 mb-4">
+              {[
+                { label: 'Total', value: selectedBatch.total_rows, color: 'text-gray-900' },
+                { label: 'Success', value: selectedBatch.success_rows, color: 'text-green-600' },
+                { label: 'Skipped', value: selectedBatch.skipped_rows, color: 'text-amber-600' },
+                { label: 'Errors', value: selectedBatch.error_rows, color: 'text-red-600' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="text-center p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className={`text-xl font-bold ${color}`}>{value as number}</p>
+                  <p className="text-xs text-gray-500">{label}</p>
+                </div>
+              ))}
+            </div>
+            {batchErrors.length > 0 && (
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Errors ({batchErrors.length})</h4>
+                <div className="max-h-60 overflow-y-auto space-y-2">
+                  {batchErrors.map((e, i) => (
+                    <div key={i} className="p-2 rounded-lg bg-red-50 border border-red-200 text-xs">
+                      <span className="font-semibold text-red-700">Row {e.row_number as number}: </span>
+                      <span className="text-red-600">{e.error_message as string}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Integration Hub Tab
+// ─────────────────────────────────────────────────────────────────────────────
+function IntegrationsTab() {
+  const [catalogue, setCatalogue] = useState<Record<string, unknown>[]>([])
+  const [integrations, setIntegrations] = useState<Record<string, unknown>[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<Record<string, unknown> | null>(null)
+  const [formValues, setFormValues] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState('')
+
+  async function load() {
+    setLoading(true)
+    const [catRes, intRes] = await Promise.all([
+      fetch('/api/integrations?catalogue=true').then(r => r.json()),
+      fetch('/api/integrations').then(r => r.json()),
+    ])
+    setCatalogue(catRes.catalogue ?? [])
+    setIntegrations(intRes.integrations ?? [])
+    setLoading(false)
+  }
+  useEffect(() => { load() }, [])
+
+  function getStatus(id: string) {
+    return integrations.find(i => i.connector_id === id)
+  }
+
+  async function save() {
+    if (!selected) return
+    setSaving(true); setSaveMsg('')
+    const res = await fetch('/api/integrations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'upsert', connector_id: selected.id, config: formValues }),
+    })
+    const data = await res.json()
+    setSaving(false)
+    if (!res.ok) { setSaveMsg(`Error: ${data.error}`); return }
+    setSaveMsg('Saved successfully!')
+    setSelected(null); setFormValues({})
+    load()
+  }
+
+  async function toggle(intgId: string) {
+    await fetch('/api/integrations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'toggle', integration_id: intgId }),
+    })
+    load()
+  }
+
+  const categoryLabels: Record<string, string> = {
+    job_portal: 'Job Portals', email: 'Email', messaging: 'Messaging',
+    automation: 'Automation', storage: 'Storage',
+  }
+  const categories = [...new Set((catalogue as Record<string, string>[]).map(c => c.category))]
+
+  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      <div>
+        <h1 className="text-xl font-bold text-gray-900">Integration Hub</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Connect your favourite sourcing portals, email providers, messaging apps and automation tools</p>
+      </div>
+
+      {categories.map(cat => (
+        <div key={cat}>
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{categoryLabels[cat] ?? cat}</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {(catalogue as Record<string, unknown>[]).filter(c => c.category === cat).map(connector => {
+              const existing = getStatus(connector.id as string)
+              const isActive = existing?.is_active as boolean | undefined
+              const isComingSoon = connector.mode === 'coming_soon'
+              return (
+                <div key={connector.id as string}
+                  className={`bg-white rounded-xl border p-4 transition-all ${isComingSoon ? 'opacity-60 cursor-not-allowed' : 'hover:border-blue-300 hover:shadow-sm cursor-pointer'} ${existing ? 'border-blue-200' : 'border-gray-200'}`}
+                  onClick={() => { if (!isComingSoon) { setSelected(connector); setFormValues({}) } }}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-2xl">{connector.icon as string}</span>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{connector.name as string}</p>
+                        <p className="text-[10px] text-gray-500 capitalize">{connector.mode as string}</p>
+                      </div>
+                    </div>
+                    {existing && (
+                      <button
+                        onClick={ev => { ev.stopPropagation(); toggle(existing.id as string) }}
+                        className={`text-xs px-2 py-0.5 rounded-full border transition-all ${isActive ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                        {isActive ? 'Active' : 'Inactive'}
+                      </button>
+                    )}
+                    {isComingSoon && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Soon</span>}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 line-clamp-2">{connector.description as string}</p>
+                  {!existing && !isComingSoon && (
+                    <p className="text-xs text-[#1E4E8C] mt-2 font-medium">+ Configure</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+
+      {/* Config modal */}
+      {selected && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{selected.icon as string}</span>
+                <h3 className="text-base font-bold text-gray-900">{selected.name as string}</h3>
+              </div>
+              <button onClick={() => setSelected(null)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">{selected.description as string}</p>
+            <div className="space-y-3">
+              {((selected.fields as Record<string, string>[]) ?? []).map(field => (
+                <div key={field.name}>
+                  <label className="text-xs text-gray-500 mb-1 block">{field.label}</label>
+                  {field.type === 'info' ? (
+                    <p className="text-xs text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-200">{field.label}</p>
+                  ) : (
+                    <input type={field.type === 'password' ? 'password' : 'text'}
+                      value={formValues[field.name] ?? ''}
+                      onChange={e => setFormValues(v => ({ ...v, [field.name]: e.target.value }))}
+                      placeholder={field.placeholder ?? ''}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                  )}
+                </div>
+              ))}
+            </div>
+            {saveMsg && <div className={`mt-3 p-2 rounded-lg text-xs ${saveMsg.startsWith('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>{saveMsg}</div>}
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setSelected(null)} className="px-4 py-2 rounded-lg bg-gray-100 text-sm text-gray-600 hover:bg-gray-200">Cancel</button>
+              <button onClick={save} disabled={saving}
+                className="flex-1 py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
+                style={{ background: '#1E4E8C' }}>
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : 'Save Integration'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Communication Hub Tab
+// ─────────────────────────────────────────────────────────────────────────────
+function CommsTab() {
+  const [section, setSection] = useState<'send' | 'templates' | 'logs' | 'providers'>('send')
+  const [providers, setProviders] = useState<Record<string, unknown>[]>([])
+  const [templates, setTemplates] = useState<Record<string, unknown>[]>([])
+  const [logs, setLogs] = useState<Record<string, unknown>[]>([])
+  const [loading, setLoading] = useState(false)
+
+  // Send message form
+  const [channel, setChannel] = useState('smtp')
+  const [to, setTo] = useState('')
+  const [subject, setSubject] = useState('')
+  const [message, setMessage] = useState('')
+  const [selectedTemplate, setSelectedTemplate] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendResult, setSendResult] = useState('')
+
+  // Provider form
+  const [providerChannel, setProviderChannel] = useState('smtp')
+  const [providerConfig, setProviderConfig] = useState<Record<string, string>>({})
+  const [savingProvider, setSavingProvider] = useState(false)
+
+  // Template form
+  const [tmplName, setTmplName] = useState('')
+  const [tmplSubject, setTmplSubject] = useState('')
+  const [tmplBody, setTmplBody] = useState('')
+  const [tmplChannel, setTmplChannel] = useState('email')
+  const [tmplPurpose, setTmplPurpose] = useState('custom')
+  const [savingTmpl, setSavingTmpl] = useState(false)
+  const [tmplResult, setTmplResult] = useState('')
+
+  async function loadAll() {
+    setLoading(true)
+    const [pl, tl, ll] = await Promise.all([
+      fetch('/api/comm?type=providers').then(r => r.json()),
+      fetch('/api/comm?type=templates').then(r => r.json()),
+      fetch('/api/comm?type=logs').then(r => r.json()),
+    ])
+    setProviders(pl.providers ?? [])
+    setTemplates(tl.templates ?? [])
+    setLogs(ll.logs ?? [])
+    setLoading(false)
+  }
+  useEffect(() => { loadAll() }, [])
+
+  const channelToProvider: Record<string, string> = {
+    smtp: 'smtp', outlook: 'outlook', sendgrid: 'sendgrid', mailgun: 'mailgun',
+    telegram: 'telegram', whatsapp: 'whatsapp',
+  }
+
+  const PROVIDER_FIELDS: Record<string, {name: string; label: string; type?: string; placeholder?: string}[]> = {
+    smtp:     [{ name: 'host', label: 'SMTP Host', placeholder: 'smtp.gmail.com' }, { name: 'port', label: 'Port', placeholder: '587' }, { name: 'username', label: 'Username' }, { name: 'password', label: 'App Password', type: 'password' }, { name: 'from_email', label: 'From Email' }, { name: 'from_name', label: 'From Name' }],
+    sendgrid: [{ name: 'api_key', label: 'SendGrid API Key', type: 'password' }, { name: 'from_email', label: 'Verified From Email' }, { name: 'from_name', label: 'From Name' }],
+    mailgun:  [{ name: 'api_key', label: 'Mailgun API Key', type: 'password' }, { name: 'domain', label: 'Mailgun Domain' }, { name: 'from_email', label: 'From Email' }],
+    outlook:  [{ name: 'host', label: 'SMTP Host', placeholder: 'smtp.office365.com' }, { name: 'port', label: 'Port', placeholder: '587' }, { name: 'username', label: 'Username' }, { name: 'password', label: 'Password', type: 'password' }, { name: 'from_email', label: 'From Email' }],
+    telegram: [{ name: 'bot_token', label: 'Bot Token', type: 'password' }, { name: 'default_chat_id', label: 'Default Chat ID (optional)' }],
+    whatsapp: [{ name: 'account_sid', label: 'Twilio Account SID' }, { name: 'auth_token', label: 'Twilio Auth Token', type: 'password' }, { name: 'whatsapp_number', label: 'WhatsApp Number', placeholder: 'whatsapp:+14155238886' }],
+  }
+
+  async function saveProvider() {
+    setSavingProvider(true)
+    const res = await fetch('/api/comm', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'save_provider', connector_id: providerChannel, config: providerConfig }),
+    })
+    setSavingProvider(false)
+    if (res.ok) { setProviderConfig({}); loadAll() }
+  }
+
+  async function saveTemplate() {
+    setSavingTmpl(true); setTmplResult('')
+    const res = await fetch('/api/comm', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'save_template', name: tmplName, subject: tmplSubject, body: tmplBody, channel: tmplChannel, purpose: tmplPurpose }),
+    })
+    const data = await res.json()
+    setSavingTmpl(false)
+    setTmplResult(res.ok ? 'Template saved!' : `Error: ${data.error}`)
+    if (res.ok) { setTmplName(''); setTmplSubject(''); setTmplBody(''); loadAll() }
+  }
+
+  async function sendMsg() {
+    setSending(true); setSendResult('')
+    const body: Record<string, unknown> = { action: 'send', connector_id: channelToProvider[channel] ?? channel, to, subject, message }
+    if (selectedTemplate) body.template_id = selectedTemplate
+    const res = await fetch('/api/comm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    const data = await res.json()
+    setSending(false)
+    setSendResult(res.ok ? '✓ Message sent!' : `Error: ${data.error}`)
+    if (res.ok) loadAll()
+  }
+
+  const CHANNELS = [
+    { id: 'smtp', label: 'Email (SMTP)' }, { id: 'sendgrid', label: 'SendGrid' },
+    { id: 'mailgun', label: 'Mailgun' }, { id: 'outlook', label: 'Outlook/O365' },
+    { id: 'telegram', label: 'Telegram' }, { id: 'whatsapp', label: 'WhatsApp' },
+  ]
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      <div>
+        <h1 className="text-xl font-bold text-gray-900">Communication Hub</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Send emails, WhatsApp, and Telegram messages to candidates</p>
+      </div>
+
+      {/* Section tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {[
+          { key: 'send', label: 'Send Message' },
+          { key: 'templates', label: 'Templates' },
+          { key: 'providers', label: 'Providers' },
+          { key: 'logs', label: 'Delivery Logs' },
+        ].map(s => (
+          <button key={s.key} onClick={() => setSection(s.key as typeof section)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${section === s.key ? 'bg-[#1E4E8C] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+      ) : (
+        <>
+          {/* SEND */}
+          {section === 'send' && (
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Channel</label>
+                <select value={channel} onChange={e => setChannel(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500">
+                  {CHANNELS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Use Template (optional)</label>
+                <select value={selectedTemplate} onChange={e => setSelectedTemplate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500">
+                  <option value="">— No template —</option>
+                  {templates.map(t => <option key={t.id as string} value={t.id as string}>{t.name as string}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">{channel === 'telegram' ? 'Chat ID' : 'To (email or phone)'}</label>
+                <input value={to} onChange={e => setTo(e.target.value)} placeholder={channel === 'telegram' ? '@username or chat ID' : 'candidate@email.com'}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+              </div>
+              {['smtp','sendgrid','mailgun','outlook'].includes(channel) && (
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Subject</label>
+                  <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Interview Schedule — Software Engineer"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              )}
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Message</label>
+                <textarea value={message} onChange={e => setMessage(e.target.value)} rows={5}
+                  placeholder="Dear candidate, we are pleased to invite you for…"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm resize-none focus:outline-none focus:border-blue-500" />
+              </div>
+              {sendResult && <div className={`p-2 rounded-lg text-xs ${sendResult.startsWith('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>{sendResult}</div>}
+              <button onClick={sendMsg} disabled={sending || !to}
+                className="w-full py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
+                style={{ background: '#1E4E8C' }}>
+                {sending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> : <><Send className="w-4 h-4" />Send Message</>}
+              </button>
+            </div>
+          )}
+
+          {/* TEMPLATES */}
+          {section === 'templates' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-3">
+                <h3 className="text-sm font-semibold text-gray-700">Create Template</h3>
+                <input value={tmplName} onChange={e => setTmplName(e.target.value)} placeholder="Template name (e.g. Interview Invite)"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={tmplChannel} onChange={e => setTmplChannel(e.target.value)}
+                    className="px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500">
+                    {['email','whatsapp','telegram','sms','all'].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <select value={tmplPurpose} onChange={e => setTmplPurpose(e.target.value)}
+                    className="px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500">
+                    {['interview_invite','shortlist','rejection','follow_up','offer','reminder','welcome','custom'].map(p => <option key={p} value={p}>{p.replace('_', ' ')}</option>)}
+                  </select>
+                </div>
+                <input value={tmplSubject} onChange={e => setTmplSubject(e.target.value)} placeholder="Subject (for email templates)"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                <textarea value={tmplBody} onChange={e => setTmplBody(e.target.value)} rows={6}
+                  placeholder="Dear {{name}}, you have been shortlisted for {{position}}…"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm resize-none focus:outline-none focus:border-blue-500" />
+                <p className="text-[10px] text-gray-400">Use {'{{variable}}'} for dynamic values</p>
+                {tmplResult && <div className={`p-2 rounded-lg text-xs ${tmplResult.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{tmplResult}</div>}
+                <button onClick={saveTemplate} disabled={savingTmpl || !tmplName || !tmplBody}
+                  className="w-full py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:opacity-90"
+                  style={{ background: '#1E4E8C' }}>
+                  {savingTmpl ? 'Saving…' : 'Save Template'}
+                </button>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Saved Templates ({templates.length})</h3>
+                {templates.length === 0 ? <p className="text-xs text-gray-400 text-center py-6">No templates yet</p> : (
+                  <div className="space-y-2">
+                    {templates.map(t => (
+                      <div key={t.id as string} className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-gray-800">{t.name as string}</p>
+                          <div className="flex gap-1">
+                            <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-200 capitalize">{t.channel as string}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded border border-purple-200">{(t.purpose as string)?.replace('_',' ')}</span>
+                          </div>
+                        </div>
+                        {!!t.subject && <p className="text-xs text-gray-500 mt-0.5">Subject: {t.subject as string}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* PROVIDERS */}
+          {section === 'providers' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-3">
+                <h3 className="text-sm font-semibold text-gray-700">Configure Provider</h3>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Provider</label>
+                  <select value={providerChannel} onChange={e => { setProviderChannel(e.target.value); setProviderConfig({}) }}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500">
+                    {Object.keys(PROVIDER_FIELDS).map(c => <option key={c} value={c}>{CHANNELS.find(ch => ch.id === c)?.label ?? c}</option>)}
+                  </select>
+                </div>
+                {(PROVIDER_FIELDS[providerChannel] ?? []).map(field => (
+                  <div key={field.name}>
+                    <label className="text-xs text-gray-500 mb-1 block">{field.label}</label>
+                    <input type={field.type ?? 'text'} value={providerConfig[field.name] ?? ''} placeholder={field.placeholder ?? ''}
+                      onChange={e => setProviderConfig(v => ({ ...v, [field.name]: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                  </div>
+                ))}
+                <button onClick={saveProvider} disabled={savingProvider}
+                  className="w-full py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:opacity-90"
+                  style={{ background: '#1E4E8C' }}>
+                  {savingProvider ? 'Saving…' : 'Save Provider'}
+                </button>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Active Providers</h3>
+                {providers.length === 0 ? <p className="text-xs text-gray-400 text-center py-6">No providers configured</p> : (
+                  <div className="space-y-2">
+                    {providers.map(p => (
+                      <div key={p.id as string} className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-gray-50">
+                        <div>
+                          <p className="text-sm font-medium text-gray-800 capitalize">{p.connector_id as string}</p>
+                          <p className="text-xs text-gray-500">Channel: {p.channel as string}</p>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${p.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                          {p.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* DELIVERY LOGS */}
+          {section === 'logs' && (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-700">Delivery Logs</h2>
+                <button onClick={loadAll} className="flex items-center gap-1 text-xs text-[#1E4E8C] hover:underline">
+                  <RefreshCw className="w-3 h-3" />Refresh
+                </button>
+              </div>
+              {logs.length === 0 ? (
+                <div className="text-center py-10 text-gray-400 text-sm">No messages sent yet</div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {logs.map(log => (
+                    <div key={log.id as string} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50">
+                      <div>
+                        <p className="text-sm text-gray-800">{log.to_address as string}</p>
+                        {!!log.subject && <p className="text-xs text-gray-500 mt-0.5">{log.subject as string}</p>}
+                        <p className="text-[10px] text-gray-400 mt-0.5 capitalize">{log.channel as string} · {new Date(log.created_at as string).toLocaleString()}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                          log.status === 'sent' ? 'bg-green-50 text-green-700 border-green-200' :
+                          log.status === 'failed' ? 'bg-red-50 text-red-700 border-red-200' :
+                          'bg-gray-50 text-gray-600 border-gray-200'
+                        }`}>{log.status as string}</span>
+                        {!!log.error_message && <p className="text-[10px] text-red-500 max-w-[140px] truncate">{log.error_message as string}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const [activeTab, setActiveTab] = useState<'pipeline' | 'candidates' | 'screen' | 'compose' | 'jobs' | 'analytics' | 'settings'>('pipeline')
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'candidates' | 'screen' | 'compose' | 'jobs' | 'analytics' | 'settings' | 'jd' | 'boolean' | 'import' | 'integrations' | 'comms'>('pipeline')
   const [jobs, setJobs] = useState<Job[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [stageCounts, setStageCounts] = useState<StageCounts>({})
@@ -687,6 +1693,11 @@ export default function DashboardPage() {
               { tab: 'compose',    icon: Mail,         label: 'Compose',    badge: 'AI' },
               { tab: 'jobs',       icon: Briefcase,    label: 'Jobs',       badge: null },
               { tab: 'analytics',  icon: BarChart3,    label: 'Analytics',  badge: null },
+              { tab: 'jd',         icon: FileText,     label: 'JD Writer',  badge: 'AI' },
+              { tab: 'boolean',    icon: Search,       label: 'Boolean',    badge: 'AI' },
+              { tab: 'import',     icon: Upload,       label: 'Import',     badge: null },
+              { tab: 'integrations', icon: Link2,      label: 'Integrations', badge: null },
+              { tab: 'comms',      icon: Send,         label: 'Comms Hub',  badge: null },
               { tab: 'settings',   icon: Settings,     label: 'Settings',   badge: null },
             ] as const).map(({ tab, icon: Icon, label, badge }) => (
               <button key={tab} onClick={() => setActiveTab(tab)}
@@ -1941,6 +2952,22 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
+
+            {/* ── JD INTELLIGENCE ─────────────────────────────────────────── */}
+            {activeTab === 'jd' && <JDTab />}
+
+            {/* ── BOOLEAN SEARCH ──────────────────────────────────────────── */}
+            {activeTab === 'boolean' && <BooleanTab />}
+
+            {/* ── IMPORT ENGINE ───────────────────────────────────────────── */}
+            {activeTab === 'import' && <ImportTab />}
+
+            {/* ── INTEGRATION HUB ─────────────────────────────────────────── */}
+            {activeTab === 'integrations' && <IntegrationsTab />}
+
+            {/* ── COMMUNICATION HUB ───────────────────────────────────────── */}
+            {activeTab === 'comms' && <CommsTab />}
+
           </div>
         </main>
       </div>
