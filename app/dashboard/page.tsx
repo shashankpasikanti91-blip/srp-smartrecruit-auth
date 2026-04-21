@@ -713,7 +713,7 @@ export default function DashboardPage() {
           <div className="px-3 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
             <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
               {user?.image
-                ? <img src={user.image} alt="" className="w-8 h-8 rounded-full ring-2" style={{ ringColor: 'rgba(74,144,217,0.4)' }} />
+                ? <img src={user.image} alt="" className="w-8 h-8 rounded-full ring-2 ring-blue-400/40" />
                 : <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: '#1E4E8C' }}>{user?.name?.[0] ?? '?'}</div>
               }
               <div className="flex-1 min-w-0">
