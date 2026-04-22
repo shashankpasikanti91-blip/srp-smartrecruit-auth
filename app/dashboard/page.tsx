@@ -204,11 +204,11 @@ function JDTab() {
         </div>
         <div className="flex gap-2">
           <button onClick={() => { setMode('generate'); setResult(null) }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'generate' ? 'bg-[#995af2] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'generate' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             Generate JD
           </button>
           <button onClick={() => { setMode('analyze'); setResult(null) }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'analyze' ? 'bg-[#995af2] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'analyze' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             Analyze JD
           </button>
         </div>
@@ -280,8 +280,7 @@ function JDTab() {
             {error && <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>}
 
             <button onClick={submit} disabled={loading || (mode === 'generate' ? !jobTitle.trim() : !analyzeText.trim())}
-              className="mt-4 w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
-              style={{ background: '#995af2' }}>
+              className="mt-4 w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:bg-blue-700 flex items-center justify-center gap-2 bg-blue-600">
               {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Processing…</> : <><Sparkles className="w-4 h-4" />{mode === 'generate' ? 'Generate Job Description' : 'Analyze JD'}</>}
             </button>
           </div>
@@ -409,7 +408,7 @@ function BooleanTab() {
 
   const boolFields = [
     { key: 'short_boolean', label: 'Short Boolean', color: 'bg-blue-50 border-blue-200' },
-    { key: 'advanced_boolean', label: 'Advanced Boolean', color: 'bg-purple-50 border-purple-200' },
+    { key: 'advanced_boolean', label: 'Advanced Boolean', color: 'bg-blue-50 border-blue-200' },
     { key: 'alternate_boolean', label: 'Alternate Titles', color: 'bg-green-50 border-green-200' },
     { key: 'linkedin_search', label: 'LinkedIn Search', color: 'bg-sky-50 border-sky-200' },
     { key: 'naukri_search', label: 'Naukri Search', color: 'bg-orange-50 border-orange-200' },
@@ -434,11 +433,11 @@ function BooleanTab() {
           <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
             <div className="flex gap-2 mb-4">
               <button onClick={() => setMode('simple')}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === 'simple' ? 'bg-[#995af2] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === 'simple' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                 From Title + Skills
               </button>
               <button onClick={() => setMode('fromjd')}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === 'fromjd' ? 'bg-[#995af2] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === 'fromjd' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                 From JD Text
               </button>
             </div>
@@ -479,8 +478,7 @@ function BooleanTab() {
             {error && <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>}
 
             <button onClick={submit} disabled={loading || (mode === 'simple' ? !jobTitle.trim() : !jdText.trim())}
-              className="mt-4 w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
-              style={{ background: '#995af2' }}>
+              className="mt-4 w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:bg-blue-700 flex items-center justify-center gap-2 bg-blue-600">
               {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : <><Sparkles className="w-4 h-4" />Generate Boolean Strings</>}
             </button>
           </div>
@@ -663,8 +661,7 @@ function ImportTab() {
         )}
 
         <button onClick={upload} disabled={!file || uploading}
-          className="mt-4 flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:opacity-90"
-          style={{ background: '#995af2' }}>
+          className="mt-4 flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:bg-blue-700 bg-blue-600">
           {uploading ? <><Loader2 className="w-4 h-4 animate-spin" />Uploading…</> : <><Upload className="w-4 h-4" />Start Import</>}
         </button>
       </div>
@@ -673,7 +670,7 @@ function ImportTab() {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-700">Import History</h2>
-          <button onClick={loadBatches} className="flex items-center gap-1 text-xs text-[#995af2] hover:underline">
+          <button onClick={loadBatches} className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
             <RefreshCw className="w-3 h-3" />Refresh
           </button>
         </div>
@@ -700,7 +697,7 @@ function ImportTab() {
                     {b.status as string}
                   </span>
                   <button onClick={() => viewBatch(b.id as string)}
-                    className="text-xs text-[#995af2] hover:underline">Details</button>
+                    className="text-xs text-blue-600 hover:underline">Details</button>
                 </div>
               </div>
             ))}
@@ -753,12 +750,12 @@ function ImportTab() {
 // Integration Hub Tab
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CATEGORY_META: Record<string, { label: string; icon: string; gradient: string }> = {
-  job_portal:  { label: 'Job Portals',       icon: '🏢', gradient: 'linear-gradient(135deg,#3b82f6,#6366f1)' },
-  email:       { label: 'Email Providers',   icon: '📧', gradient: 'linear-gradient(135deg,#10b981,#0284c7)' },
-  messaging:   { label: 'Messaging',         icon: '💬', gradient: 'linear-gradient(135deg,#f59e0b,#ef4444)' },
-  automation:  { label: 'Automation',        icon: '⚡', gradient: 'linear-gradient(135deg,#8b5cf6,#d946ef)' },
-  storage:     { label: 'Cloud Storage',     icon: '☁️', gradient: 'linear-gradient(135deg,#64748b,#475569)' },
+const CATEGORY_META: Record<string, { label: string; icon: string }> = {
+  job_portal:  { label: 'Job Portals',       icon: '🏢' },
+  email:       { label: 'Email Providers',   icon: '📧' },
+  messaging:   { label: 'Messaging',         icon: '💬' },
+  automation:  { label: 'Automation',        icon: '⚡' },
+  storage:     { label: 'Cloud Storage',     icon: '☁️' },
 }
 
 function IntegrationsTab() {
@@ -834,7 +831,7 @@ function IntegrationsTab() {
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-24 gap-3">
-      <Loader2 className="w-7 h-7 animate-spin text-[#995af2]" />
+      <Loader2 className="w-7 h-7 animate-spin text-blue-600" />
       <p className="text-sm text-gray-400">Loading integrations…</p>
     </div>
   )
@@ -850,43 +847,40 @@ function IntegrationsTab() {
   )
 
   return (
-    <div className="max-w-5xl space-y-8">
+    <div className="max-w-5xl space-y-7">
       {/* Header */}
-      <div className="flex items-center justify-between pb-5 border-b border-gray-200">
-        <div className="flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-md flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, #f97316, #ef4444)' }}>
-            <Link2 className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Integration Hub</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Connect job portals, email providers, messaging apps & automation tools</p>
-          </div>
+      <div className="flex items-center justify-between pb-4 border-b border-gray-200">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Integrations</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Connect your existing tools to sync jobs, contacts and automations</p>
         </div>
-        {connectedCount > 0 && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-semibold text-emerald-700">{connectedCount} Active</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {connectedCount > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-xs font-semibold text-emerald-700">{connectedCount} connected</span>
+            </div>
+          )}
+          <button onClick={load} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 transition-all">
+            <RefreshCw className="w-3 h-3" /> Refresh
+          </button>
+        </div>
       </div>
 
       {categories.map(cat => {
-        const meta = CATEGORY_META[cat] ?? { label: cat, icon: '🔌', gradient: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }
+        const meta = CATEGORY_META[cat] ?? { label: cat, icon: '🔌' }
         const catConnectors = (catalogue as Record<string, unknown>[]).filter(c => c.category === cat)
         return (
           <div key={cat}>
-            {/* Category header */}
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shadow-sm" style={{ background: meta.gradient }}>
-                <span>{meta.icon}</span>
-              </div>
+            {/* Category label */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-base">{meta.icon}</span>
               <h2 className="text-sm font-bold text-gray-700">{meta.label}</h2>
-              <span className="text-xs text-gray-400">{catConnectors.length} connector{catConnectors.length !== 1 ? 's' : ''}</span>
+              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{catConnectors.length}</span>
               <div className="flex-1 h-px bg-gray-200 ml-1" />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {catConnectors.map(connector => {
                 const existing = getStatus(connector.id as string)
                 const isActive = existing?.is_active as boolean | undefined
@@ -895,39 +889,49 @@ function IntegrationsTab() {
 
                 return (
                   <div key={connector.id as string}
-                    className={`bg-white rounded-2xl border transition-all flex flex-col ${
+                    className={`bg-white rounded-xl border flex flex-col transition-all ${
                       isComingSoon
-                        ? 'opacity-60 cursor-not-allowed border-gray-200'
+                        ? 'opacity-55 cursor-not-allowed border-gray-200'
                         : existing
-                          ? 'border-emerald-200 shadow-sm hover:shadow-md hover:border-emerald-300 cursor-pointer'
-                          : 'border-gray-200 hover:border-[#995af2]/40 hover:shadow-md cursor-pointer'
+                          ? 'border-emerald-200 hover:border-emerald-300 hover:shadow-sm cursor-pointer'
+                          : 'border-gray-200 hover:border-blue-300 hover:shadow-sm cursor-pointer'
                     }`}
                     onClick={() => { if (!isComingSoon) openConfigure(connector) }}>
 
                     <div className="p-4 flex-1">
-                      {/* Card header */}
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 shadow-sm" style={{ background: meta.gradient + '22', border: `1px solid ${meta.gradient.includes('#') ? '#e5e7eb' : '#e5e7eb'}` }}>
-                            {connector.icon as string}
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-900">{connector.name as string}</p>
-                            <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">{isComingSoon ? 'Coming Soon' : 'Live'}</p>
-                          </div>
+                      {/* Card top row */}
+                      <div className="flex items-start gap-3 mb-3">
+                        {/* Flat icon box — no gradients */}
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center text-2xl bg-gray-50 border border-gray-200 flex-shrink-0">
+                          {connector.icon as string}
                         </div>
-                        {isComingSoon && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">Soon</span>
-                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{connector.name as string}</p>
+                            {isComingSoon && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-600 border border-amber-200 flex-shrink-0">Soon</span>
+                            )}
+                          </div>
+                          {existing ? (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                              <span className={`text-[11px] font-medium ${isActive ? 'text-emerald-600' : 'text-gray-400'}`}>
+                                {isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-gray-400">Not connected</span>
+                          )}
+                        </div>
                         {existing && !isComingSoon && (
                           <button
                             onClick={e => toggle(existing.id as string, e)}
-                            className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all ${
+                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-all flex-shrink-0 ${
                               isActive
                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                                 : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
                             }`}>
-                            {isActive ? '● Active' : '○ Inactive'}
+                            {isActive ? 'On' : 'Off'}
                           </button>
                         )}
                       </div>
@@ -935,15 +939,15 @@ function IntegrationsTab() {
                       {/* Description */}
                       <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">{connector.description as string}</p>
 
-                      {/* Field preview pills (show what credentials are needed) */}
+                      {/* Required fields pills */}
                       {hasFields && !isComingSoon && (
                         <div className="flex flex-wrap gap-1 mt-3">
                           {((connector.fields as Record<string, string>[]) ?? [])
                             .filter(f => f.type !== 'info')
                             .slice(0, 3)
                             .map(f => (
-                              <span key={f.name} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200 flex items-center gap-0.5">
-                                {f.type === 'password' ? <Key className="w-2.5 h-2.5" /> : null}
+                              <span key={f.name} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200 flex items-center gap-1">
+                                {f.type === 'password' && <Key className="w-2.5 h-2.5" />}
                                 {f.label}
                               </span>
                             ))}
@@ -953,21 +957,21 @@ function IntegrationsTab() {
 
                     {/* Card footer */}
                     {!isComingSoon && (
-                      <div className={`px-4 py-3 rounded-b-2xl border-t flex items-center justify-between ${
-                        existing ? 'bg-emerald-50/50 border-emerald-100' : 'bg-gray-50 border-gray-100'
+                      <div className={`px-4 py-2.5 rounded-b-xl border-t flex items-center justify-between ${
+                        existing ? 'bg-emerald-50/40 border-emerald-100' : 'bg-gray-50 border-gray-100'
                       }`}>
                         {existing ? (
                           <>
-                            <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1.5">
-                              <CheckCircle className="w-3.5 h-3.5" /> Connected
+                            <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                              <CheckCircle className="w-3 h-3" /> Connected
                             </span>
-                            <span className="text-xs text-[#995af2] font-semibold hover:underline">Edit Credentials →</span>
+                            <span className="text-xs text-blue-600 font-semibold hover:underline">Edit →</span>
                           </>
                         ) : (
                           <>
-                            <span className="text-xs text-gray-400">Not configured</span>
-                            <span className="text-xs font-bold text-[#995af2] flex items-center gap-1">
-                              <Settings className="w-3 h-3" /> Configure →
+                            <span className="text-xs text-gray-400">API keys required</span>
+                            <span className="text-xs font-semibold text-blue-600 flex items-center gap-1">
+                              <Settings className="w-3 h-3" /> Connect
                             </span>
                           </>
                         )}
@@ -983,18 +987,17 @@ function IntegrationsTab() {
 
       {/* Config modal */}
       {selected && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-gray-200" onClick={e => e.stopPropagation()}>
             {/* Modal header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-sm"
-                  style={{ background: (CATEGORY_META[selected.category as string] ?? CATEGORY_META.automation).gradient + '22' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-2xl bg-gray-50 border border-gray-200">
                   {selected.icon as string}
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-gray-900">Configure {selected.name as string}</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Enter your API credentials securely</p>
+                  <h3 className="text-base font-bold text-gray-900">{selected.name as string}</h3>
+                  <p className="text-xs text-gray-400">Enter your credentials to connect</p>
                 </div>
               </div>
               <button onClick={() => setSelected(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all">
@@ -1003,17 +1006,19 @@ function IntegrationsTab() {
             </div>
 
             {/* Description */}
-            <div className="px-6 pt-4">
-              <p className="text-sm text-gray-500 leading-relaxed">{selected.description as string}</p>
+            <div className="px-6 pt-4 pb-2">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                <p className="text-xs text-gray-500 leading-relaxed">{selected.description as string}</p>
+              </div>
             </div>
 
             {/* Fields */}
             <div className="px-6 py-4 space-y-4">
               {((selected.fields as Record<string, string>[]) ?? []).map(field => (
                 <div key={field.name}>
-                  <label className="text-xs font-semibold text-gray-600 mb-1.5 block">{field.label}</label>
+                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">{field.label}</label>
                   {field.type === 'info' ? (
-                    <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200">
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 border border-blue-100">
                       <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                       <p className="text-xs text-blue-700">{field.label}</p>
                     </div>
@@ -1024,7 +1029,7 @@ function IntegrationsTab() {
                         value={formValues[field.name] ?? ''}
                         onChange={e => setFormValues(v => ({ ...v, [field.name]: e.target.value }))}
                         placeholder={field.placeholder ?? `Enter ${field.label.toLowerCase()}`}
-                        className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-[#995af2] focus:ring-2 focus:ring-[#995af2]/20" />
+                        className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" />
                       <button
                         type="button"
                         onClick={() => setShowPasswords(v => ({ ...v, [field.name]: !v[field.name] }))}
@@ -1038,7 +1043,7 @@ function IntegrationsTab() {
                       value={formValues[field.name] ?? ''}
                       onChange={e => setFormValues(v => ({ ...v, [field.name]: e.target.value }))}
                       placeholder={field.placeholder ?? `Enter ${field.label.toLowerCase()}`}
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-[#995af2] focus:ring-2 focus:ring-[#995af2]/20" />
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" />
                   )}
                 </div>
               ))}
@@ -1046,7 +1051,7 @@ function IntegrationsTab() {
 
             {/* Save message */}
             {saveMsg && (
-              <div className={`mx-6 p-3 rounded-lg text-xs font-medium flex items-center gap-2 ${
+              <div className={`mx-6 mb-2 p-3 rounded-lg text-xs font-medium flex items-center gap-2 ${
                 saveMsg.startsWith('Error')
                   ? 'bg-red-50 text-red-700 border border-red-200'
                   : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -1057,17 +1062,16 @@ function IntegrationsTab() {
             )}
 
             {/* Actions */}
-            <div className="flex gap-3 p-6 pt-4">
+            <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
               <button onClick={() => { setSelected(null); setSaveMsg('') }}
                 className="px-5 py-2.5 rounded-xl bg-gray-100 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-all">
                 Cancel
               </button>
               <button onClick={save} disabled={saving}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50 hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-sm"
-                style={{ background: 'linear-gradient(135deg, #995af2, #427cf0)' }}>
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold disabled:opacity-50 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm">
                 {saving
                   ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</>
-                  : <><Key className="w-4 h-4" />Save Credentials</>}
+                  : <><Key className="w-4 h-4" />Save & Connect</>}
               </button>
             </div>
           </div>
@@ -1212,7 +1216,7 @@ function CommsTab() {
           { key: 'logs', label: 'Delivery Logs' },
         ].map(s => (
           <button key={s.key} onClick={() => setSection(s.key as typeof section)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${section === s.key ? 'bg-[#995af2] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${section === s.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             {s.label}
           </button>
         ))}
@@ -1260,8 +1264,7 @@ function CommsTab() {
               </div>
               {sendResult && <div className={`p-2 rounded-lg text-xs ${sendResult.startsWith('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>{sendResult}</div>}
               <button onClick={sendMsg} disabled={sending || !to}
-                className="w-full py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
-                style={{ background: '#995af2' }}>
+                className="w-full py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:bg-blue-700 flex items-center justify-center gap-2 bg-blue-600">
                 {sending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> : <><Send className="w-4 h-4" />Send Message</>}
               </button>
             </div>
@@ -1292,8 +1295,7 @@ function CommsTab() {
                 <p className="text-[10px] text-gray-400">Use {'{{variable}}'} for dynamic values</p>
                 {tmplResult && <div className={`p-2 rounded-lg text-xs ${tmplResult.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{tmplResult}</div>}
                 <button onClick={saveTemplate} disabled={savingTmpl || !tmplName || !tmplBody}
-                  className="w-full py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:opacity-90"
-                  style={{ background: '#995af2' }}>
+                  className="w-full py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:bg-blue-700 bg-blue-600">
                   {savingTmpl ? 'Saving…' : 'Save Template'}
                 </button>
               </div>
@@ -1302,7 +1304,7 @@ function CommsTab() {
                   <h3 className="text-sm font-semibold text-gray-700">Saved Templates ({templates.length})</h3>
                   {templates.length === 0 && (
                     <button onClick={seedDefaultTemplates} disabled={seedingTmpls}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#995af2] text-white text-xs hover:opacity-90 disabled:opacity-50">
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs hover:bg-blue-700 disabled:opacity-50">
                       {seedingTmpls ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                       {seedingTmpls ? 'Loading…' : 'Load Default Templates'}
                     </button>
@@ -1321,7 +1323,7 @@ function CommsTab() {
                           <p className="text-sm font-medium text-gray-800">{t.name as string}</p>
                           <div className="flex gap-1">
                             <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-200 capitalize">{t.channel as string}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded border border-purple-200">{(t.purpose as string)?.replace('_',' ')}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200">{(t.purpose as string)?.replace('_',' ')}</span>
                           </div>
                         </div>
                         {!!t.subject && <p className="text-xs text-gray-500 mt-0.5">Subject: {t.subject as string}</p>}
@@ -1354,8 +1356,7 @@ function CommsTab() {
                   </div>
                 ))}
                 <button onClick={saveProvider} disabled={savingProvider}
-                  className="w-full py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:opacity-90"
-                  style={{ background: '#995af2' }}>
+                  className="w-full py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:bg-blue-700 bg-blue-600">
                   {savingProvider ? 'Saving…' : 'Save Provider'}
                 </button>
               </div>
@@ -1385,7 +1386,7 @@ function CommsTab() {
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
                 <h2 className="text-sm font-semibold text-gray-700">Delivery Logs</h2>
-                <button onClick={loadAll} className="flex items-center gap-1 text-xs text-[#995af2] hover:underline">
+                <button onClick={loadAll} className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
                   <RefreshCw className="w-3 h-3" />Refresh
                 </button>
               </div>
@@ -2044,13 +2045,13 @@ export default function DashboardPage() {
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
                 style={activeTab === tab
-                  ? { background: '#995af2', color: '#FFFFFF' }
+                  ? { background: '#1849D6', color: '#FFFFFF' }
                   : { color: '#8892A4' }}
-                onMouseEnter={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = '#22253a'; (e.currentTarget as HTMLButtonElement).style.color = '#FFFFFF' } }}
+                onMouseEnter={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = '#1e2235'; (e.currentTarget as HTMLButtonElement).style.color = '#FFFFFF' } }}
                 onMouseLeave={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#8892A4' } }}>
                 <Icon className="w-4 h-4" />
                 <span className="flex-1 text-left">{label}</span>
-                {badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(153,90,242,0.25)', color: '#c4a8ff' }}>{badge}</span>}
+                {badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.25)', color: '#93c5fd' }}>{badge}</span>}
               </button>
             ))}
 
@@ -2065,12 +2066,12 @@ export default function DashboardPage() {
           <div className="px-3 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
             <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
               {user?.image
-                ? <img src={user.image} alt="" className="w-8 h-8 rounded-full" style={{ border: '2px solid rgba(153,90,242,0.5)' }} />
-                : <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: 'linear-gradient(135deg, #995af2, #427cf0)' }}>{user?.name?.[0] ?? '?'}</div>
+                ? <img src={user.image} alt="" className="w-8 h-8 rounded-full" style={{ border: '2px solid rgba(59,130,246,0.5)' }} />
+                : <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 bg-blue-600">{user?.name?.[0] ?? '?'}</div>
               }
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-white truncate">{user?.name}</p>
-                <p className="text-[11px] truncate" style={{ color: '#c4a8ff' }}>{user?.email}</p>
+                <p className="text-[11px] truncate text-blue-200">{user?.email}</p>
               </div>
             </div>
             <button onClick={() => signOut({ callbackUrl: '/login' })}
@@ -2145,32 +2146,31 @@ export default function DashboardPage() {
           )}
 
           {/* Stats bar */}
-          <div className="px-6 py-3.5 bg-white border-b border-gray-200 flex items-center gap-5 flex-wrap">
-            {[
-              { icon: Briefcase,     color: 'text-[#995af2]', bg: 'bg-blue-50',   label: 'Jobs',       value: jobs.length },
-              { icon: Users,         color: 'text-purple-600', bg: 'bg-purple-50', label: 'Candidates', value: totalCandidates },
-              { icon: Clock,         color: 'text-amber-600',  bg: 'bg-amber-50',  label: 'Interviews', value: interviewCount },
-              { icon: CheckCircle,   color: 'text-emerald-600',bg: 'bg-emerald-50',label: 'Hired',      value: hiredCount },
-            ].map(({ icon: Icon, color, bg, label, value }) => (
-              <div key={label} className="flex items-center gap-2.5">
-                <div className={`w-7 h-7 rounded-lg ${bg} flex items-center justify-center`}>
-                  <Icon className={`w-3.5 h-3.5 ${color}`} />
+          <div className="px-6 py-3 bg-white border-b border-gray-200 flex items-center gap-0 flex-wrap">
+            {([
+              { icon: Briefcase,   borderColor: 'border-l-blue-500',   iconBg: 'bg-blue-50',    iconColor: 'text-blue-600',    label: 'Active Jobs',    value: jobs.length },
+              { icon: Users,       borderColor: 'border-l-indigo-500',  iconBg: 'bg-indigo-50',  iconColor: 'text-indigo-600',  label: 'Candidates',     value: totalCandidates },
+              { icon: Clock,       borderColor: 'border-l-amber-500',   iconBg: 'bg-amber-50',   iconColor: 'text-amber-600',   label: 'Interviews',     value: interviewCount },
+              { icon: CheckCircle, borderColor: 'border-l-emerald-500', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', label: 'Total Hired',    value: hiredCount },
+              { icon: TrendingUp,  borderColor: 'border-l-sky-500',     iconBg: 'bg-sky-50',     iconColor: 'text-sky-600',     label: 'Hire Rate',      value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '—' },
+            ] as const).map(({ icon: Icon, borderColor, iconBg, iconColor, label, value }) => (
+              <div key={label} className={`flex items-center gap-3 px-5 py-3 border-l-4 ${borderColor} border-r border-gray-100`}>
+                <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0`}>
+                  <Icon className={`w-4 h-4 ${iconColor}`} />
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-400 font-medium leading-none">{label}</p>
-                  <p className="text-sm font-bold text-gray-900 leading-tight">{value}</p>
+                  <p className="text-[11px] text-gray-400 font-medium leading-none mb-0.5">{label}</p>
+                  <p className="text-lg font-extrabold text-gray-900 leading-tight">{value}</p>
                 </div>
-                <div className="w-px h-6 bg-gray-200 ml-2" />
               </div>
             ))}
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto pr-4 flex items-center gap-2">
               <button onClick={() => setShowNewCandidate(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 border border-gray-300 text-sm text-gray-700 font-medium transition-all">
                 <Plus className="w-3.5 h-3.5" /> Add Candidate
               </button>
               <button onClick={() => setShowNewJob(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90 shadow-sm"
-                style={{ background: 'linear-gradient(135deg, #995af2, #427cf0)' }}>
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition-all hover:bg-blue-700 shadow-sm bg-blue-600">
                 <Plus className="w-3.5 h-3.5" /> New Job
               </button>
             </div>
@@ -2253,14 +2253,13 @@ export default function DashboardPage() {
               <div>
                 <div className="flex items-center justify-between mb-4 pb-5 border-b border-gray-100">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
-                      style={{ background: 'linear-gradient(135deg, #995af2, #c026d3)' }}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 bg-blue-600">
                       <Users className="w-5 h-5 text-white" />
                     </div>
                     <div>
                       <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Candidates</h1>
                       <p className="text-sm text-gray-500 mt-0.5">
-                        {filterSkill ? <><span className="text-[#995af2] font-semibold">{candidates.length}</span> with &quot;{filterSkill}&quot;</> : `${candidates.length} total`}
+                        {filterSkill ? <><span className="text-blue-600 font-semibold">{candidates.length}</span> with &quot;{filterSkill}&quot;</> : `${candidates.length} total`}
                       </p>
                     </div>
                   </div>
@@ -2385,8 +2384,7 @@ export default function DashboardPage() {
             {activeTab === 'screen' && (
               <div>
                 <div className="flex items-center gap-4 mb-6 pb-5 border-b border-gray-100">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
-                    style={{ background: 'linear-gradient(135deg, #f655c1, #995af2)' }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 bg-blue-600">
                     <Brain className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -2396,7 +2394,7 @@ export default function DashboardPage() {
                   <div className="ml-auto flex gap-2">
                     {(['single', 'bulk'] as const).map(m => (
                       <button key={m} onClick={() => setScreenMode(m)}
-                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${screenMode === m ? 'bg-purple-600 text-white shadow-sm' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${screenMode === m ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
                         {m === 'single' ? 'Single CV' : 'Bulk CVs'}
                       </button>
                     ))}
@@ -2409,7 +2407,7 @@ export default function DashboardPage() {
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Job Description</label>
                     <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={10}
                       placeholder="Paste the full job description here…"
-                      className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-purple-400 resize-none" />
+                      className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-400 resize-none" />
                     <p className="text-xs text-gray-500">Or upload JD file:</p>
                     <FileUploadZone label="Upload JD (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
                       onTexts={([t]) => setJdText(t.text)} disabled={screening} />
@@ -2424,7 +2422,7 @@ export default function DashboardPage() {
                       <>
                         <textarea value={resumeText} onChange={e => setResumeText(e.target.value)} rows={10}
                           placeholder="Paste the candidate's resume text here…"
-                          className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-purple-400 resize-none" />
+                          className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-400 resize-none" />
                         <p className="text-xs text-gray-500">Or upload resume file:</p>
                         <FileUploadZone label="Upload Resume (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
                           onTexts={([t]) => setResumeText(t.text)} disabled={screening} />
@@ -2436,7 +2434,7 @@ export default function DashboardPage() {
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">Link to Job (optional)</label>
                       <select value={screenJobId} onChange={e => setScreenJobId(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-purple-400">
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-blue-400">
                         <option value="">— No job —</option>
                         {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0,8)})</option>)}
                       </select>
@@ -2453,7 +2451,7 @@ export default function DashboardPage() {
 
                 <button onClick={runScreening}
                   disabled={screening || !jdText || (screenMode === 'single' ? !resumeText : bulkTexts.length === 0)}
-                  className="mb-6 flex items-center gap-2 px-6 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 font-semibold text-sm transition-all disabled:opacity-50">
+                  className="mb-6 flex items-center gap-2 px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 font-semibold text-sm transition-all disabled:opacity-50">
                   {screening ? <><Loader2 className="w-4 h-4 animate-spin" /> Screening…</> : <><Sparkles className="w-4 h-4" /> Run AI Screening</>}
                 </button>
 
@@ -2462,7 +2460,7 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between">
                       <h2 className="text-sm font-semibold text-gray-700">{screenResults.length} result{screenResults.length > 1 ? 's' : ''} — saved to Candidates</h2>
                       <button onClick={() => setActiveTab('candidates')}
-                        className="text-xs text-[#995af2] hover:text-blue-800 underline underline-offset-2">
+                        className="text-xs text-blue-600 hover:text-blue-800 underline underline-offset-2">
                         View in Candidates →
                       </button>
                     </div>
@@ -2593,14 +2591,14 @@ export default function DashboardPage() {
                   {/* ── Panel B: Rewrite / Paraphrase / Reply ── */}
                   <div className={`rounded-2xl border p-5 transition-all ${
                     composeMode !== 'generate'
-                      ? 'border-purple-300 bg-purple-50/40 ring-1 ring-purple-100 shadow-sm'
+                      ? 'border-indigo-300 bg-indigo-50/40 ring-1 ring-indigo-100 shadow-sm'
                       : 'border-gray-200 bg-gray-50/50 opacity-60 hover:opacity-80'
                   }}`}>
                     <div className="mb-4">
                       <div className="flex items-center gap-2 mb-1">
-                        <div className={`w-3 h-3 rounded-full border-2 ${composeMode !== 'generate' ? 'border-purple-400 bg-purple-400' : 'border-gray-300'}`} />
+                        <div className={`w-3 h-3 rounded-full border-2 ${composeMode !== 'generate' ? 'border-indigo-400 bg-indigo-400' : 'border-gray-300'}`} />
                         <span className="text-sm font-semibold text-gray-800">Rewrite / Paraphrase / Reply</span>
-                        <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-600">Existing message</span>
+                        <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">Existing message</span>
                       </div>
                       <p className="text-xs text-gray-500 pl-5">Paste a message — AI rewrites, rephrases, or drafts a reply</p>
                     </div>
@@ -2615,11 +2613,11 @@ export default function DashboardPage() {
                         <button key={key} onClick={() => setComposeMode(key)}
                           className={`flex-1 flex flex-col items-center py-2.5 px-2 rounded-xl text-xs font-medium transition-all border ${
                             composeMode === key
-                              ? 'bg-purple-600 border-purple-500 text-white'
+                              ? 'bg-indigo-600 border-indigo-500 text-white'
                               : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-800'
                           }`}>
                           <span className="font-semibold text-sm">{label}</span>
-                          <span className={`text-[10px] mt-0.5 ${composeMode === key ? 'text-purple-200' : 'text-gray-600'}`}>{desc}</span>
+                          <span className={`text-[10px] mt-0.5 ${composeMode === key ? 'text-indigo-200' : 'text-gray-600'}`}>{desc}</span>
                         </button>
                       ))}
                     </div>
@@ -2637,7 +2635,7 @@ export default function DashboardPage() {
                                 ? 'Paste the message you received and want to reply to…'
                                 : 'Paste the message you want to rewrite or paraphrase…'
                             }
-                            className="w-full px-3 py-2.5 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-purple-400 resize-none" />
+                            className="w-full px-3 py-2.5 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-400 resize-none" />
                         </div>
 
                         {/* Context for reply */}
@@ -2653,7 +2651,7 @@ export default function DashboardPage() {
                                 <label className="text-xs text-gray-600 font-medium mb-1 block">{label}</label>
                                 <input value={composeFields[key]} onChange={e => setComposeFields(p => ({ ...p, [key]: e.target.value }))}
                                   placeholder={placeholder}
-                                  className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-purple-400" />
+                                  className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-400" />
                               </div>
                             ))}
                           </div>
@@ -2664,14 +2662,14 @@ export default function DashboardPage() {
                           <div>
                             <label className="text-xs text-gray-600 font-medium mb-1 block">Platform</label>
                             <select value={platform} onChange={e => setPlatform(e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-purple-400">
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-indigo-400">
                               {['Gmail', 'LinkedIn', 'WhatsApp', 'Outlook', 'Telegram'].map(p => <option key={p}>{p}</option>)}
                             </select>
                           </div>
                           <div>
                             <label className="text-xs text-gray-600 font-medium mb-1 block">Tone</label>
                             <select value={tone} onChange={e => setTone(e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-purple-400">
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-indigo-400">
                               {['formal', 'professional', 'semi-formal', 'friendly', 'casual'].map(t => <option key={t}>{t}</option>)}
                             </select>
                           </div>
@@ -2681,7 +2679,7 @@ export default function DashboardPage() {
                           <label className="text-xs text-gray-600 font-medium mb-1 block">Extra instructions (optional)</label>
                           <input value={composeFields.custom_notes} onChange={e => setComposeFields(p => ({ ...p, custom_notes: e.target.value }))}
                             placeholder="e.g. keep it under 3 sentences, mention the referral bonus…"
-                            className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-purple-400" />
+                            className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-400" />
                         </div>
                       </div>
                     )}
@@ -2696,7 +2694,7 @@ export default function DashboardPage() {
                       className={`flex items-center gap-2 px-8 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-50 ${
                         composeMode === 'generate'
                           ? 'bg-indigo-600 hover:bg-indigo-500'
-                          : 'bg-purple-600 hover:bg-purple-500'
+                          : 'bg-indigo-600 hover:bg-indigo-500'
                       }`}>
                       {composing
                         ? <><Loader2 className="w-4 h-4 animate-spin" /> Composing…</>
@@ -2742,7 +2740,7 @@ export default function DashboardPage() {
                       )}
                     </div>
                     {composeMode !== 'generate' && composeOutput && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400">
                         {composeMode === 'reply' ? 'Reply drafted' : composeMode === 'paraphrase' ? 'Paraphrased' : 'Rewritten'}
                       </span>
                     )}
@@ -2781,8 +2779,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button onClick={() => setShowNewJob(true)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white transition-all hover:opacity-90 shadow-sm"
-                      style={{ background: 'linear-gradient(135deg, #995af2, #427cf0)' }}>
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white transition-all hover:bg-blue-700 shadow-sm bg-blue-600">
                       <Plus className="w-3.5 h-3.5" /> New Job
                     </button>
                   </div>
@@ -2797,8 +2794,7 @@ export default function DashboardPage() {
                     <Briefcase className="w-10 h-10 text-gray-300 mb-3" />
                     <p className="text-gray-500 mb-4">No jobs yet. Create your first job post.</p>
                     <button onClick={() => setShowNewJob(true)}
-                      className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors hover:opacity-90"
-                      style={{ background: 'linear-gradient(135deg, #995af2, #427cf0)' }}>
+                      className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors hover:bg-blue-700 bg-blue-600">
                       Create Job Post
                     </button>
                   </div>
@@ -2846,7 +2842,7 @@ export default function DashboardPage() {
                               <td>
                                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                                   <button onClick={() => openJobDetails(job)}
-                                    className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 font-medium whitespace-nowrap">
+                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap">
                                     <Sparkles className="w-3 h-3" /> {job.post_contents ? 'Posts' : 'JD'}
                                   </button>
                                   <button onClick={() => { setSelectedJob(job.id); setActiveTab('pipeline') }}
@@ -2867,145 +2863,259 @@ export default function DashboardPage() {
 
             {/* ── ANALYTICS ────────────────────────────────────────────────── */}
             {activeTab === 'analytics' && (
-              <div>
-                <div className="flex items-center gap-4 mb-6 pb-5 border-b border-gray-100">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
-                    style={{ background: 'linear-gradient(135deg, #f59e0b, #f97316)' }}>
-                    <TrendingUp className="w-5 h-5 text-white" />
-                  </div>
+              <div className="space-y-6">
+
+                {/* Page header */}
+                <div className="flex items-center justify-between pb-4 border-b border-gray-200">
                   <div>
-                    <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Analytics</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">Track pipeline performance and hiring metrics</p>
+                    <h1 className="text-xl font-bold text-gray-900">Recruitment Analytics</h1>
+                    <p className="text-sm text-gray-500 mt-0.5">Live snapshot of your hiring pipeline and team performance</p>
                   </div>
+                  <button onClick={loadData} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 transition-all">
+                    <RefreshCw className="w-3 h-3" /> Refresh
+                  </button>
                 </div>
 
-                {/* KPI cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                {/* ── KPI Row ── */}
+                <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
                   {[
-                    { label: 'Total Candidates', value: totalCandidates,  icon: Users,       color: 'text-[#995af2]', bg: 'bg-blue-50' },
-                    { label: 'Hired',             value: hiredCount,        icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { label: 'Interviews',        value: interviewCount,    icon: Clock,       color: 'text-amber-600', bg: 'bg-amber-50' },
-                    { label: 'Conversion Rate',   value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '0%', icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-50' },
-                  ].map(({ label, value, icon: Icon, color, bg }) => (
-                    <div key={label} className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center`}>
-                          <Icon className={`w-4 h-4 ${color}`} />
+                    {
+                      label: 'Total Candidates',
+                      value: totalCandidates,
+                      icon: Users,
+                      iconBg: 'bg-blue-100',
+                      iconColor: 'text-blue-600',
+                      accent: 'border-t-blue-500',
+                      sub: `${jobs.length} active job${jobs.length !== 1 ? 's' : ''}`,
+                    },
+                    {
+                      label: 'In Interview',
+                      value: interviewCount,
+                      icon: Clock,
+                      iconBg: 'bg-amber-100',
+                      iconColor: 'text-amber-600',
+                      accent: 'border-t-amber-500',
+                      sub: totalCandidates > 0 ? `${Math.round((interviewCount / totalCandidates) * 100)}% of pipeline` : 'No candidates yet',
+                    },
+                    {
+                      label: 'Total Hired',
+                      value: hiredCount,
+                      icon: CheckCircle,
+                      iconBg: 'bg-emerald-100',
+                      iconColor: 'text-emerald-600',
+                      accent: 'border-t-emerald-500',
+                      sub: 'Offer accepted & onboarded',
+                    },
+                    {
+                      label: 'Conversion Rate',
+                      value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '—',
+                      icon: TrendingUp,
+                      iconBg: 'bg-sky-100',
+                      iconColor: 'text-sky-600',
+                      accent: 'border-t-sky-500',
+                      sub: 'Candidates → Hired',
+                    },
+                  ].map(({ label, value, icon: Icon, iconBg, iconColor, accent, sub }) => (
+                    <div key={label} className={`bg-white rounded-xl p-5 border border-gray-200 border-t-4 ${accent} shadow-sm`}>
+                      <div className="flex items-start justify-between mb-4">
+                        <div className={`w-10 h-10 rounded-xl ${iconBg} flex items-center justify-center`}>
+                          <Icon className={`w-5 h-5 ${iconColor}`} />
                         </div>
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{label}</p>
                       </div>
-                      <p className="text-3xl font-extrabold text-gray-900">{value}</p>
+                      <p className="text-3xl font-extrabold text-gray-900 mb-1">{value}</p>
+                      <p className="text-xs font-semibold text-gray-600">{label}</p>
+                      <p className="text-[11px] text-gray-400 mt-1">{sub}</p>
                     </div>
                   ))}
                 </div>
 
-                {/* Hiring funnel */}
-                <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm mb-5">
-                  <h2 className="text-sm font-semibold text-gray-700 mb-4">Hiring Funnel</h2>
-                  <div className="space-y-3">
-                    {PIPELINE_STAGES.map(s => {
-                      const count = stageCounts[s.key] ?? 0
-                      const pct = totalCandidates > 0 ? Math.round((count / totalCandidates) * 100) : 0
-                      return (
-                        <div key={s.key} className="flex items-center gap-3">
-                          <span className={`text-xs w-20 font-medium ${s.text}`}>{s.label}</span>
-                          <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full transition-all ${s.bar}`} style={{ width: `${Math.max(pct, pct > 0 ? 3 : 0)}%` }} />
-                          </div>
-                          <span className="text-xs text-gray-600 w-8 text-right font-semibold">{count}</span>
-                          <span className="text-xs text-gray-400 w-10 text-right">{pct}%</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
+                {/* ── Middle Row: Funnel + Match Quality ── */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
 
-                {/* AI match distribution */}
-                <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-                  <h2 className="text-sm font-semibold text-gray-700 mb-4">AI Match Distribution</h2>
-                  <div className="space-y-3">
-                    {(['best', 'good', 'partial', 'poor'] as const).map(m => {
-                      const count = matchCounts[m] ?? 0
-                      const total = Object.values(matchCounts).reduce((a, b) => a + b, 0)
-                      const pct = total > 0 ? Math.round((count / total) * 100) : 0
-                      const cfg = MATCH_CONFIG[m]
-                      return (
-                        <div key={m} className="flex items-center gap-3">
-                          <span className={`text-xs w-24 font-medium ${cfg.text}`}>{cfg.label}</span>
-                          <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${cfg.bar}`} style={{ width: `${Math.max(pct, pct > 0 ? 3 : 0)}%` }} />
-                          </div>
-                          <span className="text-xs text-gray-600 w-8 text-right font-semibold">{count}</span>
-                          <span className="text-xs text-gray-400 w-10 text-right">{pct}%</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Top Skills chart */}
-                {topSkills.length > 0 && (
-                  <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm mt-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-sm font-semibold text-gray-700">Top Skills Across All Candidates</h2>
-                      <span className="text-xs text-gray-400">{topSkills.length} unique skills tracked</span>
+                  {/* Hiring Funnel */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                      <div>
+                        <h2 className="text-sm font-bold text-gray-800">Hiring Funnel</h2>
+                        <p className="text-xs text-gray-400 mt-0.5">Candidate distribution across pipeline stages</p>
+                      </div>
+                      <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-1 rounded">{totalCandidates} total</span>
                     </div>
-                    <div className="space-y-2">
-                      {topSkills.map(({ skill, count }) => {
-                        const pct = Math.round((count / topSkills[0].count) * 100)
+                    <div className="p-5 space-y-3">
+                      {PIPELINE_STAGES.map(s => {
+                        const count = stageCounts[s.key] ?? 0
+                        const pct = totalCandidates > 0 ? (count / totalCandidates) * 100 : 0
+                        const barColors: Record<string, string> = {
+                          sourced: 'bg-slate-400', applied: 'bg-blue-500', screening: 'bg-violet-500',
+                          interview: 'bg-amber-500', offer: 'bg-teal-500', hired: 'bg-emerald-500',
+                        }
                         return (
-                          <div key={skill} className="flex items-center gap-3">
-                            <button
-                              onClick={() => { setFilterSkill(skill); setActiveTab('candidates') }}
-                              className="text-xs text-gray-700 w-36 truncate text-left hover:text-[#995af2] transition-colors"
-                              title={`Click to filter candidates with ${skill}`}>
-                              {skill}
-                            </button>
-                            <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full bg-[#995af2] transition-all" style={{ width: `${Math.max(pct, 3)}%` }} />
+                          <div key={s.key}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-semibold text-gray-700 w-20">{s.label}</span>
+                              <div className="flex-1 mx-3 h-6 bg-gray-100 rounded overflow-hidden">
+                                <div
+                                  className={`h-full rounded transition-all duration-500 ${barColors[s.key] ?? 'bg-blue-400'} flex items-center`}
+                                  style={{ width: `${Math.max(pct, pct > 0 ? 4 : 0)}%` }}>
+                                  {pct > 15 && <span className="text-[10px] font-bold text-white pl-2">{Math.round(pct)}%</span>}
+                                </div>
+                              </div>
+                              <div className="text-right w-12">
+                                <span className="text-sm font-bold text-gray-800">{count}</span>
+                                {pct > 0 && pct <= 15 && <span className="text-[10px] text-gray-400 ml-1">{Math.round(pct)}%</span>}
+                              </div>
                             </div>
-                            <span className="text-xs text-gray-600 w-8 text-right font-semibold">{count}</span>
                           </div>
                         )
                       })}
+                      {totalCandidates === 0 && (
+                        <div className="text-center py-6 text-gray-400 text-sm">No candidates in pipeline yet</div>
+                      )}
                     </div>
-                    <p className="text-xs text-gray-400 mt-3">Click any skill name to jump to filtered candidate list.</p>
                   </div>
-                )}
 
-                {/* Candidate Upload Timeline */}
-                {candidates.length > 0 && (() => {
-                  const now = Date.now()
-                  const msDay = 86400000
-                  const today = candidates.filter(c => c.created_at && now - new Date(c.created_at).getTime() < msDay).length
-                  const last7  = candidates.filter(c => c.created_at && now - new Date(c.created_at).getTime() < 7 * msDay).length
-                  const last30 = candidates.filter(c => c.created_at && now - new Date(c.created_at).getTime() < 30 * msDay).length
-                  return (
-                    <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm mt-5">
-                      <h2 className="text-sm font-semibold text-gray-700 mb-4">Upload Activity</h2>
-                      <div className="grid grid-cols-3 gap-4">
-                        {[
-                          { label: 'Today',       value: today,  color: 'text-blue-700',   bg: 'bg-blue-50' },
-                          { label: 'Last 7 Days', value: last7,  color: 'text-indigo-700', bg: 'bg-indigo-50' },
-                          { label: 'Last 30 Days',value: last30, color: 'text-purple-700', bg: 'bg-purple-50' },
-                        ].map(({ label, value, color, bg }) => (
-                          <div key={label} className={`rounded-lg p-4 ${bg} text-center`}>
-                            <p className={`text-2xl font-bold ${color}`}>{value}</p>
-                            <p className="text-xs text-gray-500 mt-1">{label}</p>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-4 flex items-center gap-3">
-                        <button onClick={() => { setFilterDate('today'); setActiveTab('candidates') }}
-                          className="text-xs text-blue-600 hover:underline">View today's →</button>
-                        <button onClick={() => { setFilterDate('7days'); setActiveTab('candidates') }}
-                          className="text-xs text-indigo-600 hover:underline">View last 7 days →</button>
-                        <button onClick={() => { setFilterDate('30days'); setActiveTab('candidates') }}
-                          className="text-xs text-purple-600 hover:underline">View last 30 days →</button>
-                      </div>
+                  {/* AI Match Quality */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100">
+                      <h2 className="text-sm font-bold text-gray-800">AI Match Quality</h2>
+                      <p className="text-xs text-gray-400 mt-0.5">How well candidates match your job requirements</p>
                     </div>
-                  )
-                })()}
+                    <div className="p-5">
+                      {(() => {
+                        const total = Object.values(matchCounts).reduce((a, b) => a + b, 0)
+                        const items = [
+                          { key: 'best',    label: 'Best Match',    bar: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200' },
+                          { key: 'good',    label: 'Good Match',    bar: 'bg-blue-500',    text: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200' },
+                          { key: 'partial', label: 'Partial Match', bar: 'bg-amber-500',   text: 'text-amber-700',   bg: 'bg-amber-50',    border: 'border-amber-200' },
+                          { key: 'poor',    label: 'Low Match',     bar: 'bg-red-400',     text: 'text-red-700',     bg: 'bg-red-50',      border: 'border-red-200' },
+                        ]
+                        if (total === 0) return <div className="text-center py-8 text-gray-400 text-sm">Run AI screening to see match quality data</div>
+                        return (
+                          <>
+                            <div className="space-y-3 mb-4">
+                              {items.map(({ key, label, bar, text, bg, border }) => {
+                                const count = matchCounts[key] ?? 0
+                                const pct = total > 0 ? Math.round((count / total) * 100) : 0
+                                return (
+                                  <div key={key}>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-xs font-medium text-gray-600">{label}</span>
+                                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${bg} ${text} ${border}`}>{count}</span>
+                                    </div>
+                                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                      <div className={`h-full rounded-full ${bar} transition-all duration-500`} style={{ width: `${Math.max(pct, pct > 0 ? 4 : 0)}%` }} />
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            {/* Segment bar */}
+                            <div className="flex h-3 rounded-full overflow-hidden gap-0.5 mt-4">
+                              {items.map(({ key, bar }) => {
+                                const count = matchCounts[key] ?? 0
+                                const pct = total > 0 ? (count / total) * 100 : 0
+                                return pct > 0 ? <div key={key} className={`${bar} transition-all`} style={{ width: `${pct}%` }} /> : null
+                              })}
+                            </div>
+                          </>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Bottom Row: Top Skills + Activity Stats ── */}
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+
+                  {/* Top Skills — spans 2 columns */}
+                  <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                      <div>
+                        <h2 className="text-sm font-bold text-gray-800">Top Skills in Pipeline</h2>
+                        <p className="text-xs text-gray-400 mt-0.5">Most common skills across all screened candidates</p>
+                      </div>
+                      {topSkills.length > 0 && <span className="text-xs text-gray-400">{topSkills.length} unique skills</span>}
+                    </div>
+                    <div className="p-5">
+                      {topSkills.length === 0 ? (
+                        <div className="text-center py-8 text-gray-400 text-sm">Skills data appears after AI screening</div>
+                      ) : (
+                        <div className="space-y-2.5">
+                          {topSkills.slice(0, 10).map(({ skill, count }, idx) => {
+                            const pct = Math.round((count / topSkills[0].count) * 100)
+                            const barColors = ['bg-blue-500', 'bg-indigo-500', 'bg-sky-500', 'bg-teal-500', 'bg-cyan-500']
+                            const barColor = barColors[idx % barColors.length]
+                            return (
+                              <div key={skill} className="flex items-center gap-3">
+                                <span className="text-[11px] font-semibold text-gray-400 w-4">{idx + 1}</span>
+                                <button
+                                  onClick={() => { setFilterSkill(skill); setActiveTab('candidates') }}
+                                  className="text-xs font-medium text-gray-700 w-32 truncate text-left hover:text-blue-600 transition-colors"
+                                  title={`View candidates with ${skill}`}>
+                                  {skill}
+                                </button>
+                                <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.max(pct, 4)}%` }} />
+                                </div>
+                                <span className="text-xs font-bold text-gray-700 w-8 text-right">{count}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Upload Activity */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100">
+                      <h2 className="text-sm font-bold text-gray-800">Upload Activity</h2>
+                      <p className="text-xs text-gray-400 mt-0.5">Candidate additions over time</p>
+                    </div>
+                    <div className="p-5 space-y-3">
+                      {(() => {
+                        const now = Date.now()
+                        const msDay = 86400000
+                        const today  = candidates.filter(c => c.created_at && now - new Date(c.created_at).getTime() < msDay).length
+                        const last7  = candidates.filter(c => c.created_at && now - new Date(c.created_at).getTime() < 7 * msDay).length
+                        const last30 = candidates.filter(c => c.created_at && now - new Date(c.created_at).getTime() < 30 * msDay).length
+                        return ([
+                          { label: 'Today',        value: today,  dateFilter: 'today'  as const, color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-100' },
+                          { label: 'Last 7 days',  value: last7,  dateFilter: '7days'  as const, color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-100' },
+                          { label: 'Last 30 days', value: last30, dateFilter: '30days' as const, color: 'text-sky-600',    bg: 'bg-sky-50',    border: 'border-sky-100' },
+                        ]).map(({ label, value, dateFilter, color, bg, border }) => (
+                          <button key={label}
+                            onClick={() => { setFilterDate(dateFilter); setActiveTab('candidates') }}
+                            className={`w-full flex items-center justify-between p-3 rounded-lg border ${bg} ${border} hover:opacity-80 transition-opacity`}>
+                            <span className="text-xs font-medium text-gray-600">{label}</span>
+                            <span className={`text-xl font-extrabold ${color}`}>{value}</span>
+                          </button>
+                        ))
+                      })()}
+                      <p className="text-[11px] text-gray-400 pt-1">Click any row to see those candidates →</p>
+                    </div>
+
+                    {/* Job breakdown */}
+                    {jobs.length > 0 && (
+                      <div className="px-5 pb-5">
+                        <p className="text-xs font-bold text-gray-600 mb-3 uppercase tracking-wide">By Job Post</p>
+                        <div className="space-y-2">
+                          {jobs.slice(0, 5).map(j => {
+                            const cnt = candidates.filter(c => c.job_posts?.id === j.id).length
+                            return (
+                              <button key={j.id}
+                                onClick={() => { setFilterJob(j.id); setActiveTab('candidates') }}
+                                className="w-full flex items-center justify-between hover:bg-gray-50 rounded px-1 py-1 transition-colors group">
+                                <span className="text-xs text-gray-600 truncate group-hover:text-blue-600 flex-1 text-left">{j.title}</span>
+                                <span className="text-xs font-bold text-gray-700 ml-2">{cnt}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -3025,7 +3135,7 @@ export default function DashboardPage() {
 
                 {profileLoading ? (
                   <div className="flex items-center justify-center py-20">
-                    <Loader2 className="w-6 h-6 animate-spin text-[#995af2]" />
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                   </div>
                 ) : profileData ? (
                   <div className="space-y-5">
@@ -3034,12 +3144,12 @@ export default function DashboardPage() {
                     <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                       <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2">
-                          <UserIcon className="w-4 h-4 text-[#995af2]" />
+                          <UserIcon className="w-4 h-4 text-blue-600" />
                           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Profile</h2>
                         </div>
                         {!editingName && (
                           <button onClick={() => { setEditName(profileData.user.name || ''); setEditingName(true) }}
-                            className="flex items-center gap-1 text-xs text-[#995af2] hover:text-blue-800 transition-colors">
+                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-colors">
                             <Pencil className="w-3 h-3" /> Edit
                           </button>
                         )}
@@ -3047,7 +3157,7 @@ export default function DashboardPage() {
                       <div className="flex items-start gap-5">
                         {profileData.user.image
                           ? <img src={profileData.user.image} alt="" className="w-16 h-16 rounded-full ring-2 ring-blue-200" />
-                          : <div className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold text-white ring-2 ring-blue-200" style={{ background: '#995af2' }}>
+                          : <div className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold text-white ring-2 ring-blue-200 bg-blue-600">
                               {profileData.user.name?.[0]?.toUpperCase() ?? '?'}
                             </div>
                         }
@@ -3061,8 +3171,7 @@ export default function DashboardPage() {
                                     className="w-full px-2 py-1 rounded bg-white border border-gray-300 text-sm text-gray-900 focus:outline-none focus:border-blue-500"
                                     autoFocus />
                                   <button onClick={saveName} disabled={savingName}
-                                    className="px-2 py-1 rounded text-white text-xs hover:opacity-90 disabled:opacity-50"
-                                    style={{ background: '#995af2' }}>
+                                    className="px-2 py-1 rounded text-white text-xs hover:bg-blue-700 disabled:opacity-50 bg-blue-600">
                                     {savingName ? '...' : 'Save'}
                                   </button>
                                   <button onClick={() => setEditingName(false)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
@@ -3091,13 +3200,13 @@ export default function DashboardPage() {
                     {/* Subscription Card */}
                     <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                       <div className="flex items-center gap-2 mb-5">
-                        <CreditCard className="w-4 h-4 text-purple-600" />
+                        <CreditCard className="w-4 h-4 text-indigo-600" />
                         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Subscription</h2>
                       </div>
                       <div className="flex items-center gap-4 mb-5">
                         <div className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider ${
                           profileData.subscription.plan === 'pro'
-                            ? 'bg-blue-50 text-[#995af2] border border-blue-200'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
                             : profileData.subscription.plan === 'enterprise'
                             ? 'bg-amber-50 text-amber-700 border border-amber-200'
                             : 'bg-gray-100 text-gray-600 border border-gray-200'
@@ -3132,7 +3241,7 @@ export default function DashboardPage() {
                       {profileData.subscription.plan === 'free' && (
                         <div className="mt-5 p-4 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
                           <div className="flex items-start gap-3">
-                            <Sparkles className="w-5 h-5 text-[#995af2] flex-shrink-0 mt-0.5" />
+                            <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                             <div className="flex-1">
                               <p className="text-sm font-semibold text-gray-900 mb-1">Upgrade to Pro</p>
                               <p className="text-xs text-gray-600 mb-3">Unlock unlimited AI screenings, unlimited job posts, priority support, and API access.</p>
@@ -3181,9 +3290,9 @@ export default function DashboardPage() {
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {[
-                          { label: 'AI Screens',   value: profileData.usage.screens_this_month,  limit: profileData.subscription.plan === 'free' ? 20 : null, icon: Brain,      color: 'text-purple-600', bg: 'bg-purple-50' },
+                          { label: 'AI Screens',   value: profileData.usage.screens_this_month,  limit: profileData.subscription.plan === 'free' ? 20 : null, icon: Brain,      color: 'text-indigo-600', bg: 'bg-indigo-50' },
                           { label: 'AI Compose',   value: profileData.usage.composes_this_month, limit: null,                                                  icon: Mail,       color: 'text-blue-600',   bg: 'bg-blue-50' },
-                          { label: 'Candidates',   value: profileData.usage.total_candidates,    limit: null,                                                  icon: Users,      color: 'text-[#995af2]',  bg: 'bg-blue-50' },
+                          { label: 'Candidates',   value: profileData.usage.total_candidates,    limit: null,                                                  icon: Users,      color: 'text-blue-600',   bg: 'bg-blue-50' },
                           { label: 'Active Jobs',  value: profileData.usage.active_jobs,         limit: profileData.subscription.plan === 'free' ? 5 : null,   icon: Briefcase,  color: 'text-amber-600',  bg: 'bg-amber-50' },
                         ].map(({ label, value, limit, icon: Icon, color, bg }) => (
                           <div key={label} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
@@ -3200,7 +3309,7 @@ export default function DashboardPage() {
                                   <span className="text-xs text-gray-400">{value} / {limit}</span>
                                 </div>
                                 <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                  <div className={`h-full rounded-full transition-all ${value >= limit ? 'bg-red-500' : 'bg-[#995af2]'}`}
+                                  <div className={`h-full rounded-full transition-all ${value >= limit ? 'bg-red-500' : 'bg-blue-500'}`}
                                     style={{ width: `${Math.min((value / limit) * 100, 100)}%` }} />
                                 </div>
                               </div>
@@ -3278,8 +3387,7 @@ export default function DashboardPage() {
 
                       <div className="flex items-center gap-3">
                         <button onClick={generateApiKey} disabled={generatingKey}
-                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-50 hover:opacity-90"
-                          style={{ background: '#995af2' }}>
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-50 hover:bg-blue-700 bg-blue-600">
                           {generatingKey ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
                           {generatingKey ? 'Generating...' : 'Generate API Key'}
                         </button>
@@ -3317,7 +3425,7 @@ export default function DashboardPage() {
                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold uppercase ${
                                   intg.provider === 'n8n' ? 'bg-orange-50 text-orange-600 border border-orange-200' :
                                   intg.provider === 'naukri' ? 'bg-blue-50 text-blue-600 border border-blue-200' :
-                                  intg.provider === 'monster' ? 'bg-purple-50 text-purple-600 border border-purple-200' :
+                                  intg.provider === 'monster' ? 'bg-orange-50 text-orange-600 border border-orange-200' :
                                   intg.provider === 'indeed' ? 'bg-indigo-50 text-indigo-600 border border-indigo-200' :
                                   intg.provider === 'linkedin' ? 'bg-sky-50 text-sky-600 border border-sky-200' :
                                   'bg-gray-100 text-gray-600 border border-gray-200'
@@ -3444,7 +3552,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="text-center py-20 text-gray-500 text-sm">Failed to load profile data.
-                    <button onClick={loadProfile} className="ml-2 text-[#995af2] hover:underline">Retry</button>
+                    <button onClick={loadProfile} className="ml-2 text-blue-600 hover:underline">Retry</button>
                   </div>
                 )}
               </div>
@@ -3537,7 +3645,7 @@ export default function DashboardPage() {
                 {savingJob ? 'Creating…' : 'Create Job'}
               </button>
               <button onClick={createAndGenerate} disabled={savingJob || !newJob.title}
-                className="flex-1 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-sm font-semibold disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5">
+                className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm font-semibold disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" /> Create & Generate Posts
               </button>
             </div>
@@ -3583,13 +3691,13 @@ export default function DashboardPage() {
               <label className="text-xs text-gray-500 mb-1 block">Extra context / instructions (optional)</label>
               <input value={genCustomPrompt} onChange={e => setGenCustomPrompt(e.target.value)}
                 placeholder="e.g. Highlight remote work, mention 5LPA stipend, target freshers…"
-                className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-purple-400" />
+                className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-blue-400" />
             </div>
 
             <button
               onClick={() => generateJobPosts(genPostJob)}
               disabled={generatingPosts}
-              className="mb-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 font-semibold text-sm transition-all disabled:opacity-50 flex-shrink-0">
+              className="mb-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 font-semibold text-sm transition-all disabled:opacity-50 flex-shrink-0">
               {generatingPosts
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating for all platforms…</>
                 : Object.keys(generatedPosts).length > 0
@@ -3611,7 +3719,7 @@ export default function DashboardPage() {
                   {(['linkedin', 'whatsapp', 'email', 'twitter', 'indeed', 'telegram', 'facebook'] as const).map(p => (
                     generatedPosts[p] && (
                       <button key={p} onClick={() => setGenPostTab(p)}
-                        className={`px-3 py-1 rounded-full text-xs font-semibold capitalize transition-all ${genPostTab === p ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                        className={`px-3 py-1 rounded-full text-xs font-semibold capitalize transition-all ${genPostTab === p ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
                         {p === 'twitter' ? 'Twitter/X' : p === 'facebook' ? 'Facebook' : p.charAt(0).toUpperCase() + p.slice(1)}
                       </button>
                     )
@@ -3725,7 +3833,7 @@ export default function DashboardPage() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="glass-card rounded-2xl p-0 w-full max-w-md border border-white/10 overflow-hidden">
             {/* Gradient header */}
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-5 text-center">
+            <div className="bg-gradient-to-r from-blue-700 to-indigo-700 px-6 py-5 text-center">
               <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-3">
                 <Crown className="w-6 h-6 text-amber-300" />
               </div>
@@ -3765,7 +3873,7 @@ export default function DashboardPage() {
               </button>
               <a href="mailto:pasikantishashank24@gmail.com?subject=Upgrade%20to%20Pro%20Plan%20-%20SRP%20SmartRecruit&body=Hi%2C%20I%27d%20like%20to%20upgrade%20my%20account%20to%20the%20Pro%20plan.%0A%0AMy%20Email%3A%20"
                 onClick={() => setUpgradePrompt({ show: false, message: '', feature: '' })}
-                className="flex-1 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-sm font-semibold text-white transition-all flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm font-semibold text-white transition-all flex items-center justify-center gap-2">
                 <Zap className="w-4 h-4" /> Upgrade Now
               </a>
             </div>
@@ -4132,7 +4240,7 @@ function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate:
           {ev.justification && (
             <div className="p-4 border-t border-gray-100 bg-gray-50">
               <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <Brain className="w-3.5 h-3.5 text-[#995af2]" /> AI Reasoning
+                <Brain className="w-3.5 h-3.5 text-indigo-500" /> AI Reasoning
               </p>
               <p className="text-sm text-gray-600 leading-relaxed">{ev.justification}</p>
             </div>
