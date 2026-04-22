@@ -9,32 +9,50 @@ export const maxDuration = 30
 const CONNECTOR_CATALOGUE = [
   {
     id: 'naukri', name: 'Naukri', category: 'job_portal',
-    description: 'Import candidate profiles from Naukri.com using manual CSV export',
-    mode: 'manual', icon: '🔍',
-    fields: [{ name: 'export_path', label: 'Naukri CSV export (upload via Import tab)', type: 'info' }],
+    description: 'Connect Naukri.com to source and import candidate profiles. Use API credentials or bulk CSV export via the Import tab.',
+    mode: 'live', icon: '🔍',
+    fields: [
+      { name: 'api_key', label: 'Naukri API Key', type: 'password', placeholder: 'Enter your Naukri API Key' },
+      { name: 'client_id', label: 'Client ID', type: 'text', placeholder: 'Naukri Client ID' },
+      { name: 'client_secret', label: 'Client Secret', type: 'password', placeholder: 'Naukri Client Secret' },
+    ],
   },
   {
     id: 'indeed', name: 'Indeed', category: 'job_portal',
-    description: 'Import candidates from Indeed via resume export or API key',
-    mode: 'manual', icon: '🔍',
-    fields: [{ name: 'api_key', label: 'Indeed Publisher API Key', type: 'password' }],
+    description: 'Connect Indeed Publisher API to post jobs and import candidates directly from Indeed.',
+    mode: 'live', icon: '🔍',
+    fields: [
+      { name: 'api_key', label: 'Indeed Publisher API Key', type: 'password', placeholder: 'Enter your Indeed Publisher API Key' },
+      { name: 'publisher_id', label: 'Publisher Account ID', type: 'text', placeholder: 'Your Indeed Publisher ID' },
+    ],
   },
   {
     id: 'monster', name: 'Monster', category: 'job_portal',
-    description: 'Monster job portal — use CSV export from Monster dashboard',
-    mode: 'manual', icon: '👾',
-    fields: [{ name: 'export_path', label: 'Monster CSV export (upload via Import tab)', type: 'info' }],
+    description: 'Monster job portal — post jobs and retrieve candidate profiles via Monster API credentials.',
+    mode: 'live', icon: '👾',
+    fields: [
+      { name: 'api_key', label: 'Monster API Key', type: 'password', placeholder: 'Enter your Monster API Key' },
+      { name: 'publisher_id', label: 'Publisher / Account ID', type: 'text', placeholder: 'Monster Publisher ID' },
+    ],
   },
   {
     id: 'linkedin', name: 'LinkedIn', category: 'job_portal',
-    description: 'LinkedIn Recruiter export — use manual CSV from Recruiter Lite',
-    mode: 'manual', icon: '💼',
-    fields: [{ name: 'note', label: 'LinkedIn API requires enterprise license. Use CSV export.', type: 'info' }],
+    description: 'LinkedIn Recruiter — connect via OAuth app credentials to sync job postings and candidate profiles.',
+    mode: 'live', icon: '💼',
+    fields: [
+      { name: 'client_id', label: 'LinkedIn App Client ID', type: 'text', placeholder: 'LinkedIn OAuth Client ID' },
+      { name: 'client_secret', label: 'LinkedIn App Client Secret', type: 'password', placeholder: 'LinkedIn OAuth Client Secret' },
+      { name: 'access_token', label: 'Access Token (Optional)', type: 'password', placeholder: 'Long-lived OAuth access token' },
+    ],
   },
   {
     id: 'shine', name: 'Shine.com', category: 'job_portal',
-    description: 'Shine.com candidate CSV import', mode: 'manual', icon: '✨',
-    fields: [{ name: 'export_path', label: 'Shine CSV export (upload via Import tab)', type: 'info' }],
+    description: 'Shine.com job portal — connect via API credentials to source and import candidate data.',
+    mode: 'live', icon: '✨',
+    fields: [
+      { name: 'api_key', label: 'Shine API Key', type: 'password', placeholder: 'Enter your Shine API Key' },
+      { name: 'account_id', label: 'Account ID', type: 'text', placeholder: 'Your Shine account ID' },
+    ],
   },
   {
     id: 'smtp', name: 'SMTP Email', category: 'email',

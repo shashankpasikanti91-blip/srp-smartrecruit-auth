@@ -9,15 +9,21 @@
    ══════════════════════════════════════════════════════════ */
 
 :root {
-  /* ── Sidebar Navy Theme ─────────────────────────────── */
-  --sidebar-bg:          #0F172A;
-  --sidebar-hover:       #1E293B;
-  --sidebar-active:      #2563EB;
+  /* ── Sidebar — SRP AI Labs Brand ────────────────────── */
+  --sidebar-bg:          #191b24;   /* srpailabs.com dark nav exact */
+  --sidebar-hover:       #22253a;
+  --sidebar-active:      #995af2;   /* SRP Purple primary */
   --sidebar-active-text: #FFFFFF;
   --sidebar-text:        #FFFFFF;
-  --sidebar-muted:       #CBD5E1;
-  --sidebar-border:      rgba(255,255,255,0.08);
-  --sidebar-brand:       #60A5FA;
+  --sidebar-muted:       #8892A4;
+  --sidebar-border:      rgba(255,255,255,0.07);
+  --sidebar-brand:       #00d4ff;   /* SRP Cyan */
+
+  /* ── SRP 4-color brand tokens ────────────────────── */
+  --srp-pink:     #f655c1;
+  --srp-purple:   #995af2;
+  --srp-blue:     #427cf0;
+  --srp-cyan:     #00d4ff;
 
   /* ── Dashboard White Theme ──────────────────────────── */
   --dash-bg:             #F8FAFC;
@@ -28,13 +34,13 @@
   --dash-text-3:         #94A3B8;
 
   /* ── Semantic colours ───────────────────────────────── */
-  --color-primary:       #2563EB;
-  --color-primary-hover: #1D4ED8;
+  --color-primary:       #995af2;
+  --color-primary-hover: #8344e0;
   --color-success:       #16A34A;
   --color-warning:       #F59E0B;
   --color-danger:        #DC2626;
   --color-purple:        #7C3AED;
-  --color-indigo:        #4F46E5;
+  --color-indigo:        #427cf0;
 
   /* ── Shadows ────────────────────────────────────────── */
   --shadow-card:   0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
@@ -102,7 +108,7 @@ aside ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
   color: var(--sidebar-text);
 }
 .sidebar-nav-item.active {
-  background: var(--sidebar-active);
+  background: var(--sidebar-active);  /* SRP Purple */
   color: var(--sidebar-active-text);
   font-weight: 600;
 }
@@ -166,7 +172,7 @@ aside ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
 
 /* ── Buttons ─────────────────────────────────────────────── */
 .btn-primary {
-  background: var(--color-primary);
+  background: var(--srp-purple);
   color: #FFFFFF;
   border-radius: 8px;
   font-weight: 600;
@@ -178,7 +184,7 @@ aside ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
 }
 .btn-primary:hover {
   background: var(--color-primary-hover);
-  box-shadow: 0 4px 12px rgba(30,78,140,0.35);
+  box-shadow: 0 4px 12px rgba(153,90,242,0.35);
 }
 
 .btn-secondary {
@@ -237,8 +243,8 @@ aside ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
 }
 .form-input:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(30,78,140,0.08);
+  border-color: #995af2;
+  box-shadow: 0 0 0 3px rgba(153,90,242,0.1);
 }
 .form-input::placeholder { color: var(--dash-text-3); }
 
@@ -256,18 +262,23 @@ aside ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
 
 /* Dark modal overrides — keep modals dark */
 .modal-dark select,
-.modal-dark select option { background-color: #1a1a2e; color: #e5e7eb; }
+.modal-dark select option { background-color: #191b24; color: #e5e7eb; }
 .modal-dark input,
 .modal-dark textarea,
 .modal-dark select { color-scheme: dark; }
-option { background-color: #1a1a2e; color: #e5e7eb; }
+/* NOTE: no global option override — white forms must stay white */
 
-/* ── Gradient text ───────────────────────────────────────── */
+/* ── Gradient text — SRP 4-color brand gradient ────── */
 .gradient-text {
-  background: linear-gradient(135deg, #1E4E8C 0%, #4A90D9 100%);
+  background: linear-gradient(135deg, #f655c1 0%, #995af2 40%, #427cf0 70%, #00d4ff 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* ── SRP brand gradient used for decorative elements ── */
+.srp-gradient {
+  background: linear-gradient(135deg, #f655c1, #995af2, #427cf0, #00d4ff);
 }
 
 /* ── Section heading line ────────────────────────────────── */
@@ -428,10 +439,5 @@ option { background-color: #1a1a2e; color: #e5e7eb; }
 /* ══════════════════════════════════════════════════════════
    GRADIENT TEXT  (updated brand colors)
    ══════════════════════════════════════════════════════════ */
-.gradient-text {
-  background: linear-gradient(135deg, #2563EB 0%, #60A5FA 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
+/* duplicate removed — see .gradient-text above */
 

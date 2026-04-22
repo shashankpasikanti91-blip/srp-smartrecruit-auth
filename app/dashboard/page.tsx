@@ -191,18 +191,24 @@ function JDTab() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">JD Intelligence</h1>
-          <p className="text-sm text-gray-500 mt-0.5">AI-powered Job Description writer + analyzer</p>
+      <div className="flex items-center justify-between pb-5 border-b border-gray-100">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)' }}>
+            <FileText className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">JD Intelligence</h1>
+            <p className="text-sm text-gray-500 mt-0.5">AI-powered Job Description writer + analyzer</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <button onClick={() => { setMode('generate'); setResult(null) }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'generate' ? 'bg-[#1E4E8C] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'generate' ? 'bg-[#995af2] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             Generate JD
           </button>
           <button onClick={() => { setMode('analyze'); setResult(null) }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'analyze' ? 'bg-[#1E4E8C] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'analyze' ? 'bg-[#995af2] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             Analyze JD
           </button>
         </div>
@@ -275,7 +281,7 @@ function JDTab() {
 
             <button onClick={submit} disabled={loading || (mode === 'generate' ? !jobTitle.trim() : !analyzeText.trim())}
               className="mt-4 w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
-              style={{ background: '#1E4E8C' }}>
+              style={{ background: '#995af2' }}>
               {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Processing…</> : <><Sparkles className="w-4 h-4" />{mode === 'generate' ? 'Generate Job Description' : 'Analyze JD'}</>}
             </button>
           </div>
@@ -412,9 +418,15 @@ function BooleanTab() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Boolean Search Generator</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Generate precise boolean strings for LinkedIn, Naukri, Indeed and more</p>
+      <div className="flex items-center gap-4 pb-5 border-b border-gray-100">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #0284c7)' }}>
+          <Search className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Boolean Search Generator</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Generate precise boolean strings for LinkedIn, Naukri, Indeed and more</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -422,11 +434,11 @@ function BooleanTab() {
           <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
             <div className="flex gap-2 mb-4">
               <button onClick={() => setMode('simple')}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === 'simple' ? 'bg-[#1E4E8C] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === 'simple' ? 'bg-[#995af2] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                 From Title + Skills
               </button>
               <button onClick={() => setMode('fromjd')}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === 'fromjd' ? 'bg-[#1E4E8C] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === 'fromjd' ? 'bg-[#995af2] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                 From JD Text
               </button>
             </div>
@@ -468,7 +480,7 @@ function BooleanTab() {
 
             <button onClick={submit} disabled={loading || (mode === 'simple' ? !jobTitle.trim() : !jdText.trim())}
               className="mt-4 w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
-              style={{ background: '#1E4E8C' }}>
+              style={{ background: '#995af2' }}>
               {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : <><Sparkles className="w-4 h-4" />Generate Boolean Strings</>}
             </button>
           </div>
@@ -574,9 +586,15 @@ function ImportTab() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Import Engine</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Bulk import candidates from Naukri, Indeed, LinkedIn, or any CSV export</p>
+      <div className="flex items-center gap-4 pb-5 border-b border-gray-100">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #64748b, #475569)' }}>
+          <Upload className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Import Engine</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Bulk import candidates from Naukri, Indeed, LinkedIn, or any CSV export</p>
+        </div>
       </div>
 
       {/* Column Mapping Guide */}
@@ -646,7 +664,7 @@ function ImportTab() {
 
         <button onClick={upload} disabled={!file || uploading}
           className="mt-4 flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:opacity-90"
-          style={{ background: '#1E4E8C' }}>
+          style={{ background: '#995af2' }}>
           {uploading ? <><Loader2 className="w-4 h-4 animate-spin" />Uploading…</> : <><Upload className="w-4 h-4" />Start Import</>}
         </button>
       </div>
@@ -655,7 +673,7 @@ function ImportTab() {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-700">Import History</h2>
-          <button onClick={loadBatches} className="flex items-center gap-1 text-xs text-[#1E4E8C] hover:underline">
+          <button onClick={loadBatches} className="flex items-center gap-1 text-xs text-[#995af2] hover:underline">
             <RefreshCw className="w-3 h-3" />Refresh
           </button>
         </div>
@@ -682,7 +700,7 @@ function ImportTab() {
                     {b.status as string}
                   </span>
                   <button onClick={() => viewBatch(b.id as string)}
-                    className="text-xs text-[#1E4E8C] hover:underline">Details</button>
+                    className="text-xs text-[#995af2] hover:underline">Details</button>
                 </div>
               </div>
             ))}
@@ -734,6 +752,15 @@ function ImportTab() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Integration Hub Tab
 // ─────────────────────────────────────────────────────────────────────────────
+
+const CATEGORY_META: Record<string, { label: string; icon: string; gradient: string }> = {
+  job_portal:  { label: 'Job Portals',       icon: '🏢', gradient: 'linear-gradient(135deg,#3b82f6,#6366f1)' },
+  email:       { label: 'Email Providers',   icon: '📧', gradient: 'linear-gradient(135deg,#10b981,#0284c7)' },
+  messaging:   { label: 'Messaging',         icon: '💬', gradient: 'linear-gradient(135deg,#f59e0b,#ef4444)' },
+  automation:  { label: 'Automation',        icon: '⚡', gradient: 'linear-gradient(135deg,#8b5cf6,#d946ef)' },
+  storage:     { label: 'Cloud Storage',     icon: '☁️', gradient: 'linear-gradient(135deg,#64748b,#475569)' },
+}
+
 function IntegrationsTab() {
   const [catalogue, setCatalogue] = useState<Record<string, unknown>[]>([])
   const [integrations, setIntegrations] = useState<Record<string, unknown>[]>([])
@@ -741,6 +768,7 @@ function IntegrationsTab() {
   const [loadError, setLoadError] = useState('')
   const [selected, setSelected] = useState<Record<string, unknown> | null>(null)
   const [formValues, setFormValues] = useState<Record<string, string>>({})
+  const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
 
@@ -766,6 +794,15 @@ function IntegrationsTab() {
     return integrations.find(i => i.connector_id === id)
   }
 
+  function openConfigure(connector: Record<string, unknown>) {
+    const existing = getStatus(connector.id as string)
+    setSelected(connector)
+    // Pre-fill with existing (masked) config so user sees current state
+    setFormValues((existing?.config as Record<string, string>) ?? {})
+    setShowPasswords({})
+    setSaveMsg('')
+  }
+
   async function save() {
     if (!selected) return
     setSaving(true); setSaveMsg('')
@@ -777,12 +814,13 @@ function IntegrationsTab() {
     const data = await res.json()
     setSaving(false)
     if (!res.ok) { setSaveMsg(`Error: ${data.error}`); return }
-    setSaveMsg('Saved successfully!')
-    setSelected(null); setFormValues({})
+    setSaveMsg('Integration saved successfully!')
     load()
+    setTimeout(() => { setSelected(null); setFormValues({}); setSaveMsg('') }, 1200)
   }
 
-  async function toggle(intgId: string) {
+  async function toggle(intgId: string, e: React.MouseEvent) {
+    e.stopPropagation()
     await fetch('/api/integrations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -791,19 +829,18 @@ function IntegrationsTab() {
     load()
   }
 
-  const categoryLabels: Record<string, string> = {
-    job_portal: 'Job Portals', email: 'Email', messaging: 'Messaging',
-    automation: 'Automation', storage: 'Storage',
-  }
   const categories = [...new Set((catalogue as Record<string, string>[]).map(c => c.category))]
+  const connectedCount = integrations.filter(i => i.is_active).length
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-24 gap-3">
+      <Loader2 className="w-7 h-7 animate-spin text-[#995af2]" />
+      <p className="text-sm text-gray-400">Loading integrations…</p>
+    </div>
+  )
+
   if (loadError) return (
     <div className="max-w-4xl">
-      <div className="flex items-center gap-3 mb-6">
-        <div><h1 className="text-xl font-bold text-gray-900">Integration Hub</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Connect your favourite sourcing portals, email providers, messaging apps and automation tools</p></div>
-      </div>
       <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-sm text-red-700 flex items-center gap-3">
         <AlertCircle className="w-5 h-5 flex-shrink-0" />
         <div className="flex-1">{loadError}</div>
@@ -813,87 +850,224 @@ function IntegrationsTab() {
   )
 
   return (
-    <div className="max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Integration Hub</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Connect your favourite sourcing portals, email providers, messaging apps and automation tools</p>
-      </div>
-
-      {categories.map(cat => (
-        <div key={cat}>
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{categoryLabels[cat] ?? cat}</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {(catalogue as Record<string, unknown>[]).filter(c => c.category === cat).map(connector => {
-              const existing = getStatus(connector.id as string)
-              const isActive = existing?.is_active as boolean | undefined
-              const isComingSoon = connector.mode === 'coming_soon'
-              return (
-                <div key={connector.id as string}
-                  className={`bg-white rounded-xl border p-4 transition-all ${isComingSoon ? 'opacity-60 cursor-not-allowed' : 'hover:border-blue-300 hover:shadow-sm cursor-pointer'} ${existing ? 'border-blue-200' : 'border-gray-200'}`}
-                  onClick={() => { if (!isComingSoon) { setSelected(connector); setFormValues({}) } }}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-2xl">{connector.icon as string}</span>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">{connector.name as string}</p>
-                        <p className="text-[10px] text-gray-500 capitalize">{connector.mode as string}</p>
-                      </div>
-                    </div>
-                    {existing && (
-                      <button
-                        onClick={ev => { ev.stopPropagation(); toggle(existing.id as string) }}
-                        className={`text-xs px-2 py-0.5 rounded-full border transition-all ${isActive ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
-                        {isActive ? 'Active' : 'Inactive'}
-                      </button>
-                    )}
-                    {isComingSoon && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Soon</span>}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2 line-clamp-2">{connector.description as string}</p>
-                  {!existing && !isComingSoon && (
-                    <p className="text-xs text-[#1E4E8C] mt-2 font-medium">+ Configure</p>
-                  )}
-                </div>
-              )
-            })}
+    <div className="max-w-5xl space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-5 border-b border-gray-200">
+        <div className="flex items-center gap-4">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-md flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, #f97316, #ef4444)' }}>
+            <Link2 className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Integration Hub</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Connect job portals, email providers, messaging apps & automation tools</p>
           </div>
         </div>
-      ))}
+        {connectedCount > 0 && (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-semibold text-emerald-700">{connectedCount} Active</span>
+          </div>
+        )}
+      </div>
+
+      {categories.map(cat => {
+        const meta = CATEGORY_META[cat] ?? { label: cat, icon: '🔌', gradient: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }
+        const catConnectors = (catalogue as Record<string, unknown>[]).filter(c => c.category === cat)
+        return (
+          <div key={cat}>
+            {/* Category header */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shadow-sm" style={{ background: meta.gradient }}>
+                <span>{meta.icon}</span>
+              </div>
+              <h2 className="text-sm font-bold text-gray-700">{meta.label}</h2>
+              <span className="text-xs text-gray-400">{catConnectors.length} connector{catConnectors.length !== 1 ? 's' : ''}</span>
+              <div className="flex-1 h-px bg-gray-200 ml-1" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {catConnectors.map(connector => {
+                const existing = getStatus(connector.id as string)
+                const isActive = existing?.is_active as boolean | undefined
+                const isComingSoon = connector.mode === 'coming_soon'
+                const hasFields = ((connector.fields as unknown[]) ?? []).filter((f: unknown) => (f as Record<string, string>).type !== 'info').length > 0
+
+                return (
+                  <div key={connector.id as string}
+                    className={`bg-white rounded-2xl border transition-all flex flex-col ${
+                      isComingSoon
+                        ? 'opacity-60 cursor-not-allowed border-gray-200'
+                        : existing
+                          ? 'border-emerald-200 shadow-sm hover:shadow-md hover:border-emerald-300 cursor-pointer'
+                          : 'border-gray-200 hover:border-[#995af2]/40 hover:shadow-md cursor-pointer'
+                    }`}
+                    onClick={() => { if (!isComingSoon) openConfigure(connector) }}>
+
+                    <div className="p-4 flex-1">
+                      {/* Card header */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 shadow-sm" style={{ background: meta.gradient + '22', border: `1px solid ${meta.gradient.includes('#') ? '#e5e7eb' : '#e5e7eb'}` }}>
+                            {connector.icon as string}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-900">{connector.name as string}</p>
+                            <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">{isComingSoon ? 'Coming Soon' : 'Live'}</p>
+                          </div>
+                        </div>
+                        {isComingSoon && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">Soon</span>
+                        )}
+                        {existing && !isComingSoon && (
+                          <button
+                            onClick={e => toggle(existing.id as string, e)}
+                            className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all ${
+                              isActive
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                            }`}>
+                            {isActive ? '● Active' : '○ Inactive'}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Description */}
+                      <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">{connector.description as string}</p>
+
+                      {/* Field preview pills (show what credentials are needed) */}
+                      {hasFields && !isComingSoon && (
+                        <div className="flex flex-wrap gap-1 mt-3">
+                          {((connector.fields as Record<string, string>[]) ?? [])
+                            .filter(f => f.type !== 'info')
+                            .slice(0, 3)
+                            .map(f => (
+                              <span key={f.name} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200 flex items-center gap-0.5">
+                                {f.type === 'password' ? <Key className="w-2.5 h-2.5" /> : null}
+                                {f.label}
+                              </span>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card footer */}
+                    {!isComingSoon && (
+                      <div className={`px-4 py-3 rounded-b-2xl border-t flex items-center justify-between ${
+                        existing ? 'bg-emerald-50/50 border-emerald-100' : 'bg-gray-50 border-gray-100'
+                      }`}>
+                        {existing ? (
+                          <>
+                            <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1.5">
+                              <CheckCircle className="w-3.5 h-3.5" /> Connected
+                            </span>
+                            <span className="text-xs text-[#995af2] font-semibold hover:underline">Edit Credentials →</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs text-gray-400">Not configured</span>
+                            <span className="text-xs font-bold text-[#995af2] flex items-center gap-1">
+                              <Settings className="w-3 h-3" /> Configure →
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
 
       {/* Config modal */}
       {selected && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">{selected.icon as string}</span>
-                <h3 className="text-base font-bold text-gray-900">{selected.name as string}</h3>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            {/* Modal header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-sm"
+                  style={{ background: (CATEGORY_META[selected.category as string] ?? CATEGORY_META.automation).gradient + '22' }}>
+                  {selected.icon as string}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Configure {selected.name as string}</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Enter your API credentials securely</p>
+                </div>
               </div>
-              <button onClick={() => setSelected(null)}><X className="w-5 h-5 text-gray-400" /></button>
+              <button onClick={() => setSelected(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <p className="text-sm text-gray-500 mb-4">{selected.description as string}</p>
-            <div className="space-y-3">
+
+            {/* Description */}
+            <div className="px-6 pt-4">
+              <p className="text-sm text-gray-500 leading-relaxed">{selected.description as string}</p>
+            </div>
+
+            {/* Fields */}
+            <div className="px-6 py-4 space-y-4">
               {((selected.fields as Record<string, string>[]) ?? []).map(field => (
                 <div key={field.name}>
-                  <label className="text-xs text-gray-500 mb-1 block">{field.label}</label>
+                  <label className="text-xs font-semibold text-gray-600 mb-1.5 block">{field.label}</label>
                   {field.type === 'info' ? (
-                    <p className="text-xs text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-200">{field.label}</p>
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200">
+                      <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-blue-700">{field.label}</p>
+                    </div>
+                  ) : field.type === 'password' ? (
+                    <div className="relative">
+                      <input
+                        type={showPasswords[field.name] ? 'text' : 'password'}
+                        value={formValues[field.name] ?? ''}
+                        onChange={e => setFormValues(v => ({ ...v, [field.name]: e.target.value }))}
+                        placeholder={field.placeholder ?? `Enter ${field.label.toLowerCase()}`}
+                        className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-[#995af2] focus:ring-2 focus:ring-[#995af2]/20" />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswords(v => ({ ...v, [field.name]: !v[field.name] }))}
+                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+                        {showPasswords[field.name] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   ) : (
-                    <input type={field.type === 'password' ? 'password' : 'text'}
+                    <input
+                      type="text"
                       value={formValues[field.name] ?? ''}
                       onChange={e => setFormValues(v => ({ ...v, [field.name]: e.target.value }))}
-                      placeholder={field.placeholder ?? ''}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                      placeholder={field.placeholder ?? `Enter ${field.label.toLowerCase()}`}
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-[#995af2] focus:ring-2 focus:ring-[#995af2]/20" />
                   )}
                 </div>
               ))}
             </div>
-            {saveMsg && <div className={`mt-3 p-2 rounded-lg text-xs ${saveMsg.startsWith('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>{saveMsg}</div>}
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => setSelected(null)} className="px-4 py-2 rounded-lg bg-gray-100 text-sm text-gray-600 hover:bg-gray-200">Cancel</button>
+
+            {/* Save message */}
+            {saveMsg && (
+              <div className={`mx-6 p-3 rounded-lg text-xs font-medium flex items-center gap-2 ${
+                saveMsg.startsWith('Error')
+                  ? 'bg-red-50 text-red-700 border border-red-200'
+                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              }`}>
+                {saveMsg.startsWith('Error') ? <AlertCircle className="w-4 h-4 flex-shrink-0" /> : <CheckCircle className="w-4 h-4 flex-shrink-0" />}
+                {saveMsg}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 p-6 pt-4">
+              <button onClick={() => { setSelected(null); setSaveMsg('') }}
+                className="px-5 py-2.5 rounded-xl bg-gray-100 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-all">
+                Cancel
+              </button>
               <button onClick={save} disabled={saving}
-                className="flex-1 py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
-                style={{ background: '#1E4E8C' }}>
-                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : 'Save Integration'}
+                className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50 hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-sm"
+                style={{ background: 'linear-gradient(135deg, #995af2, #427cf0)' }}>
+                {saving
+                  ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</>
+                  : <><Key className="w-4 h-4" />Save Credentials</>}
               </button>
             </div>
           </div>
@@ -1018,9 +1192,15 @@ function CommsTab() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Communication Hub</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Send emails, WhatsApp, and Telegram messages to candidates</p>
+      <div className="flex items-center gap-4 pb-5 border-b border-gray-100">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #10b981, #14b8a6)' }}>
+          <Send className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Communication Hub</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Send emails, WhatsApp, and Telegram messages to candidates</p>
+        </div>
       </div>
 
       {/* Section tabs */}
@@ -1032,7 +1212,7 @@ function CommsTab() {
           { key: 'logs', label: 'Delivery Logs' },
         ].map(s => (
           <button key={s.key} onClick={() => setSection(s.key as typeof section)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${section === s.key ? 'bg-[#1E4E8C] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${section === s.key ? 'bg-[#995af2] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
             {s.label}
           </button>
         ))}
@@ -1081,7 +1261,7 @@ function CommsTab() {
               {sendResult && <div className={`p-2 rounded-lg text-xs ${sendResult.startsWith('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>{sendResult}</div>}
               <button onClick={sendMsg} disabled={sending || !to}
                 className="w-full py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
-                style={{ background: '#1E4E8C' }}>
+                style={{ background: '#995af2' }}>
                 {sending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> : <><Send className="w-4 h-4" />Send Message</>}
               </button>
             </div>
@@ -1113,7 +1293,7 @@ function CommsTab() {
                 {tmplResult && <div className={`p-2 rounded-lg text-xs ${tmplResult.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{tmplResult}</div>}
                 <button onClick={saveTemplate} disabled={savingTmpl || !tmplName || !tmplBody}
                   className="w-full py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:opacity-90"
-                  style={{ background: '#1E4E8C' }}>
+                  style={{ background: '#995af2' }}>
                   {savingTmpl ? 'Saving…' : 'Save Template'}
                 </button>
               </div>
@@ -1122,7 +1302,7 @@ function CommsTab() {
                   <h3 className="text-sm font-semibold text-gray-700">Saved Templates ({templates.length})</h3>
                   {templates.length === 0 && (
                     <button onClick={seedDefaultTemplates} disabled={seedingTmpls}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1E4E8C] text-white text-xs hover:opacity-90 disabled:opacity-50">
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#995af2] text-white text-xs hover:opacity-90 disabled:opacity-50">
                       {seedingTmpls ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                       {seedingTmpls ? 'Loading…' : 'Load Default Templates'}
                     </button>
@@ -1175,7 +1355,7 @@ function CommsTab() {
                 ))}
                 <button onClick={saveProvider} disabled={savingProvider}
                   className="w-full py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-50 hover:opacity-90"
-                  style={{ background: '#1E4E8C' }}>
+                  style={{ background: '#995af2' }}>
                   {savingProvider ? 'Saving…' : 'Save Provider'}
                 </button>
               </div>
@@ -1205,7 +1385,7 @@ function CommsTab() {
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
                 <h2 className="text-sm font-semibold text-gray-700">Delivery Logs</h2>
-                <button onClick={loadAll} className="flex items-center gap-1 text-xs text-[#1E4E8C] hover:underline">
+                <button onClick={loadAll} className="flex items-center gap-1 text-xs text-[#995af2] hover:underline">
                   <RefreshCw className="w-3 h-3" />Refresh
                 </button>
               </div>
@@ -1817,24 +1997,24 @@ export default function DashboardPage() {
       <div className="flex h-screen overflow-hidden">
 
         {/* ── Sidebar ──────────────────────────────────────────────────────── */}
-        <aside className="w-60 flex-shrink-0 flex flex-col" style={{ background: '#0F172A', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
+        <aside className="w-60 flex-shrink-0 flex flex-col" style={{ background: '#191b24', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
           <div className="px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-md">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-md flex-shrink-0" style={{ background: 'linear-gradient(135deg, #f655c1, #995af2, #427cf0, #00d4ff)' }}>
                 <Zap className="w-4 h-4 text-white" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white leading-none tracking-tight">SRP Recruit AI Labs</p>
-                <p className="text-[11px] leading-none mt-0.5" style={{ color: '#60A5FA' }}>SmartRecruit</p>
+                <p className="text-sm font-bold text-white leading-none tracking-tight">SRP AI Labs</p>
+                <p className="text-[11px] leading-none mt-0.5 font-medium" style={{ background: 'linear-gradient(90deg, #f655c1, #995af2, #427cf0, #00d4ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>SmartRecruit</p>
               </div>
             </div>
           </div>
 
           {/* Sidebar plan badge */}
           {profileData?.subscription && profileData.subscription.plan !== 'free' && (
-            <div className="mx-3 mt-3 px-3 py-1.5 rounded-lg flex items-center gap-2" style={{ background: 'rgba(74,144,217,0.15)', border: '1px solid rgba(74,144,217,0.25)' }}>
+            <div className="mx-3 mt-3 px-3 py-1.5 rounded-lg flex items-center gap-2" style={{ background: 'rgba(153,90,242,0.15)', border: '1px solid rgba(153,90,242,0.3)' }}>
               <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-xs font-semibold capitalize" style={{ color: '#7EB3FF' }}>{profileData.subscription.plan} Plan</span>
+              <span className="text-xs font-semibold capitalize" style={{ color: '#c4a8ff' }}>{profileData.subscription.plan} Plan</span>
             </div>
           )}
           {profileData?.subscription?.plan === 'free' && (
@@ -1864,13 +2044,13 @@ export default function DashboardPage() {
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
                 style={activeTab === tab
-                  ? { background: '#2563EB', color: '#FFFFFF' }
-                  : { color: '#CBD5E1' }}
-                onMouseEnter={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = '#1E293B'; (e.currentTarget as HTMLButtonElement).style.color = '#FFFFFF' } }}
-                onMouseLeave={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#CBD5E1' } }}>
+                  ? { background: '#995af2', color: '#FFFFFF' }
+                  : { color: '#8892A4' }}
+                onMouseEnter={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = '#22253a'; (e.currentTarget as HTMLButtonElement).style.color = '#FFFFFF' } }}
+                onMouseLeave={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#8892A4' } }}>
                 <Icon className="w-4 h-4" />
                 <span className="flex-1 text-left">{label}</span>
-                {badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(124,58,237,0.3)', color: '#C4B5FD' }}>{badge}</span>}
+                {badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(153,90,242,0.25)', color: '#c4a8ff' }}>{badge}</span>}
               </button>
             ))}
 
@@ -1885,12 +2065,12 @@ export default function DashboardPage() {
           <div className="px-3 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
             <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
               {user?.image
-                ? <img src={user.image} alt="" className="w-8 h-8 rounded-full ring-2 ring-blue-400/40" />
-                : <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: '#2563EB' }}>{user?.name?.[0] ?? '?'}</div>
+                ? <img src={user.image} alt="" className="w-8 h-8 rounded-full" style={{ border: '2px solid rgba(153,90,242,0.5)' }} />
+                : <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: 'linear-gradient(135deg, #995af2, #427cf0)' }}>{user?.name?.[0] ?? '?'}</div>
               }
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-white truncate">{user?.name}</p>
-                <p className="text-[11px] truncate" style={{ color: '#7EB3FF' }}>{user?.email}</p>
+                <p className="text-[11px] truncate" style={{ color: '#c4a8ff' }}>{user?.email}</p>
               </div>
             </div>
             <button onClick={() => signOut({ callbackUrl: '/login' })}
@@ -1967,7 +2147,7 @@ export default function DashboardPage() {
           {/* Stats bar */}
           <div className="px-6 py-3.5 bg-white border-b border-gray-200 flex items-center gap-5 flex-wrap">
             {[
-              { icon: Briefcase,     color: 'text-[#1E4E8C]', bg: 'bg-blue-50',   label: 'Jobs',       value: jobs.length },
+              { icon: Briefcase,     color: 'text-[#995af2]', bg: 'bg-blue-50',   label: 'Jobs',       value: jobs.length },
               { icon: Users,         color: 'text-purple-600', bg: 'bg-purple-50', label: 'Candidates', value: totalCandidates },
               { icon: Clock,         color: 'text-amber-600',  bg: 'bg-amber-50',  label: 'Interviews', value: interviewCount },
               { icon: CheckCircle,   color: 'text-emerald-600',bg: 'bg-emerald-50',label: 'Hired',      value: hiredCount },
@@ -1990,7 +2170,7 @@ export default function DashboardPage() {
               </button>
               <button onClick={() => setShowNewJob(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90 shadow-sm"
-                style={{ background: '#0B1F3A' }}>
+                style={{ background: 'linear-gradient(135deg, #995af2, #427cf0)' }}>
                 <Plus className="w-3.5 h-3.5" /> New Job
               </button>
             </div>
@@ -2001,10 +2181,16 @@ export default function DashboardPage() {
             {/* ── PIPELINE ─────────────────────────────────────────────────── */}
             {activeTab === 'pipeline' && (
               <div>
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h1 className="text-xl font-bold text-gray-900">Pipeline</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">Drag & drop candidates across stages</p>
+                <div className="flex items-center justify-between mb-6 pb-5 border-b border-gray-100">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #427cf0, #6366f1)' }}>
+                      <Layers className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Pipeline</h1>
+                      <p className="text-sm text-gray-500 mt-0.5">Drag & drop candidates across stages</p>
+                    </div>
                   </div>
                   <div className="relative">
                     <select value={selectedJob} onChange={e => setSelectedJob(e.target.value)}
@@ -2065,12 +2251,18 @@ export default function DashboardPage() {
             {/* ── CANDIDATES ───────────────────────────────────────────────── */}
             {activeTab === 'candidates' && (
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h1 className="text-xl font-bold text-gray-900">Candidates</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">
-                      {filterSkill ? <><span className="text-[#1E4E8C] font-semibold">{candidates.length}</span> with &quot;{filterSkill}&quot;</> : `${candidates.length} total`}
-                    </p>
+                <div className="flex items-center justify-between mb-4 pb-5 border-b border-gray-100">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #995af2, #c026d3)' }}>
+                      <Users className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Candidates</h1>
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        {filterSkill ? <><span className="text-[#995af2] font-semibold">{candidates.length}</span> with &quot;{filterSkill}&quot;</> : `${candidates.length} total`}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -2192,12 +2384,13 @@ export default function DashboardPage() {
             {/* ── AI SCREEN ────────────────────────────────────────────────── */}
             {activeTab === 'screen' && (
               <div>
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                    <Brain className="w-5 h-5 text-purple-400" />
+                <div className="flex items-center gap-4 mb-6 pb-5 border-b border-gray-100">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #f655c1, #995af2)' }}>
+                    <Brain className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-gray-900">AI Screening</h1>
+                    <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">AI Screening</h1>
                     <p className="text-sm text-gray-500 mt-0.5">Score & rank candidates against your job description</p>
                   </div>
                   <div className="ml-auto flex gap-2">
@@ -2213,26 +2406,26 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
                   {/* JD panel */}
                   <div className="space-y-3">
-                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Job Description</label>
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Job Description</label>
                     <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={10}
                       placeholder="Paste the full job description here…"
-                      className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 resize-none" />
-                    <p className="text-xs text-gray-600">Or upload JD file:</p>
+                      className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-purple-400 resize-none" />
+                    <p className="text-xs text-gray-500">Or upload JD file:</p>
                     <FileUploadZone label="Upload JD (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
                       onTexts={([t]) => setJdText(t.text)} disabled={screening} />
                   </div>
 
                   {/* Resume panel */}
                   <div className="space-y-3">
-                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                       {screenMode === 'single' ? 'Candidate Resume' : `Bulk Resumes (${bulkTexts.length} loaded)`}
                     </label>
                     {screenMode === 'single' ? (
                       <>
                         <textarea value={resumeText} onChange={e => setResumeText(e.target.value)} rows={10}
                           placeholder="Paste the candidate's resume text here…"
-                          className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 resize-none" />
-                        <p className="text-xs text-gray-600">Or upload resume file:</p>
+                          className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-purple-400 resize-none" />
+                        <p className="text-xs text-gray-500">Or upload resume file:</p>
                         <FileUploadZone label="Upload Resume (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
                           onTexts={([t]) => setResumeText(t.text)} disabled={screening} />
                       </>
@@ -2243,7 +2436,7 @@ export default function DashboardPage() {
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">Link to Job (optional)</label>
                       <select value={screenJobId} onChange={e => setScreenJobId(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-purple-500">
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-purple-400">
                         <option value="">— No job —</option>
                         {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0,8)})</option>)}
                       </select>
@@ -2269,7 +2462,7 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between">
                       <h2 className="text-sm font-semibold text-gray-700">{screenResults.length} result{screenResults.length > 1 ? 's' : ''} — saved to Candidates</h2>
                       <button onClick={() => setActiveTab('candidates')}
-                        className="text-xs text-[#1E4E8C] hover:text-blue-800 underline underline-offset-2">
+                        className="text-xs text-[#995af2] hover:text-blue-800 underline underline-offset-2">
                         View in Candidates →
                       </button>
                     </div>
@@ -2285,12 +2478,13 @@ export default function DashboardPage() {
             {activeTab === 'compose' && (
               <div>
                 {/* Header */}
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/20 flex items-center justify-center">
-                    <Mail className="w-5 h-5 text-indigo-400" />
+                <div className="flex items-center gap-4 mb-6 pb-5 border-b border-gray-100">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #427cf0, #06b6d4)' }}>
+                    <Mail className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-gray-900">AI Compose</h1>
+                    <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">AI Compose</h1>
                     <p className="text-sm text-gray-500 mt-0.5">Generate, rewrite or reply to recruitment messages</p>
                   </div>
                 </div>
@@ -2301,9 +2495,9 @@ export default function DashboardPage() {
                   {/* ── Panel A: Generate New Email ── */}
                   <div className={`rounded-2xl border p-5 transition-all ${
                     composeMode === 'generate'
-                      ? 'border-indigo-500/50 bg-indigo-500/5 ring-1 ring-indigo-500/20'
-                      : 'border-white/8 bg-white/[0.02] opacity-60 hover:opacity-80'
-                  }`}>
+                      ? 'border-indigo-300 bg-indigo-50/40 ring-1 ring-indigo-100 shadow-sm'
+                      : 'border-gray-200 bg-gray-50/50 opacity-60 hover:opacity-80'
+                  }}`}>
                     <button
                       className="w-full text-left mb-4"
                       onClick={() => setComposeMode('generate')}
@@ -2312,8 +2506,8 @@ export default function DashboardPage() {
                         <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${composeMode === 'generate' ? 'border-indigo-400 bg-indigo-400' : 'border-gray-600'}`}>
                           {composeMode === 'generate' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                         </div>
-                        <span className="text-sm font-semibold text-white">Generate New Email</span>
-                        <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">From scratch</span>
+                        <span className="text-sm font-semibold text-gray-800">Generate New Email</span>
+                        <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">From scratch</span>
                       </div>
                       <p className="text-xs text-gray-500 pl-5">Choose email type, fill in details — AI writes it for you</p>
                     </button>
@@ -2322,7 +2516,7 @@ export default function DashboardPage() {
                       <div className="space-y-4">
                         {/* Email type grid */}
                         <div>
-                          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 block">Email Type</label>
+                          <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 block">Email Type</label>
                           <div className="grid grid-cols-2 gap-1.5">
                             {([
                               { key: 'rejection',        label: 'Rejection' },
@@ -2340,7 +2534,7 @@ export default function DashboardPage() {
                                 className={`text-left px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                                   emailType === key
                                     ? 'bg-indigo-600 text-white shadow-sm'
-                                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
                                 }`}>
                                 {label}
                               </button>
@@ -2351,17 +2545,17 @@ export default function DashboardPage() {
                         {/* Platform + Tone */}
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="text-xs text-gray-400 font-medium mb-1 block">Platform</label>
+                            <label className="text-xs text-gray-600 font-medium mb-1 block">Platform</label>
                             <select value={platform} onChange={e => setPlatform(e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
-                              {['Gmail', 'LinkedIn', 'WhatsApp', 'Outlook', 'Telegram'].map(p => <option key={p} className="bg-[#1a1a2e] text-gray-200">{p}</option>)}
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-indigo-400">
+                              {['Gmail', 'LinkedIn', 'WhatsApp', 'Outlook', 'Telegram'].map(p => <option key={p}>{p}</option>)}
                             </select>
                           </div>
                           <div>
-                            <label className="text-xs text-gray-400 font-medium mb-1 block">Tone</label>
+                            <label className="text-xs text-gray-600 font-medium mb-1 block">Tone</label>
                             <select value={tone} onChange={e => setTone(e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
-                              {['formal', 'professional', 'semi-formal', 'friendly', 'casual'].map(t => <option key={t} className="bg-[#1a1a2e] text-gray-200">{t}</option>)}
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-indigo-400">
+                              {['formal', 'professional', 'semi-formal', 'friendly', 'casual'].map(t => <option key={t}>{t}</option>)}
                             </select>
                           </div>
                         </div>
@@ -2379,18 +2573,18 @@ export default function DashboardPage() {
                             { key: 'start_date',       label: 'Start Date',        placeholder: '1 Aug 2025' },
                           ] as const).map(({ key, label, placeholder }) => (
                             <div key={key}>
-                              <label className="text-xs text-gray-400 font-medium mb-1 block">{label}</label>
+                              <label className="text-xs text-gray-600 font-medium mb-1 block">{label}</label>
                               <input value={composeFields[key]} onChange={e => setComposeFields(p => ({ ...p, [key]: e.target.value }))}
                                 placeholder={placeholder}
-                                className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                                className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-400" />
                             </div>
                           ))}
                         </div>
                         <div>
-                          <label className="text-xs text-gray-400 font-medium mb-1 block">Custom Notes (optional)</label>
+                          <label className="text-xs text-gray-600 font-medium mb-1 block">Custom Notes (optional)</label>
                           <textarea value={composeFields.custom_notes} onChange={e => setComposeFields(p => ({ ...p, custom_notes: e.target.value }))}
                             rows={2} placeholder="Any extra details for the AI to include…"
-                            className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none" />
+                            className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-400 resize-none" />
                         </div>
                       </div>
                     )}
@@ -2399,14 +2593,14 @@ export default function DashboardPage() {
                   {/* ── Panel B: Rewrite / Paraphrase / Reply ── */}
                   <div className={`rounded-2xl border p-5 transition-all ${
                     composeMode !== 'generate'
-                      ? 'border-purple-500/50 bg-purple-500/5 ring-1 ring-purple-500/20'
-                      : 'border-white/8 bg-white/[0.02] opacity-60 hover:opacity-80'
-                  }`}>
+                      ? 'border-purple-300 bg-purple-50/40 ring-1 ring-purple-100 shadow-sm'
+                      : 'border-gray-200 bg-gray-50/50 opacity-60 hover:opacity-80'
+                  }}`}>
                     <div className="mb-4">
                       <div className="flex items-center gap-2 mb-1">
-                        <div className={`w-3 h-3 rounded-full border-2 ${composeMode !== 'generate' ? 'border-purple-400 bg-purple-400' : 'border-gray-600'}`} />
-                        <span className="text-sm font-semibold text-white">Rewrite / Paraphrase / Reply</span>
-                        <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">Existing message</span>
+                        <div className={`w-3 h-3 rounded-full border-2 ${composeMode !== 'generate' ? 'border-purple-400 bg-purple-400' : 'border-gray-300'}`} />
+                        <span className="text-sm font-semibold text-gray-800">Rewrite / Paraphrase / Reply</span>
+                        <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-600">Existing message</span>
                       </div>
                       <p className="text-xs text-gray-500 pl-5">Paste a message — AI rewrites, rephrases, or drafts a reply</p>
                     </div>
@@ -2422,7 +2616,7 @@ export default function DashboardPage() {
                           className={`flex-1 flex flex-col items-center py-2.5 px-2 rounded-xl text-xs font-medium transition-all border ${
                             composeMode === key
                               ? 'bg-purple-600 border-purple-500 text-white'
-                              : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-800'
                           }`}>
                           <span className="font-semibold text-sm">{label}</span>
                           <span className={`text-[10px] mt-0.5 ${composeMode === key ? 'text-purple-200' : 'text-gray-600'}`}>{desc}</span>
@@ -2443,7 +2637,7 @@ export default function DashboardPage() {
                                 ? 'Paste the message you received and want to reply to…'
                                 : 'Paste the message you want to rewrite or paraphrase…'
                             }
-                            className="w-full px-3 py-2.5 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500 resize-none" />
+                            className="w-full px-3 py-2.5 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-purple-400 resize-none" />
                         </div>
 
                         {/* Context for reply */}
@@ -2456,10 +2650,10 @@ export default function DashboardPage() {
                               { key: 'recruiter_name',  label: 'Recruiter Name',  placeholder: 'Rahul' },
                             ] as const).map(({ key, label, placeholder }) => (
                               <div key={key}>
-                                <label className="text-xs text-gray-400 font-medium mb-1 block">{label}</label>
+                                <label className="text-xs text-gray-600 font-medium mb-1 block">{label}</label>
                                 <input value={composeFields[key]} onChange={e => setComposeFields(p => ({ ...p, [key]: e.target.value }))}
                                   placeholder={placeholder}
-                                  className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500" />
+                                  className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-purple-400" />
                               </div>
                             ))}
                           </div>
@@ -2468,26 +2662,26 @@ export default function DashboardPage() {
                         {/* Platform + Tone — always shown in Panel B */}
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="text-xs text-gray-400 font-medium mb-1 block">Platform</label>
+                            <label className="text-xs text-gray-600 font-medium mb-1 block">Platform</label>
                             <select value={platform} onChange={e => setPlatform(e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-purple-500">
-                              {['Gmail', 'LinkedIn', 'WhatsApp', 'Outlook', 'Telegram'].map(p => <option key={p} className="bg-[#1a1a2e] text-gray-200">{p}</option>)}
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-purple-400">
+                              {['Gmail', 'LinkedIn', 'WhatsApp', 'Outlook', 'Telegram'].map(p => <option key={p}>{p}</option>)}
                             </select>
                           </div>
                           <div>
-                            <label className="text-xs text-gray-400 font-medium mb-1 block">Tone</label>
+                            <label className="text-xs text-gray-600 font-medium mb-1 block">Tone</label>
                             <select value={tone} onChange={e => setTone(e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-purple-500">
-                              {['formal', 'professional', 'semi-formal', 'friendly', 'casual'].map(t => <option key={t} className="bg-[#1a1a2e] text-gray-200">{t}</option>)}
+                              className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-purple-400">
+                              {['formal', 'professional', 'semi-formal', 'friendly', 'casual'].map(t => <option key={t}>{t}</option>)}
                             </select>
                           </div>
                         </div>
 
                         <div>
-                          <label className="text-xs text-gray-400 font-medium mb-1 block">Extra instructions (optional)</label>
+                          <label className="text-xs text-gray-600 font-medium mb-1 block">Extra instructions (optional)</label>
                           <input value={composeFields.custom_notes} onChange={e => setComposeFields(p => ({ ...p, custom_notes: e.target.value }))}
                             placeholder="e.g. keep it under 3 sentences, mention the referral bonus…"
-                            className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500" />
+                            className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-purple-400" />
                         </div>
                       </div>
                     )}
@@ -2518,11 +2712,11 @@ export default function DashboardPage() {
                     {composeOutput && (
                       <>
                         <button onClick={copyOutput}
-                          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
-                          {copied ? <><Check className="w-3.5 h-3.5 text-green-400" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                          className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 px-4 py-2.5 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 transition-all">
+                          {copied ? <><Check className="w-3.5 h-3.5 text-green-500" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
                         </button>
                         <button onClick={runCompose}
-                          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
+                          className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 px-4 py-2.5 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 transition-all">
                           <RefreshCw className="w-3.5 h-3.5" /> Regenerate
                         </button>
                       </>
@@ -2537,12 +2731,12 @@ export default function DashboardPage() {
 
                 {/* ── Output panel ── */}
                 <div className={`rounded-2xl border transition-all ${
-                  composeOutput ? 'border-white/10 bg-white/[0.03]' : 'border-white/5 bg-white/[0.01]'
+                  composeOutput ? 'border-gray-200 bg-white shadow-sm' : 'border-gray-200 bg-white'
                 }`}>
-                  <div className="flex items-center justify-between px-5 py-3 border-b border-white/5">
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
                     <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-gray-600" />
-                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Output</span>
+                      <FileText className="w-4 h-4 text-gray-400" />
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Output</span>
                       {composeOutput && (
                         <span className="text-xs text-gray-600">· {composeOutput.split(' ').length} words</span>
                       )}
@@ -2554,12 +2748,12 @@ export default function DashboardPage() {
                     )}
                   </div>
                   <div className={`px-5 py-5 text-sm leading-relaxed whitespace-pre-wrap min-h-[200px] ${
-                    composeOutput ? 'text-gray-200' : 'text-gray-700 flex items-center justify-center'
+                    composeOutput ? 'text-gray-800' : 'text-gray-500 flex items-center justify-center'
                   }`}>
                     {composeOutput || (
                       <div className="text-center py-4 w-full">
-                        <Mail className="w-8 h-8 text-gray-800 mx-auto mb-2" />
-                        <p className="text-gray-600 text-xs">
+                        <Mail className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                        <p className="text-gray-400 text-xs">
                           {composeMode === 'generate'
                             ? 'Choose an email type and fill in details, then click Generate'
                             : 'Paste a message in the panel above, then click the action button'}
@@ -2574,15 +2768,21 @@ export default function DashboardPage() {
             {/* ── JOBS ─────────────────────────────────────────────────────── */}
             {activeTab === 'jobs' && (
               <div>
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h1 className="text-xl font-bold text-gray-900">Job Posts</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">{jobs.length} active jobs</p>
+                <div className="flex items-center justify-between mb-6 pb-5 border-b border-gray-100">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+                      style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+                      <Briefcase className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Job Posts</h1>
+                      <p className="text-sm text-gray-500 mt-0.5">{jobs.length} active jobs</p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button onClick={() => setShowNewJob(true)}
                       className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white transition-all hover:opacity-90 shadow-sm"
-                      style={{ background: '#2563EB' }}>
+                      style={{ background: 'linear-gradient(135deg, #995af2, #427cf0)' }}>
                       <Plus className="w-3.5 h-3.5" /> New Job
                     </button>
                   </div>
@@ -2598,7 +2798,7 @@ export default function DashboardPage() {
                     <p className="text-gray-500 mb-4">No jobs yet. Create your first job post.</p>
                     <button onClick={() => setShowNewJob(true)}
                       className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors hover:opacity-90"
-                      style={{ background: '#2563EB' }}>
+                      style={{ background: 'linear-gradient(135deg, #995af2, #427cf0)' }}>
                       Create Job Post
                     </button>
                   </div>
@@ -2668,12 +2868,21 @@ export default function DashboardPage() {
             {/* ── ANALYTICS ────────────────────────────────────────────────── */}
             {activeTab === 'analytics' && (
               <div>
-                <h1 className="text-xl font-bold text-gray-900 mb-6">Analytics</h1>
+                <div className="flex items-center gap-4 mb-6 pb-5 border-b border-gray-100">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #f59e0b, #f97316)' }}>
+                    <TrendingUp className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Analytics</h1>
+                    <p className="text-sm text-gray-500 mt-0.5">Track pipeline performance and hiring metrics</p>
+                  </div>
+                </div>
 
                 {/* KPI cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                   {[
-                    { label: 'Total Candidates', value: totalCandidates,  icon: Users,       color: 'text-[#1E4E8C]', bg: 'bg-blue-50' },
+                    { label: 'Total Candidates', value: totalCandidates,  icon: Users,       color: 'text-[#995af2]', bg: 'bg-blue-50' },
                     { label: 'Hired',             value: hiredCount,        icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
                     { label: 'Interviews',        value: interviewCount,    icon: Clock,       color: 'text-amber-600', bg: 'bg-amber-50' },
                     { label: 'Conversion Rate',   value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '0%', icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-50' },
@@ -2748,12 +2957,12 @@ export default function DashboardPage() {
                           <div key={skill} className="flex items-center gap-3">
                             <button
                               onClick={() => { setFilterSkill(skill); setActiveTab('candidates') }}
-                              className="text-xs text-gray-700 w-36 truncate text-left hover:text-[#1E4E8C] transition-colors"
+                              className="text-xs text-gray-700 w-36 truncate text-left hover:text-[#995af2] transition-colors"
                               title={`Click to filter candidates with ${skill}`}>
                               {skill}
                             </button>
                             <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full bg-[#1E4E8C] transition-all" style={{ width: `${Math.max(pct, 3)}%` }} />
+                              <div className="h-full rounded-full bg-[#995af2] transition-all" style={{ width: `${Math.max(pct, 3)}%` }} />
                             </div>
                             <span className="text-xs text-gray-600 w-8 text-right font-semibold">{count}</span>
                           </div>
@@ -2803,11 +3012,20 @@ export default function DashboardPage() {
             {/* ── SETTINGS ─────────────────────────────────────────────────── */}
             {activeTab === 'settings' && (
               <div className="max-w-3xl">
-                <h1 className="text-xl font-bold text-gray-900 mb-6">Account Settings</h1>
+                <div className="flex items-center gap-4 mb-6 pb-5 border-b border-gray-100">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #64748b, #334155)' }}>
+                    <Settings className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Account Settings</h1>
+                    <p className="text-sm text-gray-500 mt-0.5">Manage your profile, subscription and API access</p>
+                  </div>
+                </div>
 
                 {profileLoading ? (
                   <div className="flex items-center justify-center py-20">
-                    <Loader2 className="w-6 h-6 animate-spin text-[#1E4E8C]" />
+                    <Loader2 className="w-6 h-6 animate-spin text-[#995af2]" />
                   </div>
                 ) : profileData ? (
                   <div className="space-y-5">
@@ -2816,12 +3034,12 @@ export default function DashboardPage() {
                     <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                       <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2">
-                          <UserIcon className="w-4 h-4 text-[#1E4E8C]" />
+                          <UserIcon className="w-4 h-4 text-[#995af2]" />
                           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Profile</h2>
                         </div>
                         {!editingName && (
                           <button onClick={() => { setEditName(profileData.user.name || ''); setEditingName(true) }}
-                            className="flex items-center gap-1 text-xs text-[#1E4E8C] hover:text-blue-800 transition-colors">
+                            className="flex items-center gap-1 text-xs text-[#995af2] hover:text-blue-800 transition-colors">
                             <Pencil className="w-3 h-3" /> Edit
                           </button>
                         )}
@@ -2829,7 +3047,7 @@ export default function DashboardPage() {
                       <div className="flex items-start gap-5">
                         {profileData.user.image
                           ? <img src={profileData.user.image} alt="" className="w-16 h-16 rounded-full ring-2 ring-blue-200" />
-                          : <div className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold text-white ring-2 ring-blue-200" style={{ background: '#1E4E8C' }}>
+                          : <div className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold text-white ring-2 ring-blue-200" style={{ background: '#995af2' }}>
                               {profileData.user.name?.[0]?.toUpperCase() ?? '?'}
                             </div>
                         }
@@ -2844,7 +3062,7 @@ export default function DashboardPage() {
                                     autoFocus />
                                   <button onClick={saveName} disabled={savingName}
                                     className="px-2 py-1 rounded text-white text-xs hover:opacity-90 disabled:opacity-50"
-                                    style={{ background: '#1E4E8C' }}>
+                                    style={{ background: '#995af2' }}>
                                     {savingName ? '...' : 'Save'}
                                   </button>
                                   <button onClick={() => setEditingName(false)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
@@ -2879,7 +3097,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-4 mb-5">
                         <div className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider ${
                           profileData.subscription.plan === 'pro'
-                            ? 'bg-blue-50 text-[#1E4E8C] border border-blue-200'
+                            ? 'bg-blue-50 text-[#995af2] border border-blue-200'
                             : profileData.subscription.plan === 'enterprise'
                             ? 'bg-amber-50 text-amber-700 border border-amber-200'
                             : 'bg-gray-100 text-gray-600 border border-gray-200'
@@ -2914,7 +3132,7 @@ export default function DashboardPage() {
                       {profileData.subscription.plan === 'free' && (
                         <div className="mt-5 p-4 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
                           <div className="flex items-start gap-3">
-                            <Sparkles className="w-5 h-5 text-[#1E4E8C] flex-shrink-0 mt-0.5" />
+                            <Sparkles className="w-5 h-5 text-[#995af2] flex-shrink-0 mt-0.5" />
                             <div className="flex-1">
                               <p className="text-sm font-semibold text-gray-900 mb-1">Upgrade to Pro</p>
                               <p className="text-xs text-gray-600 mb-3">Unlock unlimited AI screenings, unlimited job posts, priority support, and API access.</p>
@@ -2965,7 +3183,7 @@ export default function DashboardPage() {
                         {[
                           { label: 'AI Screens',   value: profileData.usage.screens_this_month,  limit: profileData.subscription.plan === 'free' ? 20 : null, icon: Brain,      color: 'text-purple-600', bg: 'bg-purple-50' },
                           { label: 'AI Compose',   value: profileData.usage.composes_this_month, limit: null,                                                  icon: Mail,       color: 'text-blue-600',   bg: 'bg-blue-50' },
-                          { label: 'Candidates',   value: profileData.usage.total_candidates,    limit: null,                                                  icon: Users,      color: 'text-[#1E4E8C]',  bg: 'bg-blue-50' },
+                          { label: 'Candidates',   value: profileData.usage.total_candidates,    limit: null,                                                  icon: Users,      color: 'text-[#995af2]',  bg: 'bg-blue-50' },
                           { label: 'Active Jobs',  value: profileData.usage.active_jobs,         limit: profileData.subscription.plan === 'free' ? 5 : null,   icon: Briefcase,  color: 'text-amber-600',  bg: 'bg-amber-50' },
                         ].map(({ label, value, limit, icon: Icon, color, bg }) => (
                           <div key={label} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
@@ -2982,7 +3200,7 @@ export default function DashboardPage() {
                                   <span className="text-xs text-gray-400">{value} / {limit}</span>
                                 </div>
                                 <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                  <div className={`h-full rounded-full transition-all ${value >= limit ? 'bg-red-500' : 'bg-[#1E4E8C]'}`}
+                                  <div className={`h-full rounded-full transition-all ${value >= limit ? 'bg-red-500' : 'bg-[#995af2]'}`}
                                     style={{ width: `${Math.min((value / limit) * 100, 100)}%` }} />
                                 </div>
                               </div>
@@ -3061,7 +3279,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-3">
                         <button onClick={generateApiKey} disabled={generatingKey}
                           className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-50 hover:opacity-90"
-                          style={{ background: '#1E4E8C' }}>
+                          style={{ background: '#995af2' }}>
                           {generatingKey ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
                           {generatingKey ? 'Generating...' : 'Generate API Key'}
                         </button>
@@ -3226,7 +3444,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="text-center py-20 text-gray-500 text-sm">Failed to load profile data.
-                    <button onClick={loadProfile} className="ml-2 text-[#1E4E8C] hover:underline">Retry</button>
+                    <button onClick={loadProfile} className="ml-2 text-[#995af2] hover:underline">Retry</button>
                   </div>
                 )}
               </div>
@@ -3269,13 +3487,13 @@ export default function DashboardPage() {
                   <label className="text-xs text-gray-500 mb-1 block">{label}</label>
                   <input value={newJob[key]} onChange={e => setNewJob(p => ({ ...p, [key]: e.target.value }))}
                     placeholder={placeholder}
-                    className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                    className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-400" />
                 </div>
               ))}
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Type</label>
                 <select value={newJob.type} onChange={e => setNewJob(p => ({ ...p, type: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+                  className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-indigo-400">
                   {['full-time', 'part-time', 'contract', 'remote', 'internship'].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
@@ -3303,13 +3521,13 @@ export default function DashboardPage() {
                 <label className="text-xs text-gray-500 mb-1 block">Description</label>
                 <textarea value={newJob.description} onChange={e => setNewJob(p => ({ ...p, description: e.target.value }))}
                   rows={3} placeholder="Role overview — or upload a JD file above to auto-fill…"
-                  className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none" />
+                  className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-400 resize-none" />
               </div>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Requirements</label>
                 <textarea value={newJob.requirements} onChange={e => setNewJob(p => ({ ...p, requirements: e.target.value }))}
                   rows={3} placeholder="Key skills and experience required…"
-                  className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none" />
+                  className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-400 resize-none" />
               </div>
             </div>
             <div className="flex gap-2 mt-5 flex-shrink-0">
@@ -3365,7 +3583,7 @@ export default function DashboardPage() {
               <label className="text-xs text-gray-500 mb-1 block">Extra context / instructions (optional)</label>
               <input value={genCustomPrompt} onChange={e => setGenCustomPrompt(e.target.value)}
                 placeholder="e.g. Highlight remote work, mention 5LPA stipend, target freshers…"
-                className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-purple-500" />
+                className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-purple-400" />
             </div>
 
             <button
@@ -3727,69 +3945,209 @@ function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
 function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate: (id?: string) => void }) {
   const [open, setOpen] = useState(true)
   const [screenedAt] = useState(() => fmtDate(r.screened_at ?? new Date().toISOString(), true))
-  const decisionColor = r.decision === 'Shortlisted' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-    : r.decision === 'On Hold' ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
-    : 'text-red-400 bg-red-500/10 border-red-500/20'
-  // normalise field names — AI returns candidate_strengths, candidate_weaknesses, low_or_missing_match_skills
+
   const ev = r.evaluation
-  const strengths = ev?.candidate_strengths ?? ev?.strengths ?? []
-  const weaknesses = ev?.candidate_weaknesses ?? ev?.weaknesses ?? []
+  const strengths    = ev?.candidate_strengths   ?? ev?.strengths      ?? []
+  const weaknesses   = ev?.candidate_weaknesses  ?? ev?.weaknesses     ?? []
   const missingSkills = ev?.low_or_missing_match_skills ?? ev?.missing_skills ?? []
-  const highSkills = ev?.high_match_skills ?? []
+  const highSkills   = ev?.high_match_skills ?? []
+  const mediumSkills = ev?.medium_match_skills   ?? []
+  const allMatchedSkills = [...highSkills, ...mediumSkills]
+  // Red flags = first 3 weaknesses shown in grid, full list in strengths/weaknesses section
+  const redFlags = weaknesses.slice(0, 3)
+
+  const score = Math.round(r.score ?? 0)
+  const scoreGrade =
+    score >= 80 ? { label: 'Excellent', color: '#10b981', bg: 'bg-emerald-50', border: 'border-emerald-200', ring: 'ring-emerald-300' } :
+    score >= 65 ? { label: 'Good',      color: '#3b82f6', bg: 'bg-blue-50',    border: 'border-blue-200',    ring: 'ring-blue-300' } :
+    score >= 45 ? { label: 'Average',   color: '#f59e0b', bg: 'bg-amber-50',   border: 'border-amber-200',   ring: 'ring-amber-300' } :
+                  { label: 'Low',       color: '#ef4444', bg: 'bg-red-50',     border: 'border-red-200',     ring: 'ring-red-300' }
+
+  const decisionConfig: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+    'Shortlisted': { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300', dot: 'bg-emerald-500' },
+    'On Hold':     { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-300',   dot: 'bg-amber-500' },
+    'Rejected':    { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-300',     dot: 'bg-red-500' },
+  }
+  const dc = decisionConfig[r.decision] ?? decisionConfig['Rejected']
+
   return (
-    <div className="glass-card rounded-xl border border-white/5 p-4 hover:border-white/10 transition-all">
-      <div className="flex items-center gap-4">
-        <ScoreRing score={r.score} />
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+
+      {/* ── Card Header ─── */}
+      <div className="flex items-start gap-4 p-5">
+
+        {/* Score Badge */}
+        <div className={`flex-shrink-0 flex flex-col items-center justify-center w-[72px] h-[72px] rounded-2xl border-2 ${scoreGrade.bg} ${scoreGrade.border} shadow-sm`}>
+          <span className="text-2xl font-black leading-none" style={{ color: scoreGrade.color }}>{score}</span>
+          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">/ 100</span>
+          <span className="text-[9px] font-semibold mt-0.5" style={{ color: scoreGrade.color }}>{scoreGrade.label}</span>
+        </div>
+
+        {/* Info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-bold text-white">{r.name || 'Unknown'}</p>
-            <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${decisionColor}`}>{r.decision}</span>
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <h3 className="text-base font-bold text-gray-900">{r.name || 'Unknown Candidate'}</h3>
             {r.short_id && <ShortIdBadge id={r.short_id} />}
           </div>
-          <p className="text-xs text-gray-500 mt-0.5">{r.email}{r.contact_number ? ` · ${r.contact_number}` : ''}</p>
-          {r.current_company && <p className="text-xs text-gray-600">{r.current_company}</p>}
-          <p className="text-xs text-gray-600 mt-0.5 font-mono">Screened: {screenedAt}</p>
+          <p className="text-xs text-gray-500 mb-2.5">
+            {r.email}
+            {r.contact_number ? <span className="text-gray-300"> · </span> : null}
+            {r.contact_number}
+            {r.current_company ? <><span className="text-gray-300"> · </span><span className="font-medium text-gray-600">{r.current_company}</span></> : null}
+          </p>
+
+          {/* Status pills */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${dc.bg} ${dc.text} ${dc.border}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${dc.dot}`} />
+              {r.decision}
+            </span>
+            {ev?.overall_fit_rating != null && (
+              <span className="text-xs font-semibold px-3 py-1 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
+                JD Match: {ev.overall_fit_rating}%
+              </span>
+            )}
+            {ev?.risk_level && (
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
+                ev.risk_level.toLowerCase() === 'high'   ? 'bg-red-50    text-red-700    border-red-200' :
+                ev.risk_level.toLowerCase() === 'medium' ? 'bg-amber-50  text-amber-700  border-amber-200' :
+                                                           'bg-green-50  text-green-700  border-green-200'
+              }`}>⚠ Risk: {ev.risk_level}</span>
+            )}
+          </div>
+          <p className="text-[10px] text-gray-400 font-mono mt-2">Screened: {screenedAt}</p>
         </div>
-        <button onClick={() => setOpen(v => !v)} className="text-gray-600 hover:text-gray-400 transition-colors ml-auto">
-          <ChevronRight className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`} />
+
+        <button onClick={() => setOpen(v => !v)}
+          className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all mt-0.5">
+          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
         </button>
       </div>
+
       {open && ev && (
-        <div className="mt-4 pt-4 border-t border-white/5 space-y-3 text-xs">
-          {highSkills.length > 0 && (
-            <div>
-              <p className="text-gray-500 font-semibold mb-1">Matched Skills</p>
-              <div className="flex flex-wrap gap-1">{highSkills.map(s => <span key={s} className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{s}</span>)}</div>
+        <>
+          {/* ── 3-Column Skills Grid ─── */}
+          {(allMatchedSkills.length > 0 || missingSkills.length > 0 || redFlags.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 border-t border-gray-100">
+
+              {/* Matched Skills */}
+              <div className="p-4 border-r border-gray-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                  <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Matched Skills</p>
+                  {allMatchedSkills.length > 0 && (
+                    <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">{allMatchedSkills.length}</span>
+                  )}
+                </div>
+                {allMatchedSkills.length === 0
+                  ? <p className="text-xs text-gray-400 italic">None detected</p>
+                  : <div className="flex flex-wrap gap-1.5">
+                      {allMatchedSkills.map(s => (
+                        <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">{s}</span>
+                      ))}
+                    </div>
+                }
+              </div>
+
+              {/* Missing Skills */}
+              <div className="p-4 border-r border-gray-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
+                  <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Missing Skills</p>
+                  {missingSkills.length > 0 && (
+                    <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">{missingSkills.length}</span>
+                  )}
+                </div>
+                {missingSkills.length === 0
+                  ? <p className="text-xs text-gray-400 italic">None detected</p>
+                  : <div className="flex flex-wrap gap-1.5">
+                      {missingSkills.map(s => (
+                        <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 font-medium">{s}</span>
+                      ))}
+                    </div>
+                }
+              </div>
+
+              {/* Red Flags */}
+              <div className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500 flex-shrink-0" />
+                  <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Red Flags</p>
+                  {redFlags.length > 0 && (
+                    <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{redFlags.length}</span>
+                  )}
+                </div>
+                {redFlags.length === 0
+                  ? <p className="text-xs text-gray-400 italic">None detected</p>
+                  : <ul className="space-y-1.5">
+                      {redFlags.map((f, i) => (
+                        <li key={i} className="text-xs text-amber-800 flex items-start gap-1.5">
+                          <span className="text-amber-500 flex-shrink-0 mt-0.5">⚠</span>
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                }
+              </div>
             </div>
           )}
-          {strengths.length > 0 && (
-            <div>
-              <p className="text-gray-500 font-semibold mb-1">Strengths</p>
-              <ul className="space-y-0.5">{strengths.map((s, i) => <li key={i} className="text-emerald-400">• {s}</li>)}</ul>
+
+          {/* ── Strengths & Weaknesses Table ─── */}
+          {(strengths.length > 0 || weaknesses.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 border-t border-gray-100">
+              {strengths.length > 0 && (
+                <div className="p-4 border-r border-gray-100 bg-emerald-50/30">
+                  <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide mb-2.5 flex items-center gap-1.5">
+                    <CheckCircle className="w-3.5 h-3.5" /> Strengths
+                  </p>
+                  <ul className="space-y-2">
+                    {strengths.map((s, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
+                        <span className="text-emerald-500 font-bold flex-shrink-0 mt-px">✓</span>
+                        <span>{s}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {weaknesses.length > 0 && (
+                <div className="p-4 bg-red-50/20">
+                  <p className="text-[11px] font-bold text-red-700 uppercase tracking-wide mb-2.5 flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5" /> Gaps & Weaknesses
+                  </p>
+                  <ul className="space-y-2">
+                    {weaknesses.map((w, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
+                        <span className="text-red-400 font-bold flex-shrink-0 mt-px">×</span>
+                        <span>{w}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
-          {weaknesses.length > 0 && (
-            <div>
-              <p className="text-gray-500 font-semibold mb-1">Weaknesses</p>
-              <ul className="space-y-0.5">{weaknesses.map((s, i) => <li key={i} className="text-amber-400">• {s}</li>)}</ul>
-            </div>
-          )}
-          {missingSkills.length > 0 && (
-            <div>
-              <p className="text-gray-500 font-semibold mb-1">Missing / Low Match Skills</p>
-              <div className="flex flex-wrap gap-1">{missingSkills.map(s => <span key={s} className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">{s}</span>)}</div>
-            </div>
-          )}
-          {ev.risk_level && (
-            <p className="text-gray-500">Risk: <span className="text-amber-400">{ev.risk_level}</span>{ev.risk_explanation ? ` — ${ev.risk_explanation}` : ''}</p>
-          )}
+
+          {/* ── AI Reasoning ─── */}
           {ev.justification && (
-            <div>
-              <p className="text-gray-500 font-semibold mb-1">Justification</p>
-              <p className="text-gray-400 leading-relaxed">{ev.justification}</p>
+            <div className="p-4 border-t border-gray-100 bg-gray-50">
+              <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Brain className="w-3.5 h-3.5 text-[#995af2]" /> AI Reasoning
+              </p>
+              <p className="text-sm text-gray-600 leading-relaxed">{ev.justification}</p>
             </div>
           )}
-        </div>
+
+          {/* ── Risk Note ─── */}
+          {ev.risk_explanation && (
+            <div className="px-4 pb-4 bg-gray-50 border-t border-gray-100">
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 mt-0">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-800"><span className="font-semibold">Risk Note: </span>{ev.risk_explanation}</p>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
