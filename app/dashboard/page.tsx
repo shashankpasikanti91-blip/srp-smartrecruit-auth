@@ -2041,7 +2041,7 @@ export default function DashboardPage() {
             </button>
           )}
 
-          <nav className="flex-1 px-3 py-4 space-y-0.5">
+          <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto min-h-0">
             {([
               { tab: 'pipeline',   icon: Layers,      label: 'Pipeline',   badge: null },
               { tab: 'candidates', icon: Users,        label: 'Candidates', badge: null },
@@ -2195,25 +2195,54 @@ export default function DashboardPage() {
             {/* ── PIPELINE ─────────────────────────────────────────────────── */}
             {activeTab === 'pipeline' && (
               <div>
+                {/* Pipeline Header */}
                 <div className="flex items-center justify-between mb-6 pb-5 border-b border-gray-100">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md flex-shrink-0"
                       style={{ background: 'linear-gradient(135deg, #427cf0, #6366f1)' }}>
                       <Layers className="w-5 h-5 text-white" />
                     </div>
                     <div>
                       <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Pipeline</h1>
-                      <p className="text-sm text-gray-500 mt-0.5">Drag & drop candidates across stages</p>
+                      <p className="text-sm text-gray-500 mt-0.5">Drag &amp; drop candidates across stages</p>
                     </div>
                   </div>
-                  <div className="relative">
-                    <select value={selectedJob} onChange={e => setSelectedJob(e.target.value)}
-                      className="appearance-none pl-3 pr-8 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-700 cursor-pointer focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30">
-                      <option value="">All Jobs</option>
-                      {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0,8)})</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 text-gray-500 pointer-events-none" />
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <select value={selectedJob} onChange={e => setSelectedJob(e.target.value)}
+                        className="appearance-none pl-3 pr-8 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 cursor-pointer focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm">
+                        <option value="">All Jobs</option>
+                        {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0,8)})</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                    <button onClick={loadData} className="p-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 shadow-sm transition-colors">
+                      <RefreshCw className="w-4 h-4 text-gray-400" />
+                    </button>
                   </div>
+                </div>
+
+                {/* Pipeline stats bar */}
+                <div className="grid grid-cols-6 gap-3 mb-5">
+                  {PIPELINE_STAGES.map(stage => {
+                    const count = candidates.filter(c => c.pipeline_stage === stage.key).length
+                    const stageColors: Record<string, { bg: string; accent: string; text: string }> = {
+                      sourced:   { bg: '#F1F5F9', accent: '#64748B', text: '#374151' },
+                      applied:   { bg: '#EFF6FF', accent: '#3B82F6', text: '#1D4ED8' },
+                      screening: { bg: '#F5F3FF', accent: '#8B5CF6', text: '#7C3AED' },
+                      interview: { bg: '#FFFBEB', accent: '#F59E0B', text: '#D97706' },
+                      offer:     { bg: '#ECFDF5', accent: '#10B981', text: '#059669' },
+                      hired:     { bg: '#F0FDF4', accent: '#22C55E', text: '#16A34A' },
+                    }
+                    const sc = stageColors[stage.key] ?? stageColors.sourced
+                    return (
+                      <div key={stage.key} className="rounded-xl p-3 border text-center"
+                        style={{ background: sc.bg, borderColor: sc.accent + '30' }}>
+                        <p className="text-xl font-bold" style={{ color: sc.accent }}>{count}</p>
+                        <p className="text-xs font-medium mt-0.5" style={{ color: sc.text }}>{stage.label}</p>
+                      </div>
+                    )
+                  })}
                 </div>
 
                 {loading ? (
@@ -2225,8 +2254,18 @@ export default function DashboardPage() {
                     {PIPELINE_STAGES.map(stage => {
                       const stageCands = candidates.filter(c => c.pipeline_stage === stage.key)
                       const isOver = dragOverStage === stage.key
+                      const colAccents: Record<string, { header: string; border: string; badge: string; badgeText: string }> = {
+                        sourced:   { header: '#64748B', border: '#CBD5E1', badge: '#E2E8F0', badgeText: '#475569' },
+                        applied:   { header: '#3B82F6', border: '#BFDBFE', badge: '#DBEAFE', badgeText: '#1D4ED8' },
+                        screening: { header: '#8B5CF6', border: '#DDD6FE', badge: '#EDE9FE', badgeText: '#7C3AED' },
+                        interview: { header: '#F59E0B', border: '#FDE68A', badge: '#FEF3C7', badgeText: '#D97706' },
+                        offer:     { header: '#10B981', border: '#A7F3D0', badge: '#D1FAE5', badgeText: '#059669' },
+                        hired:     { header: '#22C55E', border: '#BBF7D0', badge: '#DCFCE7', badgeText: '#16A34A' },
+                      }
+                      const ca = colAccents[stage.key] ?? colAccents.sourced
                       return (
-                        <div key={stage.key} className="flex flex-col"
+                        <div key={stage.key} className="flex flex-col rounded-xl overflow-hidden shadow-sm"
+                          style={{ border: `1px solid ${ca.border}` }}
                           onDragOver={e => { e.preventDefault(); setDragOverStage(stage.key) }}
                           onDragLeave={() => setDragOverStage(null)}
                           onDrop={e => {
@@ -2234,17 +2273,32 @@ export default function DashboardPage() {
                             if (draggingId) moveStage(draggingId, stage.key)
                             setDraggingId(null); setDragOverStage(null)
                           }}>
-                          <div className={`flex items-center justify-between px-3 py-2 rounded-t-lg ${stage.color}`}>
-                            <span className={`text-xs font-semibold ${stage.text}`}>{stage.label}</span>
-                            <span className={`text-xs font-bold ${stage.text}`}>{stageCands.length}</span>
+                          {/* Column header */}
+                          <div className="flex items-center justify-between px-3 py-2.5"
+                            style={{ background: ca.header }}>
+                            <div className="flex items-center gap-2">
+                              <stage.icon className="w-3.5 h-3.5 text-white opacity-90" />
+                              <span className="text-xs font-bold text-white tracking-wide">{stage.label}</span>
+                            </div>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                              style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}>
+                              {stageCands.length}
+                            </span>
                           </div>
-                          <div className={`flex-1 border border-t-0 rounded-b-lg p-2 space-y-2 min-h-[280px] transition-colors ${
-                            isOver ? 'bg-blue-50 border-blue-400/50' : 'bg-gray-50 border-gray-200'
-                          }`}>
+                          {/* Column body */}
+                          <div className={`flex-1 p-2 space-y-2 min-h-[300px] transition-all ${
+                            isOver ? 'bg-blue-50' : 'bg-white'
+                          }`} style={isOver ? { borderTop: `2px solid ${ca.header}` } : {}}>
                             {stageCands.length === 0
-                              ? <p className={`text-center text-xs pt-6 ${isOver ? 'text-blue-500' : 'text-gray-400'}`}>
-                                  {isOver ? 'Drop here' : 'Empty'}
-                                </p>
+                              ? <div className="flex flex-col items-center justify-center h-32 gap-2">
+                                  <div className="w-8 h-8 rounded-full flex items-center justify-center"
+                                    style={{ background: ca.badge }}>
+                                    <stage.icon className="w-4 h-4" style={{ color: ca.header }} />
+                                  </div>
+                                  <p className={`text-center text-xs font-medium ${isOver ? 'text-blue-500' : 'text-gray-400'}`}>
+                                    {isOver ? 'Drop here' : 'Empty'}
+                                  </p>
+                                </div>
                               : stageCands.map(c => (
                                   <KanbanCard key={c.id} candidate={c} onMove={moveStage}
                                     onOpen={setSelectedCandidate}
@@ -3596,39 +3650,67 @@ export default function DashboardPage() {
 
       {/* ── New Job Modal ──────────────────────────────────────────────────────── */}
       {showNewJob && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 overflow-y-auto flex items-start justify-center p-4">
-          <div className="glass-card rounded-2xl p-6 w-full max-w-lg border border-white/10 my-auto flex flex-col">
-            <div className="flex items-center justify-between mb-5 flex-shrink-0">
-              <h2 className="text-lg font-bold text-white">New Job Post</h2>
-              <button onClick={() => setShowNewJob(false)} className="text-gray-500 hover:text-gray-300"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="space-y-3 overflow-y-auto flex-1 pr-1">
-              {([
-                { key: 'title',    label: 'Job Title *',  placeholder: 'e.g. Senior Software Engineer' },
-                { key: 'company',  label: 'Company',      placeholder: 'e.g. SRP AI Labs' },
-                { key: 'location', label: 'Location',     placeholder: 'e.g. Hyderabad / Remote' },
-              ] as const).map(({ key, label, placeholder }) => (
-                <div key={key}>
-                  <label className="text-xs text-gray-500 mb-1 block">{label}</label>
-                  <input value={newJob[key]} onChange={e => setNewJob(p => ({ ...p, [key]: e.target.value }))}
-                    placeholder={placeholder}
-                    className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-400" />
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 overflow-y-auto flex items-start justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-auto flex flex-col border border-gray-100" style={{ maxHeight: '92vh' }}>
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-sm"
+                  style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+                  <Briefcase className="w-4.5 h-4.5 text-white" style={{ width: 18, height: 18 }} />
                 </div>
-              ))}
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Type</label>
-                <select value={newJob.type} onChange={e => setNewJob(p => ({ ...p, type: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-indigo-400">
-                  {['full-time', 'part-time', 'contract', 'remote', 'internship'].map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">New Job Post</h2>
+                  <p className="text-xs text-gray-400">Fill in the details below to create a new listing</p>
+                </div>
+              </div>
+              <button onClick={() => setShowNewJob(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="space-y-4 overflow-y-auto flex-1 px-6 py-5">
+              {/* Title + Company row */}
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  { key: 'title',   label: 'Job Title *', placeholder: 'e.g. Senior Software Engineer' },
+                  { key: 'company', label: 'Company',     placeholder: 'e.g. SRP AI Labs' },
+                ] as const).map(({ key, label, placeholder }) => (
+                  <div key={key} className={key === 'title' ? 'col-span-2 sm:col-span-1' : ''}>
+                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">{label}</label>
+                    <input value={newJob[key]} onChange={e => setNewJob(p => ({ ...p, [key]: e.target.value }))}
+                      placeholder={placeholder}
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
+                  </div>
+                ))}
+              </div>
+
+              {/* Location + Type row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Location</label>
+                  <input value={newJob.location} onChange={e => setNewJob(p => ({ ...p, location: e.target.value }))}
+                    placeholder="e.g. Hyderabad / Remote"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Employment Type</label>
+                  <select value={newJob.type} onChange={e => setNewJob(p => ({ ...p, type: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all bg-white">
+                    {['full-time', 'part-time', 'contract', 'remote', 'internship'].map(t => (
+                      <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* JD File Upload */}
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Upload JD File (auto-fills fields below)</label>
+              <div className="rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 p-1">
+                <label className="text-xs font-semibold text-indigo-600 mb-1 block px-2 pt-1">Upload JD File (auto-fills fields below)</label>
                 <FileUploadZone label="Drop JD — PDF / DOCX / TXT" accept=".pdf,.docx,.doc,.txt" multiple={false}
                   onTexts={([t]) => {
-                    // Smart split: first half → description, second half → requirements
                     const text = t.text
                     const mid = Math.floor(text.length / 2)
                     const splitAt = text.indexOf('\n', mid)
@@ -3643,27 +3725,34 @@ export default function DashboardPage() {
               </div>
 
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Description</label>
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Description</label>
                 <textarea value={newJob.description} onChange={e => setNewJob(p => ({ ...p, description: e.target.value }))}
                   rows={3} placeholder="Role overview — or upload a JD file above to auto-fill…"
-                  className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-400 resize-none" />
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all resize-none" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Requirements</label>
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Requirements</label>
                 <textarea value={newJob.requirements} onChange={e => setNewJob(p => ({ ...p, requirements: e.target.value }))}
                   rows={3} placeholder="Key skills and experience required…"
-                  className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-indigo-400 resize-none" />
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all resize-none" />
               </div>
             </div>
-            <div className="flex gap-2 mt-5 flex-shrink-0">
-              <button onClick={() => setShowNewJob(false)} className="px-4 py-2 rounded-lg bg-white/5 text-sm text-gray-400 hover:bg-white/10">Cancel</button>
+
+            {/* Modal footer */}
+            <div className="flex gap-2.5 px-6 py-4 border-t border-gray-100 flex-shrink-0 bg-gray-50/60 rounded-b-2xl">
+              <button onClick={() => setShowNewJob(false)}
+                className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all">
+                Cancel
+              </button>
               <button onClick={createJob} disabled={savingJob || !newJob.title}
-                className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold disabled:opacity-50 transition-colors">
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all shadow-sm hover:shadow-md"
+                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
                 {savingJob ? 'Creating…' : 'Create Job'}
               </button>
               <button onClick={createAndGenerate} disabled={savingJob || !newJob.title}
-                className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm font-semibold disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> Create & Generate Posts
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md"
+                style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
+                <Sparkles className="w-3.5 h-3.5" /> Create &amp; Generate Posts
               </button>
             </div>
           </div>

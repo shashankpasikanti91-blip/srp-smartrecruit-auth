@@ -22,33 +22,42 @@ export async function GET() {
     }
     const user = userRes.rows[0]
 
-    // Get subscription
-    const subRes = await pool.query(
-      `SELECT plan, status, billing_cycle, amount_cents, currency, trial_ends_at, current_period_end, created_at
-       FROM subscriptions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
-      [user.id]
-    )
-    const subscription = subRes.rows[0] ?? { plan: 'free', status: 'active' }
+    // Get subscription (non-fatal)
+    let subscription = { plan: 'free', status: 'active' }
+    try {
+      const subRes = await pool.query(
+        `SELECT plan, status, billing_cycle, amount_cents, currency, trial_ends_at, current_period_end, created_at
+         FROM subscriptions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [user.id]
+      )
+      if (subRes.rows[0]) subscription = subRes.rows[0]
+    } catch { /* table may not exist in all envs */ }
 
-    // Get usage stats this month
-    const usageRes = await pool.query(
-      `SELECT
-         COUNT(*) FILTER (WHERE operation LIKE '%screen%') AS screens_this_month,
-         COUNT(*) FILTER (WHERE operation LIKE '%compose%') AS composes_this_month
-       FROM token_usage
-       WHERE user_id = $1 AND created_at >= date_trunc('month', NOW())`,
-      [user.id]
-    )
-    const usage = usageRes.rows[0] ?? { screens_this_month: 0, composes_this_month: 0 }
+    // Get usage stats this month (non-fatal)
+    let usage = { screens_this_month: 0, composes_this_month: 0 }
+    try {
+      const usageRes = await pool.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE operation LIKE '%screen%') AS screens_this_month,
+           COUNT(*) FILTER (WHERE operation LIKE '%compose%') AS composes_this_month
+         FROM token_usage
+         WHERE user_id = $1 AND created_at >= date_trunc('month', NOW())`,
+        [user.id]
+      )
+      if (usageRes.rows[0]) usage = usageRes.rows[0]
+    } catch { /* token_usage may not exist */ }
 
-    // Get candidate & job counts
-    const countsRes = await pool.query(
-      `SELECT
-         (SELECT COUNT(*) FROM resumes WHERE user_id = $1) AS total_candidates,
-         (SELECT COUNT(*) FROM job_posts WHERE user_id = $1 AND status != 'archived') AS active_jobs`,
-      [user.id]
-    )
-    const counts = countsRes.rows[0] ?? { total_candidates: 0, active_jobs: 0 }
+    // Get candidate & job counts (non-fatal)
+    let counts = { total_candidates: 0, active_jobs: 0 }
+    try {
+      const countsRes = await pool.query(
+        `SELECT
+           (SELECT COUNT(*) FROM resumes WHERE user_id = $1) AS total_candidates,
+           (SELECT COUNT(*) FROM job_posts WHERE user_id = $1 AND status != 'archived') AS active_jobs`,
+        [user.id]
+      )
+      if (countsRes.rows[0]) counts = countsRes.rows[0]
+    } catch { /* counts fallback */ }
 
     return NextResponse.json({
       user: {
