@@ -43,6 +43,8 @@ COPY --from=deps    --chown=nextjs:nodejs /app/node_modules/pdf-parse     ./node
 COPY --from=deps    --chown=nextjs:nodejs /app/node_modules/mammoth       ./node_modules/mammoth
 COPY --from=deps    --chown=nextjs:nodejs /app/node_modules/node-ensure   ./node_modules/node-ensure
 
+# Upload directory (writable by nextjs user)
+RUN mkdir -p /app/uploads/resumes && chown -R nextjs:nodejs /app/uploads
 
 USER nextjs
 EXPOSE 3000
