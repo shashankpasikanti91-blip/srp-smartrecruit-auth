@@ -23,7 +23,7 @@ export async function GET() {
     const user = userRes.rows[0]
 
     // Get subscription (non-fatal)
-    let subscription = { plan: 'free', status: 'active' }
+    let subscription: Record<string, unknown> = { plan: 'free', status: 'active' }
     try {
       const subRes = await pool.query(
         `SELECT plan, status, billing_cycle, amount_cents, currency, trial_ends_at, current_period_end, created_at
@@ -34,7 +34,7 @@ export async function GET() {
     } catch { /* table may not exist in all envs */ }
 
     // Get usage stats this month (non-fatal)
-    let usage = { screens_this_month: 0, composes_this_month: 0 }
+    let usage: Record<string, unknown> = { screens_this_month: 0, composes_this_month: 0 }
     try {
       const usageRes = await pool.query(
         `SELECT
@@ -48,7 +48,7 @@ export async function GET() {
     } catch { /* token_usage may not exist */ }
 
     // Get candidate & job counts (non-fatal)
-    let counts = { total_candidates: 0, active_jobs: 0 }
+    let counts: Record<string, unknown> = { total_candidates: 0, active_jobs: 0 }
     try {
       const countsRes = await pool.query(
         `SELECT
@@ -72,15 +72,15 @@ export async function GET() {
       subscription: {
         plan: subscription.plan,
         status: subscription.status,
-        billing_cycle: subscription.billing_cycle,
-        current_period_end: subscription.current_period_end,
-        trial_ends_at: subscription.trial_ends_at,
+        billing_cycle: subscription.billing_cycle ?? null,
+        current_period_end: subscription.current_period_end ?? null,
+        trial_ends_at: subscription.trial_ends_at ?? null,
       },
       usage: {
-        screens_this_month: parseInt(usage.screens_this_month ?? '0'),
-        composes_this_month: parseInt(usage.composes_this_month ?? '0'),
-        total_candidates: parseInt(counts.total_candidates ?? '0'),
-        active_jobs: parseInt(counts.active_jobs ?? '0'),
+        screens_this_month: parseInt(String(usage.screens_this_month ?? '0')),
+        composes_this_month: parseInt(String(usage.composes_this_month ?? '0')),
+        total_candidates: parseInt(String(counts.total_candidates ?? '0')),
+        active_jobs: parseInt(String(counts.active_jobs ?? '0')),
       },
     })
   } catch (err) {
