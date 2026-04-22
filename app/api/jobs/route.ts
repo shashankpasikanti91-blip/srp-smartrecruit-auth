@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { createJobPost, getJobPosts } from '@/lib/db'
 import { logActivity, pool } from '@/lib/db'
 import { checkJobPostLimit } from '@/lib/limits'
+import { logAudit } from '@/lib/audit'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -71,6 +72,9 @@ export async function POST(req: NextRequest) {
       event_type: 'job_post_created',
       event_data: { job_id: job.id, title: job.title },
     })
+    logAudit({ userId, userEmail: session.user.email!, action: 'job_created',
+      resourceType: 'job', resourceId: job.short_id ?? job.id,
+      details: { title: job.title } })
 
     return NextResponse.json({ job }, { status: 201 })
   } catch (err) {

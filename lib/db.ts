@@ -79,6 +79,7 @@ export interface AuthUser {
 export interface JobPost {
   id: string
   user_id: string
+  short_id: string | null
   title: string
   company: string | null
   location: string | null

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,29 +10,29 @@
 
 :root {
   /* ── Sidebar Navy Theme ─────────────────────────────── */
-  --sidebar-bg:          #0B1F3A;
-  --sidebar-hover:       #16345F;
-  --sidebar-active:      #1E4E8C;
+  --sidebar-bg:          #0F172A;
+  --sidebar-hover:       #1E293B;
+  --sidebar-active:      #2563EB;
   --sidebar-active-text: #FFFFFF;
   --sidebar-text:        #FFFFFF;
-  --sidebar-muted:       #B8C7E0;
+  --sidebar-muted:       #CBD5E1;
   --sidebar-border:      rgba(255,255,255,0.08);
-  --sidebar-brand:       #4A90D9;
+  --sidebar-brand:       #60A5FA;
 
   /* ── Dashboard White Theme ──────────────────────────── */
   --dash-bg:             #F8FAFC;
   --dash-surface:        #FFFFFF;
-  --dash-border:         #E5E7EB;
-  --dash-text:           #111827;
-  --dash-text-2:         #6B7280;
-  --dash-text-3:         #9CA3AF;
+  --dash-border:         #E2E8F0;
+  --dash-text:           #0F172A;
+  --dash-text-2:         #64748B;
+  --dash-text-3:         #94A3B8;
 
   /* ── Semantic colours ───────────────────────────────── */
-  --color-primary:       #1E4E8C;
-  --color-primary-hover: #16345F;
-  --color-success:       #10B981;
+  --color-primary:       #2563EB;
+  --color-primary-hover: #1D4ED8;
+  --color-success:       #16A34A;
   --color-warning:       #F59E0B;
-  --color-danger:        #EF4444;
+  --color-danger:        #DC2626;
   --color-purple:        #7C3AED;
   --color-indigo:        #4F46E5;
 
@@ -315,5 +315,123 @@ option { background-color: #1a1a2e; color: #e5e7eb; }
   letter-spacing: 0.06em;
   color: var(--dash-text-2);
   margin-bottom: 10px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   ENTERPRISE TYPOGRAPHY
+   ══════════════════════════════════════════════════════════ */
+.page-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--dash-text);
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  font-family: 'Plus Jakarta Sans', 'Manrope', 'Inter', system-ui, sans-serif;
+}
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--dash-text);
+  letter-spacing: -0.02em;
+}
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--dash-text);
+  letter-spacing: -0.01em;
+}
+.body-text  { font-size: 14px; color: var(--dash-text); }
+.small-text { font-size: 12px; color: var(--dash-text-2); }
+
+/* ══════════════════════════════════════════════════════════
+   ENTERPRISE TABLE  (ent-table)
+   ══════════════════════════════════════════════════════════ */
+.ent-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--dash-text);
+}
+.ent-table th {
+  background: #F8FAFC;
+  color: #64748B;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--dash-border);
+  padding: 10px 14px;
+  white-space: nowrap;
+  text-align: left;
+}
+.ent-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #F1F5F9;
+  vertical-align: middle;
+  color: var(--dash-text);
+}
+.ent-table tbody tr:last-child td { border-bottom: none; }
+.ent-table tbody tr {
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+.ent-table tbody tr:hover td { background: #F8FAFC; }
+
+/* ══════════════════════════════════════════════════════════
+   SIDE DRAWER
+   ══════════════════════════════════════════════════════════ */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.4);
+  backdrop-filter: blur(2px);
+  z-index: 50;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+}
+.drawer-panel {
+  width: 100%;
+  max-width: 520px;
+  height: 100%;
+  background: #FFFFFF;
+  border-left: 1px solid var(--dash-border);
+  overflow-y: auto;
+  box-shadow: -8px 0 40px rgba(15,23,42,0.12);
+  display: flex;
+  flex-direction: column;
+}
+.drawer-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--dash-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.drawer-body {
+  padding: 20px 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ══════════════════════════════════════════════════════════
+   LIGHT STAGE PILLS  (for white-bg tables / lists)
+   ══════════════════════════════════════════════════════════ */
+.stage-sourced    { background:#F1F5F9; color:#475569; border:1px solid #E2E8F0; }
+.stage-applied    { background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; }
+.stage-screening  { background:#FAF5FF; color:#6D28D9; border:1px solid #DDD6FE; }
+.stage-interview  { background:#FFFBEB; color:#B45309; border:1px solid #FDE68A; }
+.stage-offer      { background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; }
+.stage-hired      { background:#F0FDF4; color:#15803D; border:1px solid #BBF7D0; }
+
+/* ══════════════════════════════════════════════════════════
+   GRADIENT TEXT  (updated brand colors)
+   ══════════════════════════════════════════════════════════ */
+.gradient-text {
+  background: linear-gradient(135deg, #2563EB 0%, #60A5FA 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 

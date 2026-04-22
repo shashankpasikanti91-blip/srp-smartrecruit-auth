@@ -149,14 +149,16 @@ function maskCredentials(config: Record<string, string>): Record<string, string>
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const userId = (session.user as Record<string, unknown>).userId as string
-
   const url = new URL(req.url)
+
+  // Catalogue is static — no auth required
   if (url.searchParams.get('catalogue') === 'true') {
     return NextResponse.json({ catalogue: CONNECTOR_CATALOGUE })
   }
+
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userId = (session.user as Record<string, unknown>).userId as string
 
   try {
     const { rows } = await pool.query(

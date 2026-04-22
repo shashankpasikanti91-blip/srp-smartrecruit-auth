@@ -194,6 +194,147 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ id: rows[0]?.id, status: 'saved' })
     }
 
+    // ── Seed default templates ────────────────────────────────────────────
+    if (action === 'seed_templates') {
+      const defaults = [
+        {
+          name: 'Interview Invite',
+          channel: 'email', purpose: 'interview_invite',
+          subject: 'Interview Invitation – {{position}} at {{company}}',
+          body: `Dear {{name}},
+
+We are pleased to invite you for an interview for the role of {{position}} at {{company}}.
+
+Interview Details:
+• Date & Time: {{interview_date}}
+• Format: {{interview_format}}
+• Location / Link: {{location}}
+
+Please confirm your availability by replying to this email.
+
+Best regards,
+{{recruiter_name}}
+{{company}} Talent Team`,
+        },
+        {
+          name: 'Shortlist Notification',
+          channel: 'email', purpose: 'shortlist',
+          subject: 'Great News – You\'ve Been Shortlisted for {{position}}',
+          body: `Dear {{name}},
+
+Congratulations! After reviewing your profile, we are pleased to inform you that you have been shortlisted for the {{position}} role at {{company}}.
+
+Our recruitment team will be in touch shortly with next steps.
+
+Best regards,
+{{recruiter_name}}
+{{company}} HR Team`,
+        },
+        {
+          name: 'Rejection Email',
+          channel: 'email', purpose: 'rejection',
+          subject: 'Update on Your Application – {{position}}',
+          body: `Dear {{name}},
+
+Thank you for your interest in the {{position}} role at {{company}} and for taking the time to apply.
+
+After careful consideration, we regret to inform you that we will not be moving forward with your application at this time. This decision was not easy given the high calibre of candidates we received.
+
+We will keep your profile on file for future opportunities that may be a better match.
+
+Thank you again and we wish you success in your career search.
+
+Best regards,
+{{recruiter_name}}
+{{company}} HR Team`,
+        },
+        {
+          name: 'Offer Letter',
+          channel: 'email', purpose: 'offer',
+          subject: 'Offer of Employment – {{position}} at {{company}}',
+          body: `Dear {{name}},
+
+We are delighted to extend an offer of employment for the position of {{position}} at {{company}}.
+
+Offer Details:
+• Role: {{position}}
+• Start Date: {{start_date}}
+• Compensation: {{salary_package}}
+
+Please review the attached formal offer letter and let us know your decision within 3 working days.
+
+We look forward to welcoming you to the team!
+
+Best regards,
+{{recruiter_name}}
+{{company}} HR Team`,
+        },
+        {
+          name: 'Follow-up Reminder',
+          channel: 'email', purpose: 'follow_up',
+          subject: 'Following Up – {{position}} Application',
+          body: `Dear {{name}},
+
+I hope this message finds you well. I wanted to follow up regarding your application for the {{position}} role at {{company}}.
+
+We are still in the process of reviewing applications and will be in touch with an update shortly.
+
+Thank you for your patience.
+
+Best regards,
+{{recruiter_name}}`,
+        },
+        {
+          name: 'WhatsApp Interview Invite',
+          channel: 'whatsapp', purpose: 'interview_invite',
+          subject: '',
+          body: `Hi {{name}}! 👋
+
+This is {{recruiter_name}} from {{company}}. We'd love to invite you for an interview for the *{{position}}* role.
+
+📅 Date: {{interview_date}}
+📍 Format: {{interview_format}}
+
+Please reply YES to confirm or suggest another time. Looking forward to speaking with you!`,
+        },
+        {
+          name: 'Welcome Onboard',
+          channel: 'email', purpose: 'welcome',
+          subject: 'Welcome to {{company}} – Next Steps',
+          body: `Dear {{name}},
+
+Welcome to {{company}}! We are thrilled to have you join our team as {{position}}.
+
+Your start date is confirmed for {{start_date}}. Please find below the information you need for your first day:
+
+• Reporting time: 9:00 AM
+• Contact person: {{recruiter_name}}
+• Documents to bring: ID proof, qualification certificates
+
+If you have any questions before your start date, please don't hesitate to reach out.
+
+Welcome aboard!
+
+{{recruiter_name}}
+{{company}}`,
+        },
+      ]
+
+      let inserted = 0
+      for (const t of defaults) {
+        try {
+          await pool.query(
+            `INSERT INTO communication_templates (user_id, name, channel, purpose, subject, body_template)
+             VALUES ($1,$2,$3,$4,$5,$6)
+             ON CONFLICT DO NOTHING`,
+            [userId, t.name, t.channel, t.purpose, t.subject, t.body]
+          )
+          inserted++
+        } catch { /* skip if already exists or schema mismatch */ }
+      }
+      return NextResponse.json({ inserted, status: 'seeded' })
+    }
+
     // ── Send message ──────────────────────────────────────────────────────
     if (action === 'send') {
       const {

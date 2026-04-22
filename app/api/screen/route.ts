@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { pool } from '@/lib/db'
 import { checkAiScreenLimit } from '@/lib/limits'
+import { logAudit } from '@/lib/audit'
 
 export const maxDuration = 120
 
@@ -249,7 +250,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      results.push({ ...parsed, filename: resume.filename })
+      results.push({ ...parsed, filename: resume.filename, screened_at: new Date().toISOString() })
     }
 
     return NextResponse.json({ results })

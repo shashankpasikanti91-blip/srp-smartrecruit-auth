@@ -10,7 +10,7 @@ import {
   Upload, FileText, Sparkles, Copy, Check, Mail,
   RefreshCw, AlertCircle, Layers, Brain, ChevronRight,
   MoreVertical, Send, Loader2, Download, Settings, User as UserIcon, CreditCard, Activity, Shield,
-  Key, Pencil, Eye, EyeOff, Link2, Trash2, ToggleLeft, ToggleRight, ExternalLink
+  Key, Pencil, Eye, EyeOff, Link2, Trash2, ToggleLeft, ToggleRight, ExternalLink, Info
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -51,6 +51,7 @@ interface ScreenResult {
   // set by server after DB insert
   db_id?: string; short_id?: string
   candidate_id?: string
+  screened_at?: string
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -63,6 +64,16 @@ const PIPELINE_STAGES = [
   { key: 'hired',     label: 'Hired',      color: 'bg-green-900/60',   text: 'text-green-300',   bar: 'bg-green-500',      icon: Star },
 ]
 
+// Light variants for white-bg contexts (candidates table, job rows etc.)
+const STAGE_LIGHT: Record<string, { bg: string; text: string; border: string }> = {
+  sourced:   { bg: 'bg-slate-100',  text: 'text-slate-600',   border: 'border-slate-200' },
+  applied:   { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
+  screening: { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200' },
+  interview: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
+  offer:     { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  hired:     { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' },
+}
+
 const MATCH_CONFIG = {
   best:    { label: 'Best Match',    bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30', bar: 'bg-emerald-500' },
   good:    { label: 'Good Match',    bg: 'bg-blue-500/20',    text: 'text-blue-400',    border: 'border-blue-500/30',    bar: 'bg-blue-500' },
@@ -70,10 +81,19 @@ const MATCH_CONFIG = {
   poor:    { label: 'Low Match',     bg: 'bg-red-500/20',     text: 'text-red-400',     border: 'border-red-500/30',     bar: 'bg-red-500' },
 }
 
+// Light variants for white-bg contexts
+const MATCH_LIGHT = {
+  best:    { label: 'Best Match',    bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  good:    { label: 'Good Match',    bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
+  partial: { label: 'Partial Match', bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
+  poor:    { label: 'Low Match',     bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200' },
+}
+
 // ── Sub-components ─────────────────────────────────────────────────────────────
-function MatchBadge({ category, score }: { category: string | null; score: number | null }) {
-  if (!category) return <span className="text-xs text-gray-600">—</span>
-  const c = MATCH_CONFIG[category as keyof typeof MATCH_CONFIG] ?? MATCH_CONFIG.poor
+function MatchBadge({ category, score, variant = 'dark' }: { category: string | null; score: number | null; variant?: 'dark' | 'light' }) {
+  if (!category) return <span className="text-xs text-gray-500">—</span>
+  const cfg = variant === 'light' ? MATCH_LIGHT : MATCH_CONFIG
+  const c = cfg[category as keyof typeof cfg] ?? cfg.poor
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${c.bg} ${c.text} ${c.border}`}>
       {score != null && <span>{Math.round(score)}%</span>}
@@ -82,13 +102,51 @@ function MatchBadge({ category, score }: { category: string | null; score: numbe
   )
 }
 
-function StagePill({ stage }: { stage: string }) {
+function StagePill({ stage, variant = 'dark' }: { stage: string; variant?: 'dark' | 'light' }) {
+  if (variant === 'light') {
+    const s = STAGE_LIGHT[stage] ?? STAGE_LIGHT.sourced
+    const label = PIPELINE_STAGES.find(p => p.key === stage)?.label ?? stage
+    return <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${s.bg} ${s.text} ${s.border}`}>{label}</span>
+  }
   const s = PIPELINE_STAGES.find(p => p.key === stage) ?? PIPELINE_STAGES[0]
   return <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${s.color} ${s.text}`}>{s.label}</span>
 }
 
 function ShortIdBadge({ id }: { id: string }) {
-  return <span className="font-mono text-xs text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">{id}</span>
+  const [copied, setCopied] = useState(false)
+  const doCopy = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(id).catch(() => {
+      const ta = document.createElement('textarea'); ta.value = id
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
+    })
+    setCopied(true); setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <button onClick={doCopy} title="Click to copy ID"
+      className="inline-flex items-center gap-1 font-mono text-xs text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors">
+      {id}
+      {copied ? <Check className="w-2.5 h-2.5 text-green-400" /> : <Copy className="w-2.5 h-2.5 opacity-40" />}
+    </button>
+  )
+}
+
+// ── Date formatting utility ────────────────────────────────────────────────
+function fmtDate(d: string | null | undefined, includeTime = false): string {
+  if (!d) return '—'
+  try {
+    const date = new Date(d)
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const day = date.getDate()
+    const mon = months[date.getMonth()]
+    const year = date.getFullYear()
+    if (!includeTime) return `${day} ${mon} ${year}`
+    const h = date.getHours(), m = date.getMinutes()
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    const h12 = ((h % 12) || 12).toString().padStart(2,'0')
+    const mm = m.toString().padStart(2,'0')
+    return `${day} ${mon} ${year}, ${h12}:${mm} ${ampm}`
+  } catch { return '—' }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -201,8 +259,15 @@ function JDTab() {
                 <h2 className="text-sm font-semibold text-gray-700 mb-3">Analyze Existing JD</h2>
                 <p className="text-xs text-gray-500 mb-3">Paste a JD to extract skills, suggest interview questions, identify skill clusters, and generate boolean search strings.</p>
                 <textarea value={analyzeText} onChange={e => setAnalyzeText(e.target.value)}
-                  rows={10} placeholder="Paste the full job description here…"
+                  rows={8} placeholder="Paste the full job description here…"
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm resize-none focus:outline-none focus:border-blue-500" />
+                <p className="text-xs text-gray-400 mt-2 mb-1">Or upload a JD file (PDF / DOCX / TXT):</p>
+                <LightFileUploadZone
+                  label="Upload JD (PDF/DOCX/TXT) — click or drag & drop"
+                  accept=".pdf,.docx,.doc,.txt"
+                  onText={t => setAnalyzeText(prev => prev ? prev + '\n' + t : t)}
+                  disabled={loading}
+                />
               </div>
             )}
 
@@ -288,7 +353,7 @@ function JDTab() {
               {history.map(j => (
                 <div key={j.id} className="p-2 rounded-lg border border-gray-100 hover:border-gray-300 cursor-pointer transition-all">
                   <p className="text-xs font-medium text-gray-800 truncate">{j.title}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{new Date(j.created_at).toLocaleDateString()}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{fmtDate(j.created_at)}</p>
                 </div>
               ))}
             </div>
@@ -387,8 +452,15 @@ function BooleanTab() {
             ) : (
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Paste Job Description</label>
-                <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={8} placeholder="Paste the full JD here to auto-generate boolean strings…"
+                <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={6} placeholder="Paste the full JD here to auto-generate boolean strings…"
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm resize-none focus:outline-none focus:border-blue-500" />
+                <p className="text-xs text-gray-400 mt-2 mb-1">Or upload a JD file (PDF / DOCX / TXT):</p>
+                <LightFileUploadZone
+                  label="Upload JD (PDF/DOCX/TXT) — click or drag & drop"
+                  accept=".pdf,.docx,.doc,.txt"
+                  onText={t => setJdText(prev => prev ? prev + '\n' + t : t)}
+                  disabled={loading}
+                />
               </div>
             )}
 
@@ -435,7 +507,7 @@ function BooleanTab() {
                 <div key={s.id} className="p-2 rounded-lg border border-gray-100 hover:border-gray-300 cursor-pointer transition-all">
                   <p className="text-xs font-medium text-gray-800 truncate">{s.job_title}</p>
                   <p className="text-[10px] text-gray-400 mt-0.5 truncate font-mono">{s.short_boolean}</p>
-                  <p className="text-[10px] text-gray-400">{new Date(s.created_at).toLocaleDateString()}</p>
+                  <p className="text-[10px] text-gray-400">{fmtDate(s.created_at)}</p>
                 </div>
               ))}
             </div>
@@ -505,6 +577,30 @@ function ImportTab() {
       <div>
         <h1 className="text-xl font-bold text-gray-900">Import Engine</h1>
         <p className="text-sm text-gray-500 mt-0.5">Bulk import candidates from Naukri, Indeed, LinkedIn, or any CSV export</p>
+      </div>
+
+      {/* Column Mapping Guide */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Info className="w-4 h-4 text-blue-600 flex-shrink-0" />
+          <h2 className="text-sm font-semibold text-blue-800">Column Mapping Guide</h2>
+        </div>
+        <p className="text-xs text-blue-700 mb-3">The engine auto-detects columns. For best results, ensure your CSV headers match any of the names below:</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {([
+            { source: 'Naukri Export', cols: ['Name', 'Email', 'Mobile', 'Skills', 'Experience', 'Current Company', 'Current Designation', 'Location'] },
+            { source: 'LinkedIn Recruiter', cols: ['First Name', 'Last Name', 'Email Address', 'Headline', 'Skills', 'Company', 'Title', 'City'] },
+            { source: 'Indeed / Monster', cols: ['name', 'email', 'phone', 'skills', 'work_experience', 'current_title', 'current_company', 'location'] },
+          ] as const).map(({ source, cols }) => (
+            <div key={source} className="bg-white rounded-lg p-3 border border-blue-200">
+              <p className="text-xs font-semibold text-blue-700 mb-2">{source}</p>
+              <div className="flex flex-wrap gap-1">
+                {cols.map(c => <span key={c} className="text-[10px] font-mono bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded">{c}</span>)}
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-blue-600 mt-3">Any unrecognized columns are still imported as raw metadata. You can adjust mappings after reviewing the import results.</p>
       </div>
 
       {/* Upload Card */}
@@ -642,20 +738,27 @@ function IntegrationsTab() {
   const [catalogue, setCatalogue] = useState<Record<string, unknown>[]>([])
   const [integrations, setIntegrations] = useState<Record<string, unknown>[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [selected, setSelected] = useState<Record<string, unknown> | null>(null)
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
 
   async function load() {
-    setLoading(true)
-    const [catRes, intRes] = await Promise.all([
-      fetch('/api/integrations?catalogue=true').then(r => r.json()),
-      fetch('/api/integrations').then(r => r.json()),
-    ])
-    setCatalogue(catRes.catalogue ?? [])
-    setIntegrations(intRes.integrations ?? [])
-    setLoading(false)
+    setLoading(true); setLoadError('')
+    try {
+      const [catRes, intRes] = await Promise.all([
+        fetch('/api/integrations?catalogue=true').then(r => r.json()),
+        fetch('/api/integrations').then(r => r.json()).catch(() => ({ integrations: [] })),
+      ])
+      setCatalogue(catRes.catalogue ?? [])
+      setIntegrations(intRes.integrations ?? [])
+    } catch (e) {
+      setLoadError('Failed to load integrations. Please refresh.')
+      console.error('[integrations]', e)
+    } finally {
+      setLoading(false)
+    }
   }
   useEffect(() => { load() }, [])
 
@@ -695,6 +798,19 @@ function IntegrationsTab() {
   const categories = [...new Set((catalogue as Record<string, string>[]).map(c => c.category))]
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+  if (loadError) return (
+    <div className="max-w-4xl">
+      <div className="flex items-center gap-3 mb-6">
+        <div><h1 className="text-xl font-bold text-gray-900">Integration Hub</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Connect your favourite sourcing portals, email providers, messaging apps and automation tools</p></div>
+      </div>
+      <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-sm text-red-700 flex items-center gap-3">
+        <AlertCircle className="w-5 h-5 flex-shrink-0" />
+        <div className="flex-1">{loadError}</div>
+        <button onClick={load} className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs hover:bg-red-700">Retry</button>
+      </div>
+    </div>
+  )
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -819,6 +935,19 @@ function CommsTab() {
   const [tmplPurpose, setTmplPurpose] = useState('custom')
   const [savingTmpl, setSavingTmpl] = useState(false)
   const [tmplResult, setTmplResult] = useState('')
+  const [seedingTmpls, setSeedingTmpls] = useState(false)
+
+  async function seedDefaultTemplates() {
+    setSeedingTmpls(true)
+    try {
+      const res = await fetch('/api/comm', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'seed_templates' }),
+      })
+      if (res.ok) { await loadAll() }
+    } catch { /* ignore */ }
+    setSeedingTmpls(false)
+  }
 
   async function loadAll() {
     setLoading(true)
@@ -989,8 +1118,22 @@ function CommsTab() {
                 </button>
               </div>
               <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Saved Templates ({templates.length})</h3>
-                {templates.length === 0 ? <p className="text-xs text-gray-400 text-center py-6">No templates yet</p> : (
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-700">Saved Templates ({templates.length})</h3>
+                  {templates.length === 0 && (
+                    <button onClick={seedDefaultTemplates} disabled={seedingTmpls}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1E4E8C] text-white text-xs hover:opacity-90 disabled:opacity-50">
+                      {seedingTmpls ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                      {seedingTmpls ? 'Loading…' : 'Load Default Templates'}
+                    </button>
+                  )}
+                </div>
+                {templates.length === 0 ? (
+                  <div className="text-center py-6 space-y-2">
+                    <p className="text-xs text-gray-400">No templates yet</p>
+                    <p className="text-xs text-gray-400">Click &quot;Load Default Templates&quot; to add ready-made recruitment templates</p>
+                  </div>
+                ) : (
                   <div className="space-y-2">
                     {templates.map(t => (
                       <div key={t.id as string} className="p-3 rounded-lg border border-gray-200 bg-gray-50">
@@ -1112,6 +1255,7 @@ export default function DashboardPage() {
   const [filterMatch, setFilterMatch] = useState('')
   const [filterJob, setFilterJob] = useState('')
   const [filterSkill, setFilterSkill] = useState('')
+  const [filterDate, setFilterDate] = useState('')  // 'today' | '7days' | '30days' | ''
   const [loading, setLoading] = useState(true)
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [matchCounts, setMatchCounts] = useState<Record<string, number>>({})
@@ -1193,6 +1337,9 @@ export default function DashboardPage() {
   const [intgApiKey, setIntgApiKey] = useState('')
   const [intgWebhook, setIntgWebhook] = useState('')
   const [savingIntg, setSavingIntg] = useState(false)
+  // Audit trail state (Phase 10)
+  const [auditLogs, setAuditLogs] = useState<{ id: string; action: string; resource_type: string; resource_id: string | null; result: string; created_at: string }[]>([])
+  const [auditLoading, setAuditLoading] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login')
@@ -1208,6 +1355,7 @@ export default function DashboardPage() {
       const jobFilter = filterJob || selectedJob
       if (jobFilter) params.set('job_id', jobFilter)
       if (filterSkill) params.set('skill', filterSkill)
+      if (filterDate) params.set('date_range', filterDate)
 
       const [jRes, cRes] = await Promise.all([
         fetch('/api/jobs').catch(() => null),
@@ -1227,7 +1375,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [searchQ, filterStage, filterMatch, filterJob, filterSkill, selectedJob])
+  }, [searchQ, filterStage, filterMatch, filterJob, filterSkill, selectedJob, filterDate])
 
   useEffect(() => {
     if (status === 'authenticated') loadData()
@@ -1284,6 +1432,19 @@ export default function DashboardPage() {
         setApiKeys(data.keys ?? [])
       }
     } catch { /* ignore */ }
+  }
+
+  const loadAuditLogs = async () => {
+    setAuditLoading(true)
+    try {
+      const res = await fetch('/api/audit?limit=50')
+      if (res.ok) {
+        const data = await res.json()
+        setAuditLogs(data.logs ?? [])
+      }
+    } catch { /* ignore */ } finally {
+      setAuditLoading(false)
+    }
   }
 
   const generateApiKey = async () => {
@@ -1365,7 +1526,7 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    if (activeTab === 'settings') { loadApiKeys(); loadIntegrations() }
+    if (activeTab === 'settings') { loadApiKeys(); loadIntegrations(); loadAuditLogs() }
   }, [activeTab])
 
   const createJob = async () => {
@@ -1656,7 +1817,7 @@ export default function DashboardPage() {
       <div className="flex h-screen overflow-hidden">
 
         {/* ── Sidebar ──────────────────────────────────────────────────────── */}
-        <aside className="w-60 flex-shrink-0 flex flex-col" style={{ background: '#0B1F3A', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
+        <aside className="w-60 flex-shrink-0 flex flex-col" style={{ background: '#0F172A', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
           <div className="px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-md">
@@ -1664,7 +1825,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-sm font-bold text-white leading-none tracking-tight">SRP Recruit AI Labs</p>
-                <p className="text-[11px] leading-none mt-0.5" style={{ color: '#4A90D9' }}>SmartRecruit</p>
+                <p className="text-[11px] leading-none mt-0.5" style={{ color: '#60A5FA' }}>SmartRecruit</p>
               </div>
             </div>
           </div>
@@ -1703,10 +1864,10 @@ export default function DashboardPage() {
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
                 style={activeTab === tab
-                  ? { background: '#1E4E8C', color: '#FFFFFF' }
-                  : { color: '#B8C7E0' }}
-                onMouseEnter={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = '#16345F'; (e.currentTarget as HTMLButtonElement).style.color = '#FFFFFF' } }}
-                onMouseLeave={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#B8C7E0' } }}>
+                  ? { background: '#2563EB', color: '#FFFFFF' }
+                  : { color: '#CBD5E1' }}
+                onMouseEnter={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = '#1E293B'; (e.currentTarget as HTMLButtonElement).style.color = '#FFFFFF' } }}
+                onMouseLeave={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#CBD5E1' } }}>
                 <Icon className="w-4 h-4" />
                 <span className="flex-1 text-left">{label}</span>
                 {badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(124,58,237,0.3)', color: '#C4B5FD' }}>{badge}</span>}
@@ -1725,7 +1886,7 @@ export default function DashboardPage() {
             <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
               {user?.image
                 ? <img src={user.image} alt="" className="w-8 h-8 rounded-full ring-2 ring-blue-400/40" />
-                : <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: '#1E4E8C' }}>{user?.name?.[0] ?? '?'}</div>
+                : <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: '#2563EB' }}>{user?.name?.[0] ?? '?'}</div>
               }
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-white truncate">{user?.name}</p>
@@ -1916,8 +2077,14 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3 mb-5 flex-wrap">
                   <div className="relative flex-1 min-w-[160px]">
                     <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                    <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
-                      placeholder="Name or email…"
+                    <input value={searchQ} onChange={e => {
+                        const v = e.target.value
+                        setSearchQ(v)
+                        // Smart ID routing: CAN-xxxxx → candidates tab, JOB-xxxxx → jobs tab
+                        if (/^CAN-\d+/i.test(v.trim())) { setActiveTab('candidates') }
+                        else if (/^JOB-\d+/i.test(v.trim())) { setActiveTab('jobs') }
+                      }}
+                      placeholder="Name, email, CAN-000245…"
                       className="w-full pl-9 pr-3 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
                   </div>
                   <div className="relative">
@@ -1947,8 +2114,15 @@ export default function DashboardPage() {
                     <option value="">All Jobs</option>
                     {jobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
                   </select>
-                  {(searchQ || filterStage || filterMatch || filterJob || filterSkill) && (
-                    <button onClick={() => { setSearchQ(''); setFilterStage(''); setFilterMatch(''); setFilterJob(''); setFilterSkill('') }}
+                  <select value={filterDate} onChange={e => setFilterDate(e.target.value)}
+                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-700 focus:outline-none focus:border-blue-500">
+                    <option value="">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="7days">Last 7 Days</option>
+                    <option value="30days">Last 30 Days</option>
+                  </select>
+                  {(searchQ || filterStage || filterMatch || filterJob || filterSkill || filterDate) && (
+                    <button onClick={() => { setSearchQ(''); setFilterStage(''); setFilterMatch(''); setFilterJob(''); setFilterSkill(''); setFilterDate('') }}
                       className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
                       <X className="w-3.5 h-3.5" /> Clear
                     </button>
@@ -1967,14 +2141,14 @@ export default function DashboardPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-200 bg-gray-50">
-                          {['ID', 'Candidate', 'Match', 'Stage', 'Job', 'Skills', 'Move Stage'].map(h => (
+                          {['ID', 'Candidate', 'Uploaded', 'Match', 'Stage', 'Job', 'Skills', 'Move Stage'].map(h => (
                             <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {candidates.length === 0 ? (
-                          <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No candidates found</td></tr>
+                          <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">No candidates found</td></tr>
                         ) : candidates.map((c, i) => (
                           <tr key={c.id} onClick={() => setSelectedCandidate(c)} className={`border-b border-gray-100 hover:bg-blue-50/40 cursor-pointer transition-colors ${i % 2 ? 'bg-gray-50/40' : ''}`}>
                             <td className="px-4 py-3"><ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} /></td>
@@ -1982,8 +2156,9 @@ export default function DashboardPage() {
                               <p className="font-semibold text-gray-900">{c.candidate_name}</p>
                               <p className="text-xs text-gray-500">{c.candidate_email}</p>
                             </td>
-                            <td className="px-4 py-3"><MatchBadge category={c.match_category} score={c.ai_score} /></td>
-                            <td className="px-4 py-3"><StagePill stage={c.pipeline_stage} /></td>
+                            <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{fmtDate(c.created_at)}</td>
+                            <td className="px-4 py-3"><MatchBadge category={c.match_category} score={c.ai_score} variant="light" /></td>
+                            <td className="px-4 py-3"><StagePill stage={c.pipeline_stage} variant="light" /></td>
                             <td className="px-4 py-3 text-xs text-gray-500">
                               {c.job_posts ? (
                                 <><p>{c.job_posts.title}</p><ShortIdBadge id={c.job_posts.short_id ?? ''} /></>
@@ -2407,7 +2582,7 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-2">
                     <button onClick={() => setShowNewJob(true)}
                       className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white transition-all hover:opacity-90 shadow-sm"
-                      style={{ background: '#0B1F3A' }}>
+                      style={{ background: '#2563EB' }}>
                       <Plus className="w-3.5 h-3.5" /> New Job
                     </button>
                   </div>
@@ -2423,50 +2598,68 @@ export default function DashboardPage() {
                     <p className="text-gray-500 mb-4">No jobs yet. Create your first job post.</p>
                     <button onClick={() => setShowNewJob(true)}
                       className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors hover:opacity-90"
-                      style={{ background: '#0B1F3A' }}>
+                      style={{ background: '#2563EB' }}>
                       Create Job Post
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {jobs.map(job => {
-                      const jobCands = candidates.filter(c => c.job_posts?.id === job.id)
-                      return (
-                        <div key={job.id}
-                          onClick={() => openJobDetails(job)}
-                          className="bg-white rounded-xl p-5 border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer shadow-sm">
-                          <div className="flex items-start justify-between mb-3">
-                            <ShortIdBadge id={job.short_id ?? job.id.slice(0, 8)} />
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${job.status === 'active' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
-                              {job.status}
-                            </span>
-                          </div>
-                          <h3 className="font-bold text-gray-900 text-base mb-1">{job.title}</h3>
-                          <p className="text-sm text-gray-500">{job.company}{job.location && ` · ${job.location}`}</p>
-                          {(job.description || job.requirements) && (
-                            <p className="text-xs text-gray-400 mt-2 line-clamp-3 whitespace-pre-wrap">
-                              {job.description || job.requirements}
-                            </p>
-                          )}
-                          <div className="mt-4 flex items-center justify-between">
-                            <div className="flex items-center gap-1 text-xs text-gray-400">
-                              <Users className="w-3.5 h-3.5" />
-                              {jobCands.length} candidates
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <button onClick={(e) => { e.stopPropagation(); openJobDetails(job) }}
-                                className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700">
-                                <Sparkles className="w-3 h-3" /> {job.post_contents ? 'View JD & Posts' : 'Open JD Details'}
-                              </button>
-                              <button onClick={(e) => { e.stopPropagation(); setSelectedJob(job.id); setActiveTab('pipeline') }}
-                                className="flex items-center gap-1 text-xs hover:text-blue-800" style={{ color: '#1E4E8C' }}>
-                                View pipeline <ArrowRight className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
+                  <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+                    <table className="ent-table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Role</th>
+                          <th>Company</th>
+                          <th>Location</th>
+                          <th>Type</th>
+                          <th className="text-center">Candidates</th>
+                          <th>Status</th>
+                          <th>Posted</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {jobs.map(job => {
+                          const jobCands = candidates.filter(c => c.job_posts?.id === job.id)
+                          return (
+                            <tr key={job.id} onClick={() => openJobDetails(job)}>
+                              <td><ShortIdBadge id={job.short_id ?? job.id.slice(0, 8)} /></td>
+                              <td>
+                                <p className="font-semibold text-gray-900 text-sm">{job.title}</p>
+                                {job.description && <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{job.description}</p>}
+                              </td>
+                              <td className="text-sm text-gray-600">{job.company || '—'}</td>
+                              <td className="text-sm text-gray-500">{job.location || '—'}</td>
+                              <td className="text-sm text-gray-500 capitalize">{job.type || '—'}</td>
+                              <td className="text-center">
+                                <span className="inline-flex items-center gap-1 text-sm text-gray-700">
+                                  <Users className="w-3.5 h-3.5 text-gray-400" />
+                                  {jobCands.length}
+                                </span>
+                              </td>
+                              <td>
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${job.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
+                                  {job.status}
+                                </span>
+                              </td>
+                              <td className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(job.created_at)}</td>
+                              <td>
+                                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                                  <button onClick={() => openJobDetails(job)}
+                                    className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 font-medium whitespace-nowrap">
+                                    <Sparkles className="w-3 h-3" /> {job.post_contents ? 'Posts' : 'JD'}
+                                  </button>
+                                  <button onClick={() => { setSelectedJob(job.id); setActiveTab('pipeline') }}
+                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap">
+                                    Pipeline <ArrowRight className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
@@ -2570,6 +2763,40 @@ export default function DashboardPage() {
                     <p className="text-xs text-gray-400 mt-3">Click any skill name to jump to filtered candidate list.</p>
                   </div>
                 )}
+
+                {/* Candidate Upload Timeline */}
+                {candidates.length > 0 && (() => {
+                  const now = Date.now()
+                  const msDay = 86400000
+                  const today = candidates.filter(c => c.created_at && now - new Date(c.created_at).getTime() < msDay).length
+                  const last7  = candidates.filter(c => c.created_at && now - new Date(c.created_at).getTime() < 7 * msDay).length
+                  const last30 = candidates.filter(c => c.created_at && now - new Date(c.created_at).getTime() < 30 * msDay).length
+                  return (
+                    <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm mt-5">
+                      <h2 className="text-sm font-semibold text-gray-700 mb-4">Upload Activity</h2>
+                      <div className="grid grid-cols-3 gap-4">
+                        {[
+                          { label: 'Today',       value: today,  color: 'text-blue-700',   bg: 'bg-blue-50' },
+                          { label: 'Last 7 Days', value: last7,  color: 'text-indigo-700', bg: 'bg-indigo-50' },
+                          { label: 'Last 30 Days',value: last30, color: 'text-purple-700', bg: 'bg-purple-50' },
+                        ].map(({ label, value, color, bg }) => (
+                          <div key={label} className={`rounded-lg p-4 ${bg} text-center`}>
+                            <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                            <p className="text-xs text-gray-500 mt-1">{label}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 flex items-center gap-3">
+                        <button onClick={() => { setFilterDate('today'); setActiveTab('candidates') }}
+                          className="text-xs text-blue-600 hover:underline">View today's →</button>
+                        <button onClick={() => { setFilterDate('7days'); setActiveTab('candidates') }}
+                          className="text-xs text-indigo-600 hover:underline">View last 7 days →</button>
+                        <button onClick={() => { setFilterDate('30days'); setActiveTab('candidates') }}
+                          className="text-xs text-purple-600 hover:underline">View last 30 days →</button>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             )}
 
@@ -2944,6 +3171,58 @@ export default function DashboardPage() {
                         </button>
                       </div>
                     </div>
+
+                    {/* Audit Trail */}
+                    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Shield className="w-4 h-4 text-indigo-600" />
+                          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Audit Trail</h2>
+                        </div>
+                        <button onClick={loadAuditLogs} disabled={auditLoading}
+                          className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 disabled:opacity-50">
+                          {auditLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                          Refresh
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500 mb-4">Recent account activity — stage changes, job posts, AI screens, and logins.</p>
+                      {auditLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                        </div>
+                      ) : auditLogs.length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-6">No activity recorded yet.</p>
+                      ) : (
+                        <div className="overflow-x-auto rounded-lg border border-gray-100">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="bg-gray-50 border-b border-gray-100">
+                                <th className="text-left px-3 py-2 font-semibold text-gray-500 uppercase tracking-wide text-[10px]">Action</th>
+                                <th className="text-left px-3 py-2 font-semibold text-gray-500 uppercase tracking-wide text-[10px]">Resource</th>
+                                <th className="text-left px-3 py-2 font-semibold text-gray-500 uppercase tracking-wide text-[10px]">ID</th>
+                                <th className="text-left px-3 py-2 font-semibold text-gray-500 uppercase tracking-wide text-[10px]">Result</th>
+                                <th className="text-left px-3 py-2 font-semibold text-gray-500 uppercase tracking-wide text-[10px]">When</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {auditLogs.map(log => (
+                                <tr key={log.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
+                                  <td className="px-3 py-2 font-mono text-gray-700">{log.action}</td>
+                                  <td className="px-3 py-2 text-gray-500 capitalize">{log.resource_type}</td>
+                                  <td className="px-3 py-2 font-mono text-gray-400">{log.resource_id ? log.resource_id.slice(0, 12) + '…' : '—'}</td>
+                                  <td className="px-3 py-2">
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${log.result === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                                      {log.result}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2 text-gray-400 whitespace-nowrap">{fmtDate(log.created_at, true)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-20 text-gray-500 text-sm">Failed to load profile data.
@@ -3298,6 +3577,75 @@ function ScoreRing({ score, size = 52 }: { score: number; size?: number }) {
   )
 }
 
+// ── LightFileUploadZone (for light-background tabs: JD Writer, Boolean) ───────
+function LightFileUploadZone({ label, accept, onText, disabled }: {
+  label: string; accept: string
+  onText: (text: string) => void; disabled?: boolean
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  const [dragging, setDragging] = useState(false)
+  const [parsing, setParsing] = useState(false)
+  const [fileName, setFileName] = useState('')
+  const [parseError, setParseError] = useState('')
+
+  const parseFile = async (file: File) => {
+    setParsing(true); setParseError(''); setFileName('')
+    const fd = new FormData(); fd.append('file', file)
+    try {
+      const res = await fetch('/api/parse', { method: 'POST', body: fd })
+      const d = await res.json()
+      if (res.ok && d.text) {
+        setFileName(file.name)
+        onText(d.text)
+      } else {
+        setParseError(d.error ?? `Failed to parse ${file.name}`)
+      }
+    } catch { setParseError('Network error') }
+    finally { setParsing(false) }
+  }
+
+  return (
+    <div
+      className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
+        dragging ? 'border-blue-400 bg-blue-50' :
+        parseError ? 'border-red-300 bg-red-50' :
+        fileName ? 'border-green-400 bg-green-50' :
+        'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50/40'
+      } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+      onDragEnter={e => { e.preventDefault(); setDragging(true) }}
+      onDragOver={e => { e.preventDefault(); setDragging(true) }}
+      onDragLeave={e => { e.preventDefault(); setDragging(false) }}
+      onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) parseFile(f) }}
+      onClick={() => ref.current?.click()}>
+      <input ref={ref} type="file" accept={accept} className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) parseFile(f); if (ref.current) ref.current.value = '' }} />
+      {parsing ? (
+        <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+          <Loader2 className="w-4 h-4 animate-spin" /> Parsing file…
+        </div>
+      ) : parseError ? (
+        <div>
+          <AlertCircle className="w-4 h-4 text-red-500 mx-auto mb-1" />
+          <p className="text-xs text-red-600">{parseError}</p>
+          <p className="text-xs text-gray-400 mt-0.5">Click to try again</p>
+        </div>
+      ) : fileName ? (
+        <div>
+          <CheckCircle className="w-4 h-4 text-green-600 mx-auto mb-1" />
+          <p className="text-xs text-green-700 font-medium">{fileName} — loaded</p>
+          <p className="text-xs text-gray-400 mt-0.5">Click to replace</p>
+        </div>
+      ) : (
+        <div>
+          <Upload className="w-5 h-5 text-gray-400 mx-auto mb-1" />
+          <p className="text-xs text-gray-500">{label}</p>
+          <p className="text-xs text-gray-400 mt-0.5">Click or drag & drop</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── FileUploadZone ────────────────────────────────────────────────────────────
 function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
   label: string; accept: string; multiple: boolean
@@ -3378,6 +3726,7 @@ function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
 // ── ScreenResultCard ──────────────────────────────────────────────────────────
 function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate: (id?: string) => void }) {
   const [open, setOpen] = useState(true)
+  const [screenedAt] = useState(() => fmtDate(r.screened_at ?? new Date().toISOString(), true))
   const decisionColor = r.decision === 'Shortlisted' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
     : r.decision === 'On Hold' ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
     : 'text-red-400 bg-red-500/10 border-red-500/20'
@@ -3395,14 +3744,11 @@ function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate:
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-bold text-white">{r.name || 'Unknown'}</p>
             <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${decisionColor}`}>{r.decision}</span>
-            {r.short_id && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-mono">
-                Saved · {r.short_id}
-              </span>
-            )}
+            {r.short_id && <ShortIdBadge id={r.short_id} />}
           </div>
           <p className="text-xs text-gray-500 mt-0.5">{r.email}{r.contact_number ? ` · ${r.contact_number}` : ''}</p>
           {r.current_company && <p className="text-xs text-gray-600">{r.current_company}</p>}
+          <p className="text-xs text-gray-600 mt-0.5 font-mono">Screened: {screenedAt}</p>
         </div>
         <button onClick={() => setOpen(v => !v)} className="text-gray-600 hover:text-gray-400 transition-colors ml-auto">
           <ChevronRight className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`} />
@@ -3530,6 +3876,9 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
               <MatchBadge category={c.match_category} score={c.ai_score} />
               <StagePill stage={c.pipeline_stage} />
               <ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} />
+              {c.created_at && (
+                <span className="text-xs text-gray-500 font-mono">Uploaded: {fmtDate(c.created_at)}</span>
+              )}
             </div>
           </div>
           <button onClick={onClose} className="flex-shrink-0 text-gray-500 hover:text-white transition-colors mt-1">

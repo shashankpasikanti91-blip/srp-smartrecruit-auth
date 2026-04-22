@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { pool } from '@/lib/db'
+import { logAudit } from '@/lib/audit'
 
 export async function PATCH(
   req: NextRequest,
@@ -31,6 +32,13 @@ export async function PATCH(
       values
     )
     if (!rows[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    // Fire-and-forget audit log
+    const userRes2 = await pool.query<{id:string}>('SELECT id FROM auth_users WHERE email=$1',[session.user.email])
+    if (userRes2.rows[0] && body.pipeline_stage) {
+      logAudit({ userId: userRes2.rows[0].id, userEmail: session.user.email, action: 'stage_changed',
+        resourceType: 'candidate', resourceId: rows[0].short_id ?? id,
+        details: { stage: body.pipeline_stage } })
+    }
     return NextResponse.json({ candidate: rows[0] })
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

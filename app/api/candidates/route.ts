@@ -10,12 +10,13 @@ export async function GET(req: NextRequest) {
   }
   try {
     const { searchParams } = new URL(req.url)
-    const q      = searchParams.get('q') ?? ''
-    const stage  = searchParams.get('stage') ?? ''
-    const match  = searchParams.get('match') ?? ''
-    const jobId  = searchParams.get('job_id') ?? ''
-    const skill  = searchParams.get('skill') ?? ''
-    const limit  = parseInt(searchParams.get('limit') ?? '100')
+    const q         = searchParams.get('q') ?? ''
+    const stage     = searchParams.get('stage') ?? ''
+    const match     = searchParams.get('match') ?? ''
+    const jobId     = searchParams.get('job_id') ?? ''
+    const skill     = searchParams.get('skill') ?? ''
+    const dateRange = searchParams.get('date_range') ?? ''
+    const limit     = parseInt(searchParams.get('limit') ?? '100')
 
     const userRes = await pool.query<{ id: string }>(
       'SELECT id FROM auth_users WHERE email = $1',
@@ -28,11 +29,24 @@ export async function GET(req: NextRequest) {
     const params: unknown[] = [userId]
     let idx = 2
 
-    if (q) { conditions.push(`(r.candidate_name ILIKE $${idx} OR r.candidate_email ILIKE $${idx})`); params.push(`%${q}%`); idx++ }
+    if (q) { conditions.push(`(r.candidate_name ILIKE $${idx} OR r.candidate_email ILIKE $${idx} OR r.short_id ILIKE $${idx})`); params.push(`%${q}%`); idx++ }
     if (stage) { conditions.push(`r.pipeline_stage = $${idx}`); params.push(stage); idx++ }
     if (match)  { conditions.push(`r.match_category = $${idx}`); params.push(match); idx++ }
     if (jobId)  { conditions.push(`r.job_post_id = $${idx}`); params.push(jobId); idx++ }
     if (skill)  { conditions.push(`EXISTS (SELECT 1 FROM unnest(r.ai_skills) s(sk) WHERE s.sk ILIKE $${idx})`); params.push(`%${skill}%`); idx++ }
+    if (dateRange) {
+      const now = new Date()
+      if (dateRange === 'today') {
+        const today = now.toISOString().split('T')[0]
+        conditions.push(`r.created_at::date = $${idx}::date`); params.push(today); idx++
+      } else if (dateRange === '7days') {
+        const d = new Date(now); d.setDate(d.getDate() - 7)
+        conditions.push(`r.created_at >= $${idx}`); params.push(d.toISOString()); idx++
+      } else if (dateRange === '30days') {
+        const d = new Date(now); d.setDate(d.getDate() - 30)
+        conditions.push(`r.created_at >= $${idx}`); params.push(d.toISOString()); idx++
+      }
+    }
 
     const where = conditions.join(' AND ')
     const sql = `
