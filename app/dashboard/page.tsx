@@ -18,7 +18,10 @@ interface Job {
   id: string; short_id: string; title: string; company: string
   location: string; type: string; status: string; applications_count: number
   description?: string; requirements?: string
+  salary_min?: number | null; salary_max?: number | null; currency?: string
+  tags?: string[]
   created_at: string
+  updated_at?: string
   // saved social posts attached by /api/jobs GET
   post_contents?: Record<string, string> | null
 }
@@ -30,8 +33,12 @@ interface Candidate {
   match_category: 'best' | 'good' | 'partial' | 'poor' | null
   pipeline_stage: string; status: string; ai_skills: string[]; ai_summary: string
   raw_text: string | null; file_name: string | null
+  reviewer_notes?: string | null
+  source_type?: string | null
   job_posts: { id: string; short_id: string; title: string; company: string } | null
   created_at: string
+  updated_at?: string
+  last_contacted_at?: string | null
 }
 
 interface StageCounts { [stage: string]: number }
@@ -690,6 +697,7 @@ function ImportTab() {
                     <span className="text-green-600">✓ {b.success_rows as number}</span>
                     <span className="text-amber-600">⟳ {b.skipped_rows as number}</span>
                     <span className="text-red-500">✗ {b.error_rows as number}</span>
+                    {!!(b.created_at as string) && <span className="text-gray-400">· {fmtDate(b.created_at as string, true)}</span>}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -710,7 +718,13 @@ function ImportTab() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setSelectedBatch(null)}>
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-gray-900">Batch: {selectedBatch.batch_ref as string}</h3>
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Batch: {selectedBatch.batch_ref as string}</h3>
+                <p className="text-xs text-gray-500 font-mono mt-0.5">
+                  Started: {fmtDate(selectedBatch.created_at as string, true)}
+                  {selectedBatch.finished_at ? ` · Finished: ${fmtDate(selectedBatch.finished_at as string, true)}` : ' · In progress…'}
+                </p>
+              </div>
               <button onClick={() => setSelectedBatch(null)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <div className="grid grid-cols-4 gap-3 mb-4">
@@ -2332,7 +2346,7 @@ export default function DashboardPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-200 bg-gray-50">
-                          {['ID', 'Candidate', 'Uploaded', 'Match', 'Stage', 'Job', 'Skills', 'Move Stage'].map(h => (
+                          {['ID', 'Candidate', 'Uploaded', 'Updated', 'Match', 'Stage', 'Job', 'Skills', 'Move Stage'].map(h => (
                             <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                           ))}
                         </tr>
@@ -2348,6 +2362,7 @@ export default function DashboardPage() {
                               <p className="text-xs text-gray-500">{c.candidate_email}</p>
                             </td>
                             <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{fmtDate(c.created_at)}</td>
+                            <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{c.updated_at && c.updated_at !== c.created_at ? fmtDate(c.updated_at) : '—'}</td>
                             <td className="px-4 py-3"><MatchBadge category={c.match_category} score={c.ai_score} variant="light" /></td>
                             <td className="px-4 py-3"><StagePill stage={c.pipeline_stage} variant="light" /></td>
                             <td className="px-4 py-3 text-xs text-gray-500">
@@ -2811,6 +2826,7 @@ export default function DashboardPage() {
                           <th className="text-center">Candidates</th>
                           <th>Status</th>
                           <th>Posted</th>
+                          <th>Updated</th>
                           <th>Actions</th>
                         </tr>
                       </thead>
@@ -2839,6 +2855,7 @@ export default function DashboardPage() {
                                 </span>
                               </td>
                               <td className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(job.created_at)}</td>
+                              <td className="text-xs text-gray-400 whitespace-nowrap">{job.updated_at && job.updated_at !== job.created_at ? fmtDate(job.updated_at) : '—'}</td>
                               <td>
                                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                                   <button onClick={() => openJobDetails(job)}
@@ -3659,8 +3676,16 @@ export default function DashboardPage() {
           <div className="glass-card rounded-2xl p-6 w-full max-w-2xl border border-white/10 my-auto flex flex-col">
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
               <div>
-                <h2 className="text-lg font-bold text-white">Job Details & Social Posts</h2>
-                <p className="text-xs text-gray-500 mt-0.5">{genPostJob.title}{genPostJob.company ? ` · ${genPostJob.company}` : ''}{genPostJob.short_id ? ` · ${genPostJob.short_id}` : ''}</p>
+                <h2 className="text-lg font-bold text-white">Job Details &amp; Social Posts</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {genPostJob.title}
+                  {genPostJob.company ? ` · ${genPostJob.company}` : ''}
+                  {genPostJob.short_id ? <> · <span className="font-mono bg-white/10 px-1 py-0.5 rounded text-blue-300">{genPostJob.short_id}</span></> : ''}
+                </p>
+                <p className="text-[10px] text-gray-600 mt-1 font-mono">
+                  Posted: {fmtDate(genPostJob.created_at)}
+                  {genPostJob.updated_at && genPostJob.updated_at !== genPostJob.created_at ? ` · Updated: ${fmtDate(genPostJob.updated_at)}` : ''}
+                </p>
               </div>
               <button onClick={() => setGenPostJob(null)} className="text-gray-500 hover:text-gray-300"><X className="w-5 h-5" /></button>
             </div>
@@ -4309,6 +4334,7 @@ function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDra
               <span key={s} className="text-[10px] bg-white/5 text-gray-500 px-1 py-0.5 rounded">{s}</span>
             ))}
           </div>
+          <p className="text-[10px] text-gray-600 mt-1.5 font-mono">{c.short_id ?? c.id.slice(0,8)} · {fmtDate(c.created_at)}</p>
         </div>
       )}
     </div>
@@ -4417,11 +4443,21 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
             )}
 
             {/* Meta */}
-            <div className="flex items-center gap-4 text-xs text-gray-600 pt-2 border-t border-white/5">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 pt-2 border-t border-white/5">
               {c.file_name && (
                 <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5" />{c.file_name}</span>
               )}
-              <span>Added {new Date(c.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+              {c.source_type && c.source_type !== 'direct_upload' && (
+                <span className="capitalize bg-white/5 px-1.5 py-0.5 rounded text-gray-500">via {c.source_type.replace('_', ' ')}</span>
+              )}
+              <span className="font-mono text-gray-500">ID: {c.short_id ?? c.id.slice(0, 8)}</span>
+              <span>Added: {fmtDate(c.created_at)}</span>
+              {c.updated_at && c.updated_at !== c.created_at && (
+                <span>Updated: {fmtDate(c.updated_at)}</span>
+              )}
+              {c.last_contacted_at && (
+                <span>Last contacted: {fmtDate(c.last_contacted_at)}</span>
+              )}
             </div>
           </div>
         )}
