@@ -113,7 +113,11 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const inviteLink = `${process.env.NEXTAUTH_URL}/signup?invite=${inviteToken}`
+  // Existing user → accept-invite page (they log in, then accept)
+  // New user       → signup page with pre-filled invite data
+  const inviteLink = existingUser[0]
+    ? `${process.env.NEXTAUTH_URL}/accept-invite?token=${inviteToken}`
+    : `${process.env.NEXTAUTH_URL}/signup?invite=${inviteToken}`
 
   // Send invite email (non-fatal)
   try {

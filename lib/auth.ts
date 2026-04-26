@@ -153,13 +153,26 @@ export const authOptions: AuthOptions = {
               token.tenantName = rows[0].tenant_name
               token.tenantRole = rows[0].tenant_role
             } else {
-              // Auto-provision tenant for new users
-              const { provisionTenantForUser } = await import('./tenant')
-              const tId = await provisionTenantForUser(dbUser.id, dbUser.name ?? '', dbUser.email)
-              token.tenantId   = tId
-              token.tenantSlug = dbUser.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '-')
-              token.tenantName = dbUser.name ?? dbUser.email
-              token.tenantRole = 'owner'
+              // Only provision a new tenant if the user has NO pending invites.
+              // If they have a pending invite (invite_accepted = FALSE) they must
+              // accept it through the invite flow — not get a phantom tenant.
+              const { rows: pendingRows } = await pool.query<{ count: string }>(
+                `SELECT COUNT(*) AS count FROM tenant_members
+                 WHERE user_id = $1 AND invite_accepted = FALSE AND invite_expires > NOW()`,
+                [dbUser.id]
+              )
+              const hasPendingInvite = parseInt(pendingRows[0]?.count ?? '0') > 0
+
+              if (!hasPendingInvite) {
+                const { provisionTenantForUser } = await import('./tenant')
+                const tId = await provisionTenantForUser(dbUser.id, dbUser.name ?? '', dbUser.email)
+                token.tenantId   = tId
+                token.tenantSlug = dbUser.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '-')
+                token.tenantName = dbUser.name ?? dbUser.email
+                token.tenantRole = 'owner'
+              }
+              // If hasPendingInvite: tenantId stays undefined; middleware / dashboard
+              // will show the "accept your invite" prompt.
             }
           } catch (err) {
             console.error('[auth] tenant resolve error — continuing without tenant ctx:', err)

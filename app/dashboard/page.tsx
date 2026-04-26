@@ -1746,7 +1746,7 @@ export default function DashboardPage() {
   const removeMember = async (memberId: string) => {
     if (!confirm('Remove this team member?')) return
     try {
-      const res = await fetch(`/api/tenant/members?member_id=${memberId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/tenant/members?memberId=${memberId}`, { method: 'DELETE' })
       if (res.ok) loadTeamMembers()
     } catch { /* ignore */ }
   }
