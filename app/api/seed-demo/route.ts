@@ -132,13 +132,20 @@ export async function POST() {
       return NextResponse.json({ message: 'Demo data already exists', skipped: true })
     }
 
-    // Insert demo jobs
+    // Resolve the tenant for this user first
+    const tenantRes = await pool.query<{ tenant_id: string }>(
+      `SELECT tm.tenant_id FROM tenant_members tm WHERE tm.user_id = $1 AND tm.invite_accepted = TRUE LIMIT 1`,
+      [userId]
+    )
+    const tenantId = tenantRes.rows[0]?.tenant_id ?? null
+
+    // Insert demo jobs (with tenant_id)
     const jobIds: string[] = []
     for (const job of DEMO_JOBS) {
       const res = await pool.query<{ id: string }>(
-        `INSERT INTO job_posts (user_id, title, company, location, type, description, requirements, status, ai_generated, tags, applications_count)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,'active',false,'{}',0) RETURNING id`,
-        [userId, job.title, job.company, job.location, job.type, job.description, job.requirements]
+        `INSERT INTO job_posts (tenant_id, user_id, title, company, location, type, description, requirements, status, ai_generated, tags, applications_count)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'active',false,'{}',0) RETURNING id`,
+        [tenantId, userId, job.title, job.company, job.location, job.type, job.description, job.requirements]
       )
       jobIds.push(res.rows[0].id)
     }
@@ -148,14 +155,14 @@ export async function POST() {
       const jobId = jobIds[c.jobIndex]
       await pool.query(
         `INSERT INTO resumes
-           (user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
+           (tenant_id, user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
             ai_score, pipeline_stage, ai_skills, ai_summary, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::text[],$10,$11)`,
         [
-          userId, jobId,
+          tenantId, userId, jobId,
           c.candidate_name, c.candidate_email, c.candidate_phone,
           c.ai_score, c.pipeline_stage,
-          JSON.stringify(c.ai_skills), c.ai_summary, c.status,
+          c.ai_skills, c.ai_summary, c.status,
         ]
       )
     }

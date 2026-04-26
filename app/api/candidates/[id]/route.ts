@@ -14,7 +14,7 @@ const PATCH_ALLOWED = [
   'job_post_id',
 ] as const
 
-const VALID_STAGES   = ['new', 'screening', 'interview', 'offer', 'hired', 'rejected']
+const VALID_STAGES   = ['sourced', 'applied', 'new', 'screening', 'interview', 'offer', 'hired', 'rejected']
 const VALID_STATUSES = ['pending', 'reviewed', 'shortlisted', 'rejected', 'hired']
 
 export async function PATCH(

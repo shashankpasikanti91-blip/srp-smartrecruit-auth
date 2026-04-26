@@ -243,42 +243,42 @@ function JDTab() {
           <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
             {mode === 'generate' ? (
               <div className="space-y-3">
-                <h2 className="text-sm font-semibold text-gray-700 mb-4">Generate Job Description</h2>
+                <h2 className="text-sm font-bold text-gray-800 mb-4">Generate Job Description</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Job Title *</label>
+                    <label className="text-xs font-semibold text-gray-700 mb-1 block">Job Title *</label>
                     <input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. Senior React Developer"
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Company Name</label>
+                    <label className="text-xs font-semibold text-gray-700 mb-1 block">Company Name</label>
                     <input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="e.g. Acme Corp"
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="text-xs text-gray-500 mb-1 block">Required Skills</label>
+                    <label className="text-xs font-semibold text-gray-700 mb-1 block">Required Skills</label>
                     <input value={skills} onChange={e => setSkills(e.target.value)} placeholder="React, TypeScript, Node.js, PostgreSQL"
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Experience</label>
+                    <label className="text-xs font-semibold text-gray-700 mb-1 block">Experience</label>
                     <input value={experience} onChange={e => setExperience(e.target.value)} placeholder="3–5 years"
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Location</label>
+                    <label className="text-xs font-semibold text-gray-700 mb-1 block">Location</label>
                     <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Hyderabad / Remote"
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Employment Type</label>
+                    <label className="text-xs font-semibold text-gray-700 mb-1 block">Employment Type</label>
                     <select value={employmentType} onChange={e => setEmploymentType(e.target.value)}
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500">
                       {['Full-Time','Part-Time','Contract','Internship','Remote','Hybrid'].map(t => <option key={t}>{t}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Salary / CTC (optional)</label>
+                    <label className="text-xs font-semibold text-gray-700 mb-1 block">Salary / CTC (optional)</label>
                     <input value={salary} onChange={e => setSalary(e.target.value)} placeholder="₹12–18 LPA or $80k–100k"
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
                   </div>
@@ -286,7 +286,7 @@ function JDTab() {
               </div>
             ) : (
               <div>
-                <h2 className="text-sm font-semibold text-gray-700 mb-3">Analyze Existing JD</h2>
+                <h2 className="text-sm font-bold text-gray-800 mb-3">Analyze Existing JD</h2>
                 <p className="text-xs text-gray-500 mb-3">Paste a JD to extract skills, suggest interview questions, identify skill clusters, and generate boolean search strings.</p>
                 <textarea value={analyzeText} onChange={e => setAnalyzeText(e.target.value)}
                   rows={8} placeholder="Paste the full job description here…"
@@ -329,7 +329,7 @@ function JDTab() {
                       </button>
                     </div>
                   </div>
-                  <pre className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed max-h-[60vh] overflow-y-auto bg-gray-50 rounded-lg p-4 border border-gray-200">{jdText}</pre>
+                  <pre className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed max-h-[60vh] overflow-y-auto bg-gray-50 rounded-lg p-4 border border-gray-200">{jdText.replace(/[□☐■▪◦◆►▸]/g, '•')}</pre>
                 </div>
               ) : mode === 'analyze' ? (
                 <div className="space-y-4">
@@ -469,24 +469,24 @@ function BooleanTab() {
             {mode === 'simple' ? (
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Job Title *</label>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Job Title *</label>
                   <input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. Full Stack Developer"
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Skills (comma-separated)</label>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Skills (comma-separated)</label>
                   <input value={skills} onChange={e => setSkills(e.target.value)} placeholder="React, Node.js, MongoDB"
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Experience</label>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Experience</label>
                   <input value={experience} onChange={e => setExperience(e.target.value)} placeholder="3+ years"
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
                 </div>
               </div>
             ) : (
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Paste Job Description</label>
+                <label className="text-xs font-semibold text-gray-700 mb-1 block">Paste Job Description</label>
                 <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={6} placeholder="Paste the full JD here to auto-generate boolean strings…"
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm resize-none focus:outline-none focus:border-blue-500" />
                 <p className="text-xs text-gray-400 mt-2 mb-1">Or upload a JD file (PDF / DOCX / TXT):</p>
@@ -1298,14 +1298,14 @@ function CommsTab() {
           {section === 'send' && (
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Channel</label>
+                <label className="text-xs font-semibold text-gray-700 mb-1 block">Channel</label>
                 <select value={channel} onChange={e => setChannel(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500">
                   {CHANNELS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Use Template (optional)</label>
+                <label className="text-xs font-semibold text-gray-700 mb-1 block">Use Template (optional)</label>
                 <select value={selectedTemplate} onChange={e => setSelectedTemplate(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500">
                   <option value="">— No template —</option>
@@ -1313,19 +1313,19 @@ function CommsTab() {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">{channel === 'telegram' ? 'Chat ID' : 'To (email or phone)'}</label>
+                <label className="text-xs font-semibold text-gray-700 mb-1 block">{channel === 'telegram' ? 'Chat ID' : 'To (email or phone)'}</label>
                 <input value={to} onChange={e => setTo(e.target.value)} placeholder={channel === 'telegram' ? '@username or chat ID' : 'candidate@email.com'}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
               </div>
               {['smtp','sendgrid','mailgun','outlook'].includes(channel) && (
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Subject</label>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Subject</label>
                   <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Interview Schedule — Software Engineer"
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
                 </div>
               )}
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Message</label>
+                <label className="text-xs font-semibold text-gray-700 mb-1 block">Message</label>
                 <textarea value={message} onChange={e => setMessage(e.target.value)} rows={5}
                   placeholder="Dear candidate, we are pleased to invite you for…"
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm resize-none focus:outline-none focus:border-blue-500" />
@@ -1409,7 +1409,7 @@ function CommsTab() {
               <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-3">
                 <h3 className="text-sm font-semibold text-gray-700">Configure Provider</h3>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Provider</label>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">Provider</label>
                   <select value={providerChannel} onChange={e => { setProviderChannel(e.target.value); setProviderConfig({}) }}
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500">
                     {Object.keys(PROVIDER_FIELDS).map(c => <option key={c} value={c}>{CHANNELS.find(ch => ch.id === c)?.label ?? c}</option>)}
@@ -1417,7 +1417,7 @@ function CommsTab() {
                 </div>
                 {(PROVIDER_FIELDS[providerChannel] ?? []).map(field => (
                   <div key={field.name}>
-                    <label className="text-xs text-gray-500 mb-1 block">{field.label}</label>
+                    <label className="text-xs font-semibold text-gray-700 mb-1 block">{field.label}</label>
                     <input type={field.type ?? 'text'} value={providerConfig[field.name] ?? ''} placeholder={field.placeholder ?? ''}
                       onChange={e => setProviderConfig(v => ({ ...v, [field.name]: e.target.value }))}
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
@@ -1505,6 +1505,8 @@ export default function DashboardPage() {
   const [filterJob, setFilterJob] = useState('')
   const [filterSkill, setFilterSkill] = useState('')
   const [filterDate, setFilterDate] = useState('')  // 'today' | '7days' | '30days' | ''
+  const [filterJobStatus, setFilterJobStatus] = useState('')
+  const [filterJobType, setFilterJobType] = useState('')
   const [loading, setLoading] = useState(true)
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [matchCounts, setMatchCounts] = useState<Record<string, number>>({})
@@ -2101,6 +2103,11 @@ export default function DashboardPage() {
   const hiredCount = stageCounts['hired'] ?? 0
   const interviewCount = stageCounts['interview'] ?? 0
 
+  const filteredJobs = jobs.filter(j =>
+    (!filterJobStatus || j.status === filterJobStatus) &&
+    (!filterJobType || j.type === filterJobType)
+  )
+
   // Subscription expiry alert logic
   const subAlert = (() => {
     if (!profileData?.subscription) return null
@@ -2432,7 +2439,7 @@ export default function DashboardPage() {
             {/* ── CANDIDATES ───────────────────────────────────────────────── */}
             {activeTab === 'candidates' && (
               <div>
-                <div className="flex items-center justify-between mb-4 pb-5 border-b border-gray-100">
+                <div className="flex items-center justify-between mb-5 pb-5 border-b border-gray-100">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 bg-blue-600">
                       <Users className="w-5 h-5 text-white" />
@@ -2444,64 +2451,99 @@ export default function DashboardPage() {
                       </p>
                     </div>
                   </div>
+                  <button onClick={() => setShowNewCandidate(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:bg-blue-700 shadow-sm bg-blue-600">
+                    <Plus className="w-4 h-4" /> Add Candidate
+                  </button>
                 </div>
 
-                <div className="flex items-center gap-3 mb-5 flex-wrap">
-                  <div className="relative flex-1 min-w-[160px]">
-                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                    <input value={searchQ} onChange={e => {
-                        const v = e.target.value
-                        setSearchQ(v)
-                        // Smart ID routing: CAN-xxxxx → candidates tab, JOB-xxxxx → jobs tab
-                        if (/^CAN-\d+/i.test(v.trim())) { setActiveTab('candidates') }
-                        else if (/^JOB-\d+/i.test(v.trim())) { setActiveTab('jobs') }
-                      }}
-                      placeholder="Name, email, CAN-000245…"
-                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
-                  </div>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-blue-500/70" />
-                    <input value={filterSkill} onChange={e => setFilterSkill(e.target.value)}
-                      placeholder="Filter by skill…"
-                      list="skill-suggestions"
-                      className="pl-9 pr-3 py-2 rounded-lg bg-white border border-blue-300/60 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 w-40" />
-                    <datalist id="skill-suggestions">
-                      {topSkills.map(({ skill }) => <option key={skill} value={skill} />)}
-                    </datalist>
-                  </div>
-                  <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
-                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-700 focus:outline-none focus:border-blue-500">
-                    <option value="">All Stages</option>
-                    {PIPELINE_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                  </select>
-                  <select value={filterMatch} onChange={e => setFilterMatch(e.target.value)}
-                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-700 focus:outline-none focus:border-blue-500">
-                    <option value="">All Matches</option>
-                    <option value="best">Best Match</option>
-                    <option value="good">Good Match</option>
-                    <option value="partial">Partial Match</option>
-                  </select>
-                  <select value={filterJob} onChange={e => setFilterJob(e.target.value)}
-                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-700 focus:outline-none focus:border-blue-500">
-                    <option value="">All Jobs</option>
-                    {jobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
-                  </select>
-                  <select value={filterDate} onChange={e => setFilterDate(e.target.value)}
-                    className="appearance-none pl-3 pr-7 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-700 focus:outline-none focus:border-blue-500">
-                    <option value="">All Time</option>
-                    <option value="today">Today</option>
-                    <option value="7days">Last 7 Days</option>
-                    <option value="30days">Last 30 Days</option>
-                  </select>
-                  {(searchQ || filterStage || filterMatch || filterJob || filterSkill || filterDate) && (
-                    <button onClick={() => { setSearchQ(''); setFilterStage(''); setFilterMatch(''); setFilterJob(''); setFilterSkill(''); setFilterDate('') }}
-                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
-                      <X className="w-3.5 h-3.5" /> Clear
+                {/* ── Filter bar ── */}
+                <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm mb-5">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* Search */}
+                    <div className="relative flex-1 min-w-[200px]">
+                      <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                      <input value={searchQ} onChange={e => {
+                          const v = e.target.value
+                          setSearchQ(v)
+                          // Smart ID routing: CAN-xxxxx → candidates tab, JOB-xxxxx → jobs tab
+                          if (/^CAN-\d+/i.test(v.trim())) { setActiveTab('candidates') }
+                          else if (/^JOB-\d+/i.test(v.trim())) { setActiveTab('jobs') }
+                        }}
+                        placeholder="Search by name, email, or CAN-ID…"
+                        className="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
+                    </div>
+
+                    {/* Skill */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Skill</span>
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-blue-400" />
+                        <input value={filterSkill} onChange={e => setFilterSkill(e.target.value)}
+                          placeholder="e.g. React"
+                          list="skill-suggestions"
+                          className="pl-7 pr-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 w-28" />
+                        <datalist id="skill-suggestions">
+                          {topSkills.map(({ skill }) => <option key={skill} value={skill} />)}
+                        </datalist>
+                      </div>
+                    </div>
+
+                    {/* Stage */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Stage</span>
+                      <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
+                        className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500">
+                        <option value="">All</option>
+                        {PIPELINE_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Match */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Match</span>
+                      <select value={filterMatch} onChange={e => setFilterMatch(e.target.value)}
+                        className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500">
+                        <option value="">All</option>
+                        <option value="best">Best</option>
+                        <option value="good">Good</option>
+                        <option value="partial">Partial</option>
+                        <option value="poor">Low</option>
+                      </select>
+                    </div>
+
+                    {/* Job */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Job</span>
+                      <select value={filterJob} onChange={e => setFilterJob(e.target.value)}
+                        className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500 max-w-[150px]">
+                        <option value="">All Jobs</option>
+                        {jobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Date */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Date</span>
+                      <select value={filterDate} onChange={e => setFilterDate(e.target.value)}
+                        className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500">
+                        <option value="">All Time</option>
+                        <option value="today">Today</option>
+                        <option value="7days">Last 7 Days</option>
+                        <option value="30days">Last 30 Days</option>
+                      </select>
+                    </div>
+
+                    {(searchQ || filterStage || filterMatch || filterJob || filterSkill || filterDate) && (
+                      <button onClick={() => { setSearchQ(''); setFilterStage(''); setFilterMatch(''); setFilterJob(''); setFilterSkill(''); setFilterDate('') }}
+                        className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-red-600 border border-gray-200 px-2.5 py-1.5 rounded-lg bg-white hover:bg-red-50 hover:border-red-200 transition-colors">
+                        <X className="w-3 h-3" /> Clear
+                      </button>
+                    )}
+                    <button onClick={loadData} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-700 border border-gray-200 bg-white hover:bg-gray-50 transition-colors">
+                      <RefreshCw className="w-3.5 h-3.5" /> Refresh
                     </button>
-                  )}
-                  <button onClick={loadData} className="ml-auto p-2 rounded hover:bg-gray-100">
-                    <Filter className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                  </button>
+                  </div>
                 </div>
 
                 {loading ? (
@@ -2510,32 +2552,36 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-                    <table className="w-full text-sm">
+                    <table className="ent-table">
                       <thead>
-                        <tr className="border-b border-gray-200 bg-gray-50">
-                          {['ID', 'Candidate', 'Uploaded', 'Updated', 'Match', 'Stage', 'Job', 'Skills', 'Move Stage'].map(h => (
-                            <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                        <tr>
+                          {['ID', 'Candidate', 'Uploaded', 'Updated', 'Match', 'Stage', 'Job', 'Source', 'Skills', 'Actions'].map(h => (
+                            <th key={h} className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wide">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {candidates.length === 0 ? (
-                          <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">No candidates found</td></tr>
+                          <tr><td colSpan={10} className="px-4 py-12 text-center text-gray-400">No candidates found</td></tr>
                         ) : candidates.map((c, i) => (
-                          <tr key={c.id} onClick={() => setSelectedCandidate(c)} className={`border-b border-gray-100 hover:bg-blue-50/40 cursor-pointer transition-colors ${i % 2 ? 'bg-gray-50/40' : ''}`}>
+                          <tr key={c.id} onClick={() => setSelectedCandidate(c)}>
                             <td className="px-4 py-3"><ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} /></td>
                             <td className="px-4 py-3">
-                              <p className="font-semibold text-gray-900">{c.candidate_name}</p>
-                              <p className="text-xs text-gray-500">{c.candidate_email}</p>
+                              <p className="font-bold text-gray-900">{c.candidate_name}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">{c.candidate_email}</p>
+                              {c.candidate_phone && <p className="text-xs text-gray-400 mt-0.5">{c.candidate_phone}</p>}
                             </td>
                             <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{fmtDate(c.created_at)}</td>
                             <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{c.updated_at && c.updated_at !== c.created_at ? fmtDate(c.updated_at) : '—'}</td>
                             <td className="px-4 py-3"><MatchBadge category={c.match_category} score={c.ai_score} variant="light" /></td>
                             <td className="px-4 py-3"><StagePill stage={c.pipeline_stage} variant="light" /></td>
-                            <td className="px-4 py-3 text-xs text-gray-500">
+                            <td className="px-4 py-3 text-xs text-gray-600">
                               {c.job_posts ? (
-                                <><p>{c.job_posts.title}</p><ShortIdBadge id={c.job_posts.short_id ?? ''} /></>
-                              ) : '—'}
+                                <div className="space-y-0.5"><p className="font-medium text-gray-700 line-clamp-1">{c.job_posts.title}</p><ShortIdBadge id={c.job_posts.short_id ?? ''} /></div>
+                              ) : <span className="text-gray-400">—</span>}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">{c.source_type || 'Manual'}</span>
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex flex-wrap gap-1 max-w-[140px]">
@@ -2548,10 +2594,14 @@ export default function DashboardPage() {
                               </div>
                             </td>
                             <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                              <select defaultValue={c.pipeline_stage} onChange={e => moveStage(c.id, e.target.value)}
-                                className="text-xs bg-white border border-gray-300 text-gray-600 rounded px-2 py-1 cursor-pointer focus:outline-none focus:border-blue-400">
-                                {PIPELINE_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                              </select>
+                              <div className="flex flex-col gap-1.5">
+                                <select value={c.pipeline_stage} onChange={e => moveStage(c.id, e.target.value)}
+                                  className="text-xs bg-white border border-gray-200 text-gray-600 rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:border-blue-400 font-medium">
+                                  {PIPELINE_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                                </select>
+                                <button onClick={() => setSelectedCandidate(c)}
+                                  className="text-xs text-blue-600 hover:text-blue-800 font-medium text-left">View →</button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -2576,7 +2626,7 @@ export default function DashboardPage() {
                   <div className="ml-auto flex gap-2">
                     {(['single', 'bulk'] as const).map(m => (
                       <button key={m} onClick={() => setScreenMode(m)}
-                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${screenMode === m ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+                        className={`px-5 py-1.5 rounded-lg text-sm font-bold transition-all border ${screenMode === m ? 'bg-blue-600 text-white shadow-sm border-blue-600' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400'}`}>
                         {m === 'single' ? 'Single CV' : 'Bulk CVs'}
                       </button>
                     ))}
@@ -2590,7 +2640,7 @@ export default function DashboardPage() {
                     <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={10}
                       placeholder="Paste the full job description here…"
                       className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-400 resize-none" />
-                    <p className="text-xs text-gray-500">Or upload JD file:</p>
+                    <p className="text-xs font-semibold text-gray-600">Or upload JD file:</p>
                     <FileUploadZone label="Upload JD (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
                       onTexts={([t]) => setJdText(t.text)} disabled={screening} />
                   </div>
@@ -2605,7 +2655,7 @@ export default function DashboardPage() {
                         <textarea value={resumeText} onChange={e => setResumeText(e.target.value)} rows={10}
                           placeholder="Paste the candidate's resume text here…"
                           className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-400 resize-none" />
-                        <p className="text-xs text-gray-500">Or upload resume file:</p>
+                        <p className="text-xs font-semibold text-gray-600">Or upload resume file:</p>
                         <FileUploadZone label="Upload Resume (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
                           onTexts={([t]) => setResumeText(t.text)} disabled={screening} />
                       </>
@@ -2614,7 +2664,7 @@ export default function DashboardPage() {
                         onTexts={ts => setBulkTexts(ts)} disabled={screening} />
                     )}
                     <div>
-                      <label className="text-xs text-gray-500 mb-1 block">Link to Job (optional)</label>
+                      <label className="text-xs font-semibold text-gray-700 mb-1 block">Link to Job (optional)</label>
                       <select value={screenJobId} onChange={e => setScreenJobId(e.target.value)}
                         className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-blue-400">
                         <option value="">— No job —</option>
@@ -2948,7 +2998,8 @@ export default function DashboardPage() {
             {/* ── JOBS ─────────────────────────────────────────────────────── */}
             {activeTab === 'jobs' && (
               <div>
-                <div className="flex items-center justify-between mb-6 pb-5 border-b border-gray-100">
+                {/* ── Header ── */}
+                <div className="flex items-center justify-between mb-5 pb-5 border-b border-gray-100">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
                       style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
@@ -2956,29 +3007,69 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Job Posts</h1>
-                      <p className="text-sm text-gray-500 mt-0.5">{jobs.length} active jobs</p>
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        {filteredJobs.length}{filteredJobs.length !== jobs.length ? ` of ${jobs.length}` : ''} job{filteredJobs.length !== 1 ? 's' : ''}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setShowNewJob(true)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white transition-all hover:bg-blue-700 shadow-sm bg-blue-600">
-                      <Plus className="w-3.5 h-3.5" /> New Job
-                    </button>
+                  <button onClick={() => setShowNewJob(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:bg-blue-700 shadow-sm bg-blue-600">
+                    <Plus className="w-4 h-4" /> New Job
+                  </button>
+                </div>
+
+                {/* ── Filter Bar ── */}
+                <div className="flex items-center gap-3 mb-5 flex-wrap rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <Filter className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Filter</span>
                   </div>
+                  <div className="w-px h-5 bg-gray-200 flex-shrink-0" />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Status</span>
+                    <select value={filterJobStatus} onChange={e => setFilterJobStatus(e.target.value)}
+                      className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20">
+                      <option value="">All</option>
+                      <option value="active">Active</option>
+                      <option value="closed">Closed</option>
+                      <option value="draft">Draft</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Job Type</span>
+                    <select value={filterJobType} onChange={e => setFilterJobType(e.target.value)}
+                      className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20">
+                      <option value="">All</option>
+                      <option value="full-time">Full-Time</option>
+                      <option value="part-time">Part-Time</option>
+                      <option value="contract">Contract</option>
+                      <option value="remote">Remote</option>
+                      <option value="internship">Internship</option>
+                    </select>
+                  </div>
+                  {(filterJobStatus || filterJobType) && (
+                    <button onClick={() => { setFilterJobStatus(''); setFilterJobType('') }}
+                      className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-red-600 border border-gray-200 px-2.5 py-1.5 rounded-lg bg-white hover:bg-red-50 hover:border-red-200 transition-colors">
+                      <X className="w-3 h-3" /> Clear
+                    </button>
+                  )}
+                  <span className="ml-auto text-xs font-semibold text-gray-400">{filteredJobs.length} result{filteredJobs.length !== 1 ? 's' : ''}</span>
                 </div>
 
                 {loading ? (
                   <div className="flex items-center justify-center h-40">
                     <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                   </div>
-                ) : jobs.length === 0 ? (
+                ) : filteredJobs.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-60 text-center">
                     <Briefcase className="w-10 h-10 text-gray-300 mb-3" />
-                    <p className="text-gray-500 mb-4">No jobs yet. Create your first job post.</p>
-                    <button onClick={() => setShowNewJob(true)}
-                      className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors hover:bg-blue-700 bg-blue-600">
-                      Create Job Post
-                    </button>
+                    <p className="text-gray-500 mb-4">{jobs.length === 0 ? 'No jobs yet. Create your first job post.' : 'No jobs match the selected filters.'}</p>
+                    {jobs.length === 0 && (
+                      <button onClick={() => setShowNewJob(true)}
+                        className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors hover:bg-blue-700 bg-blue-600">
+                        Create Job Post
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -2998,7 +3089,7 @@ export default function DashboardPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {jobs.map(job => {
+                        {filteredJobs.map(job => {
                           const jobCands = candidates.filter(c => c.job_posts?.id === job.id)
                           return (
                             <tr key={job.id} onClick={() => openJobDetails(job)}>
@@ -3701,7 +3792,7 @@ export default function DashboardPage() {
                         <p className="text-xs text-gray-600 font-medium">Add Integration</p>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div>
-                            <label className="text-xs text-gray-500 mb-1 block">Platform</label>
+                            <label className="text-xs font-semibold text-gray-700 mb-1 block">Platform</label>
                             <select value={intgProvider} onChange={e => setIntgProvider(e.target.value)}
                               className="w-full px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-700 focus:outline-none focus:border-blue-500">
                               <option value="">Select...</option>
@@ -3717,13 +3808,13 @@ export default function DashboardPage() {
                             </select>
                           </div>
                           <div>
-                            <label className="text-xs text-gray-500 mb-1 block">API Key</label>
+                            <label className="text-xs font-semibold text-gray-700 mb-1 block">API Key</label>
                             <input type="password" value={intgApiKey} onChange={e => setIntgApiKey(e.target.value)}
                               placeholder="Paste API key"
                               className="w-full px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500" />
                           </div>
                           <div>
-                            <label className="text-xs text-gray-500 mb-1 block">Webhook URL <span className="text-gray-400">(optional)</span></label>
+                            <label className="text-xs font-semibold text-gray-700 mb-1 block">Webhook URL <span className="text-gray-400">(optional)</span></label>
                             <input value={intgWebhook} onChange={e => setIntgWebhook(e.target.value)}
                               placeholder="https://..."
                               className="w-full px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500" />
@@ -4057,7 +4148,7 @@ export default function DashboardPage() {
                   {genPostJob.updated_at && genPostJob.updated_at !== genPostJob.created_at ? ` · Updated: ${fmtDate(genPostJob.updated_at)}` : ''}
                 </p>
               </div>
-              <button onClick={() => setGenPostJob(null)} className="text-gray-500 hover:text-gray-300"><X className="w-5 h-5" /></button>
+              <button onClick={() => { setGenPostJob(null); setActiveTab('jobs'); loadData() }} className="text-gray-500 hover:text-gray-300"><X className="w-5 h-5" /></button>
             </div>
 
             {/* Source JD preview */}
@@ -4083,7 +4174,7 @@ export default function DashboardPage() {
 
             {/* Custom prompt */}
             <div className="mb-4 flex-shrink-0">
-              <label className="text-xs text-gray-500 mb-1 block">Extra context / instructions (optional)</label>
+              <label className="text-xs font-semibold text-gray-700 mb-1 block">Extra context / instructions (optional)</label>
               <input value={genCustomPrompt} onChange={e => setGenCustomPrompt(e.target.value)}
                 placeholder="e.g. Highlight remote work, mention 5LPA stipend, target freshers…"
                 className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-blue-400" />
@@ -4174,14 +4265,14 @@ export default function DashboardPage() {
                 { key: 'ai_skills',       label: 'Skills (comma-separated)', placeholder: 'React, Node.js, Python' },
               ] as const).map(({ key, label, placeholder }) => (
                 <div key={key}>
-                  <label className="text-xs text-gray-500 mb-1 block">{label}</label>
+                  <label className="text-xs font-semibold text-gray-700 mb-1 block">{label}</label>
                   <input value={newCand[key]} onChange={e => setNewCand(p => ({ ...p, [key]: e.target.value }))}
                     placeholder={placeholder}
                     className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
                 </div>
               ))}
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Assign to Job (optional)</label>
+                <label className="text-xs font-semibold text-gray-700 mb-1 block">Assign to Job (optional)</label>
                 <select value={newCand.job_post_id} onChange={e => setNewCand(p => ({ ...p, job_post_id: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
                   <option value="">— No job —</option>
@@ -4191,7 +4282,7 @@ export default function DashboardPage() {
 
               {/* Resume Upload */}
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Resume (PDF / DOCX / TXT — optional)</label>
+                <label className="text-xs font-semibold text-gray-700 mb-1 block">Resume (PDF / DOCX / TXT — optional)</label>
                 <label className={`flex items-center gap-3 w-full px-3 py-3 rounded-lg border border-dashed cursor-pointer transition-colors ${
                   candResumeFile
                     ? 'border-indigo-500/60 bg-indigo-500/10 text-indigo-300'
@@ -4673,7 +4764,7 @@ function ScreenResultCard({ result: r, onAddCandidate, defaultOpen = true }: { r
                     <ul className="space-y-1">
                       {gaps.slice(0, 3).map((g, i) => (
                         <li key={i} className="text-xs text-gray-600 flex items-start gap-1.5">
-                          <span className="text-orange-400 flex-shrink-0 mt-0.5">—</span>
+                          <span className="text-orange-500 font-bold flex-shrink-0 mt-0.5">•</span>
                           <span>{g.from} → {g.to}{g.months ? ` (${g.months}mo)` : ''}{g.reason ? `: ${g.reason}` : ''}</span>
                         </li>
                       ))}
@@ -4942,7 +5033,7 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
           <div className="p-6">
             {c.raw_text ? (
               <pre className="text-xs text-gray-400 leading-relaxed whitespace-pre-wrap bg-[#0d0d1a] rounded-lg p-4 border border-white/5 max-h-[60vh] overflow-y-auto font-mono">
-                {c.raw_text}
+                {c.raw_text.replace(/[□☐■▪◦◆►▸]/g, '•')}
               </pre>
             ) : (
               <div className="flex flex-col items-center justify-center h-40 text-gray-600">
