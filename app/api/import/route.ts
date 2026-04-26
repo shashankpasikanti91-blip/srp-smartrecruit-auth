@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 
 export const maxDuration = 30
@@ -80,6 +79,7 @@ function rowToCandidate(
 
 async function processImport(
   userId: string,
+  tenantId: string,
   batchId: string,
   headers: string[],
   rows: string[][]
@@ -121,8 +121,8 @@ async function processImport(
       let existing: { id: string } | undefined
       if (email) {
         const dup = await pool.query<{ id: string }>(
-          `SELECT id FROM resumes WHERE candidate_email = $1 AND user_id = $2 LIMIT 1`,
-          [email, userId]
+          `SELECT id FROM resumes WHERE candidate_email = $1 AND tenant_id = $2 LIMIT 1`,
+          [email, tenantId]
         )
         existing = dup.rows[0]
       }
@@ -136,20 +136,20 @@ async function processImport(
              full_ai_analysis = $3,
              source_batch_id = $4,
              updated_at = NOW()
-           WHERE id = $5 AND user_id = $6`,
-          [name, rowData.phone, JSON.stringify(extraData), batchId, existing.id, userId]
+           WHERE id = $5 AND tenant_id = $6`,
+          [name, rowData.phone, JSON.stringify(extraData), batchId, existing.id, tenantId]
         )
         skipped++
       } else {
         // Create new candidate
         await pool.query(
           `INSERT INTO resumes
-             (user_id, candidate_name, candidate_email, candidate_phone,
+             (tenant_id, user_id, candidate_name, candidate_email, candidate_phone,
               source_type, source_batch_id, full_ai_analysis,
               pipeline_stage, status)
-           VALUES ($1,$2,$3,$4,'import',$5,$6,'applied','pending')`,
+           VALUES ($1,$2,$3,$4,$5,'import',$6,$7,'applied','pending')`,
           [
-            userId, name ?? '', email ?? '', rowData.phone ?? '',
+            tenantId, userId, name ?? '', email ?? '', rowData.phone ?? '',
             batchId, JSON.stringify(extraData),
           ]
         )
@@ -180,9 +180,9 @@ async function processImport(
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const userId = (session.user as Record<string, unknown>).userId as string
+  const ctx = await requireTenant(req, 'candidates.create')
+  if (ctx instanceof NextResponse) return ctx
+  const { userId, tenantId } = ctx
 
   try {
     const formData = await req.formData()
@@ -206,15 +206,15 @@ export async function POST(req: NextRequest) {
     // Create batch record (import_type required by CHECK constraint)
     const batchRes = await pool.query<{ id: string; batch_ref: string }>(
       `INSERT INTO import_batches
-         (user_id, file_name, total_rows, status, import_type, source_label, started_at)
-       VALUES ($1,$2,$3,'processing','candidates_csv','Direct Upload', NOW()) RETURNING id, batch_ref`,
-      [userId, file.name, rows.length]
+         (tenant_id, user_id, file_name, total_rows, status, import_type, source_label, started_at)
+       VALUES ($1,$2,$3,$4,'processing','candidates_csv','Direct Upload', NOW()) RETURNING id, batch_ref`,
+      [tenantId, userId, file.name, rows.length]
     )
     const batchId = batchRes.rows[0].id
     const ref = batchRes.rows[0].batch_ref
 
     // Process in background (fire-and-forget, not awaited)
-    processImport(userId, batchId, headers, rows).catch(e =>
+    processImport(userId, tenantId, batchId, headers, rows).catch(e =>
       console.error('[import] Background processing error:', e)
     )
 
@@ -234,9 +234,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const userId = (session.user as Record<string, unknown>).userId as string
+  const ctx = await requireTenant(req, 'candidates.read')
+  if (ctx instanceof NextResponse) return ctx
+  const { userId, tenantId } = ctx
 
   const url = new URL(req.url)
   const batchId = url.searchParams.get('batch_id')
@@ -246,8 +246,8 @@ export async function GET(req: NextRequest) {
       const bRes = await pool.query(
         `SELECT id, file_name AS filename, batch_ref, status, total_rows, processed_rows,
                 success_rows, skipped_rows, error_rows, created_at, finished_at
-         FROM import_batches WHERE id = $1 AND user_id = $2 LIMIT 1`,
-        [batchId, userId]
+         FROM import_batches WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [batchId, tenantId]
       )
       if (!bRes.rows.length) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -266,9 +266,9 @@ export async function GET(req: NextRequest) {
     const { rows } = await pool.query(
       `SELECT id, file_name AS filename, batch_ref, status, total_rows, processed_rows,
               success_rows, skipped_rows, error_rows, created_at, finished_at
-       FROM import_batches WHERE user_id = $1
+       FROM import_batches WHERE tenant_id = $1
        ORDER BY created_at DESC LIMIT 20`,
-      [userId]
+      [tenantId]
     )
     return NextResponse.json({ batches: rows })
 

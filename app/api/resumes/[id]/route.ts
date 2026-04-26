@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireTenant } from '@/lib/tenant'
 import { updateResumeStatus } from '@/lib/db'
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const ctx = await requireTenant(req, 'candidates.update')
+  if (ctx instanceof NextResponse) return ctx
   try {
     const { id } = await params
     const { status, reviewer_notes } = await req.json()

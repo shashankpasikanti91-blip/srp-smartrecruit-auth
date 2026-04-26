@@ -59,10 +59,52 @@ SRP does not claim ownership of your Customer Data and will not use it for any p
 • AI scores are provided as recommendations only and do not constitute final hiring decisions
 • You remain solely responsible for all hiring decisions made using or assisted by the Service
 • You should apply human judgement and comply with applicable employment laws when making hiring decisions
-• AI scoring may not be perfect and should be used as one input among many`,
+• AI scoring may not be perfect and should be used as one input among many
+• AI classifications (Strong / Keep-A-Watch / Reject) are advisory — recruiters bear full responsibility for final decisions
+• SRP AI Labs is not liable for any employment outcome, claim, or dispute arising from reliance on AI-generated scores`,
   },
   {
-    title: '7. Payment and subscriptions',
+    title: '7. Third-party portal integrations',
+    content: `The Service supports integration with third-party job portal platforms. By connecting a portal account you agree to the following:
+
+Naukri (Info Edge India Ltd)
+You must hold a valid, active subscription with Naukri. Resume data retrieved via the Naukri API is subject to Info Edge India Ltd's Terms of Service and API usage policy. SRP is a downstream processor of this data; misuse of Naukri data through our platform remains your responsibility. Rate limits, data quotas, and access rights are governed by your Naukri subscription tier.
+
+Monster (Monster Worldwide / Quess Corp)
+You must hold a valid Monster India recruiter account. All CV data accessed through Monster APIs is governed by Monster Worldwide's Terms of Use. SRP acts solely as an integration bridge; you are responsible for ensuring your Monster API usage complies with Monster's acceptable use policies.
+
+Shine (HT Media Ltd)
+Integration with Shine.com is subject to HT Media Ltd's API Terms of Use. You must maintain a valid Shine recruiter plan to use this integration. Candidate profile data obtained via Shine APIs must only be used for legitimate hiring purposes.
+
+General Portal Terms
+• SRP is not responsible for portal API downtime, rate-limit throttling, data inaccuracies, or changes to portal API schemas
+• You must not use portal-sourced candidate data for any purpose other than recruitment for your own organisation
+• You must not re-sell, re-license, or share portal-sourced candidate data with third parties
+• SRP may suspend portal integrations if usage is suspected to violate a portal provider's terms`,
+  },
+  {
+    title: '8. API access and developer responsibilities',
+    content: `Subscribers on eligible plans (Professional and Enterprise) may access the SRP REST API. By using the API you agree to:
+
+• Keep your API keys confidential. Do not embed API keys in client-side code or public repositories
+• Not exceed documented rate limits or attempt to bypass usage quotas
+• Not use the API to harvest candidate data in bulk for any purpose beyond your own recruitment workflow
+• Not use the API to build a competing product or to replicate core Service features
+• Immediately notify us if an API key is compromised
+
+SRP reserves the right to revoke API access if keys are misused or these terms are violated. SRP is not liable for any data exposure resulting from your failure to secure API credentials.`,
+  },
+  {
+    title: '9. Data retention and deletion',
+    content: `Candidate resume data uploaded to the Service is retained for the duration of your active subscription plus a 90-day grace period following subscription expiry or cancellation. After this period, candidate data is permanently deleted from our systems.
+
+• You may request deletion of specific candidate records at any time from within the platform
+• Portal-sourced resume data (Naukri, Monster, Shine) is stored only for active screening purposes and is not retained beyond your subscription period
+• Audit logs are retained for 12 months for compliance purposes
+• Upon written request, SRP will provide a data export of your account data within 30 business days`,
+  },
+  {
+    title: '10. Payment and subscriptions',
     content: `Paid subscriptions are billed in advance on a monthly or annual basis. You agree to:
 
 • Pay all fees associated with your chosen plan
@@ -72,29 +114,29 @@ SRP does not claim ownership of your Customer Data and will not use it for any p
 Refunds are provided within 14 days of initial purchase for annual plans. Monthly plans are non-refundable. We reserve the right to modify pricing with 30 days' notice.`,
   },
   {
-    title: '8. Intellectual property',
+    title: '11. Intellectual property',
     content: `The Service, including its software, design, trademarks, AI models, and documentation, is owned by SRP Recruit AI Labs and protected by intellectual property laws. You receive a limited, non-exclusive, non-transferable licence to use the Service during your subscription.
 
 You may not copy, modify, reverse engineer, or create derivative works of the Service or any part thereof.`,
   },
   {
-    title: '9. Disclaimer of warranties',
+    title: '12. Disclaimer of warranties',
     content: `THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND. SRP DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
 
 WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR COMPLETELY SECURE.`,
   },
   {
-    title: '10. Limitation of liability',
+    title: '13. Limitation of liability',
     content: `TO THE MAXIMUM EXTENT PERMITTED BY LAW, SRP SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING LOSS OF PROFITS OR DATA.
 
 OUR TOTAL LIABILITY TO YOU FOR ANY CLAIMS ARISING UNDER THESE TERMS SHALL NOT EXCEED THE AMOUNTS PAID BY YOU TO SRP IN THE 12 MONTHS PRECEDING THE CLAIM.`,
   },
   {
-    title: '11. Governing law',
+    title: '14. Governing law',
     content: `These Terms are governed by the laws of India. Any disputes shall be subject to the exclusive jurisdiction of the courts of Hyderabad, Telangana, India.`,
   },
   {
-    title: '12. Contact',
+    title: '15. Contact',
     content: `For questions about these Terms: legal@srpailabs.com`,
   },
 ]

@@ -1,34 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireTenant } from '@/lib/tenant'
 import { createResume, getResumes, logActivity } from '@/lib/db'
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  const userId = (session.user as Record<string, unknown>).userId as string
+  const ctx = await requireTenant(req, 'candidates.read')
+  if (ctx instanceof NextResponse) return ctx
+  const { userId, tenantId } = ctx
   const { searchParams } = new URL(req.url)
   const jobPostId = searchParams.get('job_post_id') ?? undefined
-  const resumes = await getResumes(userId, jobPostId)
+  const resumes = await getResumes(userId, jobPostId, tenantId)
   return NextResponse.json({ resumes })
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const ctx = await requireTenant(req, 'candidates.create')
+  if (ctx instanceof NextResponse) return ctx
+  const { userId, tenantId } = ctx
   try {
     const body = await req.json()
-    const userId = (session.user as Record<string, unknown>).userId as string
 
     if (!body.candidate_name && !body.candidate_email) {
       return NextResponse.json({ error: 'candidate_name or candidate_email required' }, { status: 400 })
     }
 
     const resume = await createResume({
+      tenant_id: tenantId,
       user_id: userId,
       job_post_id: body.job_post_id ?? null,
       candidate_name: body.candidate_name ?? null,

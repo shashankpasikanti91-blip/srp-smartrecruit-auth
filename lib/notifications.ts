@@ -300,3 +300,52 @@ export async function sendWelcomeEmail(user: {
 </html>`
   })
 }
+
+// ── Team invite email ─────────────────────────────────────────────────────────
+export async function sendInviteEmail(opts: {
+  toEmail: string
+  inviterName: string
+  tenantName: string
+  role: string
+  inviteLink: string
+}): Promise<void> {
+  const roleLabel = opts.role.charAt(0).toUpperCase() + opts.role.slice(1)
+  await sendEmail({
+    to: opts.toEmail,
+    subject: `You've been invited to join ${opts.tenantName} on SRP SmartRecruit`,
+    html: `
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <div style="max-width:520px;margin:0 auto;padding:40px 20px">
+    <div style="background:#fff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden">
+      <div style="background:linear-gradient(135deg,#1D4ED8,#7C3AED);padding:32px;text-align:center">
+        <h1 style="color:#fff;font-size:22px;margin:0;font-weight:700">Team Invitation</h1>
+        <p style="color:rgba(255,255,255,0.8);font-size:14px;margin:8px 0 0">${opts.inviterName} invited you to join</p>
+        <p style="color:#fff;font-size:20px;font-weight:700;margin:4px 0 0">${opts.tenantName}</p>
+      </div>
+      <div style="padding:32px;text-align:center">
+        <p style="color:#374151;font-size:14px;margin:0 0 8px">You've been assigned the role of</p>
+        <span style="background:#EEF2FF;color:#3730A3;font-weight:700;font-size:14px;padding:6px 16px;border-radius:999px;border:1px solid #C7D2FE">
+          ${roleLabel}
+        </span>
+        <p style="color:#6b7280;font-size:13px;margin:20px 0 28px;line-height:1.6">
+          Click the button below to accept this invitation and set up your account.
+          This link expires in 7 days.
+        </p>
+        <a href="${opts.inviteLink}" style="display:inline-block;padding:14px 36px;background:linear-gradient(135deg,#1D4ED8,#7C3AED);color:#fff;font-size:14px;font-weight:600;border-radius:12px;text-decoration:none;">
+          Accept Invitation →
+        </a>
+        <p style="color:#9ca3af;font-size:11px;margin:24px 0 0">
+          Or copy this link: ${opts.inviteLink}
+        </p>
+      </div>
+    </div>
+    <p style="text-align:center;color:#9ca3af;font-size:11px;margin-top:24px">
+      SRP SmartRecruit · recruit.srpailabs.com
+    </p>
+  </div>
+</body>
+</html>`,
+  })
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { resolveTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import crypto from 'crypto'
 
@@ -47,16 +48,28 @@ export async function GET() {
       if (usageRes.rows[0]) usage = usageRes.rows[0]
     } catch { /* token_usage may not exist */ }
 
-    // Get candidate & job counts (non-fatal)
+    // Get candidate & job counts scoped to current tenant (non-fatal)
     let counts: Record<string, unknown> = { total_candidates: 0, active_jobs: 0 }
     try {
-      const countsRes = await pool.query(
-        `SELECT
-           (SELECT COUNT(*) FROM resumes WHERE user_id = $1) AS total_candidates,
-           (SELECT COUNT(*) FROM job_posts WHERE user_id = $1 AND status != 'archived') AS active_jobs`,
-        [user.id]
-      )
-      if (countsRes.rows[0]) counts = countsRes.rows[0]
+      const tenantCtx = await resolveTenant()
+      if (tenantCtx?.tenantId) {
+        const countsRes = await pool.query(
+          `SELECT
+             (SELECT COUNT(*) FROM resumes WHERE tenant_id = $1) AS total_candidates,
+             (SELECT COUNT(*) FROM job_posts WHERE tenant_id = $1 AND status != 'archived') AS active_jobs`,
+          [tenantCtx.tenantId]
+        )
+        if (countsRes.rows[0]) counts = countsRes.rows[0]
+      } else {
+        // Fallback: scope by user_id for legacy rows
+        const countsRes = await pool.query(
+          `SELECT
+             (SELECT COUNT(*) FROM resumes WHERE user_id = $1) AS total_candidates,
+             (SELECT COUNT(*) FROM job_posts WHERE user_id = $1 AND status != 'archived') AS active_jobs`,
+          [user.id]
+        )
+        if (countsRes.rows[0]) counts = countsRes.rows[0]
+      }
     } catch { /* counts fallback */ }
 
     return NextResponse.json({
@@ -195,77 +208,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (action === 'save_integration') {
-      const { provider, api_key: extKey, webhook_url, config } = body as {
-        provider: string; api_key?: string; webhook_url?: string; config?: Record<string, string>
-      }
-      if (!provider?.trim()) return NextResponse.json({ error: 'provider required' }, { status: 400 })
-
-      // Ensure integrations table exists
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS integrations (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          user_id UUID NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
-          provider TEXT NOT NULL,
-          api_key_encrypted TEXT,
-          webhook_url TEXT,
-          config JSONB DEFAULT '{}',
-          is_active BOOLEAN NOT NULL DEFAULT true,
-          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          UNIQUE(user_id, provider)
-        )
-      `)
-
-      // Encrypt API key with a simple reversible approach (using DB-side pgcrypto would be better in production)
-      const encKey = extKey ? Buffer.from(extKey).toString('base64') : null
-
-      await pool.query(
-        `INSERT INTO integrations (user_id, provider, api_key_encrypted, webhook_url, config)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (user_id, provider) DO UPDATE SET
-           api_key_encrypted = COALESCE(EXCLUDED.api_key_encrypted, integrations.api_key_encrypted),
-           webhook_url = COALESCE(EXCLUDED.webhook_url, integrations.webhook_url),
-           config = COALESCE(EXCLUDED.config, integrations.config),
-           is_active = true, updated_at = NOW()`,
-        [userId, provider.trim().toLowerCase(), encKey, webhook_url ?? null, config ?? {}]
+    // Integration CRUD has been moved to /api/integrations — reject legacy calls
+    if (['save_integration', 'get_integrations', 'delete_integration', 'toggle_integration'].includes(action)) {
+      return NextResponse.json(
+        { error: 'Use /api/integrations for integration management' },
+        { status: 410 }
       )
-      return NextResponse.json({ ok: true })
-    }
-
-    if (action === 'get_integrations') {
-      try {
-        const { rows } = await pool.query(
-          `SELECT provider, webhook_url, config, is_active,
-                  CASE WHEN api_key_encrypted IS NOT NULL THEN true ELSE false END as has_api_key,
-                  created_at, updated_at
-           FROM integrations WHERE user_id = $1 ORDER BY provider`,
-          [userId]
-        )
-        return NextResponse.json({ integrations: rows })
-      } catch {
-        return NextResponse.json({ integrations: [] })
-      }
-    }
-
-    if (action === 'delete_integration') {
-      const { provider } = body as { provider: string }
-      if (!provider) return NextResponse.json({ error: 'provider required' }, { status: 400 })
-      await pool.query(
-        'DELETE FROM integrations WHERE user_id = $1 AND provider = $2',
-        [userId, provider.trim().toLowerCase()]
-      )
-      return NextResponse.json({ ok: true })
-    }
-
-    if (action === 'toggle_integration') {
-      const { provider, is_active } = body as { provider: string; is_active: boolean }
-      if (!provider) return NextResponse.json({ error: 'provider required' }, { status: 400 })
-      await pool.query(
-        'UPDATE integrations SET is_active = $1, updated_at = NOW() WHERE user_id = $2 AND provider = $3',
-        [is_active, userId, provider.trim().toLowerCase()]
-      )
-      return NextResponse.json({ ok: true })
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })

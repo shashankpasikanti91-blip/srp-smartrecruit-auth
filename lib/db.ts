@@ -212,17 +212,18 @@ export async function getAllUsers(limit = 100) {
 // ─────────────────────────── Job Posts ───────────────────────────────────────
 
 export async function createJobPost(job: {
-  user_id: string; title: string; company?: string | null; location?: string | null
-  type?: string; description?: string | null; requirements?: string | null
+  tenant_id?: string | null; user_id: string; title: string
+  company?: string | null; location?: string | null; type?: string
+  description?: string | null; requirements?: string | null
   salary_min?: number | null; salary_max?: number | null; currency?: string
   status?: string; ai_generated?: boolean; tags?: string[]
 }): Promise<JobPost | null> {
   try {
     const { rows } = await pool.query<JobPost>(
-      `INSERT INTO job_posts (user_id, title, company, location, type, description, requirements,
+      `INSERT INTO job_posts (tenant_id, user_id, title, company, location, type, description, requirements,
          salary_min, salary_max, currency, status, ai_generated, tags, applications_count)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0) RETURNING *`,
-      [job.user_id, job.title, job.company ?? null, job.location ?? null,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,0) RETURNING *`,
+      [job.tenant_id ?? null, job.user_id, job.title, job.company ?? null, job.location ?? null,
        job.type ?? 'full-time', job.description ?? null, job.requirements ?? null,
        job.salary_min ?? null, job.salary_max ?? null, job.currency ?? 'USD',
        job.status ?? 'active', job.ai_generated ?? false, job.tags ?? []]
@@ -262,7 +263,7 @@ export async function getAllJobPosts(limit = 200) {
 // ─────────────────────────── Resumes ─────────────────────────────────────────
 
 export async function createResume(resume: {
-  user_id: string; job_post_id?: string | null; candidate_name?: string | null
+  tenant_id?: string | null; user_id: string; job_post_id?: string | null; candidate_name?: string | null
   candidate_email?: string | null; candidate_phone?: string | null
   file_name?: string | null; file_url?: string | null; file_size_bytes?: number | null
   raw_text?: string | null; ai_score?: number | null; ai_summary?: string | null
@@ -270,10 +271,10 @@ export async function createResume(resume: {
 }): Promise<Resume | null> {
   try {
     const { rows } = await pool.query<Resume>(
-      `INSERT INTO resumes (user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
+      `INSERT INTO resumes (tenant_id, user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
          file_name, file_url, file_size_bytes, raw_text, ai_score, ai_summary, ai_skills, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-      [resume.user_id, resume.job_post_id ?? null, resume.candidate_name ?? null,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      [resume.tenant_id ?? null, resume.user_id, resume.job_post_id ?? null, resume.candidate_name ?? null,
        resume.candidate_email ?? null, resume.candidate_phone ?? null,
        resume.file_name ?? null, resume.file_url ?? null, resume.file_size_bytes ?? null,
        resume.raw_text ?? null, resume.ai_score ?? null, resume.ai_summary ?? null,
@@ -286,7 +287,20 @@ export async function createResume(resume: {
   }
 }
 
-export async function getResumes(userId: string, jobPostId?: string): Promise<Resume[]> {
+export async function getResumes(userId: string, jobPostId?: string, tenantId?: string): Promise<Resume[]> {
+  if (tenantId) {
+    if (jobPostId) {
+      const { rows } = await pool.query<Resume>(
+        'SELECT * FROM resumes WHERE tenant_id = $1 AND job_post_id = $2 ORDER BY ai_score DESC NULLS LAST',
+        [tenantId, jobPostId]
+      )
+      return rows
+    }
+    const { rows } = await pool.query<Resume>(
+      'SELECT * FROM resumes WHERE tenant_id = $1 ORDER BY ai_score DESC NULLS LAST', [tenantId]
+    )
+    return rows
+  }
   if (jobPostId) {
     const { rows } = await pool.query<Resume>(
       'SELECT * FROM resumes WHERE user_id = $1 AND job_post_id = $2 ORDER BY ai_score DESC NULLS LAST',

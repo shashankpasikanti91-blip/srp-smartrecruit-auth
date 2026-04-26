@@ -1,54 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { createJobPost, getJobPosts } from '@/lib/db'
-import { logActivity, pool } from '@/lib/db'
+import { requireTenant } from '@/lib/tenant'
+import { createJobPost, getJobPosts, logActivity, pool } from '@/lib/db'
 import { checkJobPostLimit } from '@/lib/limits'
 import { logAudit } from '@/lib/audit'
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  const userId = (session.user as Record<string, unknown>).userId as string
-  const jobs = await getJobPosts(userId)
+  const ctx = await requireTenant(req, 'jobs.read')
+  if (ctx instanceof NextResponse) return ctx
 
-  // Attach persisted social posts to each job (one query, no N+1)
+  // Fetch jobs scoped to tenant
+  const { rows: jobs } = await pool.query(
+    `SELECT j.*, j.short_id FROM job_posts j
+     WHERE j.tenant_id = $1 AND j.status != 'archived'
+     ORDER BY j.created_at DESC`,
+    [ctx.tenantId]
+  )
+
+  // Attach persisted social posts (no N+1)
   if (jobs.length > 0) {
-    const jobIds = jobs.map(j => j.id)
+    const jobIds = jobs.map((j: { id: string }) => j.id)
     const { rows: contents } = await pool.query(
       `SELECT * FROM job_post_contents WHERE job_post_id = ANY($1::uuid[])`,
       [jobIds]
     )
     const contentMap = new Map(contents.map(c => [c.job_post_id, c]))
-    return NextResponse.json({ jobs: jobs.map(j => ({ ...j, post_contents: contentMap.get(j.id) ?? null })) })
+    return NextResponse.json({ jobs: jobs.map((j: { id: string }) => ({ ...j, post_contents: contentMap.get(j.id) ?? null })) })
   }
 
   return NextResponse.json({ jobs })
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const ctx = await requireTenant(req, 'jobs.create')
+  if (ctx instanceof NextResponse) return ctx
+
   try {
     const body = await req.json()
-    const userId = (session.user as Record<string, unknown>).userId as string
 
     if (!body.title?.trim()) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 })
     }
 
     // Check subscription plan limits
-    const limit = await checkJobPostLimit(userId)
+    const limit = await checkJobPostLimit(ctx.userId)
     if (!limit.allowed) {
       return NextResponse.json({ error: limit.reason }, { status: 403 })
     }
 
     const job = await createJobPost({
-      user_id: userId,
+      tenant_id: ctx.tenantId,
+      user_id: ctx.userId,
       title: body.title.trim(),
       company: body.company ?? null,
       location: body.location ?? null,
@@ -68,13 +69,13 @@ export async function POST(req: NextRequest) {
     }
 
     await logActivity({
-      user_id: userId,
+      user_id: ctx.userId,
       event_type: 'job_post_created',
       event_data: { job_id: job.id, title: job.title },
     })
-    logAudit({ userId, userEmail: session.user.email!, action: 'job_created',
+    logAudit({ userId: ctx.userId, userEmail: ctx.userEmail, action: 'job_created',
       resourceType: 'job', resourceId: job.short_id ?? job.id,
-      details: { title: job.title } })
+      details: { title: job.title }, tenantId: ctx.tenantId })
 
     return NextResponse.json({ job }, { status: 201 })
   } catch (err) {

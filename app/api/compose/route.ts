@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireTenant } from '@/lib/tenant'
 
 export const maxDuration = 30
 
@@ -85,10 +84,8 @@ async function callAI(systemPrompt: string, userMessage: string): Promise<string
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const ctx = await requireTenant(req, 'ai_compose.use')
+  if (ctx instanceof NextResponse) return ctx
 
   try {
     const body = await req.json()

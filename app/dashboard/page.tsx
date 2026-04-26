@@ -46,13 +46,30 @@ interface StageCounts { [stage: string]: number }
 interface ScreenResult {
   name: string; email: string; contact_number?: string; current_company?: string
   score: number; decision: string
+  // ── New Senior Audit AI fields (v2 schema) ──
+  classification?: 'STRONG' | 'KAV' | 'REJECT'
+  recommendation?: 'Hire' | 'Hold' | 'Reject'
+  executive_summary?: string
+  experience_audit?: {
+    claimed_years?: number; calculated_years?: number
+    difference_years?: number; verdict?: string
+  }
+  gap_analysis?: {
+    total_missing_months?: number
+    gaps?: Array<{ from?: string; to?: string; months?: number; reason?: string }>
+  }
+  jd_match?: {
+    match_percent?: number; matching_skills?: string[]; missing_skills?: string[]
+  }
+  skill_authenticity?: { verified?: string[]; unverified?: string[]; outdated?: string[] }
+  red_flags?: string[]
+  required_actions?: string[]
+  // ── Legacy evaluation block (v1 schema — kept for backward compat) ──
   evaluation?: {
-    // AI returns these field names
     candidate_strengths?: string[]; candidate_weaknesses?: string[]
     low_or_missing_match_skills?: string[]; high_match_skills?: string[]
     medium_match_skills?: string[]; risk_level?: string; risk_explanation?: string
     justification?: string; overall_fit_rating?: number
-    // legacy aliases
     strengths?: string[]; weaknesses?: string[]; missing_skills?: string[]
   }
   // set by server after DB insert
@@ -1458,7 +1475,7 @@ export default function DashboardPage() {
 
   // New Job modal state
   const [showNewJob, setShowNewJob] = useState(false)
-  const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '' })
+  const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
   const [savingJob, setSavingJob] = useState(false)
 
 
@@ -1535,6 +1552,13 @@ export default function DashboardPage() {
   // Audit trail state (Phase 10)
   const [auditLogs, setAuditLogs] = useState<{ id: string; action: string; resource_type: string; resource_id: string | null; result: string; created_at: string }[]>([])
   const [auditLoading, setAuditLoading] = useState(false)
+  // Team management state
+  const [teamMembers, setTeamMembers] = useState<{ id: string; user_id: string; name: string | null; email: string; role: string; invite_accepted: boolean; last_active_at: string | null; created_at: string }[]>([])
+  const [teamLoading, setTeamLoading] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState('recruiter')
+  const [inviting, setInviting] = useState(false)
+  const [inviteResult, setInviteResult] = useState<{ ok: boolean; message: string } | null>(null)
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login')
@@ -1642,6 +1666,49 @@ export default function DashboardPage() {
     }
   }
 
+  const loadTeamMembers = async () => {
+    setTeamLoading(true)
+    try {
+      const res = await fetch('/api/tenant/members')
+      if (res.ok) {
+        const data = await res.json()
+        setTeamMembers(data.members ?? [])
+      }
+    } catch { /* ignore */ } finally {
+      setTeamLoading(false)
+    }
+  }
+
+  const sendTeamInvite = async () => {
+    if (!inviteEmail.trim()) return
+    setInviting(true); setInviteResult(null)
+    try {
+      const res = await fetch('/api/tenant/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setInviteResult({ ok: true, message: `Invite sent to ${inviteEmail.trim()}` })
+        setInviteEmail('')
+        loadTeamMembers()
+      } else {
+        setInviteResult({ ok: false, message: data.error ?? 'Failed to send invite' })
+      }
+    } catch { setInviteResult({ ok: false, message: 'Network error' }) } finally {
+      setInviting(false)
+    }
+  }
+
+  const removeMember = async (memberId: string) => {
+    if (!confirm('Remove this team member?')) return
+    try {
+      const res = await fetch(`/api/tenant/members?member_id=${memberId}`, { method: 'DELETE' })
+      if (res.ok) loadTeamMembers()
+    } catch { /* ignore */ }
+  }
+
   const generateApiKey = async () => {
     setGeneratingKey(true); setGeneratedKey('')
     try {
@@ -1721,7 +1788,7 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    if (activeTab === 'settings') { loadApiKeys(); loadIntegrations(); loadAuditLogs() }
+    if (activeTab === 'settings') { loadApiKeys(); loadIntegrations(); loadAuditLogs(); loadTeamMembers() }
   }, [activeTab])
 
   const createJob = async () => {
@@ -1736,7 +1803,7 @@ export default function DashboardPage() {
     }
     setSavingJob(false)
     setShowNewJob(false)
-    setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '' })
+    setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
     loadData()
   }
 
@@ -1752,7 +1819,7 @@ export default function DashboardPage() {
     }
     setSavingJob(false)
     setShowNewJob(false)
-    setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '' })
+    setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
     await loadData()
     if (data.job) {
       setGenPostJob(data.job)
@@ -2534,7 +2601,7 @@ export default function DashboardPage() {
                       </button>
                     </div>
                     {screenResults.map((r, i) => (
-                      <ScreenResultCard key={i} result={r} onAddCandidate={(cid) => { loadData() }} />
+                      <ScreenResultCard key={i} result={r} onAddCandidate={(cid) => { loadData() }} defaultOpen={screenResults.length === 1} />
                     ))}
                   </div>
                 )}
@@ -3414,6 +3481,61 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
+                    {/* Email & Calendar Connections */}
+                    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Mail className="w-4 h-4 text-blue-600" />
+                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Email &amp; Calendar</h2>
+                      </div>
+                      <p className="text-xs text-gray-400 mb-5">Connect your work email and calendar to send interview invites and schedule meetings.</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Gmail */}
+                        <a href="/api/oauth/gmail" className="flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all group">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-xs font-bold text-red-600">G</div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-800">Gmail</p>
+                              <p className="text-xs text-gray-400">Send via Google</p>
+                            </div>
+                          </div>
+                          <span className="text-xs text-blue-600 group-hover:underline">Connect →</span>
+                        </a>
+                        {/* Outlook Email */}
+                        <a href="/api/oauth/outlook" className="flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all group">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">O</div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-800">Outlook</p>
+                              <p className="text-xs text-gray-400">Send via Microsoft</p>
+                            </div>
+                          </div>
+                          <span className="text-xs text-blue-600 group-hover:underline">Connect →</span>
+                        </a>
+                        {/* Google Calendar */}
+                        <a href="/api/oauth/gcal" className="flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-green-300 hover:bg-green-50/50 transition-all group">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-green-50 border border-green-100 flex items-center justify-center text-xs font-bold text-green-600">Cal</div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-800">Google Calendar</p>
+                              <p className="text-xs text-gray-400">Schedule + Meet links</p>
+                            </div>
+                          </div>
+                          <span className="text-xs text-green-600 group-hover:underline">Connect →</span>
+                        </a>
+                        {/* Outlook Calendar */}
+                        <a href="/api/oauth/outlookcal" className="flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all group">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600">OC</div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-800">Outlook Calendar</p>
+                              <p className="text-xs text-gray-400">Schedule + Teams links</p>
+                            </div>
+                          </div>
+                          <span className="text-xs text-blue-600 group-hover:underline">Connect →</span>
+                        </a>
+                      </div>
+                    </div>
+
                     {/* API Keys for n8n / ATS Integration */}
                     <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                       <div className="flex items-center gap-2 mb-2">
@@ -3569,6 +3691,82 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
+                    {/* Team Management */}
+                    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 text-indigo-600" />
+                          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Team Members</h2>
+                        </div>
+                        {teamLoading && <span className="text-xs text-gray-400">Loading…</span>}
+                      </div>
+                      {/* Members list */}
+                      <div className="divide-y divide-gray-100 mb-5">
+                        {teamMembers.length === 0 && !teamLoading && (
+                          <p className="text-sm text-gray-400 py-2">No team members yet.</p>
+                        )}
+                        {teamMembers.map(m => (
+                          <div key={m.id} className="flex items-center justify-between py-2.5 gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-800 truncate">{m.name ?? m.email}</p>
+                              <p className="text-xs text-gray-500 truncate">{m.email}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {!m.invite_accepted && (
+                                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Pending</span>
+                              )}
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                m.role === 'owner' ? 'bg-indigo-100 text-indigo-700' :
+                                m.role === 'admin' ? 'bg-purple-100 text-purple-700' :
+                                m.role === 'recruiter' ? 'bg-blue-100 text-blue-700' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>{m.role}</span>
+                              {m.role !== 'owner' && (
+                                <button onClick={() => removeMember(m.id)} className="text-gray-300 hover:text-red-400 transition-colors" title="Remove member">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Invite form */}
+                      <div className="border-t border-gray-100 pt-4">
+                        <p className="text-xs font-medium text-gray-500 mb-2">Invite a team member</p>
+                        <div className="flex gap-2">
+                          <input
+                            type="email"
+                            value={inviteEmail}
+                            onChange={e => setInviteEmail(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && sendTeamInvite()}
+                            placeholder="colleague@company.com"
+                            className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                          />
+                          <select
+                            value={inviteRole}
+                            onChange={e => setInviteRole(e.target.value)}
+                            className="text-sm border border-gray-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          >
+                            <option value="recruiter">Recruiter</option>
+                            <option value="admin">Admin</option>
+                            <option value="viewer">Viewer</option>
+                          </select>
+                          <button
+                            onClick={sendTeamInvite}
+                            disabled={inviting || !inviteEmail.trim()}
+                            className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                          >
+                            {inviting ? 'Sending…' : 'Invite'}
+                          </button>
+                        </div>
+                        {inviteResult && (
+                          <p className={`mt-2 text-xs ${inviteResult.ok ? 'text-green-600' : 'text-red-500'}`}>
+                            {inviteResult.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Audit Trail */}
                     <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
                       <div className="flex items-center justify-between mb-2">
@@ -3672,19 +3870,28 @@ export default function DashboardPage() {
 
             {/* Modal body */}
             <div className="space-y-4 overflow-y-auto flex-1 px-6 py-5">
-              {/* Title + Company row */}
+              {/* Title */}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Job Title <span className="text-red-500">*</span></label>
+                <input value={newJob.title} onChange={e => setNewJob(p => ({ ...p, title: e.target.value }))}
+                  placeholder="e.g. Senior Software Engineer"
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
+              </div>
+
+              {/* Company + Department row */}
               <div className="grid grid-cols-2 gap-3">
-                {([
-                  { key: 'title',   label: 'Job Title *', placeholder: 'e.g. Senior Software Engineer' },
-                  { key: 'company', label: 'Company',     placeholder: 'e.g. SRP AI Labs' },
-                ] as const).map(({ key, label, placeholder }) => (
-                  <div key={key} className={key === 'title' ? 'col-span-2 sm:col-span-1' : ''}>
-                    <label className="text-xs font-semibold text-gray-600 mb-1.5 block">{label}</label>
-                    <input value={newJob[key]} onChange={e => setNewJob(p => ({ ...p, [key]: e.target.value }))}
-                      placeholder={placeholder}
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
-                  </div>
-                ))}
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Company</label>
+                  <input value={newJob.company} onChange={e => setNewJob(p => ({ ...p, company: e.target.value }))}
+                    placeholder="e.g. SRP AI Labs"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Department</label>
+                  <input value={newJob.department} onChange={e => setNewJob(p => ({ ...p, department: e.target.value }))}
+                    placeholder="e.g. Engineering"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
+                </div>
               </div>
 
               {/* Location + Type row */}
@@ -3703,6 +3910,34 @@ export default function DashboardPage() {
                       <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              {/* Salary Range */}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Salary / CTC Range (₹ LPA)</label>
+                <div className="flex items-center gap-2">
+                  <input type="number" min="0" value={newJob.salary_min} onChange={e => setNewJob(p => ({ ...p, salary_min: e.target.value }))}
+                    placeholder="Min (e.g. 8)"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
+                  <span className="text-gray-400 text-sm font-medium flex-shrink-0">to</span>
+                  <input type="number" min="0" value={newJob.salary_max} onChange={e => setNewJob(p => ({ ...p, salary_max: e.target.value }))}
+                    placeholder="Max (e.g. 20)"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
+                </div>
+              </div>
+
+              {/* Experience Range */}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Experience Required (years)</label>
+                <div className="flex items-center gap-2">
+                  <input type="number" min="0" value={newJob.experience_min} onChange={e => setNewJob(p => ({ ...p, experience_min: e.target.value }))}
+                    placeholder="Min (e.g. 2)"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
+                  <span className="text-gray-400 text-sm font-medium flex-shrink-0">to</span>
+                  <input type="number" min="0" value={newJob.experience_max} onChange={e => setNewJob(p => ({ ...p, experience_max: e.target.value }))}
+                    placeholder="Max (e.g. 8)"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all" />
                 </div>
               </div>
 
@@ -4164,26 +4399,35 @@ function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
 }
 
 // ── ScreenResultCard ──────────────────────────────────────────────────────────
-function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate: (id?: string) => void }) {
-  const [open, setOpen] = useState(true)
+function ScreenResultCard({ result: r, onAddCandidate, defaultOpen = true }: { result: ScreenResult; onAddCandidate: (id?: string) => void; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
   const [screenedAt] = useState(() => fmtDate(r.screened_at ?? new Date().toISOString(), true))
 
   const ev = r.evaluation
-  const strengths    = ev?.candidate_strengths   ?? ev?.strengths      ?? []
-  const weaknesses   = ev?.candidate_weaknesses  ?? ev?.weaknesses     ?? []
-  const missingSkills = ev?.low_or_missing_match_skills ?? ev?.missing_skills ?? []
-  const highSkills   = ev?.high_match_skills ?? []
-  const mediumSkills = ev?.medium_match_skills   ?? []
-  const allMatchedSkills = [...highSkills, ...mediumSkills]
-  // Red flags = first 3 weaknesses shown in grid, full list in strengths/weaknesses section
-  const redFlags = weaknesses.slice(0, 3)
+
+  // Skills — prefer new jd_match fields, fall back to legacy evaluation
+  const matchedSkills  = r.jd_match?.matching_skills ?? [...(ev?.high_match_skills ?? []), ...(ev?.medium_match_skills ?? [])]
+  const missingSkills  = r.jd_match?.missing_skills  ?? ev?.low_or_missing_match_skills ?? ev?.missing_skills ?? []
+  const strengths      = ev?.candidate_strengths ?? ev?.strengths ?? []
+  const weaknesses     = ev?.candidate_weaknesses ?? ev?.weaknesses ?? []
+  // Red flags — prefer explicit red_flags array, fall back to weaknesses
+  const redFlags = (r.red_flags && r.red_flags.length > 0) ? r.red_flags : weaknesses.slice(0, 3)
 
   const score = Math.round(r.score ?? 0)
+
+  // Classification badge config (new AI schema)
+  const classConfig: Record<string, { bg: string; text: string; border: string }> = {
+    STRONG: { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300' },
+    KAV:    { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-300' },
+    REJECT: { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-300' },
+  }
+  const cc = r.classification ? (classConfig[r.classification] ?? classConfig.REJECT) : null
+
   const scoreGrade =
-    score >= 80 ? { label: 'Excellent', color: '#10b981', bg: 'bg-emerald-50', border: 'border-emerald-200', ring: 'ring-emerald-300' } :
-    score >= 65 ? { label: 'Good',      color: '#3b82f6', bg: 'bg-blue-50',    border: 'border-blue-200',    ring: 'ring-blue-300' } :
-    score >= 45 ? { label: 'Average',   color: '#f59e0b', bg: 'bg-amber-50',   border: 'border-amber-200',   ring: 'ring-amber-300' } :
-                  { label: 'Low',       color: '#ef4444', bg: 'bg-red-50',     border: 'border-red-200',     ring: 'ring-red-300' }
+    score >= 71 ? { label: 'Strong',   color: '#10b981', bg: 'bg-emerald-50', border: 'border-emerald-200', ring: 'ring-emerald-300' } :
+    score >= 60 ? { label: 'KAV',      color: '#f59e0b', bg: 'bg-amber-50',   border: 'border-amber-200',   ring: 'ring-amber-300' } :
+    score >= 45 ? { label: 'Average',  color: '#3b82f6', bg: 'bg-blue-50',    border: 'border-blue-200',    ring: 'ring-blue-300' } :
+                  { label: 'Reject',   color: '#ef4444', bg: 'bg-red-50',     border: 'border-red-200',     ring: 'ring-red-300' }
 
   const decisionConfig: Record<string, { bg: string; text: string; border: string; dot: string }> = {
     'Shortlisted': { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300', dot: 'bg-emerald-500' },
@@ -4191,6 +4435,18 @@ function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate:
     'Rejected':    { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-300',     dot: 'bg-red-500' },
   }
   const dc = decisionConfig[r.decision] ?? decisionConfig['Rejected']
+
+  const jdMatch   = r.jd_match?.match_percent ?? ev?.overall_fit_rating
+  const riskLevel = ev?.risk_level
+
+  // Experience audit — show if difference is notable
+  const expAudit = r.experience_audit
+  const expDiff  = expAudit?.difference_years != null ? Math.abs(expAudit.difference_years) : 0
+  const showExpAudit = expAudit && (expDiff > 0.5 || expAudit.verdict === 'Mismatch')
+
+  // Gap analysis
+  const gaps = r.gap_analysis?.gaps ?? []
+  const totalMissingMonths = r.gap_analysis?.total_missing_months ?? 0
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
@@ -4224,32 +4480,57 @@ function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate:
               <span className={`w-1.5 h-1.5 rounded-full ${dc.dot}`} />
               {r.decision}
             </span>
-            {ev?.overall_fit_rating != null && (
-              <span className="text-xs font-semibold px-3 py-1 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
-                JD Match: {ev.overall_fit_rating}%
+            {/* Classification badge (new AI schema) */}
+            {cc && r.classification && (
+              <span className={`text-xs font-bold px-3 py-1 rounded-full border ${cc.bg} ${cc.text} ${cc.border}`}>
+                {r.classification === 'KAV' ? 'Keep An Eye' : r.classification}
               </span>
             )}
-            {ev?.risk_level && (
+            {/* Recommendation badge */}
+            {r.recommendation && (
               <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
-                ev.risk_level.toLowerCase() === 'high'   ? 'bg-red-50    text-red-700    border-red-200' :
-                ev.risk_level.toLowerCase() === 'medium' ? 'bg-amber-50  text-amber-700  border-amber-200' :
-                                                           'bg-green-50  text-green-700  border-green-200'
-              }`}>⚠ Risk: {ev.risk_level}</span>
+                r.recommendation === 'Hire'  ? 'bg-green-50  text-green-700  border-green-200' :
+                r.recommendation === 'Hold'  ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                               'bg-gray-100  text-gray-600   border-gray-200'
+              }`}>Rec: {r.recommendation}</span>
+            )}
+            {jdMatch != null && (
+              <span className="text-xs font-semibold px-3 py-1 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
+                JD Match: {jdMatch}%
+              </span>
+            )}
+            {riskLevel && (
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
+                riskLevel.toLowerCase() === 'high'   ? 'bg-red-50    text-red-700    border-red-200' :
+                riskLevel.toLowerCase() === 'medium' ? 'bg-amber-50  text-amber-700  border-amber-200' :
+                                                       'bg-green-50  text-green-700  border-green-200'
+              }`}>⚠ Risk: {riskLevel}</span>
             )}
           </div>
           <p className="text-[10px] text-gray-400 font-mono mt-2">Screened: {screenedAt}</p>
         </div>
 
         <button onClick={() => setOpen(v => !v)}
-          className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all mt-0.5">
-          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+          className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all mt-0.5 ${open ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'}`}>
+          {open ? 'Collapse' : 'View Details'}
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
         </button>
       </div>
 
-      {open && ev && (
+      {open && (
         <>
+          {/* ── Executive Summary (new AI schema) ─── */}
+          {r.executive_summary && (
+            <div className="px-5 pb-4 border-t border-gray-100 bg-indigo-50/30">
+              <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-wide mt-3 mb-1.5 flex items-center gap-1.5">
+                <Brain className="w-3.5 h-3.5" /> Executive Summary
+              </p>
+              <p className="text-sm text-gray-700 leading-relaxed">{r.executive_summary}</p>
+            </div>
+          )}
+
           {/* ── 3-Column Skills Grid ─── */}
-          {(allMatchedSkills.length > 0 || missingSkills.length > 0 || redFlags.length > 0) && (
+          {(matchedSkills.length > 0 || missingSkills.length > 0 || redFlags.length > 0) && (
             <div className="grid grid-cols-1 sm:grid-cols-3 border-t border-gray-100">
 
               {/* Matched Skills */}
@@ -4257,14 +4538,14 @@ function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate:
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
                   <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Matched Skills</p>
-                  {allMatchedSkills.length > 0 && (
-                    <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">{allMatchedSkills.length}</span>
+                  {matchedSkills.length > 0 && (
+                    <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">{matchedSkills.length}</span>
                   )}
                 </div>
-                {allMatchedSkills.length === 0
+                {matchedSkills.length === 0
                   ? <p className="text-xs text-gray-400 italic">None detected</p>
                   : <div className="flex flex-wrap gap-1.5">
-                      {allMatchedSkills.map(s => (
+                      {matchedSkills.map(s => (
                         <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">{s}</span>
                       ))}
                     </div>
@@ -4314,6 +4595,66 @@ function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate:
             </div>
           )}
 
+          {/* ── Experience Audit + Gap Analysis (new AI schema) ─── */}
+          {(showExpAudit || totalMissingMonths > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 border-t border-gray-100 bg-orange-50/20">
+              {showExpAudit && expAudit && (
+                <div className="p-4 border-r border-gray-100">
+                  <p className="text-[11px] font-bold text-orange-700 uppercase tracking-wide mb-2.5 flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5" /> Experience Audit
+                  </p>
+                  <div className="space-y-1 text-xs text-gray-700">
+                    <div className="flex justify-between"><span className="text-gray-500">Claimed:</span><span className="font-semibold">{expAudit.claimed_years ?? '—'} yrs</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Calculated:</span><span className="font-semibold">{expAudit.calculated_years ?? '—'} yrs</span></div>
+                    {expDiff > 0 && (
+                      <div className="flex justify-between"><span className="text-gray-500">Difference:</span>
+                        <span className={`font-bold ${expDiff > 1 ? 'text-red-600' : 'text-amber-600'}`}>{expDiff > 0 ? '+' : ''}{expAudit.difference_years} yrs</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between"><span className="text-gray-500">Verdict:</span>
+                      <span className={`font-bold ${expAudit.verdict === 'Match' ? 'text-green-600' : 'text-red-600'}`}>{expAudit.verdict ?? '—'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {totalMissingMonths > 0 && (
+                <div className="p-4">
+                  <p className="text-[11px] font-bold text-orange-700 uppercase tracking-wide mb-2.5 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" /> Employment Gaps
+                  </p>
+                  <p className="text-xs text-gray-600 mb-2"><span className="font-bold text-orange-700">{totalMissingMonths}</span> month{totalMissingMonths !== 1 ? 's' : ''} unexplained</p>
+                  {gaps.length > 0 && (
+                    <ul className="space-y-1">
+                      {gaps.slice(0, 3).map((g, i) => (
+                        <li key={i} className="text-xs text-gray-600 flex items-start gap-1.5">
+                          <span className="text-orange-400 flex-shrink-0 mt-0.5">—</span>
+                          <span>{g.from} → {g.to}{g.months ? ` (${g.months}mo)` : ''}{g.reason ? `: ${g.reason}` : ''}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Required Actions (new AI schema) ─── */}
+          {(r.required_actions?.length ?? 0) > 0 && (
+            <div className="p-4 border-t border-gray-100 bg-blue-50/30">
+              <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5" /> Required Actions
+              </p>
+              <ul className="space-y-1.5">
+                {r.required_actions!.map((a, i) => (
+                  <li key={i} className="text-xs text-blue-800 flex items-start gap-1.5">
+                    <span className="text-blue-400 font-bold flex-shrink-0 mt-px">{i + 1}.</span>
+                    <span>{a}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* ── Strengths & Weaknesses Table ─── */}
           {(strengths.length > 0 || weaknesses.length > 0) && (
             <div className="grid grid-cols-1 sm:grid-cols-2 border-t border-gray-100">
@@ -4351,21 +4692,21 @@ function ScreenResultCard({ result: r }: { result: ScreenResult; onAddCandidate:
           )}
 
           {/* ── AI Reasoning ─── */}
-          {ev.justification && (
+          {ev?.justification && (
             <div className="p-4 border-t border-gray-100 bg-gray-50">
               <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
                 <Brain className="w-3.5 h-3.5 text-indigo-500" /> AI Reasoning
               </p>
-              <p className="text-sm text-gray-600 leading-relaxed">{ev.justification}</p>
+              <p className="text-sm text-gray-600 leading-relaxed">{ev?.justification}</p>
             </div>
           )}
 
           {/* ── Risk Note ─── */}
-          {ev.risk_explanation && (
+          {ev?.risk_explanation && (
             <div className="px-4 pb-4 bg-gray-50 border-t border-gray-100">
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 mt-0">
                 <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-800"><span className="font-semibold">Risk Note: </span>{ev.risk_explanation}</p>
+                <p className="text-xs text-amber-800"><span className="font-semibold">Risk Note: </span>{ev?.risk_explanation}</p>
               </div>
             </div>
           )}
@@ -4386,8 +4727,8 @@ function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDra
     <div draggable
       onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart() }}
       onDragEnd={onDragEnd}
-      className={`bg-white/[0.03] border rounded-lg p-2.5 cursor-grab active:cursor-grabbing transition-all select-none ${
-        dragging ? 'opacity-40 border-indigo-500/50 scale-95' : 'border-white/5 hover:border-indigo-500/20'
+      className={`bg-white border rounded-lg p-2.5 cursor-grab active:cursor-grabbing transition-all select-none shadow-sm ${
+        dragging ? 'opacity-40 border-indigo-400 scale-95 shadow-md' : 'border-gray-200 hover:border-indigo-300 hover:shadow-md'
       }`}>
       <div className="flex items-start justify-between gap-1">
         <div className="flex items-center gap-2 min-w-0">
@@ -4395,11 +4736,11 @@ function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDra
             {c.candidate_name?.[0] ?? '?'}
           </div>
           <div className="min-w-0 cursor-pointer" onClick={e => { e.stopPropagation(); onOpen(c) }}>
-            <p className="text-xs font-semibold text-white truncate hover:text-indigo-300">{c.candidate_name}</p>
-            <p className="text-[10px] text-gray-600 truncate">{c.candidate_email}</p>
+            <p className="text-xs font-semibold text-gray-900 truncate hover:text-indigo-600">{c.candidate_name}</p>
+            <p className="text-[10px] text-gray-500 truncate">{c.candidate_email}</p>
           </div>
         </div>
-        <button onClick={() => setOpen(v => !v)} className="flex-shrink-0 text-gray-600 hover:text-gray-400">
+        <button onClick={() => setOpen(v => !v)} className="flex-shrink-0 text-gray-400 hover:text-gray-600">
           <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
       </div>
@@ -4407,8 +4748,8 @@ function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDra
         <MatchBadge category={c.match_category} score={c.ai_score} />
       </div>
       {open && (
-        <div className="mt-2 pt-2 border-t border-white/5">
-          <p className="text-[10px] text-gray-600 mb-1">Move to:</p>
+        <div className="mt-2 pt-2 border-t border-gray-100">
+          <p className="text-[10px] text-gray-500 mb-1 font-medium">Move to:</p>
           <div className="flex flex-wrap gap-1">
             {PIPELINE_STAGES.filter(s => s.key !== c.pipeline_stage).map(s => (
               <button key={s.key} onClick={() => onMove(c.id, s.key)}
@@ -4420,10 +4761,10 @@ function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDra
           {c.ai_summary && <p className="text-[10px] text-gray-600 mt-1.5 line-clamp-2">{c.ai_summary}</p>}
           <div className="mt-1 flex flex-wrap gap-1">
             {(c.ai_skills ?? []).slice(0, 4).map(s => (
-              <span key={s} className="text-[10px] bg-white/5 text-gray-500 px-1 py-0.5 rounded">{s}</span>
+              <span key={s} className="text-[10px] bg-gray-100 text-gray-600 px-1 py-0.5 rounded">{s}</span>
             ))}
           </div>
-          <p className="text-[10px] text-gray-600 mt-1.5 font-mono">{c.short_id ?? c.id.slice(0,8)} · {fmtDate(c.created_at)}</p>
+          <p className="text-[10px] text-gray-400 mt-1.5 font-mono">{c.short_id ?? c.id.slice(0,8)} · {fmtDate(c.created_at)}</p>
         </div>
       )}
     </div>

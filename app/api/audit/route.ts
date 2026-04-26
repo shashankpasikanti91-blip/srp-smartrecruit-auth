@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { pool } from '@/lib/db'
+import { requireTenant }            from '@/lib/tenant'
+import { pool }                     from '@/lib/db'
 
 export const maxDuration = 30
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await requireTenant(req)
+  if (ctx instanceof NextResponse) return ctx
 
-  const user = session.user as Record<string, unknown>
-  const role = user.role as string | undefined
-  const userId = user.userId as string
-
-  // Audit logs: admins see all, others see own
-  const isAdmin = role === 'admin' || role === 'owner'
+  // Within a tenant: owners/admins see all members' logs, others see own
+  const isAdmin = ctx.tenantRole === 'owner' || ctx.tenantRole === 'admin'
 
   const url = new URL(req.url)
   const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1'))
@@ -24,13 +19,13 @@ export async function GET(req: NextRequest) {
   const offset = (page - 1) * limit
 
   try {
-    const conditions: string[] = []
-    const params: (string | number)[] = []
-    let idx = 1
+    const conditions: string[] = ['tenant_id = $1']
+    const params: (string | number)[] = [ctx.tenantId]
+    let idx = 2
 
     if (!isAdmin) {
       conditions.push(`user_id = $${idx++}`)
-      params.push(userId)
+      params.push(ctx.userId)
     }
     if (action) {
       conditions.push(`action ILIKE $${idx++}`)
@@ -41,7 +36,7 @@ export async function GET(req: NextRequest) {
       params.push(`%${resource}%`)
     }
 
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const where = `WHERE ${conditions.join(' AND ')}`
 
     const { rows } = await pool.query(
       `SELECT id, user_id, user_email, action, resource_type, resource_id,
@@ -73,11 +68,8 @@ export async function GET(req: NextRequest) {
 
 // Internal write endpoint for audit events from frontend actions
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const user = session.user as Record<string, unknown>
-  const userId = user.userId as string
+  const ctx = await requireTenant(req)
+  if (ctx instanceof NextResponse) return ctx
 
   try {
     const body = await req.json() as {
@@ -98,12 +90,12 @@ export async function POST(req: NextRequest) {
 
     await pool.query(
       `INSERT INTO audit_logs
-         (user_id, user_email, action, resource_type, resource_id, details, ip_address, user_agent, result)
-       VALUES ($1,$2,$3,$4,$5,$6,$7::inet,$8,$9)`,
+         (user_id, user_email, action, resource_type, resource_id, details, ip_address, user_agent, result, tenant_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::inet,$8,$9,$10)`,
       [
-        userId, session.user.email, action, resource_type,
+        ctx.userId, ctx.userEmail, action, resource_type,
         resource_id ?? null, JSON.stringify(details ?? {}),
-        ip, ua, result ?? 'success',
+        ip, ua, result ?? 'success', ctx.tenantId,
       ]
     )
     return NextResponse.json({ status: 'logged' })

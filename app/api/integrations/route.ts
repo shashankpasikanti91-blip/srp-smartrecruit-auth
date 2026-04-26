@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 
 export const maxDuration = 30
@@ -174,16 +173,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ catalogue: CONNECTOR_CATALOGUE })
   }
 
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const userId = (session.user as Record<string, unknown>).userId as string
+  const ctx = await requireTenant(req, 'integrations.read')
+  if (ctx instanceof NextResponse) return ctx
 
   try {
     const { rows } = await pool.query(
       `SELECT id, slug AS connector_id, name, category, status,
               (status = 'active') AS is_active, config, created_at, updated_at
-       FROM integrations WHERE user_id = $1 ORDER BY created_at DESC`,
-      [userId]
+       FROM integrations WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [ctx.tenantId]
     )
     const result = rows.map(r => ({
       ...r,
@@ -196,9 +194,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const userId = (session.user as Record<string, unknown>).userId as string
+  const ctx = await requireTenant(req, 'integrations.update')
+  if (ctx instanceof NextResponse) return ctx
 
   try {
     const body = await req.json() as Record<string, unknown>
@@ -222,13 +219,13 @@ export async function POST(req: NextRequest) {
       const statusVal = (is_active ?? true) ? 'active' : 'inactive'
       const { rows } = await pool.query<{ id: string }>(
         `INSERT INTO integrations
-           (user_id, slug, name, category, status, mode, config)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)
-         ON CONFLICT (user_id, slug) DO UPDATE
+           (tenant_id, user_id, slug, name, category, status, mode, config)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         ON CONFLICT (tenant_id, slug) DO UPDATE
            SET name = EXCLUDED.name, config = EXCLUDED.config,
                status = EXCLUDED.status, updated_at = NOW()
          RETURNING id`,
-        [userId, connector_id, name ?? catalogueItem.name, catalogueItem.category,
+        [ctx.tenantId, ctx.userId, connector_id, name ?? catalogueItem.name, catalogueItem.category,
          statusVal, catalogueItem.mode, JSON.stringify(config ?? {})]
       )
       return NextResponse.json({ id: rows[0]?.id, status: 'saved' })
@@ -240,8 +237,8 @@ export async function POST(req: NextRequest) {
         `UPDATE integrations
          SET status = CASE WHEN status='active' THEN 'inactive' ELSE 'active' END,
              updated_at = NOW()
-         WHERE id = $1 AND user_id = $2 RETURNING status`,
-        [integration_id, userId]
+         WHERE id = $1 AND tenant_id = $2 RETURNING status`,
+        [integration_id, ctx.tenantId]
       )
       if (!rows.length) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       return NextResponse.json({ status: rows[0].status, is_active: rows[0].status === 'active' })
@@ -249,7 +246,7 @@ export async function POST(req: NextRequest) {
 
     if (action === 'delete') {
       if (!integration_id) return NextResponse.json({ error: 'integration_id required' }, { status: 400 })
-      await pool.query(`DELETE FROM integrations WHERE id = $1 AND user_id = $2`, [integration_id, userId])
+      await pool.query(`DELETE FROM integrations WHERE id = $1 AND tenant_id = $2`, [integration_id, ctx.tenantId])
       return NextResponse.json({ status: 'deleted' })
     }
 

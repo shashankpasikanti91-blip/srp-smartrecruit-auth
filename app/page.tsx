@@ -118,19 +118,59 @@ const howItWorks = [
 const pricing = [
   {
     name: 'Starter',
-    price: '$0',
+    price: '₹0',
     period: 'forever',
-    description: 'Perfect for small teams getting started.',
-    features: ['5 active jobs', '100 candidates/mo', 'AI screening', 'Email support'],
+    description: 'For freelancers and individuals just getting started.',
+    features: [
+      '3 active job posts',
+      '50 AI screens / month',
+      '1 user seat',
+      'Manual resume upload (PDF/DOCX)',
+      'Basic AI ranking & score',
+      '7-day screening history',
+      'Email support',
+    ],
     cta: 'Start free',
     highlighted: false,
   },
   {
+    name: 'Growth',
+    price: '₹2,999',
+    period: 'per month',
+    description: 'For small hiring teams scaling up their recruitment.',
+    features: [
+      '20 active job posts',
+      '500 AI screens / month',
+      '5 user seats',
+      'Naukri & Shine resume import',
+      'Bulk upload (up to 50 CVs)',
+      'AI classification (Strong / KAV / Reject)',
+      'Experience audit & gap analysis',
+      'Candidate email outreach',
+      '90-day history',
+      'Priority email support',
+    ],
+    cta: 'Start 14-day trial',
+    highlighted: false,
+  },
+  {
     name: 'Professional',
-    price: '$49',
-    period: 'per seat / month',
-    description: 'For growing teams that need more power.',
-    features: ['Unlimited jobs', '2,000 candidates/mo', 'Bulk upload', 'Analytics', 'Priority support'],
+    price: '₹7,999',
+    period: 'per month',
+    description: 'For mid-size companies with high-volume hiring needs.',
+    features: [
+      'Unlimited active job posts',
+      '2,000 AI screens / month',
+      '15 user seats',
+      'All portals — Naukri, Monster & Shine',
+      'Bulk upload (unlimited CVs)',
+      'Interview scheduling & calendar sync',
+      'Full audit trail & compliance logs',
+      'Advanced analytics dashboard',
+      'REST API access',
+      'Dedicated onboarding',
+      'SLA: 99.5% uptime',
+    ],
     cta: 'Start 14-day trial',
     highlighted: true,
   },
@@ -138,8 +178,18 @@ const pricing = [
     name: 'Enterprise',
     price: 'Custom',
     period: 'contact us',
-    description: 'For large orgs with bespoke requirements.',
-    features: ['Unlimited everything', 'SSO / SAML', 'Dedicated CSM', 'SLA guarantee', 'API access'],
+    description: 'For large organisations with bespoke requirements.',
+    features: [
+      'Unlimited users & screens',
+      'All portal integrations + custom connectors',
+      'SSO / SAML authentication',
+      'Dedicated Customer Success Manager',
+      'Custom SLA & data residency',
+      'White-label option',
+      'Private cloud deployment',
+      'Custom AI model fine-tuning',
+      'Invoiced billing',
+    ],
     cta: 'Talk to sales',
     highlighted: false,
   },
@@ -302,7 +352,7 @@ export default function Home() {
             <p className="mt-4 text-gray-400 text-lg">Start free — no credit card required.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 items-stretch">
             {pricing.map((plan) => (
               <div
                 key={plan.name}

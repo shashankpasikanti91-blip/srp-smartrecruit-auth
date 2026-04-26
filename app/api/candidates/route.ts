@@ -1,32 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { pool } from '@/lib/db'
+import { requireTenant }            from '@/lib/tenant'
+import { pool }                     from '@/lib/db'
+import { sanitizeEmail, sanitizeText, sanitizeStringArray, sanitizePositiveInt, isValidUUID } from '@/lib/validate'
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const ctx = await requireTenant(req, 'candidates.read')
+  if (ctx instanceof NextResponse) return ctx
+
   try {
     const { searchParams } = new URL(req.url)
-    const q         = searchParams.get('q') ?? ''
-    const stage     = searchParams.get('stage') ?? ''
-    const match     = searchParams.get('match') ?? ''
+    const q         = sanitizeText(searchParams.get('q'), 200) ?? ''
+    const stage     = sanitizeText(searchParams.get('stage'), 50) ?? ''
+    const match     = sanitizeText(searchParams.get('match'), 50) ?? ''
     const jobId     = searchParams.get('job_id') ?? ''
-    const skill     = searchParams.get('skill') ?? ''
-    const dateRange = searchParams.get('date_range') ?? ''
-    const limit     = parseInt(searchParams.get('limit') ?? '100')
+    const skill     = sanitizeText(searchParams.get('skill'), 100) ?? ''
+    const dateRange = sanitizeText(searchParams.get('date_range'), 20) ?? ''
+    const limit     = Math.min(500, Math.max(1, parseInt(searchParams.get('limit') ?? '100', 10) || 100))
 
-    const userRes = await pool.query<{ id: string }>(
-      'SELECT id FROM auth_users WHERE email = $1',
-      [session.user.email]
-    )
-    if (!userRes.rows[0]) return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    const userId = userRes.rows[0].id
+    // Validate jobId if provided
+    if (jobId && !isValidUUID(jobId)) {
+      return NextResponse.json({ error: 'Invalid job_id' }, { status: 400 })
+    }
 
-    const conditions: string[] = ['r.user_id = $1']
-    const params: unknown[] = [userId]
+    const conditions: string[] = ['r.tenant_id = $1']
+    const params: unknown[] = [ctx.tenantId]
     let idx = 2
 
     if (q) { conditions.push(`(r.candidate_name ILIKE $${idx} OR r.candidate_email ILIKE $${idx} OR r.short_id ILIKE $${idx})`); params.push(`%${q}%`); idx++ }
@@ -68,8 +65,8 @@ export async function GET(req: NextRequest) {
     }))
 
     const stageRes = await pool.query<{ pipeline_stage: string }>(
-      'SELECT pipeline_stage FROM resumes WHERE user_id = $1',
-      [userId]
+      'SELECT pipeline_stage FROM resumes WHERE tenant_id = $1',
+      [ctx.tenantId]
     )
     const counts: Record<string, number> = {}
     for (const row of stageRes.rows) {
@@ -78,8 +75,8 @@ export async function GET(req: NextRequest) {
 
     // match counts and top skills from ALL candidates (not filtered)
     const globalRes = await pool.query<{ match_category: string | null; ai_skills: string[] }>(
-      'SELECT match_category, ai_skills FROM resumes WHERE user_id = $1',
-      [userId]
+      'SELECT match_category, ai_skills FROM resumes WHERE tenant_id = $1',
+      [ctx.tenantId]
     )
     const matchCounts: Record<string, number> = {}
     const skillMap: Record<string, number> = {}
@@ -103,36 +100,74 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const ctx = await requireTenant(req, 'candidates.create')
+  if (ctx instanceof NextResponse) return ctx
+
   try {
     const body = await req.json()
-    const { candidate_name, candidate_email, candidate_phone, ai_skills, ai_score, ai_summary, job_post_id, pipeline_stage, raw_text, file_name, file_size_bytes } = body
-    if (!candidate_name) {
-      return NextResponse.json({ error: 'candidate_name required' }, { status: 400 })
+    const candidate_name    = sanitizeText(body.candidate_name, 200)
+    const candidate_email   = sanitizeEmail(body.candidate_email)
+    const candidate_phone   = sanitizeText(body.candidate_phone, 50)
+    const ai_skills         = sanitizeStringArray(body.ai_skills, 100, 200)
+    const ai_score          = sanitizePositiveInt(body.ai_score, 100)
+    const ai_summary        = sanitizeText(body.ai_summary, 5000)
+    const raw_text          = sanitizeText(body.raw_text, 100000)
+    const file_name         = sanitizeText(body.file_name, 255)
+    const file_size_bytes   = sanitizePositiveInt(body.file_size_bytes, 52428800) // 50 MB max
+    const pipeline_stage    = sanitizeText(body.pipeline_stage, 50) ?? 'sourced'
+
+    if (!candidate_name && !candidate_email) {
+      return NextResponse.json({ error: 'candidate_name or candidate_email required' }, { status: 400 })
     }
 
-    const userRes = await pool.query<{ id: string }>(
-      'SELECT id FROM auth_users WHERE email = $1',
-      [session.user.email]
-    )
-    if (!userRes.rows[0]) return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    const userId = userRes.rows[0].id
+    // Validate job_post_id belongs to this tenant
+    let job_post_id: string | null = null
+    if (body.job_post_id) {
+      if (!isValidUUID(body.job_post_id)) {
+        return NextResponse.json({ error: 'Invalid job_post_id' }, { status: 400 })
+      }
+      const jpCheck = await pool.query(
+        'SELECT id FROM job_posts WHERE id = $1 AND tenant_id = $2 LIMIT 1',
+        [body.job_post_id, ctx.tenantId]
+      )
+      if (!jpCheck.rows.length) {
+        return NextResponse.json({ error: 'Invalid job_post_id' }, { status: 400 })
+      }
+      job_post_id = body.job_post_id
+    }
+
+    // Duplicate check by email within this tenant
+    if (candidate_email) {
+      const dup = await pool.query<{ id: string; short_id: string; candidate_name: string }>(
+        `SELECT id, short_id, candidate_name FROM resumes
+         WHERE tenant_id = $1 AND candidate_email = $2 LIMIT 1`,
+        [ctx.tenantId, candidate_email]
+      )
+      if (dup.rows.length) {
+        return NextResponse.json({
+          error: 'Duplicate: a candidate with this email already exists in this workspace',
+          existing: { id: dup.rows[0].id, short_id: dup.rows[0].short_id, name: dup.rows[0].candidate_name },
+          is_duplicate: true,
+        }, { status: 409 })
+      }
+    }
 
     const { rows } = await pool.query(
-      `INSERT INTO resumes (user_id, candidate_name, candidate_email, candidate_phone, ai_skills, ai_score, ai_summary, job_post_id, pipeline_stage, raw_text, file_name, file_size_bytes, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending')
+      `INSERT INTO resumes
+         (tenant_id, user_id, candidate_name, candidate_email, candidate_phone,
+          ai_skills, ai_score, ai_summary, job_post_id, pipeline_stage,
+          raw_text, file_name, file_size_bytes, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pending')
        RETURNING *`,
-      [userId, candidate_name, candidate_email ?? null, candidate_phone ?? null,
-       ai_skills ?? [], ai_score ?? null, ai_summary ?? null,
-       job_post_id ?? null, pipeline_stage ?? 'sourced',
-       raw_text ?? null, file_name ?? null, file_size_bytes ?? null]
+      [ctx.tenantId, ctx.userId, candidate_name, candidate_email,
+       candidate_phone, ai_skills, ai_score, ai_summary,
+       job_post_id, pipeline_stage, raw_text, file_name, file_size_bytes]
     )
 
     return NextResponse.json({ candidate: rows[0] }, { status: 201 })
-  } catch {
-    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Server error'
+    console.error('[api/candidates POST]', err)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
