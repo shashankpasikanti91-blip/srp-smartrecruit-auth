@@ -232,7 +232,7 @@ aside ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
 /* ── Input / form controls ───────────────────────────────── */
 .form-input {
   background: var(--dash-surface);
-  border: 1px solid var(--dash-border);
+  border: 1.5px solid #CBD5E1;
   border-radius: 8px;
   color: var(--dash-text);
   padding: 9px 12px;
@@ -244,9 +244,25 @@ aside ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
 .form-input:focus {
   outline: none;
   border-color: #995af2;
-  box-shadow: 0 0 0 3px rgba(153,90,242,0.1);
+  box-shadow: 0 0 0 3px rgba(153,90,242,0.12);
 }
 .form-input::placeholder { color: var(--dash-text-3); }
+
+/* ── Global input/textarea/select border highlight ───────── */
+/* Makes all form fields clearly visible against white background */
+.dashboard-main input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.dashboard-main textarea,
+.dashboard-main select {
+  border-color: #C4CDDA !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.dashboard-main input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+.dashboard-main textarea:focus,
+.dashboard-main select:focus {
+  border-color: #995af2 !important;
+  box-shadow: 0 0 0 3px rgba(153,90,242,0.10) !important;
+  outline: none !important;
+}
 
 /* Override dark mode browser selects for the main dashboard */
 .dashboard-main select,

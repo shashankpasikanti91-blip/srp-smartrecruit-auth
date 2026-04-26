@@ -898,6 +898,43 @@ function IntegrationsTab() {
         </div>
       </div>
 
+      {/* How to use guide */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Zap className="w-4 h-4 text-white" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-blue-900 mb-1">How to use Integrations</h3>
+            <p className="text-xs text-blue-700 leading-relaxed mb-3">
+              Integrations let SRP SmartRecruit work with the tools you already use. Each connection requires an <strong>API key or credentials</strong> from that service. Here&apos;s how to get started:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { num: '1', title: 'Choose a connector', desc: 'Click any card below. Cards marked "Soon" are coming in the next update.' },
+                { num: '2', title: 'Enter your API key', desc: 'Get the API key from that platform\'s settings page. Paste it in the form and save.' },
+                { num: '3', title: 'Toggle it on', desc: 'Use the On/Off button to activate or pause the connection anytime without losing credentials.' },
+                { num: '4', title: 'It works automatically', desc: 'Once active, SmartRecruit uses it — e.g. n8n triggers fire after every screening, email providers send your Compose drafts.' },
+              ].map(step => (
+                <div key={step.num} className="flex items-start gap-2 bg-white rounded-lg px-3 py-2.5 border border-blue-100">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step.num}</span>
+                  <div>
+                    <p className="text-xs font-semibold text-blue-900">{step.title}</p>
+                    <p className="text-[11px] text-blue-600 leading-relaxed mt-0.5">{step.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">📋 Naukri — post & import jobs</span>
+              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">⚡ n8n — automate your pipeline</span>
+              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">📧 Gmail / Outlook — send from Compose</span>
+              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">💬 WhatsApp — candidate notifications</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {categories.map(cat => {
         const meta = CATEGORY_META[cat] ?? { label: cat, icon: '🔌' }
         const catConnectors = (catalogue as Record<string, unknown>[]).filter(c => c.category === cat)
@@ -1911,12 +1948,20 @@ export default function DashboardPage() {
           signal: controller.signal,
         })
         clearTimeout(timer)
-        const data = await res.json()
+        // Safe JSON parse — guards against empty / truncated responses
+        const rawText = await res.text()
+        let data: { results?: ScreenResult[]; error?: string } = {}
+        if (rawText.trim()) {
+          try { data = JSON.parse(rawText) } catch {
+            setScreenError('Received an invalid response from the server. Please try again.')
+            return
+          }
+        }
         if (res.status === 403) {
           setUpgradePrompt({ show: true, message: data.error || 'You have reached your AI screening limit.', feature: 'AI Screening' })
           return
         }
-        if (!res.ok) { setScreenError(data.error ?? 'Screening failed'); return }
+        if (!res.ok) { setScreenError(data.error ?? `Server error (${res.status}). Please try again.`); return }
         setScreenResults(data.results ?? [])
         if ((data.results?.length ?? 0) > 0) {
           await loadData()
@@ -1951,7 +1996,11 @@ export default function DashboardPage() {
           email_type: emailType, platform, tone, raw_input: rawInput, ...composeFields,
         }),
       })
-      const data = await res.json()
+      const rawText = await res.text()
+      let data: { content?: string; error?: string } = {}
+      if (rawText.trim()) {
+        try { data = JSON.parse(rawText) } catch { setComposeError('Invalid response from server.'); return }
+      }
       if (!res.ok) { setComposeError(data.error ?? 'Generation failed'); return }
       setComposeOutput(data.content ?? '')
     } catch (e) {
@@ -2226,26 +2275,23 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Stats bar */}
-          <div className="px-6 py-3 bg-white border-b border-gray-200 flex items-center gap-0 flex-wrap">
+          {/* Stats bar — colored pill cards */}
+          <div className="px-6 py-3 bg-white border-b border-gray-200 flex items-center gap-3 flex-wrap">
             {([
-              { icon: Briefcase,   borderColor: 'border-l-blue-500',   iconBg: 'bg-blue-50',    iconColor: 'text-blue-600',    label: 'Active Jobs',    value: jobs.length },
-              { icon: Users,       borderColor: 'border-l-indigo-500',  iconBg: 'bg-indigo-50',  iconColor: 'text-indigo-600',  label: 'Candidates',     value: totalCandidates },
-              { icon: Clock,       borderColor: 'border-l-amber-500',   iconBg: 'bg-amber-50',   iconColor: 'text-amber-600',   label: 'Interviews',     value: interviewCount },
-              { icon: CheckCircle, borderColor: 'border-l-emerald-500', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', label: 'Total Hired',    value: hiredCount },
-              { icon: TrendingUp,  borderColor: 'border-l-sky-500',     iconBg: 'bg-sky-50',     iconColor: 'text-sky-600',     label: 'Hire Rate',      value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '—' },
-            ] as const).map(({ icon: Icon, borderColor, iconBg, iconColor, label, value }) => (
-              <div key={label} className={`flex items-center gap-3 px-5 py-3 border-l-4 ${borderColor} border-r border-gray-100`}>
-                <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0`}>
-                  <Icon className={`w-4 h-4 ${iconColor}`} />
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-400 font-medium leading-none mb-0.5">{label}</p>
-                  <p className="text-lg font-extrabold text-gray-900 leading-tight">{value}</p>
-                </div>
+              { label: 'Active Jobs',   value: jobs.length,       bg: 'bg-orange-50',   text: 'text-orange-600',  num: 'text-orange-700',  border: 'border-orange-200' },
+              { label: 'Candidates',    value: totalCandidates,   bg: 'bg-violet-50',   text: 'text-violet-600',  num: 'text-violet-700',  border: 'border-violet-200' },
+              { label: 'Interviews',    value: interviewCount,    bg: 'bg-teal-50',     text: 'text-teal-600',    num: 'text-teal-700',    border: 'border-teal-200' },
+              { label: 'Shortlisted',   value: stageCounts['screening'] ?? 0, bg: 'bg-blue-50', text: 'text-blue-600', num: 'text-blue-700', border: 'border-blue-200' },
+              { label: 'Offers Sent',   value: stageCounts['offer'] ?? 0,     bg: 'bg-pink-50',  text: 'text-pink-600',  num: 'text-pink-700',  border: 'border-pink-200' },
+              { label: 'Hired',         value: hiredCount,        bg: 'bg-emerald-50',  text: 'text-emerald-600', num: 'text-emerald-700', border: 'border-emerald-200' },
+              { label: 'Hire Rate',     value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '—', bg: 'bg-sky-50', text: 'text-sky-600', num: 'text-sky-700', border: 'border-sky-200' },
+            ] as const).map(({ label, value, bg, text, num, border }) => (
+              <div key={label} className={`flex flex-col items-center px-4 py-2 rounded-xl border ${bg} ${border} min-w-[80px]`}>
+                <span className={`text-xl font-extrabold leading-none ${num}`}>{value}</span>
+                <span className={`text-[11px] font-semibold mt-1 ${text}`}>{label}</span>
               </div>
             ))}
-            <div className="ml-auto pr-4 flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-2">
               <button onClick={() => setShowNewCandidate(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 border border-gray-300 text-sm text-gray-700 font-medium transition-all">
                 <Plus className="w-3.5 h-3.5" /> Add Candidate
