@@ -1536,7 +1536,7 @@ export default function DashboardPage() {
   const [dragOverStage, setDragOverStage] = useState<string | null>(null)
 
   // AI Screen state
-  const [screenMode, setScreenMode] = useState<'single' | 'bulk'>('single')
+  const [screenMode, setScreenMode] = useState<'single' | 'bulk' | 'existing'>('single')
   const [jdText, setJdText] = useState('')
   const [resumeText, setResumeText] = useState('')
   const [bulkTexts, setBulkTexts] = useState<Array<{ text: string; filename: string }>>([])
@@ -1544,6 +1544,10 @@ export default function DashboardPage() {
   const [screening, setScreening] = useState(false)
   const [screenResults, setScreenResults] = useState<ScreenResult[]>([])
   const [screenError, setScreenError] = useState('')
+  // "Screen from Candidates" mode
+  const [selectedCandIds, setSelectedCandIds] = useState<string[]>([])
+  const [skipAlreadyScreened, setSkipAlreadyScreened] = useState(true)
+  const [existingCandSearch, setExistingCandSearch] = useState('')
 
   // Compose state
   const [composeMode, setComposeMode] = useState<'generate' | 'rewrite' | 'paraphrase' | 'reply'>('generate')
@@ -1990,9 +1994,27 @@ export default function DashboardPage() {
   const runScreening = async () => {
     setScreening(true); setScreenError(''); setScreenResults([])
     try {
-      const resumes = screenMode === 'single'
-        ? [{ text: resumeText, filename: 'pasted_resume' }]
-        : bulkTexts
+      let resumes: Array<{ text: string; filename: string; id?: string }>
+      if (screenMode === 'single') {
+        resumes = [{ text: resumeText, filename: 'pasted_resume' }]
+      } else if (screenMode === 'bulk') {
+        resumes = bulkTexts
+      } else {
+        // existing mode: pull raw_text from already-loaded candidates
+        const toScreen = candidates.filter(c =>
+          selectedCandIds.includes(c.id) && c.raw_text
+        )
+        resumes = toScreen.map(c => ({
+          text: c.raw_text!,
+          filename: c.file_name ?? c.candidate_name ?? 'candidate',
+          id: c.id,
+        }))
+        if (!resumes.length) {
+          setScreenError('No candidates selected or selected candidates have no stored CV text.')
+          setScreening(false)
+          return
+        }
+      }
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 150000) // 150s timeout
       try {
@@ -2679,10 +2701,10 @@ export default function DashboardPage() {
                     <p className="text-sm text-gray-500 mt-0.5">Score & rank candidates against your job description</p>
                   </div>
                   <div className="ml-auto flex gap-2">
-                    {(['single', 'bulk'] as const).map(m => (
-                      <button key={m} onClick={() => setScreenMode(m)}
+                    {(['single', 'bulk', 'existing'] as const).map(m => (
+                      <button key={m} onClick={() => { setScreenMode(m); setScreenResults([]); setSelectedCandIds([]) }}
                         className={`px-5 py-1.5 rounded-lg text-sm font-bold transition-all border ${screenMode === m ? 'bg-blue-600 text-white shadow-sm border-blue-600' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400'}`}>
-                        {m === 'single' ? 'Single CV' : 'Bulk CVs'}
+                        {m === 'single' ? 'Single CV' : m === 'bulk' ? 'Bulk CVs' : 'From Candidates'}
                       </button>
                     ))}
                   </div>
@@ -2703,7 +2725,7 @@ export default function DashboardPage() {
                   {/* Resume panel */}
                   <div className="space-y-3">
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                      {screenMode === 'single' ? 'Candidate Resume' : `Bulk Resumes (${bulkTexts.length} loaded)`}
+                      {screenMode === 'single' ? 'Candidate Resume' : screenMode === 'bulk' ? `Bulk Resumes (${bulkTexts.length} loaded)` : 'Select Candidates'}
                     </label>
                     {screenMode === 'single' ? (
                       <>
@@ -2714,9 +2736,90 @@ export default function DashboardPage() {
                         <FileUploadZone label="Upload Resume (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
                           onTexts={([t]) => setResumeText(t.text)} disabled={screening} />
                       </>
-                    ) : (
+                    ) : screenMode === 'bulk' ? (
                       <FileUploadZone label="Upload multiple CVs (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple
                         onTexts={ts => setBulkTexts(ts)} disabled={screening} />
+                    ) : (
+                      /* ── From Candidates picker ── */
+                      (() => {
+                        const hasCvCands = candidates.filter(c => c.raw_text)
+                        const filteredCands = hasCvCands.filter(c => {
+                          const searchLower = existingCandSearch.toLowerCase()
+                          if (!searchLower) return true
+                          return (c.candidate_name?.toLowerCase().includes(searchLower) ||
+                                  c.candidate_email?.toLowerCase().includes(searchLower) ||
+                                  c.short_id?.toLowerCase().includes(searchLower))
+                        }).filter(c => skipAlreadyScreened ? !c.ai_screening_data : true)
+                        const alreadyScreenedCount = hasCvCands.filter(c => c.ai_screening_data).length
+                        const allSelected = filteredCands.length > 0 && filteredCands.every(c => selectedCandIds.includes(c.id))
+                        return (
+                          <div className="space-y-2">
+                            {/* Token savings info bar */}
+                            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                                <span className="text-xs font-semibold text-emerald-700">
+                                  {alreadyScreenedCount} candidate{alreadyScreenedCount !== 1 ? 's' : ''} already screened — saved {alreadyScreenedCount} API call{alreadyScreenedCount !== 1 ? 's' : ''}
+                                </span>
+                              </div>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input type="checkbox" checked={skipAlreadyScreened}
+                                  onChange={e => setSkipAlreadyScreened(e.target.checked)}
+                                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                                <span className="text-xs text-gray-600">Skip already screened</span>
+                              </label>
+                            </div>
+                            {/* Search */}
+                            <input value={existingCandSearch} onChange={e => setExistingCandSearch(e.target.value)}
+                              placeholder="Search by name / email / ID…"
+                              className="w-full px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-400" />
+                            {/* Select all / count */}
+                            <div className="flex items-center justify-between">
+                              <label className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-600">
+                                <input type="checkbox" checked={allSelected} onChange={e => {
+                                  if (e.target.checked) setSelectedCandIds(prev => [...new Set([...prev, ...filteredCands.map(c => c.id)])])
+                                  else setSelectedCandIds(prev => prev.filter(id => !filteredCands.find(c => c.id === id)))
+                                }} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                Select all ({filteredCands.length})
+                              </label>
+                              {selectedCandIds.length > 0 && (
+                                <span className="text-xs font-semibold text-blue-600">{selectedCandIds.length} selected</span>
+                              )}
+                            </div>
+                            {/* Candidate list */}
+                            <div className="border border-gray-200 rounded-lg overflow-hidden divide-y divide-gray-100 max-h-52 overflow-y-auto">
+                              {filteredCands.length === 0 ? (
+                                <p className="px-3 py-4 text-xs text-gray-400 text-center">
+                                  {hasCvCands.length === 0 ? 'No candidates with stored CV text. Upload CVs through AI Screening first.' :
+                                   skipAlreadyScreened ? 'All candidates have already been screened! Uncheck "Skip already screened" to re-screen.' :
+                                   'No candidates match your search.'}
+                                </p>
+                              ) : filteredCands.map(c => {
+                                const checked = selectedCandIds.includes(c.id)
+                                return (
+                                  <label key={c.id} className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 ${checked ? 'bg-blue-50' : ''}`}>
+                                    <input type="checkbox" checked={checked}
+                                      onChange={e => setSelectedCandIds(prev => e.target.checked ? [...prev, c.id] : prev.filter(id => id !== c.id))}
+                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-semibold text-gray-800 truncate">{c.candidate_name || 'Unknown'}</p>
+                                      <p className="text-xs text-gray-400 truncate">{c.candidate_email || c.short_id}</p>
+                                    </div>
+                                    {c.ai_score != null && (
+                                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${c.ai_score >= 70 ? 'bg-emerald-100 text-emerald-700' : c.ai_score >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                                        {c.ai_score}%
+                                      </span>
+                                    )}
+                                    {c.ai_screening_data && !skipAlreadyScreened && (
+                                      <span className="text-xs text-amber-600 font-medium">⚠ Re-screen</span>
+                                    )}
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })()
                     )}
                     <div>
                       <label className="text-xs font-semibold text-gray-700 mb-1 block">Link to Job (optional)</label>
@@ -2737,9 +2840,9 @@ export default function DashboardPage() {
                 )}
 
                 <button onClick={runScreening}
-                  disabled={screening || !jdText || (screenMode === 'single' ? !resumeText : bulkTexts.length === 0)}
+                  disabled={screening || !jdText || (screenMode === 'single' ? !resumeText : screenMode === 'bulk' ? bulkTexts.length === 0 : selectedCandIds.length === 0)}
                   className="mb-6 flex items-center gap-2 px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 font-semibold text-sm transition-all disabled:opacity-50">
-                  {screening ? <><Loader2 className="w-4 h-4 animate-spin" /> Screening…</> : <><Sparkles className="w-4 h-4" /> Run AI Screening</>}
+                  {screening ? <><Loader2 className="w-4 h-4 animate-spin" /> Screening…</> : <><Sparkles className="w-4 h-4" /> {screenMode === 'existing' ? `Screen ${selectedCandIds.length} Candidate${selectedCandIds.length !== 1 ? 's' : ''} (0 token waste)` : 'Run AI Screening'}</>}
                 </button>
 
                 {screenResults.length > 0 && (
