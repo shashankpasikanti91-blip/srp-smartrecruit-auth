@@ -1525,6 +1525,7 @@ export default function DashboardPage() {
   const [showNewCandidate, setShowNewCandidate] = useState(false)
   const [newCand, setNewCand] = useState({ candidate_name: '', candidate_email: '', candidate_phone: '', ai_skills: '', job_post_id: '' })
   const [savingCand, setSavingCand] = useState(false)
+  const [candDupWarning, setCandDupWarning] = useState<{ id: string; short_id: string; name: string } | null>(null)
   const [candResumeFile, setCandResumeFile] = useState<File | null>(null)
   const [candResumeParsing, setCandResumeParsing] = useState(false)
   const [candResumeText, setCandResumeText] = useState('')
@@ -1924,6 +1925,7 @@ export default function DashboardPage() {
   const createCandidate = async () => {
     if (!newCand.candidate_name) return
     setSavingCand(true)
+    setCandDupWarning(null)
     const payload = {
       ...newCand,
       ai_skills: newCand.ai_skills.split(',').map(s => s.trim()).filter(Boolean),
@@ -1931,9 +1933,27 @@ export default function DashboardPage() {
       file_name: candResumeFile?.name || undefined,
       file_size_bytes: candResumeFile?.size || undefined,
     }
-    await fetch('/api/candidates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    try {
+      const res = await fetch('/api/candidates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const data = await res.json()
+      if (res.status === 409 && data.is_duplicate) {
+        setCandDupWarning(data.existing)
+        setSavingCand(false)
+        return
+      }
+      if (!res.ok) {
+        setCandResumeError(data.error ?? 'Failed to add candidate')
+        setSavingCand(false)
+        return
+      }
+    } catch {
+      setCandResumeError('Network error — please try again')
+      setSavingCand(false)
+      return
+    }
     setSavingCand(false)
     setShowNewCandidate(false)
+    setCandDupWarning(null)
     setNewCand({ candidate_name: '', candidate_email: '', candidate_phone: '', ai_skills: '', job_post_id: '' })
     setCandResumeFile(null); setCandResumeText(''); setCandResumeError('')
     loadData()
@@ -4302,8 +4322,32 @@ export default function DashboardPage() {
           <div className="glass-card rounded-2xl p-6 w-full max-w-lg border border-white/10">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold text-white">Add Candidate</h2>
-              <button onClick={() => setShowNewCandidate(false)} className="text-gray-500 hover:text-gray-300"><X className="w-5 h-5" /></button>
+              <button onClick={() => { setShowNewCandidate(false); setCandDupWarning(null) }} className="text-gray-500 hover:text-gray-300"><X className="w-5 h-5" /></button>
             </div>
+
+            {/* Duplicate warning banner */}
+            {candDupWarning && (
+              <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+                <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-amber-300">Duplicate candidate detected</p>
+                  <p className="text-xs text-amber-200/70 mt-0.5">
+                    <span className="font-medium">{candDupWarning.name || 'This candidate'}</span> already exists in your workspace.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowNewCandidate(false)
+                      setCandDupWarning(null)
+                      const existing = candidates.find(c => c.id === candDupWarning.id)
+                      if (existing) setSelectedCandidate(existing)
+                    }}
+                    className="mt-2 text-xs font-semibold text-amber-300 underline underline-offset-2 hover:text-amber-200">
+                    View existing record →
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-3">
               {([
                 { key: 'candidate_name',  label: 'Full Name *',              placeholder: 'e.g. Priya Sharma' },
@@ -4313,7 +4357,7 @@ export default function DashboardPage() {
               ] as const).map(({ key, label, placeholder }) => (
                 <div key={key}>
                   <label className="text-xs font-semibold text-gray-700 mb-1 block">{label}</label>
-                  <input value={newCand[key]} onChange={e => setNewCand(p => ({ ...p, [key]: e.target.value }))}
+                  <input value={newCand[key]} onChange={e => { setNewCand(p => ({ ...p, [key]: e.target.value })); setCandDupWarning(null) }}
                     placeholder={placeholder}
                     className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
                 </div>
@@ -4351,7 +4395,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex gap-3 mt-5">
-              <button onClick={() => setShowNewCandidate(false)} className="flex-1 py-2 rounded-lg bg-white/5 text-sm text-gray-400 hover:bg-white/10">Cancel</button>
+              <button onClick={() => { setShowNewCandidate(false); setCandDupWarning(null) }} className="flex-1 py-2 rounded-lg bg-white/5 text-sm text-gray-400 hover:bg-white/10">Cancel</button>
               <button onClick={createCandidate} disabled={savingCand || !newCand.candidate_name}
                 className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold disabled:opacity-50 transition-colors">
                 {savingCand ? 'Adding…' : 'Add Candidate'}
