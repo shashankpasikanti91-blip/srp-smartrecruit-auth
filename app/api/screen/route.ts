@@ -304,12 +304,14 @@ export async function POST(req: NextRequest) {
                 `UPDATE resumes SET
                   ai_score = $1, ai_summary = $2,
                   ai_skills = $3, pipeline_stage = $4,
-                  candidate_name = COALESCE(NULLIF(candidate_name,''), $5),
-                  candidate_email = COALESCE(NULLIF(candidate_email,''), $6),
-                  candidate_phone = COALESCE(NULLIF(candidate_phone,''), $7),
+                  ai_screening_data = $5,
+                  candidate_name = COALESCE(NULLIF(candidate_name,''), $6),
+                  candidate_email = COALESCE(NULLIF(candidate_email,''), $7),
+                  candidate_phone = COALESCE(NULLIF(candidate_phone,''), $8),
                   status = 'reviewed', updated_at = NOW()
-                WHERE id = $8 AND tenant_id = $9`,
+                WHERE id = $9 AND tenant_id = $10`,
                 [score, summary.slice(0, 2000), skills, stage,
+                 JSON.stringify(p),
                  p.name ?? null, p.email ?? null, p.contact_number ?? null,
                  resumeId, tenantId]
               )
@@ -331,11 +333,13 @@ export async function POST(req: NextRequest) {
                   `UPDATE resumes SET
                     ai_score = $1, ai_summary = $2, ai_skills = $3,
                     pipeline_stage = $4, status = 'reviewed',
-                    candidate_name = COALESCE(NULLIF(candidate_name,''), $5),
-                    candidate_phone = COALESCE(NULLIF(candidate_phone,''), $6),
+                    ai_screening_data = $5,
+                    candidate_name = COALESCE(NULLIF(candidate_name,''), $6),
+                    candidate_phone = COALESCE(NULLIF(candidate_phone,''), $7),
                     updated_at = NOW()
-                  WHERE id = $7 AND tenant_id = $8`,
+                  WHERE id = $8 AND tenant_id = $9`,
                   [score, summary.slice(0, 2000), skills, stage,
+                   JSON.stringify(p),
                    p.name ?? null, p.contact_number ?? null,
                    existingId, tenantId]
                 )
@@ -347,8 +351,8 @@ export async function POST(req: NextRequest) {
               const insertRes = await pool.query<{ id: string; short_id: string }>(
                 `INSERT INTO resumes
                   (tenant_id, user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
-                   file_name, raw_text, ai_score, ai_summary, ai_skills, pipeline_stage, status)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'reviewed')
+                   file_name, raw_text, ai_score, ai_summary, ai_skills, ai_screening_data, pipeline_stage, status)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'reviewed')
                  RETURNING id, short_id`,
                 [tenantId, userId,
                  job_post_id || null,
@@ -360,6 +364,7 @@ export async function POST(req: NextRequest) {
                  score,
                  summary.slice(0, 2000),
                  skills,
+                 JSON.stringify(p),
                  stage]
               )
               parsed = { ...parsed, db_id: insertRes.rows[0]?.id, short_id: insertRes.rows[0]?.short_id }

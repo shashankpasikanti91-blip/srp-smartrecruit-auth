@@ -111,6 +111,7 @@ export interface Resume {
   ai_score: number | null
   ai_summary: string | null
   ai_skills: string[]
+  ai_screening_data: Record<string, unknown> | null
   status: string
   reviewer_notes: string | null
   created_at: string
@@ -267,18 +268,19 @@ export async function createResume(resume: {
   candidate_email?: string | null; candidate_phone?: string | null
   file_name?: string | null; file_url?: string | null; file_size_bytes?: number | null
   raw_text?: string | null; ai_score?: number | null; ai_summary?: string | null
-  ai_skills?: string[]; status?: string
+  ai_skills?: string[]; ai_screening_data?: Record<string, unknown> | null; status?: string
 }): Promise<Resume | null> {
   try {
     const { rows } = await pool.query<Resume>(
       `INSERT INTO resumes (tenant_id, user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
-         file_name, file_url, file_size_bytes, raw_text, ai_score, ai_summary, ai_skills, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+         file_name, file_url, file_size_bytes, raw_text, ai_score, ai_summary, ai_skills, ai_screening_data, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
       [resume.tenant_id ?? null, resume.user_id, resume.job_post_id ?? null, resume.candidate_name ?? null,
        resume.candidate_email ?? null, resume.candidate_phone ?? null,
        resume.file_name ?? null, resume.file_url ?? null, resume.file_size_bytes ?? null,
        resume.raw_text ?? null, resume.ai_score ?? null, resume.ai_summary ?? null,
-       resume.ai_skills ?? [], resume.status ?? 'pending']
+       resume.ai_skills ?? [], resume.ai_screening_data ? JSON.stringify(resume.ai_screening_data) : null,
+       resume.status ?? 'pending']
     )
     return rows[0] ?? null
   } catch (err) {

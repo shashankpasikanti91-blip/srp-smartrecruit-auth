@@ -32,6 +32,7 @@ interface Candidate {
   ai_score: number | null
   match_category: 'best' | 'good' | 'partial' | 'poor' | null
   pipeline_stage: string; status: string; ai_skills: string[]; ai_summary: string
+  ai_screening_data?: ScreenResult | null
   raw_text: string | null; file_name: string | null
   reviewer_notes?: string | null
   source_type?: string | null
@@ -1507,6 +1508,8 @@ export default function DashboardPage() {
   const [filterDate, setFilterDate] = useState('')  // 'today' | '7days' | '30days' | ''
   const [filterJobStatus, setFilterJobStatus] = useState('')
   const [filterJobType, setFilterJobType] = useState('')
+  const [filterJobRole, setFilterJobRole] = useState('')
+  const [filterJobCompany, setFilterJobCompany] = useState('')
   const [loading, setLoading] = useState(true)
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [matchCounts, setMatchCounts] = useState<Record<string, number>>({})
@@ -1851,6 +1854,8 @@ export default function DashboardPage() {
       setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
       setFilterJobStatus('')
       setFilterJobType('')
+      setFilterJobRole('')
+      setFilterJobCompany('')
       await loadData()
     } catch (err) {
       setSavingJob(false)
@@ -1880,6 +1885,8 @@ export default function DashboardPage() {
       setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
       setFilterJobStatus('')
       setFilterJobType('')
+      setFilterJobRole('')
+      setFilterJobCompany('')
       await loadData()
       if (data.job) {
         setGenPostJob(data.job)
@@ -2131,7 +2138,9 @@ export default function DashboardPage() {
 
   const filteredJobs = jobs.filter(j =>
     (!filterJobStatus || j.status === filterJobStatus) &&
-    (!filterJobType || j.type === filterJobType)
+    (!filterJobType || j.type === filterJobType) &&
+    (!filterJobRole || j.title?.toLowerCase().includes(filterJobRole.toLowerCase())) &&
+    (!filterJobCompany || (j.company ?? '').toLowerCase().includes(filterJobCompany.toLowerCase()))
   )
 
   // Subscription expiry alert logic
@@ -3052,6 +3061,18 @@ export default function DashboardPage() {
                   </div>
                   <div className="w-px h-5 bg-gray-200 flex-shrink-0" />
                   <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Role</span>
+                    <input value={filterJobRole} onChange={e => setFilterJobRole(e.target.value)}
+                      placeholder="Search role…"
+                      className="pl-2 pr-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 w-32" />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Company</span>
+                    <input value={filterJobCompany} onChange={e => setFilterJobCompany(e.target.value)}
+                      placeholder="Search company…"
+                      className="pl-2 pr-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 w-32" />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
                     <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Status</span>
                     <select value={filterJobStatus} onChange={e => setFilterJobStatus(e.target.value)}
                       className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20">
@@ -3073,8 +3094,8 @@ export default function DashboardPage() {
                       <option value="internship">Internship</option>
                     </select>
                   </div>
-                  {(filterJobStatus || filterJobType) && (
-                    <button onClick={() => { setFilterJobStatus(''); setFilterJobType('') }}
+                  {(filterJobStatus || filterJobType || filterJobRole || filterJobCompany) && (
+                    <button onClick={() => { setFilterJobStatus(''); setFilterJobType(''); setFilterJobRole(''); setFilterJobCompany('') }}
                       className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-red-600 border border-gray-200 px-2.5 py-1.5 rounded-lg bg-white hover:bg-red-50 hover:border-red-200 transition-colors">
                       <X className="w-3 h-3" /> Clear
                     </button>
@@ -4879,6 +4900,165 @@ function ScreenResultCard({ result: r, onAddCandidate, defaultOpen = true }: { r
   )
 }
 
+// ── CandidateScreeningDetail — renders saved AI screening data inside modal ──
+function CandidateScreeningDetail({ data: r }: { data: ScreenResult }) {
+  const ev = r.evaluation
+  const matchedSkills  = r.jd_match?.matching_skills ?? [...(ev?.high_match_skills ?? []), ...(ev?.medium_match_skills ?? [])]
+  const missingSkills  = r.jd_match?.missing_skills  ?? ev?.low_or_missing_match_skills ?? ev?.missing_skills ?? []
+  const strengths      = ev?.candidate_strengths ?? ev?.strengths ?? []
+  const weaknesses     = ev?.candidate_weaknesses ?? ev?.weaknesses ?? []
+  const redFlags = (r.red_flags && r.red_flags.length > 0) ? r.red_flags : weaknesses.slice(0, 3)
+  const score = Math.round(r.score ?? 0)
+  const jdMatch = r.jd_match?.match_percent ?? ev?.overall_fit_rating
+  const expAudit = r.experience_audit
+  const expDiff  = expAudit?.difference_years != null ? Math.abs(expAudit.difference_years) : 0
+  const showExpAudit = expAudit && (expDiff > 0.5 || expAudit.verdict === 'Mismatch')
+  const gaps = r.gap_analysis?.gaps ?? []
+  const totalMissingMonths = r.gap_analysis?.total_missing_months ?? 0
+
+  const scoreGrade =
+    score >= 71 ? { label: 'Strong',   color: '#10b981', bg: 'bg-emerald-500/20', border: 'border-emerald-500/30' } :
+    score >= 60 ? { label: 'KAV',      color: '#f59e0b', bg: 'bg-amber-500/20',   border: 'border-amber-500/30' } :
+    score >= 45 ? { label: 'Average',  color: '#3b82f6', bg: 'bg-blue-500/20',    border: 'border-blue-500/30' } :
+                  { label: 'Reject',   color: '#ef4444', bg: 'bg-red-500/20',     border: 'border-red-500/30' }
+
+  const decisionConfig: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+    'Shortlisted': { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30', dot: 'bg-emerald-500' },
+    'On Hold':     { bg: 'bg-amber-500/20',   text: 'text-amber-400',   border: 'border-amber-500/30',   dot: 'bg-amber-500' },
+    'Rejected':    { bg: 'bg-red-500/20',     text: 'text-red-400',     border: 'border-red-500/30',     dot: 'bg-red-500' },
+  }
+  const dc = decisionConfig[r.decision] ?? decisionConfig['Rejected']
+
+  return (
+    <div className="space-y-5">
+      {/* Score header */}
+      <div className="flex items-center gap-4">
+        <div className={`flex-shrink-0 flex flex-col items-center justify-center w-16 h-16 rounded-xl border-2 ${scoreGrade.bg} ${scoreGrade.border}`}>
+          <span className="text-2xl font-black leading-none" style={{ color: scoreGrade.color }}>{score}</span>
+          <span className="text-[9px] font-semibold mt-0.5" style={{ color: scoreGrade.color }}>{scoreGrade.label}</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${dc.bg} ${dc.text} ${dc.border}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${dc.dot}`} />{r.decision}
+          </span>
+          {r.classification && (
+            <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
+              r.classification === 'STRONG' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+              r.classification === 'KAV'    ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                                              'bg-red-500/20 text-red-400 border-red-500/30'
+            }`}>{r.classification === 'KAV' ? 'Keep An Eye' : r.classification}</span>
+          )}
+          {r.recommendation && (
+            <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
+              r.recommendation === 'Hire' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+              r.recommendation === 'Hold' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                                            'bg-gray-500/20 text-gray-400 border-gray-500/30'
+            }`}>Rec: {r.recommendation}</span>
+          )}
+          {jdMatch != null && (
+            <span className="text-xs font-semibold px-3 py-1 rounded-full border bg-blue-500/20 text-blue-400 border-blue-500/30">JD Match: {jdMatch}%</span>
+          )}
+        </div>
+      </div>
+
+      {/* Executive summary */}
+      {r.executive_summary && (
+        <div>
+          <p className="text-[11px] font-bold text-indigo-400 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+            <Brain className="w-3.5 h-3.5" /> Executive Summary
+          </p>
+          <p className="text-sm text-gray-300 leading-relaxed bg-white/[0.03] rounded-lg p-3 border border-white/5">{r.executive_summary}</p>
+        </div>
+      )}
+
+      {/* Skills grid */}
+      {(matchedSkills.length > 0 || missingSkills.length > 0 || redFlags.length > 0) && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white/[0.03] rounded-xl border border-emerald-500/20 p-3">
+            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide mb-2">✓ Matched</p>
+            {matchedSkills.length === 0 ? <p className="text-xs text-gray-600 italic">None</p> :
+              <div className="flex flex-wrap gap-1">{matchedSkills.map(s => <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/20">{s}</span>)}</div>}
+          </div>
+          <div className="bg-white/[0.03] rounded-xl border border-red-500/20 p-3">
+            <p className="text-[10px] font-bold text-red-400 uppercase tracking-wide mb-2">✗ Missing</p>
+            {missingSkills.length === 0 ? <p className="text-xs text-gray-600 italic">None</p> :
+              <div className="flex flex-wrap gap-1">{missingSkills.map(s => <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/20">{s}</span>)}</div>}
+          </div>
+          <div className="bg-white/[0.03] rounded-xl border border-amber-500/20 p-3">
+            <p className="text-[10px] font-bold text-amber-400 uppercase tracking-wide mb-2">⚠ Red Flags</p>
+            {redFlags.length === 0 ? <p className="text-xs text-gray-600 italic">None</p> :
+              <ul className="space-y-1">{redFlags.map((f, i) => <li key={i} className="text-[10px] text-amber-300 flex gap-1"><span>•</span><span>{f}</span></li>)}</ul>}
+          </div>
+        </div>
+      )}
+
+      {/* Experience audit + gaps */}
+      {(showExpAudit || totalMissingMonths > 0) && (
+        <div className="grid grid-cols-2 gap-3">
+          {showExpAudit && expAudit && (
+            <div className="bg-orange-500/5 rounded-xl border border-orange-500/20 p-3">
+              <p className="text-[10px] font-bold text-orange-400 uppercase tracking-wide mb-2 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Experience Audit</p>
+              <div className="space-y-1 text-xs text-gray-400">
+                <div className="flex justify-between"><span>Claimed:</span><span className="font-semibold text-gray-200">{expAudit.claimed_years ?? '—'} yrs</span></div>
+                <div className="flex justify-between"><span>Calculated:</span><span className="font-semibold text-gray-200">{expAudit.calculated_years ?? '—'} yrs</span></div>
+                {expDiff > 0 && <div className="flex justify-between"><span>Difference:</span><span className={`font-bold ${expDiff > 1 ? 'text-red-400' : 'text-amber-400'}`}>{expAudit.difference_years} yrs</span></div>}
+                <div className="flex justify-between"><span>Verdict:</span><span className={`font-bold ${expAudit.verdict === 'Match' ? 'text-emerald-400' : 'text-red-400'}`}>{expAudit.verdict ?? '—'}</span></div>
+              </div>
+            </div>
+          )}
+          {totalMissingMonths > 0 && (
+            <div className="bg-orange-500/5 rounded-xl border border-orange-500/20 p-3">
+              <p className="text-[10px] font-bold text-orange-400 uppercase tracking-wide mb-2 flex items-center gap-1"><Clock className="w-3 h-3" /> Employment Gaps</p>
+              <p className="text-xs text-gray-400 mb-1.5"><span className="font-bold text-orange-300">{totalMissingMonths}</span> month{totalMissingMonths !== 1 ? 's' : ''} unexplained</p>
+              <ul className="space-y-1">{gaps.slice(0, 3).map((g, i) => <li key={i} className="text-[10px] text-gray-400">{g.from} → {g.to}{g.months ? ` (${g.months}mo)` : ''}</li>)}</ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Strengths & weaknesses */}
+      {(strengths.length > 0 || weaknesses.length > 0) && (
+        <div className="grid grid-cols-2 gap-3">
+          {strengths.length > 0 && (
+            <div className="bg-emerald-500/5 rounded-xl border border-emerald-500/20 p-3">
+              <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide mb-2">Strengths</p>
+              <ul className="space-y-1.5">{strengths.map((s, i) => <li key={i} className="text-xs text-gray-300 flex gap-1.5"><span className="text-emerald-400 flex-shrink-0">✓</span><span>{s}</span></li>)}</ul>
+            </div>
+          )}
+          {weaknesses.length > 0 && (
+            <div className="bg-red-500/5 rounded-xl border border-red-500/20 p-3">
+              <p className="text-[10px] font-bold text-red-400 uppercase tracking-wide mb-2">Gaps & Weaknesses</p>
+              <ul className="space-y-1.5">{weaknesses.map((w, i) => <li key={i} className="text-xs text-gray-300 flex gap-1.5"><span className="text-red-400 flex-shrink-0">×</span><span>{w}</span></li>)}</ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Required actions */}
+      {(r.required_actions?.length ?? 0) > 0 && (
+        <div className="bg-blue-500/5 rounded-xl border border-blue-500/20 p-3">
+          <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wide mb-2">Required Actions</p>
+          <ul className="space-y-1.5">{r.required_actions!.map((a, i) => <li key={i} className="text-xs text-gray-300 flex gap-1.5"><span className="text-blue-400 font-bold flex-shrink-0">{i + 1}.</span><span>{a}</span></li>)}</ul>
+        </div>
+      )}
+
+      {/* AI Reasoning */}
+      {ev?.justification && (
+        <div>
+          <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-1.5"><Brain className="w-3 h-3 text-indigo-400" /> AI Reasoning</p>
+          <p className="text-sm text-gray-400 leading-relaxed bg-white/[0.02] rounded-lg p-3 border border-white/5">{ev.justification}</p>
+        </div>
+      )}
+      {ev?.risk_explanation && (
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+          <AlertCircle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-300"><span className="font-semibold">Risk Note: </span>{ev.risk_explanation}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── KanbanCard ────────────────────────────────────────────────────────────────
 function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDragEnd }: {
   candidate: Candidate; onMove: (id: string, stage: string) => void
@@ -4942,7 +5122,8 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
   onStageChange: (id: string, stage: string) => void
   onJobChange: (id: string, jobId: string) => void
 }) {
-  const [tab, setTab] = useState<'profile' | 'resume'>('profile')
+  const [tab, setTab] = useState<'profile' | 'ai' | 'resume'>('profile')
+  const hasAiData = !!(c.ai_screening_data || c.ai_summary)
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] overflow-y-auto flex items-start justify-center p-4"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -4958,7 +5139,12 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
             <p className="text-sm text-gray-400 mt-0.5">{c.candidate_email}</p>
             {c.candidate_phone && <p className="text-sm text-gray-500">{c.candidate_phone}</p>}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <MatchBadge category={c.match_category} score={c.ai_score} />
+              {hasAiData
+                ? <button onClick={() => setTab('ai')} title="Click to view full AI screening report" className="cursor-pointer hover:opacity-80 transition-opacity">
+                    <MatchBadge category={c.match_category} score={c.ai_score} />
+                  </button>
+                : <MatchBadge category={c.match_category} score={c.ai_score} />
+              }
               <StagePill stage={c.pipeline_stage} />
               <ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} />
               {c.created_at && (
@@ -4973,12 +5159,12 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
 
         {/* Tabs */}
         <div className="flex border-b border-white/5">
-          {(['profile', 'resume'] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)}
+          {(['profile', ...(hasAiData ? ['ai'] : []), 'resume'] as const).map(t => (
+            <button key={t} onClick={() => setTab(t as 'profile' | 'ai' | 'resume')}
               className={`px-6 py-3 text-sm font-medium transition-all ${
                 tab === t ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-500 hover:text-gray-300'
               }`}>
-              {t === 'resume' ? 'Resume / CV' : 'Profile & Actions'}
+              {t === 'resume' ? 'Resume / CV' : t === 'ai' ? 'AI Screening' : 'Profile & Actions'}
             </button>
           ))}
         </div>
@@ -5028,10 +5214,15 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
             )}
 
             {/* AI Assessment */}
-            {c.ai_summary && (
+            {hasAiData && (
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">AI Assessment</p>
-                <p className="text-sm text-gray-300 leading-relaxed bg-white/[0.02] rounded-lg p-3 border border-white/5">{c.ai_summary}</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">AI Assessment</p>
+                  <button onClick={() => setTab('ai')} className="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1">
+                    View full report →
+                  </button>
+                </div>
+                <p className="text-sm text-gray-300 leading-relaxed bg-white/[0.02] rounded-lg p-3 border border-white/5">{c.ai_summary || 'AI screening data available — click "View full report" to see details.'}</p>
               </div>
             )}
 
@@ -5052,6 +5243,31 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
                 <span>Last contacted: {fmtDate(c.last_contacted_at)}</span>
               )}
             </div>
+          </div>
+        )}
+
+        {tab === 'ai' && (
+          <div className="p-6 max-h-[70vh] overflow-y-auto">
+            {c.ai_screening_data
+              ? <CandidateScreeningDetail data={c.ai_screening_data as ScreenResult} />
+              : c.ai_summary
+                ? <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">AI Summary</p>
+                    <p className="text-sm text-gray-300 leading-relaxed bg-white/[0.02] rounded-lg p-3 border border-white/5">{c.ai_summary}</p>
+                    {(c.ai_skills?.length ?? 0) > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Extracted Skills</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {c.ai_skills.map(s => (
+                            <span key={s} className="px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-xs">{s}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-600 mt-4 italic">Full structured breakdown is available for candidates screened after the latest update.</p>
+                  </div>
+                : <p className="text-sm text-gray-500">No AI screening data available for this candidate.</p>
+            }
           </div>
         )}
 
