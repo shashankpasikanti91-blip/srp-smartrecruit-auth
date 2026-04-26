@@ -49,7 +49,9 @@ export async function GET(req: NextRequest) {
     const sql = `
       SELECT r.id, r.short_id, r.candidate_name, r.candidate_email, r.candidate_phone,
              r.ai_score, r.match_category, r.pipeline_stage, r.status, r.reviewer_notes,
-             r.ai_summary, r.ai_skills, r.job_post_id, r.raw_text, r.file_name, r.created_at,
+             r.ai_summary, r.ai_skills, r.ai_screening_data,
+             r.job_post_id, r.raw_text, r.file_name, r.source_type,
+             r.created_at, r.updated_at, r.last_contacted_at,
              jp.id AS jp_id, jp.short_id AS jp_short_id, jp.title AS jp_title, jp.company AS jp_company
       FROM resumes r
       LEFT JOIN job_posts jp ON jp.id = r.job_post_id
