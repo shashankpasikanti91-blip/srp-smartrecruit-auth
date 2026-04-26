@@ -47,17 +47,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: limit.reason }, { status: 403 })
     }
 
+    const toInt = (v: unknown) => (v === '' || v === null || v === undefined) ? null : Number(v) || null
+
     const job = await createJobPost({
       tenant_id: ctx.tenantId,
       user_id: ctx.userId,
       title: body.title.trim(),
-      company: body.company ?? null,
-      location: body.location ?? null,
+      company: body.company?.trim() || null,
+      location: body.location?.trim() || null,
       type: body.type ?? 'full-time',
-      description: body.description ?? null,
-      requirements: body.requirements ?? null,
-      salary_min: body.salary_min ?? null,
-      salary_max: body.salary_max ?? null,
+      description: body.description?.trim() || null,
+      requirements: body.requirements?.trim() || null,
+      salary_min: toInt(body.salary_min),
+      salary_max: toInt(body.salary_max),
       currency: body.currency ?? 'USD',
       status: body.status ?? 'active',
       ai_generated: body.ai_generated ?? false,
