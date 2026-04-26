@@ -1833,36 +1833,62 @@ export default function DashboardPage() {
   const createJob = async () => {
     if (!newJob.title) return
     setSavingJob(true)
-    const res = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newJob) })
-    if (res.status === 403) {
+    try {
+      const res = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newJob) })
       const data = await res.json()
+      if (res.status === 403) {
+        setSavingJob(false)
+        setUpgradePrompt({ show: true, message: data.error || 'You have reached your plan limit.', feature: 'Job Posts' })
+        return
+      }
+      if (!res.ok) {
+        setSavingJob(false)
+        alert(data.error || 'Failed to create job post. Please try again.')
+        return
+      }
       setSavingJob(false)
-      setUpgradePrompt({ show: true, message: data.error || 'You have reached your plan limit.', feature: 'Job Posts' })
-      return
+      setShowNewJob(false)
+      setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
+      setFilterJobStatus('')
+      setFilterJobType('')
+      await loadData()
+    } catch (err) {
+      setSavingJob(false)
+      alert('Network error. Please check your connection and try again.')
+      console.error('[createJob]', err)
     }
-    setSavingJob(false)
-    setShowNewJob(false)
-    setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
-    loadData()
   }
 
   const createAndGenerate = async () => {
     if (!newJob.title) return
     setSavingJob(true)
-    const res = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newJob) })
-    const data = await res.json()
-    if (res.status === 403) {
+    try {
+      const res = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newJob) })
+      const data = await res.json()
+      if (res.status === 403) {
+        setSavingJob(false)
+        setUpgradePrompt({ show: true, message: data.error || 'You have reached your plan limit.', feature: 'Job Posts' })
+        return
+      }
+      if (!res.ok) {
+        setSavingJob(false)
+        alert(data.error || 'Failed to create job post. Please try again.')
+        return
+      }
       setSavingJob(false)
-      setUpgradePrompt({ show: true, message: data.error || 'You have reached your plan limit.', feature: 'Job Posts' })
-      return
-    }
-    setSavingJob(false)
-    setShowNewJob(false)
-    setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
-    await loadData()
-    if (data.job) {
-      setGenPostJob(data.job)
-      setGeneratedPosts({}); setGenCustomPrompt(''); setGenPostError('')
+      setShowNewJob(false)
+      setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
+      setFilterJobStatus('')
+      setFilterJobType('')
+      await loadData()
+      if (data.job) {
+        setGenPostJob(data.job)
+        setGeneratedPosts({}); setGenCustomPrompt(''); setGenPostError('')
+      }
+    } catch (err) {
+      setSavingJob(false)
+      alert('Network error. Please check your connection and try again.')
+      console.error('[createAndGenerate]', err)
     }
   }
 
