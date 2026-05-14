@@ -107,6 +107,7 @@ jobs:
           failures = []
 
           def get(path, expect):
+              code = None; err = None
               for attempt in range(3):
                   try:
                       req = urllib.request.Request(
@@ -114,15 +115,14 @@ jobs:
                       )
                       with urllib.request.urlopen(req, context=CTX, timeout=15) as r:
                           code = r.status
+                      break
                   except urllib.error.HTTPError as e:
-                      code = e.code
+                      code = e.code; break
                   except Exception as e:
-                      if attempt < 2:
-                          time.sleep(3); continue
-                      print(f"  [FAIL] {path} -> {e}")
-                      failures.append(path)
-                      return
-                  break
+                      err = str(e)
+                      if attempt < 2: time.sleep(3); continue
+              if code is None:
+                  print(f"  [FAIL] {path} -> {err}"); failures.append(path); return
               expected = expect if isinstance(expect, (list, tuple)) else [expect]
               ok = code in expected
               print(f"  [{'PASS' if ok else 'FAIL'}] {path} <- HTTP {code}")
