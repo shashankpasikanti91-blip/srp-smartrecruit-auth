@@ -83,9 +83,11 @@ jobs:
             echo "=== [2/5] Write .env from secret ==="
             printf '%s\n' "$FRONTEND_ENV" > /opt/srp-smartrecruit-auth/.env
             chmod 600 /opt/srp-smartrecruit-auth/.env
-            # Always enforce correct NEXTAUTH_URL (override stale secret value)
+            # Always enforce correct NEXTAUTH_URL
             sed -i 's|NEXTAUTH_URL=.*|NEXTAUTH_URL=https://recruit.srpailabs.com|' /opt/srp-smartrecruit-auth/.env
             grep -q 'NEXTAUTH_URL' /opt/srp-smartrecruit-auth/.env || echo 'NEXTAUTH_URL=https://recruit.srpailabs.com' >> /opt/srp-smartrecruit-auth/.env
+            # Ensure POSTGRES_PASSWORD is set (empty string = trust auth in docker container)
+            grep -q 'POSTGRES_PASSWORD' /opt/srp-smartrecruit-auth/.env || echo 'POSTGRES_PASSWORD=' >> /opt/srp-smartrecruit-auth/.env
             echo "NEXTAUTH_URL set to: $(grep NEXTAUTH_URL /opt/srp-smartrecruit-auth/.env)"
 
             echo "=== [2b/5] Run DB migrations ==="
