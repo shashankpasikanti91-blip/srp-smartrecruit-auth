@@ -86,9 +86,12 @@ jobs:
             # Always enforce correct NEXTAUTH_URL
             sed -i 's|NEXTAUTH_URL=.*|NEXTAUTH_URL=https://recruit.srpailabs.com|' /opt/srp-smartrecruit-auth/.env
             grep -q 'NEXTAUTH_URL' /opt/srp-smartrecruit-auth/.env || echo 'NEXTAUTH_URL=https://recruit.srpailabs.com' >> /opt/srp-smartrecruit-auth/.env
-            # Ensure POSTGRES_PASSWORD is set (empty string = trust auth in docker container)
-            grep -q 'POSTGRES_PASSWORD' /opt/srp-smartrecruit-auth/.env || echo 'POSTGRES_PASSWORD=' >> /opt/srp-smartrecruit-auth/.env
-            echo "NEXTAUTH_URL set to: $(grep NEXTAUTH_URL /opt/srp-smartrecruit-auth/.env)"
+            # Force correct DATABASE_URL (docker-compose needs it in env_file, not environment block)
+            sed -i '/^DATABASE_URL=/d' /opt/srp-smartrecruit-auth/.env
+            echo 'DATABASE_URL=postgresql://srp_auth:SrpAuth2024Secure!@db:5432/srp_auth' >> /opt/srp-smartrecruit-auth/.env
+            sed -i '/^POSTGRES_PASSWORD=/d' /opt/srp-smartrecruit-auth/.env
+            echo 'POSTGRES_PASSWORD=SrpAuth2024Secure!' >> /opt/srp-smartrecruit-auth/.env
+            echo "DB URL injected, POSTGRES_PASSWORD set"
 
             echo "=== [2b/5] Run DB migrations ==="
             # Ensure password_hash column and user passwords are set (idempotent)

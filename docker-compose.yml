@@ -56,7 +56,6 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      DATABASE_URL: postgresql://srp_auth:${POSTGRES_PASSWORD}@db:5432/srp_auth
     networks:
       - srp_auth_net
     mem_limit: 256m
