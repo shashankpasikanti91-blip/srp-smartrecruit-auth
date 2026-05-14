@@ -88,6 +88,12 @@ jobs:
             grep -q 'NEXTAUTH_URL' /opt/srp-smartrecruit-auth/.env || echo 'NEXTAUTH_URL=https://recruit.srpailabs.com' >> /opt/srp-smartrecruit-auth/.env
             echo "NEXTAUTH_URL set to: $(grep NEXTAUTH_URL /opt/srp-smartrecruit-auth/.env)"
 
+            echo "=== [2b/5] Run DB migrations ==="
+            # Ensure password_hash column and user passwords are set (idempotent)
+            docker exec srp-auth-db psql -U srp_auth -d srp_auth \
+              -f /opt/srp-smartrecruit-auth/db/migrate_v12_fix_passwords.sql \
+              2>&1 | tail -20 || echo "Migration output above (errors are non-fatal if column/data already exists)"
+
             echo "=== [3/5] Stop app only — DB stays running ==="
             docker compose stop app  2>/dev/null || true
             docker compose rm -f app 2>/dev/null || true
