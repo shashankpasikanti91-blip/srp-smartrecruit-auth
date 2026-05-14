@@ -83,6 +83,10 @@ jobs:
             echo "=== [2/5] Write .env from secret ==="
             printf '%s\n' "$FRONTEND_ENV" > /opt/srp-smartrecruit-auth/.env
             chmod 600 /opt/srp-smartrecruit-auth/.env
+            # Always enforce correct NEXTAUTH_URL (override stale secret value)
+            sed -i 's|NEXTAUTH_URL=.*|NEXTAUTH_URL=https://recruit.srpailabs.com|' /opt/srp-smartrecruit-auth/.env
+            grep -q 'NEXTAUTH_URL' /opt/srp-smartrecruit-auth/.env || echo 'NEXTAUTH_URL=https://recruit.srpailabs.com' >> /opt/srp-smartrecruit-auth/.env
+            echo "NEXTAUTH_URL set to: $(grep NEXTAUTH_URL /opt/srp-smartrecruit-auth/.env)"
 
             echo "=== [3/5] Stop app only — DB stays running ==="
             docker compose stop app  2>/dev/null || true
