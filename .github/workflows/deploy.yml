@@ -90,10 +90,11 @@ jobs:
 
             echo "=== [2b/5] Run DB migrations ==="
             # Ensure password_hash column and user passwords are set (idempotent)
-            # Use -i + stdin redirect so the SQL file is read from host (not inside container)
             docker exec -i srp-auth-db psql -U srp_auth -d srp_auth \
-              < /opt/srp-smartrecruit-auth/db/migrate_v12_fix_passwords.sql \
-              && echo "Migration OK" || echo "Migration failed (will retry on next deploy)"
+              < /opt/srp-smartrecruit-auth/db/migrate_v12_fix_passwords.sql
+            echo "--- Verifying user password status ---"
+            docker exec srp-auth-db psql -U srp_auth -d srp_auth -c \
+              "SELECT email, is_active, (password_hash IS NOT NULL) AS has_password FROM auth_users WHERE email IN ('demo@srpailabs.com','pasikantishashank24@gmail.com','hareesh4u22@gmail.com','priyapasikanti0@gmail.com') ORDER BY email;"
 
             echo "=== [3/5] Stop app only — DB stays running ==="
             docker compose stop app  2>/dev/null || true

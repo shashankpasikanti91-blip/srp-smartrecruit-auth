@@ -56,7 +56,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      DATABASE_URL: postgresql://srp_auth:${POSTGRES_PASSWORD}@db:5432/srp_auth
+      # DATABASE_URL comes from env_file (.env) — do NOT override here with ${POSTGRES_PASSWORD}
+      # as that variable may not be defined and would produce an empty-password URL
     networks:
       - srp_auth_net
     mem_limit: 256m

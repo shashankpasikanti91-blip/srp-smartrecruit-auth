@@ -40,16 +40,15 @@ SELECT id, 'free', 'active', 'monthly', 0, 'usd'
 FROM public.auth_users WHERE email = 'demo@srpailabs.com'
 ON CONFLICT DO NOTHING;
 
--- 3. Real users — set temp password (Srp@2024!) if no password hash yet
---    They can change via forgot-password flow
+-- 3. Real users — always set temp password (Srp@2024!) so login works
+--    They can change it via forgot-password flow anytime
 UPDATE public.auth_users
 SET password_hash = '$2b$10$Fwyu0yyYuWx4TKv71aZsSeGjXonpkrWO2ujUaU77RGQsck8KIuM5.'
 WHERE email IN (
   'pasikantishashank24@gmail.com',
   'hareesh4u22@gmail.com',
   'priyapasikanti0@gmail.com'
-)
-AND (password_hash IS NULL OR password_hash = '');
+);
 
 -- 4. Make sure all these accounts are active
 UPDATE public.auth_users
