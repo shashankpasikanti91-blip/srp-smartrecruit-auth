@@ -118,6 +118,18 @@ jobs:
 
             sudo systemctl reload nginx 2>/dev/null || true
             docker image prune -f 2>/dev/null || true
+
+            echo "=== [5b/5] Update nginx config ==="
+            # Push latest nginx config so auth routes are correctly proxied to Next.js
+            NGINX_CONF="/etc/nginx/sites-available/recruit.srpailabs.com"
+            if [ -f "$NGINX_CONF" ]; then
+              cp /opt/srp-smartrecruit-auth/deployment/recruit.srpailabs.com.nginx "$NGINX_CONF"
+              nginx -t 2>&1 && sudo systemctl reload nginx && echo "✅ Nginx config updated" \
+                || echo "⚠️ Nginx config test failed — keeping old config"
+            else
+              echo "⚠️ Nginx site config not found at $NGINX_CONF — skipping update"
+            fi
+
             echo "✅ Frontend deploy complete"
 
       # ── E2E: HTTP checks against live HTTPS domain (no SSH needed) ──

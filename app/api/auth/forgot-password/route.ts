@@ -12,9 +12,9 @@ export async function POST(req: NextRequest) {
 
     const normalizedEmail = email.trim().toLowerCase()
 
-    // Look up user (only credentials users can reset password)
+    // Look up user — include password_hash and provider to route correctly
     const { rows } = await pool.query(
-      `SELECT id, name, email, provider FROM auth_users WHERE email = $1`,
+      `SELECT id, name, email, provider, password_hash FROM auth_users WHERE email = $1`,
       [normalizedEmail]
     )
 
@@ -27,15 +27,11 @@ export async function POST(req: NextRequest) {
 
     const user = rows[0]
 
-    // Google-only users can't reset password
+    // Google-only users (no password set yet) get a helpful email directing them
+    // to use Google sign-in OR use the reset link to set a password for the first time
     if (user.provider === 'google' && !user.password_hash) {
-      // Send them a helpful email instead
-      await sendEmail({
-        to: user.email,
-        subject: 'Password Reset — SRP SmartRecruit',
-        html: buildGoogleOnlyEmail(user.name ?? 'there'),
-      })
-      return NextResponse.json(successMsg)
+      // Fall through to send them a real reset link so they CAN set a password
+      // (the token-based reset flow will set the password_hash for the first time)
     }
 
     // Invalidate any existing unused tokens for this user

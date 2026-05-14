@@ -1,10 +1,23 @@
--- Migration v12: Ensure password_hash column exists and seed user passwords
+-- Migration v12: Ensure password_hash column exists, password_reset_tokens table, and seed user passwords
 -- Safe to run multiple times (idempotent)
--- Run: docker exec srp-auth-db psql -U srp_auth -d srp_auth -f /migrate_v12_fix_passwords.sql
+-- Run: docker exec -i srp-auth-db psql -U srp_auth -d srp_auth < db/migrate_v12_fix_passwords.sql
 
 -- 1. Ensure password_hash column exists
 ALTER TABLE public.auth_users
   ADD COLUMN IF NOT EXISTS password_hash TEXT DEFAULT NULL;
+
+-- 1b. Ensure password_reset_tokens table exists (for secure email-based reset flow)
+CREATE TABLE IF NOT EXISTS public.password_reset_tokens (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID        NOT NULL REFERENCES public.auth_users(id) ON DELETE CASCADE,
+  token_hash TEXT        NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used       BOOLEAN     NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS prt_user_idx    ON public.password_reset_tokens (user_id);
+CREATE INDEX IF NOT EXISTS prt_hash_idx    ON public.password_reset_tokens (token_hash);
+CREATE INDEX IF NOT EXISTS prt_expires_idx ON public.password_reset_tokens (expires_at);
 
 -- 2. Demo user (password: Demo@1234)
 INSERT INTO public.auth_users (name, email, password_hash, provider, role, product_access, is_active)
