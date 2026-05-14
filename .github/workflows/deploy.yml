@@ -48,6 +48,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Diagnose SSH secrets
+        run: |
+          echo "HETZNER_HOST set: ${{ secrets.HETZNER_HOST != '' && 'YES' || 'NO - MISSING SECRET' }}"
+          echo "HETZNER_USER set: ${{ secrets.HETZNER_USER != '' && 'YES' || 'NO - MISSING SECRET' }}"
+          echo "HETZNER_SSH_KEY set: ${{ secrets.HETZNER_SSH_KEY != '' && 'YES' || 'NO - MISSING SECRET' }}"
+          echo "PRODUCTION_ENV set: ${{ secrets.PRODUCTION_ENV != '' && 'YES' || 'NO - MISSING SECRET' }}"
+          HOST="${{ secrets.HETZNER_HOST }}"
+          if [ -n "$HOST" ]; then
+            nc -z -w10 "$HOST" 22 && echo "Port 22 REACHABLE" || echo "Port 22 NOT REACHABLE from GitHub runner"
+          else
+            echo "Cannot test - HETZNER_HOST is empty"
+          fi
+
       - name: Deploy Next.js to Hetzner via SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
