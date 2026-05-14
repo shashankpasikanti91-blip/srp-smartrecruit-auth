@@ -3,6 +3,19 @@ import { requireTenant }            from '@/lib/tenant'
 import { pool }                     from '@/lib/db'
 import { sanitizeEmail, sanitizeText, sanitizeStringArray, sanitizePositiveInt, isValidUUID } from '@/lib/validate'
 
+/** pg sometimes returns JSONB as object; legacy TEXT/json columns may return a string. */
+function parseJsonObject<T extends Record<string, unknown>>(v: unknown): T | null {
+  if (v == null) return null
+  if (typeof v === 'object' && !Array.isArray(v)) return v as T
+  if (typeof v === 'string') {
+    try {
+      const o = JSON.parse(v) as unknown
+      if (typeof o === 'object' && o !== null && !Array.isArray(o)) return o as T
+    } catch { /* ignore */ }
+  }
+  return null
+}
+
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, 'candidates.read')
   if (ctx instanceof NextResponse) return ctx
@@ -49,11 +62,13 @@ export async function GET(req: NextRequest) {
     const sql = `
       SELECT r.id, r.short_id, r.candidate_name, r.candidate_email, r.candidate_phone,
              r.ai_score, r.match_category, r.pipeline_stage, r.status, r.reviewer_notes,
-             r.ai_summary, r.ai_skills, r.ai_screening_data,
+             r.ai_summary, r.ai_skills, r.ai_screening_data, r.candidate_profile,
              r.job_post_id, r.raw_text, r.file_name, r.source_type,
              r.created_at, r.updated_at, r.last_contacted_at,
+             u.name AS upload_user_name, u.email AS upload_user_email,
              jp.id AS jp_id, jp.short_id AS jp_short_id, jp.title AS jp_title, jp.company AS jp_company
       FROM resumes r
+      LEFT JOIN auth_users u ON u.id = r.user_id
       LEFT JOIN job_posts jp ON jp.id = r.job_post_id
       WHERE ${where}
       ORDER BY r.created_at DESC
@@ -61,10 +76,37 @@ export async function GET(req: NextRequest) {
     `
     params.push(limit)
     const { rows } = await pool.query(sql, params)
-    const candidates = rows.map(r => ({
-      ...r,
-      job_posts: r.jp_id ? { id: r.jp_id, short_id: r.jp_short_id, title: r.jp_title, company: r.jp_company } : null,
-    }))
+    type Row = Record<string, unknown> & {
+      jp_id?: string | null
+      jp_short_id?: string | null
+      jp_title?: string | null
+      jp_company?: string | null
+      upload_user_name?: string | null
+      upload_user_email?: string | null
+    }
+    const candidates = rows.map(raw => {
+      const r = raw as Row
+      const {
+        jp_id, jp_short_id, jp_title, jp_company,
+        upload_user_name, upload_user_email,
+        ...resume
+      } = r
+      const aiParsed = parseJsonObject(resume.ai_screening_data as unknown)
+      const profParsed = parseJsonObject(resume.candidate_profile as unknown)
+      const uploaded_by =
+        upload_user_name || upload_user_email
+          ? { name: upload_user_name ?? null, email: upload_user_email ?? null }
+          : null
+      return {
+        ...resume,
+        uploaded_by,
+        ai_screening_data: aiParsed ?? (typeof resume.ai_screening_data === 'object' && resume.ai_screening_data !== null
+          ? resume.ai_screening_data
+          : null),
+        candidate_profile: profParsed ?? {},
+        job_posts: jp_id ? { id: jp_id, short_id: jp_short_id, title: jp_title, company: jp_company } : null,
+      }
+    })
 
     const stageRes = await pool.query<{ pipeline_stage: string }>(
       'SELECT pipeline_stage FROM resumes WHERE tenant_id = $1',
@@ -140,15 +182,41 @@ export async function POST(req: NextRequest) {
 
     // Duplicate check by email within this tenant
     if (candidate_email) {
-      const dup = await pool.query<{ id: string; short_id: string; candidate_name: string }>(
-        `SELECT id, short_id, candidate_name FROM resumes
-         WHERE tenant_id = $1 AND candidate_email = $2 LIMIT 1`,
+      const dup = await pool.query<{
+        id: string
+        short_id: string
+        candidate_name: string
+        pipeline_stage: string
+        status: string
+        created_at: Date
+        upload_user_name: string | null
+        upload_user_email: string | null
+      }>(
+        `SELECT r.id, r.short_id, r.candidate_name, r.pipeline_stage, r.status, r.created_at,
+                u.name AS upload_user_name, u.email AS upload_user_email
+           FROM resumes r
+           LEFT JOIN auth_users u ON u.id = r.user_id
+          WHERE r.tenant_id = $1 AND r.candidate_email = $2
+          LIMIT 1`,
         [ctx.tenantId, candidate_email]
       )
       if (dup.rows.length) {
+        const row = dup.rows[0]
+        const uploaded_by =
+          row.upload_user_name || row.upload_user_email
+            ? { name: row.upload_user_name, email: row.upload_user_email }
+            : null
         return NextResponse.json({
           error: 'Duplicate: a candidate with this email already exists in this workspace',
-          existing: { id: dup.rows[0].id, short_id: dup.rows[0].short_id, name: dup.rows[0].candidate_name },
+          existing: {
+            id: row.id,
+            short_id: row.short_id,
+            name: row.candidate_name,
+            pipeline_stage: row.pipeline_stage,
+            status: row.status,
+            created_at: row.created_at,
+            uploaded_by,
+          },
           is_duplicate: true,
         }, { status: 409 })
       }

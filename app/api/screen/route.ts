@@ -3,6 +3,19 @@ import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import { checkAiScreenLimit } from '@/lib/limits'
 import { logAudit } from '@/lib/audit'
+import { isValidUUID } from '@/lib/validate'
+
+/** AI models sometimes return score as a string — DB ai_score must be numeric for match_category. */
+function normalizeScreeningScore(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.min(100, Math.max(0, Math.round(value)))
+  }
+  if (typeof value === 'string') {
+    const n = parseFloat(value.replace(/,/g, '').trim())
+    if (Number.isFinite(n)) return Math.min(100, Math.max(0, Math.round(n)))
+  }
+  return null
+}
 
 export const maxDuration = 120
 
@@ -146,7 +159,8 @@ Do NOT change field names. All fields are required.
   "jd_match": {
     "match_percent": 0,
     "matching_skills": [],
-    "missing_skills": []
+    "missing_skills": [],
+    "optional_skills_match": []
   },
   "skill_authenticity": {
     "verified": [],
@@ -223,6 +237,34 @@ export async function POST(req: NextRequest) {
     }
 
     if (!jd_text?.trim()) return NextResponse.json({ error: 'jd_text required' }, { status: 400 })
+
+    // Enrich JD with linked job post (required + optional skills) — tenant-scoped
+    let jdForModel = jd_text.trim()
+    if (job_post_id && isValidUUID(job_post_id)) {
+      const jp = await pool.query<{
+        description: string | null
+        requirements: string | null
+        optional_requirements: string | null
+      }>(
+        `SELECT description, requirements, optional_requirements
+         FROM job_posts WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [job_post_id, tenantId]
+      )
+      const row = jp.rows[0]
+      if (row) {
+        const blocks: string[] = []
+        if (row.description?.trim()) blocks.push('## Role description\n' + row.description.trim())
+        if (row.requirements?.trim()) blocks.push('## Required / must-have\n' + row.requirements.trim())
+        if (row.optional_requirements?.trim()) {
+          blocks.push(
+            '## Nice-to-have / optional skills\n' +
+              row.optional_requirements.trim() +
+              '\n(Treat as bonus fit; list matches under jd_match.optional_skills_match.)'
+          )
+        }
+        if (blocks.length) jdForModel = `${jdForModel}\n\n---\n${blocks.join('\n\n')}`
+      }
+    }
     if (!Array.isArray(resumes) || !resumes.length) {
       return NextResponse.json({ error: 'resumes array required' }, { status: 400 })
     }
@@ -255,7 +297,7 @@ export async function POST(req: NextRequest) {
     for (const resume of resumes) {
       if (!resume.text?.trim()) { results.push({ error: 'empty resume' }); continue }
 
-      const userMessage = `JOB DESCRIPTION:\n${jd_text.trim()}\n\nCANDIDATE RESUME:\n${resume.text.trim()}`
+      const userMessage = `JOB DESCRIPTION:\n${jdForModel}\n\nCANDIDATE RESUME:\n${resume.text.trim()}`
       let raw: string
       try {
         raw = await callAI([
@@ -275,6 +317,11 @@ export async function POST(req: NextRequest) {
         parsed = { error: 'Failed to parse AI response', raw_preview: raw.slice(0, 200) }
       }
 
+      if (!parsed.error && typeof parsed === 'object' && parsed !== null) {
+        const coerced = normalizeScreeningScore((parsed as Record<string, unknown>).score)
+        if (coerced != null) (parsed as Record<string, unknown>).score = coerced
+      }
+
       // Save to DB — update existing candidate OR insert new one
       // DB save failure MUST NOT block returning screening results to the user
       if (!parsed.error) {
@@ -282,7 +329,7 @@ export async function POST(req: NextRequest) {
           const p = parsed as Record<string, unknown>
           const evalData = p.evaluation as Record<string, unknown> | undefined
           const jdMatch = p.jd_match as Record<string, unknown> | undefined
-          const score = typeof p.score === 'number' ? Math.min(100, Math.max(0, Math.round(p.score))) : null
+          const score = normalizeScreeningScore(p.score)
           const decision = (p.decision as string) ?? ''
           // High match skills from jd_match (new format) with fallback to evaluation block (old)
           const skills: string[] = [

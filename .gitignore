@@ -5,6 +5,10 @@ node_modules/
 
 # testing
 coverage/
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/
 
 # next.js
 .next/
@@ -19,6 +23,9 @@ dist/
 .env.local
 .env.*.local
 .env.production
+
+# Playwright saved session (from e2e/global-setup.ts)
+e2e/.auth/
 
 # deployment
 *.pem

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { isValidUUID, sanitizeText, sanitizeEnum, ValidationError } from '@/lib/validate'
+import { isValidUUID, sanitizeText, sanitizeEnum, ValidationError, sanitizeCandidateProfile } from '@/lib/validate'
 
 // Allowed fields that PATCH may update
 const PATCH_ALLOWED = [
@@ -12,6 +12,8 @@ const PATCH_ALLOWED = [
   'ai_score',
   'ai_summary',
   'job_post_id',
+  'candidate_phone',
+  'candidate_profile',
 ] as const
 
 const VALID_STAGES   = ['sourced', 'applied', 'new', 'screening', 'interview', 'offer', 'hired', 'rejected']
@@ -64,6 +66,12 @@ export async function PATCH(
       sanitized.ai_summary = sanitizeText(body.ai_summary, 5000)
     }
 
+    if (body.candidate_phone !== undefined) {
+      sanitized.candidate_phone = body.candidate_phone === null || body.candidate_phone === ''
+        ? null
+        : sanitizeText(body.candidate_phone, 50)
+    }
+
     if (body.job_post_id !== undefined) {
       if (body.job_post_id !== null && !isValidUUID(body.job_post_id))
         return NextResponse.json({ error: 'Invalid job_post_id' }, { status: 400 })
@@ -79,6 +87,13 @@ export async function PATCH(
       sanitized.job_post_id = body.job_post_id
     }
 
+    if (body.candidate_profile !== undefined) {
+      if (body.candidate_profile !== null && typeof body.candidate_profile !== 'object') {
+        return NextResponse.json({ error: 'candidate_profile must be an object' }, { status: 400 })
+      }
+      sanitized.candidate_profile = JSON.stringify(sanitizeCandidateProfile(body.candidate_profile))
+    }
+
     if (Object.keys(sanitized).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
     }
@@ -88,7 +103,11 @@ export async function PATCH(
     const values: unknown[] = []
     let idx = 1
     for (const [key, val] of Object.entries(sanitized)) {
-      sets.push(`${key} = $${idx}`)
+      if (key === 'candidate_profile') {
+        sets.push(`candidate_profile = $${idx}::jsonb`)
+      } else {
+        sets.push(`${key} = $${idx}`)
+      }
       values.push(val)
       idx++
     }
@@ -100,7 +119,7 @@ export async function PATCH(
       `UPDATE resumes
           SET ${sets.join(', ')}
         WHERE id = $${idx} AND tenant_id = $${idx + 1}
-        RETURNING id, short_id, pipeline_stage, status, match_category`,
+        RETURNING id, short_id, pipeline_stage, status, match_category, ai_score, candidate_profile, candidate_phone, updated_at`,
       values
     )
     if (!rows[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 })

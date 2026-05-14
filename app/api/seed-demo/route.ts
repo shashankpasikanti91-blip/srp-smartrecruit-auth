@@ -174,6 +174,6 @@ export async function POST() {
     })
   } catch (err) {
     console.error('[api/seed-demo]', err)
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to seed demo data' }, { status: 500 })
   }
 }

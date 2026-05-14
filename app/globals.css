@@ -25,13 +25,14 @@
   --srp-blue:     #427cf0;
   --srp-cyan:     #00d4ff;
 
-  /* ── Dashboard White Theme ──────────────────────────── */
-  --dash-bg:             #F8FAFC;
-  --dash-surface:        #FFFFFF;
-  --dash-border:         #E2E8F0;
-  --dash-text:           #0F172A;
-  --dash-text-2:         #64748B;
-  --dash-text-3:         #94A3B8;
+  /* ── Dashboard — cool neutral canvas (2025 SaaS) ─────── */
+  --dash-bg:             #f1f5f9;
+  --dash-surface:        #ffffff;
+  --dash-border:         #e2e8f0;
+  --dash-text:           #0f172a;
+  --dash-text-2:         #64748b;
+  --dash-text-3:         #94a3b8;
+  --dash-ring:           rgba(15, 23, 42, 0.06);
 
   /* ── Semantic colours ───────────────────────────────── */
   --color-primary:       #995af2;
@@ -42,10 +43,10 @@
   --color-purple:        #7C3AED;
   --color-indigo:        #427cf0;
 
-  /* ── Shadows ────────────────────────────────────────── */
-  --shadow-card:   0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-hover:  0 4px 16px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
-  --shadow-modal:  0 20px 60px rgba(0,0,0,0.18);
+  /* ── Shadows — soft, layered ─────────────────────────── */
+  --shadow-card:   0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.04);
+  --shadow-hover:  0 4px 20px rgba(15,23,42,0.08), 0 2px 8px rgba(15,23,42,0.04);
+  --shadow-modal:  0 24px 64px rgba(15,23,42,0.16);
 }
 
 * {
@@ -379,30 +380,60 @@ aside ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
   font-size: 13px;
   color: var(--dash-text);
 }
+.ent-table-wrap {
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
 .ent-table th {
-  background: #F8FAFC;
-  color: #64748B;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  color: #64748b;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   border-bottom: 1px solid var(--dash-border);
-  padding: 10px 14px;
+  padding: 12px 16px;
   white-space: nowrap;
   text-align: left;
 }
 .ent-table td {
-  padding: 11px 14px;
-  border-bottom: 1px solid #F1F5F9;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
   color: var(--dash-text);
 }
 .ent-table tbody tr:last-child td { border-bottom: none; }
 .ent-table tbody tr {
   cursor: pointer;
-  transition: background 0.1s ease;
+  transition: background 0.12s ease;
 }
-.ent-table tbody tr:hover td { background: #F8FAFC; }
+.ent-table tbody tr:hover td { background: #f8fafc; }
+
+/* ── Page section chrome ─────────────────────────────────── */
+.dash-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--dash-border);
+}
+.dash-section-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 55%, #4338ca 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(67, 56, 202, 0.35);
+}
 
 /* ══════════════════════════════════════════════════════════
    SIDE DRAWER

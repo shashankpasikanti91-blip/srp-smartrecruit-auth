@@ -86,6 +86,7 @@ export interface JobPost {
   type: string
   description: string | null
   requirements: string | null
+  optional_requirements: string | null
   salary_min: number | null
   salary_max: number | null
   currency: string
@@ -216,16 +217,18 @@ export async function createJobPost(job: {
   tenant_id?: string | null; user_id: string; title: string
   company?: string | null; location?: string | null; type?: string
   description?: string | null; requirements?: string | null
+  optional_requirements?: string | null
   salary_min?: number | null; salary_max?: number | null; currency?: string
   status?: string; ai_generated?: boolean; tags?: string[]
 }): Promise<JobPost | null> {
   try {
     const { rows } = await pool.query<JobPost>(
       `INSERT INTO job_posts (tenant_id, user_id, title, company, location, type, description, requirements,
-         salary_min, salary_max, currency, status, ai_generated, tags, applications_count)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,0) RETURNING *`,
+         optional_requirements, salary_min, salary_max, currency, status, ai_generated, tags, applications_count)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,0) RETURNING *`,
       [job.tenant_id ?? null, job.user_id, job.title, job.company ?? null, job.location ?? null,
        job.type ?? 'full-time', job.description ?? null, job.requirements ?? null,
+       job.optional_requirements ?? null,
        job.salary_min ?? null, job.salary_max ?? null, job.currency ?? 'USD',
        job.status ?? 'active', job.ai_generated ?? false, job.tags ?? []]
     )

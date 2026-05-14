@@ -237,6 +237,6 @@ No markdown fences. No extra text outside the JSON object. Use \\n for line brea
     return NextResponse.json({ posts })
   } catch (err) {
     console.error('[api/jobs/generate-posts]', err)
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    return NextResponse.json({ error: 'Could not generate job posts. Please try again.' }, { status: 500 })
   }
 }

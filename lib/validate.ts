@@ -120,6 +120,30 @@ export class ValidationError extends Error {
   }
 }
 
+/** Recruiter-maintained fields (JSON on resumes). Values are trimmed / length-capped. */
+export function sanitizeCandidateProfile(value: unknown): Record<string, string | null> {
+  if (value === null || value === undefined) return {}
+  if (typeof value !== 'object' || Array.isArray(value)) return {}
+  const src = value as Record<string, unknown>
+  const pick = (k: string, max: number) => sanitizeText(src[k], max)
+  return {
+    current_company: pick('current_company', 200),
+    current_title: pick('current_title', 200),
+    current_location: pick('current_location', 200),
+    salary_expectation: pick('salary_expectation', 120),
+    notice_period: pick('notice_period', 80),
+    nationality: pick('nationality', 100),
+    work_authorization: pick('work_authorization', 200),
+    visa_type: pick('visa_type', 120),
+    visa_expiry: pick('visa_expiry', 40),
+    india_pan: pick('india_pan', 12),
+    india_aadhaar_last4: pick('india_aadhaar_last4', 12),
+    id_document_type: pick('id_document_type', 80),
+    id_document_reference: pick('id_document_reference', 80),
+    notes: pick('notes', 2000),
+  }
+}
+
 // ── Helpers for route handlers ────────────────────────────────────────────────
 
 /**

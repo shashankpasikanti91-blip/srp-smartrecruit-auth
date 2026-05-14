@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       type: body.type ?? 'full-time',
       description: body.description?.trim() || null,
       requirements: body.requirements?.trim() || null,
+      optional_requirements: typeof body.optional_requirements === 'string' ? body.optional_requirements.trim().slice(0, 8000) || null : null,
       salary_min: toInt(body.salary_min),
       salary_max: toInt(body.salary_max),
       currency: body.currency ?? 'USD',

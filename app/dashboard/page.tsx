@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import {
@@ -17,13 +17,30 @@ import {
 interface Job {
   id: string; short_id: string; title: string; company: string
   location: string; type: string; status: string; applications_count: number
-  description?: string; requirements?: string
+  description?: string; requirements?: string; optional_requirements?: string | null
   salary_min?: number | null; salary_max?: number | null; currency?: string
   tags?: string[]
   created_at: string
   updated_at?: string
   // saved social posts attached by /api/jobs GET
   post_contents?: Record<string, string> | null
+}
+
+/** SaaS policy: workspace (tenant) membership tenure before ownership / primary-assignee review — months */
+const WORKSPACE_MEMBER_TENURE_REVIEW_MONTHS = 3
+
+function monthsSince(iso: string | undefined | null): number {
+  if (!iso) return 0
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return 0
+  return (Date.now() - t) / (1000 * 60 * 60 * 24 * 30.4375)
+}
+
+function formatUploader(by: { name: string | null; email: string | null } | null | undefined): string {
+  if (!by) return 'Unknown user'
+  if (by.name?.trim()) return by.name.trim()
+  if (by.email?.trim()) return by.email.trim()
+  return 'Unknown user'
 }
 
 interface Candidate {
@@ -33,13 +50,26 @@ interface Candidate {
   match_category: 'best' | 'good' | 'partial' | 'poor' | null
   pipeline_stage: string; status: string; ai_skills: string[]; ai_summary: string
   ai_screening_data?: ScreenResult | null
+  candidate_profile?: Record<string, string | null> | null
   raw_text: string | null; file_name: string | null
   reviewer_notes?: string | null
   source_type?: string | null
+  /** Who created this resume row in this tenant (never cross-tenant). */
+  uploaded_by?: { name: string | null; email: string | null } | null
   job_posts: { id: string; short_id: string; title: string; company: string } | null
   created_at: string
   updated_at?: string
   last_contacted_at?: string | null
+}
+
+interface CandDupExisting {
+  id: string
+  short_id: string
+  name: string
+  pipeline_stage?: string
+  status?: string
+  created_at?: string
+  uploaded_by?: { name: string | null; email: string | null } | null
 }
 
 interface StageCounts { [stage: string]: number }
@@ -61,6 +91,7 @@ interface ScreenResult {
   }
   jd_match?: {
     match_percent?: number; matching_skills?: string[]; missing_skills?: string[]
+    optional_skills_match?: string[]
   }
   skill_authenticity?: { verified?: string[]; unverified?: string[]; outdated?: string[] }
   red_flags?: string[]
@@ -116,12 +147,28 @@ const MATCH_LIGHT = {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 function MatchBadge({ category, score, variant = 'dark' }: { category: string | null; score: number | null; variant?: 'dark' | 'light' }) {
-  if (!category) return <span className="text-xs text-gray-500">—</span>
   const cfg = variant === 'light' ? MATCH_LIGHT : MATCH_CONFIG
-  const c = cfg[category as keyof typeof cfg] ?? cfg.poor
+  const fromScore = (): keyof typeof MATCH_CONFIG | null => {
+    if (score == null || Number.isNaN(Number(score))) return null
+    const s = Number(score)
+    if (s >= 75) return 'best'
+    if (s >= 60) return 'good'
+    if (s >= 45) return 'partial'
+    return 'poor'
+  }
+  const cat = (category != null && category in cfg ? category : null) as keyof typeof MATCH_CONFIG | null ?? fromScore()
+  if (!cat && score == null) return <span className="text-xs text-gray-500">—</span>
+  if (!cat && score != null) {
+    return (
+      <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${variant === 'light' ? 'bg-gray-100 text-gray-700 border-gray-200' : 'bg-white/10 text-gray-300 border-white/15'}`}>
+        {Math.round(Number(score))}%
+      </span>
+    )
+  }
+  const c = cfg[cat as keyof typeof cfg] ?? cfg.poor
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${c.bg} ${c.text} ${c.border}`}>
-      {score != null && <span>{Math.round(score)}%</span>}
+      {score != null && <span>{Math.round(Number(score))}%</span>}
       {' '}{c.label}
     </span>
   )
@@ -174,6 +221,106 @@ function fmtDate(d: string | null | undefined, includeTime = false): string {
   } catch { return '—' }
 }
 
+/** One-line summary for candidate list (recruiter-maintained ATS record). */
+function candidateRecordSummary(profile: Record<string, string | null> | null | undefined): string {
+  if (!profile || typeof profile !== 'object') return ''
+  const parts = [profile.current_location, profile.notice_period, profile.salary_expectation].filter(Boolean) as string[]
+  return parts.join(' · ')
+}
+
+/** Trims string-ish values for dossier checks. */
+function dossierStr(v: unknown): string {
+  if (v == null) return ''
+  if (typeof v === 'string') return v.trim()
+  return String(v).trim()
+}
+
+type DossierCheck = { id: string; label: string; level: 'required' | 'recommended'; ok: boolean }
+
+/** Required + recommended fields (full candidate dossier). IDs align with ATS record keys where applicable. */
+function getCandidateDossierChecks(c: Candidate): DossierCheck[] {
+  const p = c.candidate_profile ?? {}
+  const nat = dossierStr(p.nationality).toLowerCase()
+  const indiaLike = nat.includes('india') || nat === 'in' || nat.includes('indian')
+  const wa = dossierStr(p.work_authorization).toLowerCase()
+  const citizenLike = !wa || /\bcitizen\b|\bnational\b|n\.a\.|^na$|not applicable|n\/a/.test(wa)
+  const checks: DossierCheck[] = [
+    { id: 'candidate_name', label: 'Candidate name', level: 'required', ok: !!dossierStr(c.candidate_name) },
+    { id: 'candidate_email', label: 'Email', level: 'required', ok: !!dossierStr(c.candidate_email) },
+    { id: 'candidate_phone', label: 'Phone', level: 'recommended', ok: !!dossierStr(c.candidate_phone) },
+    { id: 'job_post', label: 'Assigned job', level: 'recommended', ok: !!c.job_posts?.id },
+    { id: 'raw_text', label: 'Resume / CV text on file', level: 'recommended', ok: !!dossierStr(c.raw_text) },
+    { id: 'current_company', label: 'Current company', level: 'recommended', ok: !!dossierStr(p.current_company) },
+    { id: 'current_title', label: 'Current title', level: 'recommended', ok: !!dossierStr(p.current_title) },
+    { id: 'current_location', label: 'Current location', level: 'recommended', ok: !!dossierStr(p.current_location) },
+    { id: 'notice_period', label: 'Notice period', level: 'recommended', ok: !!dossierStr(p.notice_period) },
+    { id: 'salary_expectation', label: 'Salary expectation', level: 'recommended', ok: !!dossierStr(p.salary_expectation) },
+    { id: 'nationality', label: 'Nationality', level: 'recommended', ok: !!dossierStr(p.nationality) },
+    { id: 'work_authorization', label: 'Work authorization', level: 'recommended', ok: !!dossierStr(p.work_authorization) },
+    { id: 'visa_type', label: 'Visa type (if not citizen)', level: 'recommended', ok: citizenLike || !!dossierStr(p.visa_type) },
+    { id: 'visa_expiry', label: 'Visa expiry (if visa)', level: 'recommended', ok: !dossierStr(p.visa_type) || !!dossierStr(p.visa_expiry) },
+  ]
+  if (indiaLike) {
+    checks.push(
+      { id: 'india_pan', label: 'India — PAN', level: 'recommended', ok: !!dossierStr(p.india_pan) },
+      { id: 'india_aadhaar_last4', label: 'India — Aadhaar reference', level: 'recommended', ok: !!dossierStr(p.india_aadhaar_last4) },
+    )
+  }
+  return checks
+}
+
+function getCandidateDossierStatus(c: Candidate) {
+  const checks = getCandidateDossierChecks(c)
+  const requiredMissing = checks.filter(x => x.level === 'required' && !x.ok).map(x => x.label)
+  const recommendedMissing = checks.filter(x => x.level === 'recommended' && !x.ok).map(x => x.label)
+  const filled = checks.filter(x => x.ok).length
+  const dossierPercent = checks.length ? Math.round((filled / checks.length) * 100) : 100
+  const warnRecordIds = new Set(checks.filter(x => x.level === 'recommended' && !x.ok).map(x => x.id))
+  return { checks, requiredMissing, recommendedMissing, dossierPercent, warnRecordIds }
+}
+
+/** Human-readable value for dossier summary table. */
+function dossierDisplayValue(c: Candidate, id: string): string {
+  const p = c.candidate_profile ?? {}
+  switch (id) {
+    case 'candidate_name': return dossierStr(c.candidate_name) || '—'
+    case 'candidate_email': return dossierStr(c.candidate_email) || '—'
+    case 'candidate_phone': return dossierStr(c.candidate_phone) || '—'
+    case 'job_post': return c.job_posts ? `${c.job_posts.title} (${c.job_posts.short_id ?? ''})` : '—'
+    case 'raw_text': return c.raw_text ? `${c.raw_text.length.toLocaleString()} chars` : '—'
+    case 'current_company': return dossierStr(p.current_company) || '—'
+    case 'current_title': return dossierStr(p.current_title) || '—'
+    case 'current_location': return dossierStr(p.current_location) || '—'
+    case 'notice_period': return dossierStr(p.notice_period) || '—'
+    case 'salary_expectation': return dossierStr(p.salary_expectation) || '—'
+    case 'nationality': return dossierStr(p.nationality) || '—'
+    case 'work_authorization': return dossierStr(p.work_authorization) || '—'
+    case 'visa_type': return dossierStr(p.visa_type) || '—'
+    case 'visa_expiry': return dossierStr(p.visa_expiry) || '—'
+    case 'india_pan': return dossierStr(p.india_pan) || '—'
+    case 'india_aadhaar_last4': return dossierStr(p.india_aadhaar_last4) || '—'
+    default: return '—'
+  }
+}
+
+function CandidateDossierListCell({ c }: { c: Candidate }) {
+  const { dossierPercent, requiredMissing, recommendedMissing } = getCandidateDossierStatus(c)
+  const tip = [
+    requiredMissing.length ? `Required: ${requiredMissing.join(', ')}` : '',
+    recommendedMissing.length ? `Recommended: ${recommendedMissing.join(', ')}` : '',
+  ].filter(Boolean).join('\n')
+  const tone = requiredMissing.length ? 'text-red-600' : recommendedMissing.length ? 'text-amber-600' : 'text-emerald-600'
+  const border = requiredMissing.length ? 'border-red-200 bg-red-50/80' : recommendedMissing.length ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/60'
+  return (
+    <div className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 ${border}`} title={tip || 'Dossier complete'}>
+      <span className={`text-xs font-bold tabular-nums ${tone}`}>{dossierPercent}%</span>
+      {(requiredMissing.length > 0 || recommendedMissing.length > 0) && (
+        <AlertCircle className={`w-3.5 h-3.5 flex-shrink-0 ${requiredMissing.length ? 'text-red-500' : 'text-amber-500'}`} />
+      )}
+    </div>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // JD Intelligence Tab
 // ─────────────────────────────────────────────────────────────────────────────
@@ -216,24 +363,23 @@ function JDTab() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex items-center justify-between pb-5 border-b border-gray-100">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)' }}>
+      <div className="dash-section-head">
+        <div className="flex items-start gap-4 min-w-0">
+          <div className="dash-section-icon">
             <FileText className="w-5 h-5 text-white" />
           </div>
-          <div>
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">JD Intelligence</h1>
-            <p className="text-sm text-gray-500 mt-0.5">AI-powered Job Description writer + analyzer</p>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>JD Intelligence</h1>
+            <p className="text-sm text-slate-500 mt-0.5">AI job description writer and analyzer — same workspace as jobs & screening</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 justify-end">
           <button onClick={() => { setMode('generate'); setResult(null) }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'generate' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'generate' ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
             Generate JD
           </button>
           <button onClick={() => { setMode('analyze'); setResult(null) }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === 'analyze' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'analyze' ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
             Analyze JD
           </button>
         </div>
@@ -241,7 +387,7 @@ function JDTab() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm ring-1 ring-slate-950/[0.02]">
             {mode === 'generate' ? (
               <div className="space-y-3">
                 <h2 className="text-sm font-bold text-gray-800 mb-4">Generate Job Description</h2>
@@ -305,7 +451,7 @@ function JDTab() {
             {error && <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>}
 
             <button onClick={submit} disabled={loading || (mode === 'generate' ? !jobTitle.trim() : !analyzeText.trim())}
-              className="mt-4 w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:bg-blue-700 flex items-center justify-center gap-2 bg-blue-600">
+              className="mt-4 w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20">
               {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Processing…</> : <><Sparkles className="w-4 h-4" />{mode === 'generate' ? 'Generate Job Description' : 'Analyze JD'}</>}
             </button>
           </div>
@@ -442,27 +588,28 @@ function BooleanTab() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex items-center gap-4 pb-5 border-b border-gray-100">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #06b6d4, #0284c7)' }}>
-          <Search className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Boolean Search Generator</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Generate precise boolean strings for LinkedIn, Naukri, Indeed and more</p>
+      <div className="dash-section-head">
+        <div className="flex items-start gap-4 min-w-0">
+          <div className="dash-section-icon">
+            <Search className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Boolean Search Generator</h1>
+            <p className="text-sm text-slate-500 mt-0.5">LinkedIn, Naukri, Indeed — strings for sourcing in this workspace</p>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <div className="flex gap-2 mb-4">
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm ring-1 ring-slate-950/[0.02]">
+            <div className="flex gap-2 mb-4 flex-wrap">
               <button onClick={() => setMode('simple')}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === 'simple' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'simple' ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
                 From Title + Skills
               </button>
               <button onClick={() => setMode('fromjd')}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === 'fromjd' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'fromjd' ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
                 From JD Text
               </button>
             </div>
@@ -503,7 +650,7 @@ function BooleanTab() {
             {error && <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>}
 
             <button onClick={submit} disabled={loading || (mode === 'simple' ? !jobTitle.trim() : !jdText.trim())}
-              className="mt-4 w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:bg-blue-700 flex items-center justify-center gap-2 bg-blue-600">
+              className="mt-4 w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20">
               {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : <><Sparkles className="w-4 h-4" />Generate Boolean Strings</>}
             </button>
           </div>
@@ -863,8 +1010,8 @@ function IntegrationsTab() {
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-24 gap-3">
-      <Loader2 className="w-7 h-7 animate-spin text-blue-600" />
-      <p className="text-sm text-gray-400">Loading integrations…</p>
+      <Loader2 className="w-7 h-7 animate-spin text-indigo-600" />
+      <p className="text-sm text-slate-500">Loading integrations…</p>
     </div>
   )
 
@@ -879,28 +1026,32 @@ function IntegrationsTab() {
   )
 
   return (
-    <div className="max-w-5xl space-y-7">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-gray-200">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Integrations</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Connect your existing tools to sync jobs, contacts and automations</p>
+    <div className="max-w-6xl space-y-7">
+      <div className="dash-section-head">
+        <div className="flex items-start gap-4 min-w-0">
+          <div className="dash-section-icon">
+            <Link2 className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Integrations</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Connect tools to this workspace only — credentials and toggles never leave your tenant</p>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
           {connectedCount > 0 && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
               <div className="w-2 h-2 rounded-full bg-emerald-500" />
               <span className="text-xs font-semibold text-emerald-700">{connectedCount} connected</span>
             </div>
           )}
-          <button onClick={load} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 transition-all">
-            <RefreshCw className="w-3 h-3" /> Refresh
+          <button onClick={load} className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-200 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 shadow-sm transition-all">
+            <RefreshCw className="w-3.5 h-3.5" /> Refresh
           </button>
         </div>
       </div>
 
       {/* How to use guide */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+      <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/90 to-slate-50 p-5 shadow-sm ring-1 ring-slate-950/[0.02]">
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">
             <Zap className="w-4 h-4 text-white" />
@@ -1265,14 +1416,15 @@ function CommsTab() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex items-center gap-4 pb-5 border-b border-gray-100">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #10b981, #14b8a6)' }}>
-          <Send className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Communication Hub</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Send emails, WhatsApp, and Telegram messages to candidates</p>
+      <div className="dash-section-head">
+        <div className="flex items-start gap-4 min-w-0">
+          <div className="dash-section-icon">
+            <Send className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Communication Hub</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Email templates, delivery, and providers — tenant-scoped configuration</p>
+          </div>
         </div>
       </div>
 
@@ -1285,19 +1437,19 @@ function CommsTab() {
           { key: 'logs', label: 'Delivery Logs' },
         ].map(s => (
           <button key={s.key} onClick={() => setSection(s.key as typeof section)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${section === s.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${section === s.key ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
             {s.label}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-indigo-500" /></div>
       ) : (
         <>
           {/* SEND */}
           {section === 'send' && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm ring-1 ring-slate-950/[0.02] space-y-4">
               <div>
                 <label className="text-xs font-semibold text-gray-700 mb-1 block">Channel</label>
                 <select value={channel} onChange={e => setChannel(e.target.value)}
@@ -1498,6 +1650,20 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'pipeline' | 'candidates' | 'screen' | 'compose' | 'jobs' | 'analytics' | 'settings' | 'jd' | 'boolean' | 'import' | 'integrations' | 'comms'>('pipeline')
   const [jobs, setJobs] = useState<Job[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
+
+  const duplicateEmailKeys = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const cand of candidates) {
+      const e = (cand.candidate_email ?? '').trim().toLowerCase()
+      if (!e) continue
+      counts.set(e, (counts.get(e) ?? 0) + 1)
+    }
+    const dups = new Set<string>()
+    counts.forEach((n, email) => {
+      if (n > 1) dups.add(email)
+    })
+    return dups
+  }, [candidates])
   const [stageCounts, setStageCounts] = useState<StageCounts>({})
   const [selectedJob, setSelectedJob] = useState<string>('')
   const [searchQ, setSearchQ] = useState('')
@@ -1517,7 +1683,7 @@ export default function DashboardPage() {
 
   // New Job modal state
   const [showNewJob, setShowNewJob] = useState(false)
-  const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
+  const [newJob, setNewJob] = useState({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', optional_requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
   const [savingJob, setSavingJob] = useState(false)
 
 
@@ -1525,7 +1691,7 @@ export default function DashboardPage() {
   const [showNewCandidate, setShowNewCandidate] = useState(false)
   const [newCand, setNewCand] = useState({ candidate_name: '', candidate_email: '', candidate_phone: '', ai_skills: '', job_post_id: '' })
   const [savingCand, setSavingCand] = useState(false)
-  const [candDupWarning, setCandDupWarning] = useState<{ id: string; short_id: string; name: string } | null>(null)
+  const [candDupWarning, setCandDupWarning] = useState<CandDupExisting | null>(null)
   const [candResumeFile, setCandResumeFile] = useState<File | null>(null)
   const [candResumeParsing, setCandResumeParsing] = useState(false)
   const [candResumeText, setCandResumeText] = useState('')
@@ -1856,7 +2022,7 @@ export default function DashboardPage() {
       }
       setSavingJob(false)
       setShowNewJob(false)
-      setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
+      setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', optional_requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
       setFilterJobStatus('')
       setFilterJobType('')
       setFilterJobRole('')
@@ -1887,7 +2053,7 @@ export default function DashboardPage() {
       }
       setSavingJob(false)
       setShowNewJob(false)
-      setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
+      setNewJob({ title: '', company: '', location: '', type: 'full-time', description: '', requirements: '', optional_requirements: '', salary_min: '', salary_max: '', experience_min: '', experience_max: '', department: '' })
       setFilterJobStatus('')
       setFilterJobType('')
       setFilterJobRole('')
@@ -2163,8 +2329,11 @@ export default function DashboardPage() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-900/40 flex items-center justify-center">
+          <Zap className="w-5 h-5 text-white animate-pulse" />
+        </div>
+        <div className="w-8 h-8 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
       </div>
     )
   }
@@ -2208,40 +2377,39 @@ export default function DashboardPage() {
   })()
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="min-h-screen dashboard-root bg-slate-100">
       <div className="flex h-screen overflow-hidden">
 
         {/* ── Sidebar ──────────────────────────────────────────────────────── */}
-        <aside className="w-60 flex-shrink-0 flex flex-col" style={{ background: '#191b24', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
-          <div className="px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-md flex-shrink-0" style={{ background: 'linear-gradient(135deg, #f655c1, #995af2, #427cf0, #00d4ff)' }}>
-                <Zap className="w-4 h-4 text-white" />
+        <aside className="w-64 flex-shrink-0 flex flex-col bg-slate-950 border-r border-slate-800/90 shadow-[4px_0_32px_-8px_rgba(15,23,42,0.35)]">
+          <div className="px-5 py-5 border-b border-slate-800/90">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-fuchsia-500 via-violet-600 to-sky-500 shadow-lg shadow-violet-900/50 ring-1 ring-white/10">
+                <Zap className="w-[18px] h-[18px] text-white" />
               </div>
-              <div>
-                <p className="text-sm font-bold text-white leading-none tracking-tight">SRP AI Labs</p>
-                <p className="text-[11px] leading-none mt-0.5 font-medium" style={{ background: 'linear-gradient(90deg, #f655c1, #995af2, #427cf0, #00d4ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>SmartRecruit</p>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-white leading-tight tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>SRP AI Labs</p>
+                <p className="text-[11px] leading-tight mt-0.5 font-semibold gradient-text">SmartRecruit</p>
               </div>
             </div>
           </div>
 
-          {/* Sidebar plan badge */}
           {profileData?.subscription && profileData.subscription.plan !== 'free' && (
-            <div className="mx-3 mt-3 px-3 py-1.5 rounded-lg flex items-center gap-2" style={{ background: 'rgba(153,90,242,0.15)', border: '1px solid rgba(153,90,242,0.3)' }}>
-              <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-xs font-semibold capitalize" style={{ color: '#c4a8ff' }}>{profileData.subscription.plan} Plan</span>
+            <div className="mx-3 mt-3 px-3 py-2 rounded-xl flex items-center gap-2 bg-violet-500/10 border border-violet-500/25">
+              <Crown className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+              <span className="text-xs font-semibold capitalize text-violet-200">{profileData.subscription.plan} Plan</span>
             </div>
           )}
           {profileData?.subscription?.plan === 'free' && (
             <button onClick={() => setUpgradePrompt({ show: true, message: 'Unlock unlimited AI screenings, job posts, and all premium features.', feature: 'Pro Plan' })}
-              className="mx-3 mt-3 px-3 py-2 rounded-lg flex items-center gap-2 transition-all group"
-              style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.25)' }}>
-              <Zap className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-semibold text-amber-300">Upgrade to Pro</span>
+              className="mx-3 mt-3 px-3 py-2 rounded-xl flex items-center gap-2 transition-all border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15 text-left group">
+              <Zap className="w-3.5 h-3.5 text-amber-400 group-hover:scale-105 transition-transform flex-shrink-0" />
+              <span className="text-xs font-semibold text-amber-100">Upgrade to Pro</span>
             </button>
           )}
 
-          <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto min-h-0">
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto min-h-0">
+            <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">Workspace</p>
             {([
               { tab: 'pipeline',   icon: Layers,      label: 'Pipeline',   badge: null },
               { tab: 'candidates', icon: Users,        label: 'Candidates', badge: null },
@@ -2257,78 +2425,82 @@ export default function DashboardPage() {
               { tab: 'settings',   icon: Settings,     label: 'Settings',   badge: null },
             ] as const).map(({ tab, icon: Icon, label, badge }) => (
               <button key={tab} onClick={() => setActiveTab(tab)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
-                style={activeTab === tab
-                  ? { background: '#1849D6', color: '#FFFFFF' }
-                  : { color: '#8892A4' }}
-                onMouseEnter={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = '#1e2235'; (e.currentTarget as HTMLButtonElement).style.color = '#FFFFFF' } }}
-                onMouseLeave={e => { if (activeTab !== tab) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#8892A4' } }}>
-                <Icon className="w-4 h-4" />
-                <span className="flex-1 text-left">{label}</span>
-                {badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.25)', color: '#93c5fd' }}>{badge}</span>}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  activeTab === tab
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-950/50 ring-1 ring-white/10'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                }`}>
+                <Icon className={`w-4 h-4 flex-shrink-0 ${activeTab === tab ? 'text-indigo-100' : ''}`} />
+                <span className="flex-1 text-left truncate">{label}</span>
+                {badge && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${
+                    activeTab === tab ? 'bg-white/15 text-white' : 'bg-sky-500/20 text-sky-300'
+                  }`}>{badge}</span>
+                )}
               </button>
             ))}
 
             {isOwner && (
               <button onClick={() => router.push('/owner')}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-amber-400 hover:bg-amber-500/10 transition-all mt-4 border border-amber-500/20">
-                <Crown className="w-4 h-4" /> Owner Panel
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-amber-300 hover:bg-amber-500/10 transition-all mt-5 border border-amber-500/25">
+                <Crown className="w-4 h-4 flex-shrink-0" /> Owner Panel
               </button>
             )}
           </nav>
 
-          <div className="px-3 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-            <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
+          <div className="px-3 py-4 border-t border-slate-800/90 mt-auto">
+            <div className="flex items-center gap-3 px-2 py-2 rounded-xl bg-slate-900/50 border border-slate-800/80">
               {user?.image
-                ? <img src={user.image} alt="" className="w-8 h-8 rounded-full" style={{ border: '2px solid rgba(59,130,246,0.5)' }} />
-                : <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 bg-blue-600">{user?.name?.[0] ?? '?'}</div>
+                ? <img src={user.image} alt="" className="w-9 h-9 rounded-full ring-2 ring-indigo-500/40 object-cover" />
+                : <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 bg-gradient-to-br from-indigo-500 to-violet-600">{user?.name?.[0] ?? '?'}</div>
               }
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-white truncate">{user?.name}</p>
-                <p className="text-[11px] truncate text-blue-200">{user?.email}</p>
+                <p className="text-xs font-semibold text-slate-100 truncate">{user?.name}</p>
+                <p className="text-[11px] truncate text-slate-400">{user?.email}</p>
               </div>
             </div>
             <button onClick={() => signOut({ callbackUrl: '/login' })}
-              className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-red-400 hover:bg-red-500/15 text-sm font-medium transition-all"
-              style={{ border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.05)' }}>
-              <LogOut className="w-3.5 h-3.5" /> Sign Out
+              className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80 transition-all">
+              <LogOut className="w-3.5 h-3.5" /> Sign out
             </button>
           </div>
         </aside>
 
         {/* ── Main ─────────────────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto bg-[#F8FAFC]">
+        <main className="flex-1 overflow-y-auto dashboard-main min-h-0 bg-gradient-to-b from-slate-100 via-slate-50 to-white">
           {/* Subscription expiry alert banner */}
           {subAlert && !subAlertDismissed && (
-            <div className={`px-6 py-3 flex items-center justify-between gap-4 ${
-              subAlert.level === 'expired' ? 'bg-red-600/20 border-b border-red-500/30' :
-              subAlert.level === 'urgent' ? 'bg-amber-600/20 border-b border-amber-500/30' :
-              'bg-yellow-600/15 border-b border-yellow-500/20'
+            <div className={`border-b ${
+              subAlert.level === 'expired' ? 'bg-red-50 border-red-200' :
+              subAlert.level === 'urgent' ? 'bg-amber-50 border-amber-200' :
+              'bg-yellow-50 border-yellow-200'
             }`}>
-              <div className="flex items-center gap-3 min-w-0">
-                {subAlert.level === 'expired' ? <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" /> :
-                 subAlert.level === 'urgent' ? <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" /> :
-                 <Clock className="w-4 h-4 text-yellow-400 flex-shrink-0" />}
-                <p className={`text-sm font-medium ${
-                  subAlert.level === 'expired' ? 'text-red-300' :
-                  subAlert.level === 'urgent' ? 'text-amber-300' : 'text-yellow-300'
-                }`}>
-                  {subAlert.message}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <a href="mailto:pasikantishashank24@gmail.com?subject=Renew%20Subscription%20-%20SRP%20SmartRecruit&body=Hi%2C%20I%27d%20like%20to%20renew%20my%20subscription.%0A%0AEmail%3A%20"
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    subAlert.level === 'expired' ? 'bg-red-600 hover:bg-red-500 text-white' :
-                    'bg-amber-600 hover:bg-amber-500 text-white'
+              <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  {subAlert.level === 'expired' ? <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" /> :
+                   subAlert.level === 'urgent' ? <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" /> :
+                   <Clock className="w-4 h-4 text-yellow-700 flex-shrink-0" />}
+                  <p className={`text-sm font-medium ${
+                    subAlert.level === 'expired' ? 'text-red-900' :
+                    subAlert.level === 'urgent' ? 'text-amber-900' : 'text-yellow-900'
                   }`}>
-                  <Zap className="w-3 h-3" /> Renew Now
-                </a>
-                {subAlert.level !== 'expired' && (
-                  <button onClick={() => setSubAlertDismissed(true)} className="text-gray-500 hover:text-gray-300">
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
+                    {subAlert.message}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <a href="mailto:pasikantishashank24@gmail.com?subject=Renew%20Subscription%20-%20SRP%20SmartRecruit&body=Hi%2C%20I%27d%20like%20to%20renew%20my%20subscription.%0A%0AEmail%3A%20"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      subAlert.level === 'expired' ? 'bg-red-600 hover:bg-red-500 text-white' :
+                      'bg-amber-600 hover:bg-amber-500 text-white'
+                    }`}>
+                    <Zap className="w-3 h-3" /> Renew Now
+                  </a>
+                  {subAlert.level !== 'expired' && (
+                    <button onClick={() => setSubAlertDismissed(true)} className="text-slate-500 hover:text-slate-800 p-1 rounded-lg hover:bg-black/5">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -2337,84 +2509,87 @@ export default function DashboardPage() {
           {profileData?.subscription?.plan === 'free' && profileData.usage && (
             (profileData.usage.active_jobs >= 4 || profileData.usage.screens_this_month >= 15) && !subAlertDismissed
           ) && (
-            <div className="px-6 py-3 flex items-center justify-between gap-4 bg-amber-600/15 border-b border-amber-500/20">
-              <div className="flex items-center gap-3 min-w-0">
-                <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <p className="text-sm font-medium text-amber-300">
-                  {profileData.usage.active_jobs >= 4
-                    ? `You've used ${profileData.usage.active_jobs} of 5 free job posts.`
-                    : `You've used ${profileData.usage.screens_this_month} of 20 free AI screens this month.`}
-                  {' '}Upgrade to Pro for unlimited access.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button onClick={() => setUpgradePrompt({ show: true, message: 'Unlock unlimited features with a Pro plan.', feature: 'Pro Plan' })}
-                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-all flex items-center gap-1.5">
-                  <Zap className="w-3 h-3" /> Upgrade
-                </button>
-                <button onClick={() => setSubAlertDismissed(true)} className="text-gray-500 hover:text-gray-300">
-                  <X className="w-4 h-4" />
-                </button>
+            <div className="border-b border-amber-200 bg-amber-50/90">
+              <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                  <p className="text-sm font-medium text-amber-950">
+                    {profileData.usage.active_jobs >= 4
+                      ? `You've used ${profileData.usage.active_jobs} of 5 free job posts.`
+                      : `You've used ${profileData.usage.screens_this_month} of 20 free AI screens this month.`}
+                    {' '}Upgrade to Pro for unlimited access.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={() => setUpgradePrompt({ show: true, message: 'Unlock unlimited features with a Pro plan.', feature: 'Pro Plan' })}
+                    className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm">
+                    <Zap className="w-3 h-3" /> Upgrade
+                  </button>
+                  <button onClick={() => setSubAlertDismissed(true)} className="text-slate-500 hover:text-slate-800 p-1 rounded-lg hover:bg-black/5">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Stats bar — colored pill cards */}
-          <div className="px-6 py-3 bg-white border-b border-gray-200 flex items-center gap-3 flex-wrap">
+          {/* Stats strip — clean KPI row */}
+          <div className="sticky top-0 z-10 border-b border-slate-200/90 bg-white/80 backdrop-blur-md shadow-sm shadow-slate-900/5">
+            <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-2 sm:gap-3 flex-wrap">
             {([
-              { label: 'Active Jobs',   value: jobs.length,       bg: 'bg-orange-50',   text: 'text-orange-600',  num: 'text-orange-700',  border: 'border-orange-200' },
-              { label: 'Candidates',    value: totalCandidates,   bg: 'bg-violet-50',   text: 'text-violet-600',  num: 'text-violet-700',  border: 'border-violet-200' },
-              { label: 'Interviews',    value: interviewCount,    bg: 'bg-teal-50',     text: 'text-teal-600',    num: 'text-teal-700',    border: 'border-teal-200' },
-              { label: 'Shortlisted',   value: stageCounts['screening'] ?? 0, bg: 'bg-blue-50', text: 'text-blue-600', num: 'text-blue-700', border: 'border-blue-200' },
-              { label: 'Offers Sent',   value: stageCounts['offer'] ?? 0,     bg: 'bg-pink-50',  text: 'text-pink-600',  num: 'text-pink-700',  border: 'border-pink-200' },
-              { label: 'Hired',         value: hiredCount,        bg: 'bg-emerald-50',  text: 'text-emerald-600', num: 'text-emerald-700', border: 'border-emerald-200' },
-              { label: 'Hire Rate',     value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '—', bg: 'bg-sky-50', text: 'text-sky-600', num: 'text-sky-700', border: 'border-sky-200' },
-            ] as const).map(({ label, value, bg, text, num, border }) => (
-              <div key={label} className={`flex flex-col items-center px-4 py-2 rounded-xl border ${bg} ${border} min-w-[80px]`}>
-                <span className={`text-xl font-extrabold leading-none ${num}`}>{value}</span>
-                <span className={`text-[11px] font-semibold mt-1 ${text}`}>{label}</span>
+              { label: 'Active Jobs',   value: jobs.length },
+              { label: 'Candidates',    value: totalCandidates },
+              { label: 'Interviews',    value: interviewCount },
+              { label: 'Shortlisted',   value: stageCounts['screening'] ?? 0 },
+              { label: 'Offers Sent',   value: stageCounts['offer'] ?? 0 },
+              { label: 'Hired',         value: hiredCount },
+              { label: 'Hire Rate',     value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '—' },
+            ] as const).map(({ label, value }) => (
+              <div key={label} className="flex flex-col items-start px-3.5 py-2 rounded-2xl bg-white border border-slate-200/90 shadow-sm min-w-[5.5rem] ring-1 ring-slate-950/[0.03]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">{label}</span>
+                <span className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums leading-tight mt-1">{value}</span>
               </div>
             ))}
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-2 flex-shrink-0">
               <button onClick={() => setShowNewCandidate(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 border border-gray-300 text-sm text-gray-700 font-medium transition-all">
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-sm text-slate-700 font-semibold transition-all shadow-sm">
                 <Plus className="w-3.5 h-3.5" /> Add Candidate
               </button>
               <button onClick={() => setShowNewJob(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition-all hover:bg-blue-700 shadow-sm bg-blue-600">
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white transition-all bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/25">
                 <Plus className="w-3.5 h-3.5" /> New Job
               </button>
             </div>
+            </div>
           </div>
 
-          <div className="px-6 py-6">
+          <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8 pb-12">
 
             {/* ── PIPELINE ─────────────────────────────────────────────────── */}
             {activeTab === 'pipeline' && (
               <div>
                 {/* Pipeline Header */}
-                <div className="flex items-center justify-between mb-6 pb-5 border-b border-gray-100">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md flex-shrink-0"
-                      style={{ background: 'linear-gradient(135deg, #427cf0, #6366f1)' }}>
+                <div className="dash-section-head">
+                  <div className="flex items-start gap-4">
+                    <div className="dash-section-icon">
                       <Layers className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Pipeline</h1>
-                      <p className="text-sm text-gray-500 mt-0.5">Drag &amp; drop candidates across stages</p>
+                      <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Pipeline</h1>
+                      <p className="text-sm text-slate-500 mt-0.5">Drag and drop candidates across stages</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <select value={selectedJob} onChange={e => setSelectedJob(e.target.value)}
-                        className="appearance-none pl-3 pr-8 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 cursor-pointer focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm">
+                        className="appearance-none pl-3 pr-8 py-2.5 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 cursor-pointer focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 shadow-sm">
                         <option value="">All Jobs</option>
                         {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0,8)})</option>)}
                       </select>
-                      <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <ChevronDown className="absolute right-2 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
                     </div>
-                    <button onClick={loadData} className="p-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 shadow-sm transition-colors">
-                      <RefreshCw className="w-4 h-4 text-gray-400" />
+                    <button onClick={loadData} className="p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 shadow-sm transition-colors" title="Refresh">
+                      <RefreshCw className="w-4 h-4 text-slate-500" />
                     </button>
                   </div>
                 </div>
@@ -2433,8 +2608,8 @@ export default function DashboardPage() {
                     }
                     const sc = stageColors[stage.key] ?? stageColors.sourced
                     return (
-                      <div key={stage.key} className="rounded-xl p-3 border text-center"
-                        style={{ background: sc.bg, borderColor: sc.accent + '30' }}>
+                      <div key={stage.key} className="rounded-2xl p-3.5 border text-center shadow-sm ring-1 ring-slate-950/[0.02]"
+                        style={{ background: sc.bg, borderColor: sc.accent + '35' }}>
                         <p className="text-xl font-bold" style={{ color: sc.accent }}>{count}</p>
                         <p className="text-xs font-medium mt-0.5" style={{ color: sc.text }}>{stage.label}</p>
                       </div>
@@ -2499,6 +2674,7 @@ export default function DashboardPage() {
                               : stageCands.map(c => (
                                   <KanbanCard key={c.id} candidate={c} onMove={moveStage}
                                     onOpen={setSelectedCandidate}
+                                    emailIsDup={duplicateEmailKeys.has((c.candidate_email ?? '').trim().toLowerCase())}
                                     dragging={draggingId === c.id}
                                     onDragStart={() => setDraggingId(c.id)}
                                     onDragEnd={() => { setDraggingId(null); setDragOverStage(null) }} />
@@ -2516,26 +2692,30 @@ export default function DashboardPage() {
             {/* ── CANDIDATES ───────────────────────────────────────────────── */}
             {activeTab === 'candidates' && (
               <div>
-                <div className="flex items-center justify-between mb-5 pb-5 border-b border-gray-100">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 bg-blue-600">
+                <div className="dash-section-head">
+                  <div className="flex items-start gap-4">
+                    <div className="dash-section-icon">
                       <Users className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Candidates</h1>
-                      <p className="text-sm text-gray-500 mt-0.5">
-                        {filterSkill ? <><span className="text-blue-600 font-semibold">{candidates.length}</span> with &quot;{filterSkill}&quot;</> : `${candidates.length} total`}
+                      <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Candidates</h1>
+                      <p className="text-sm text-slate-500 mt-0.5">
+                        {filterSkill ? <><span className="text-indigo-600 font-semibold">{candidates.length}</span> with &quot;{filterSkill}&quot;</> : `${candidates.length} total`}
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-1.5 max-w-xl leading-relaxed">
+                        <span className="font-semibold text-slate-600">Dossier</span> shows completeness vs required (*) and recommended fields — hover the badge for what is missing. Open a row for the full summary and warnings.
+                        {' '}Duplicate detection is <span className="font-semibold text-slate-700">scoped to this workspace only</span> — other tenants never see your candidates.
                       </p>
                     </div>
                   </div>
                   <button onClick={() => setShowNewCandidate(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:bg-blue-700 shadow-sm bg-blue-600">
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20">
                     <Plus className="w-4 h-4" /> Add Candidate
                   </button>
                 </div>
 
                 {/* ── Filter bar ── */}
-                <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm mb-5">
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm shadow-slate-900/5 mb-5 ring-1 ring-slate-950/[0.02]">
                   <div className="flex items-center gap-3 flex-wrap">
                     {/* Search */}
                     <div className="relative flex-1 min-w-[200px]">
@@ -2548,7 +2728,7 @@ export default function DashboardPage() {
                           else if (/^JOB-\d+/i.test(v.trim())) { setActiveTab('jobs') }
                         }}
                         placeholder="Search by name, email, or CAN-ID…"
-                        className="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20" />
+                        className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15" />
                     </div>
 
                     {/* Skill */}
@@ -2623,23 +2803,35 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
+                {duplicateEmailKeys.size > 0 && (
+                  <div className="mb-4 rounded-xl border border-amber-200/90 bg-amber-50/90 px-4 py-3 text-sm text-amber-950 shadow-sm ring-1 ring-amber-900/5 flex flex-wrap items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="font-semibold text-amber-900">Same email appears on multiple records in this workspace</p>
+                      <p className="text-xs text-amber-800/90 mt-1 leading-relaxed">
+                        Each row shows who added it and when. Your team chooses the canonical record — data never merges across tenants.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {loading ? (
                   <div className="flex items-center justify-center h-40">
                     <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+                  <div className="overflow-x-auto ent-table-wrap">
                     <table className="ent-table">
                       <thead>
                         <tr>
-                          {['ID', 'Candidate', 'Uploaded', 'Updated', 'Match', 'Stage', 'Job', 'Source', 'Skills', 'Actions'].map(h => (
+                          {['ID', 'Candidate', 'Record', 'Dossier', 'Workspace', 'Updated', 'Match', 'Stage', 'Job', 'Source', 'Skills', 'Actions'].map(h => (
                             <th key={h} className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wide">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {candidates.length === 0 ? (
-                          <tr><td colSpan={10} className="px-4 py-12 text-center text-gray-400">No candidates found</td></tr>
+                          <tr><td colSpan={12} className="px-4 py-12 text-center text-gray-400">No candidates found</td></tr>
                         ) : candidates.map((c, i) => (
                           <tr key={c.id} onClick={() => setSelectedCandidate(c)}>
                             <td className="px-4 py-3"><ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} /></td>
@@ -2648,7 +2840,34 @@ export default function DashboardPage() {
                               <p className="text-xs text-gray-500 mt-0.5">{c.candidate_email}</p>
                               {c.candidate_phone && <p className="text-xs text-gray-400 mt-0.5">{c.candidate_phone}</p>}
                             </td>
-                            <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{fmtDate(c.created_at)}</td>
+                            <td className="px-4 py-3 text-xs text-gray-600 max-w-[200px]">
+                              {(() => {
+                                const sum = candidateRecordSummary(c.candidate_profile ?? undefined)
+                                const co = (c.candidate_profile?.current_company ?? '').trim()
+                                if (!sum && !co) return <span className="text-gray-400">—</span>
+                                return (
+                                  <div className="space-y-0.5">
+                                    {co ? <p className="font-medium text-gray-800 line-clamp-1">{co}</p> : null}
+                                    {sum ? <p className="text-gray-500 line-clamp-2">{sum}</p> : null}
+                                  </div>
+                                )
+                              })()}
+                            </td>
+                            <td className="px-4 py-3">
+                              <CandidateDossierListCell c={c} />
+                            </td>
+                            <td className="px-4 py-3 text-xs max-w-[200px]">
+                              <p className="text-gray-700 font-medium leading-snug">{formatUploader(c.uploaded_by)}</p>
+                              <p className="text-gray-500 mt-0.5 whitespace-nowrap">{fmtDate(c.created_at)}</p>
+                              <p className="text-[10px] text-slate-500 mt-1 capitalize">
+                                <span className="font-semibold text-slate-600">Status:</span> {c.status || '—'}
+                              </p>
+                              {duplicateEmailKeys.has((c.candidate_email ?? '').trim().toLowerCase()) && (
+                                <span className="mt-1 inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                                  <AlertCircle className="w-3 h-3 shrink-0" /> Dup email
+                                </span>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{c.updated_at && c.updated_at !== c.created_at ? fmtDate(c.updated_at) : '—'}</td>
                             <td className="px-4 py-3"><MatchBadge category={c.match_category} score={c.ai_score} variant="light" /></td>
                             <td className="px-4 py-3"><StagePill stage={c.pipeline_stage} variant="light" /></td>
@@ -2692,18 +2911,20 @@ export default function DashboardPage() {
             {/* ── AI SCREEN ────────────────────────────────────────────────── */}
             {activeTab === 'screen' && (
               <div>
-                <div className="flex items-center gap-4 mb-6 pb-5 border-b border-gray-100">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 bg-blue-600">
-                    <Brain className="w-5 h-5 text-white" />
+                <div className="dash-section-head">
+                  <div className="flex items-start gap-4 min-w-0">
+                    <div className="dash-section-icon">
+                      <Brain className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>AI Screening</h1>
+                      <p className="text-sm text-slate-500 mt-0.5">Score and rank candidates against your job description</p>
+                    </div>
                   </div>
-                  <div>
-                    <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">AI Screening</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">Score & rank candidates against your job description</p>
-                  </div>
-                  <div className="ml-auto flex gap-2">
+                  <div className="flex flex-wrap gap-2 justify-end">
                     {(['single', 'bulk', 'existing'] as const).map(m => (
                       <button key={m} onClick={() => { setScreenMode(m); setScreenResults([]); setSelectedCandIds([]) }}
-                        className={`px-5 py-1.5 rounded-lg text-sm font-bold transition-all border ${screenMode === m ? 'bg-blue-600 text-white shadow-sm border-blue-600' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100 hover:border-gray-400'}`}>
+                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${screenMode === m ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-sm'}`}>
                         {m === 'single' ? 'Single CV' : m === 'bulk' ? 'Bulk CVs' : 'From Candidates'}
                       </button>
                     ))}
@@ -2712,11 +2933,11 @@ export default function DashboardPage() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
                   {/* JD panel */}
-                  <div className="space-y-3">
-                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Job Description</label>
+                  <div className="space-y-3 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-950/[0.02]">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Job Description</label>
                     <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={10}
                       placeholder="Paste the full job description here…"
-                      className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-400 resize-none" />
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 resize-none" />
                     <p className="text-xs font-semibold text-gray-600">Or upload JD file:</p>
                     <FileUploadZone label="Upload JD (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
                       onTexts={([t]) => setJdText(t.text)} disabled={screening} />
@@ -2841,7 +3062,7 @@ export default function DashboardPage() {
 
                 <button onClick={runScreening}
                   disabled={screening || !jdText || (screenMode === 'single' ? !resumeText : screenMode === 'bulk' ? bulkTexts.length === 0 : selectedCandIds.length === 0)}
-                  className="mb-6 flex items-center gap-2 px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 font-semibold text-sm transition-all disabled:opacity-50">
+                  className="mb-6 flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 font-semibold text-sm text-white shadow-md shadow-indigo-900/20 transition-all disabled:opacity-50 disabled:pointer-events-none">
                   {screening ? <><Loader2 className="w-4 h-4 animate-spin" /> Screening…</> : <><Sparkles className="w-4 h-4" /> {screenMode === 'existing' ? `Screen ${selectedCandIds.length} Candidate${selectedCandIds.length !== 1 ? 's' : ''} (0 token waste)` : 'Run AI Screening'}</>}
                 </button>
 
@@ -2865,15 +3086,15 @@ export default function DashboardPage() {
             {/* ── COMPOSE ──────────────────────────────────────────────────── */}
             {activeTab === 'compose' && (
               <div>
-                {/* Header */}
-                <div className="flex items-center gap-4 mb-6 pb-5 border-b border-gray-100">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
-                    style={{ background: 'linear-gradient(135deg, #427cf0, #06b6d4)' }}>
-                    <Mail className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">AI Compose</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">Generate, rewrite or reply to recruitment messages</p>
+                <div className="dash-section-head">
+                  <div className="flex items-start gap-4 min-w-0">
+                    <div className="dash-section-icon">
+                      <Mail className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>AI Compose</h1>
+                      <p className="text-sm text-slate-500 mt-0.5">Generate, rewrite or reply to recruitment messages</p>
+                    </div>
                   </div>
                 </div>
 
@@ -2884,7 +3105,7 @@ export default function DashboardPage() {
                   <div className={`rounded-2xl border p-5 transition-all ${
                     composeMode === 'generate'
                       ? 'border-indigo-300 bg-indigo-50/40 ring-1 ring-indigo-100 shadow-sm'
-                      : 'border-gray-200 bg-gray-50/50 opacity-60 hover:opacity-80'
+                      : 'border-slate-200 bg-slate-50/60 opacity-60 hover:opacity-80'
                   }}`}>
                     <button
                       className="w-full text-left mb-4"
@@ -2982,7 +3203,7 @@ export default function DashboardPage() {
                   <div className={`rounded-2xl border p-5 transition-all ${
                     composeMode !== 'generate'
                       ? 'border-indigo-300 bg-indigo-50/40 ring-1 ring-indigo-100 shadow-sm'
-                      : 'border-gray-200 bg-gray-50/50 opacity-60 hover:opacity-80'
+                      : 'border-slate-200 bg-slate-50/60 opacity-60 hover:opacity-80'
                   }}`}>
                     <div className="mb-4">
                       <div className="flex items-center gap-2 mb-1">
@@ -3156,49 +3377,47 @@ export default function DashboardPage() {
             {/* ── JOBS ─────────────────────────────────────────────────────── */}
             {activeTab === 'jobs' && (
               <div>
-                {/* ── Header ── */}
-                <div className="flex items-center justify-between mb-5 pb-5 border-b border-gray-100">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
-                      style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+                <div className="dash-section-head">
+                  <div className="flex items-start gap-4 min-w-0">
+                    <div className="dash-section-icon">
                       <Briefcase className="w-5 h-5 text-white" />
                     </div>
-                    <div>
-                      <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Job Posts</h1>
-                      <p className="text-sm text-gray-500 mt-0.5">
+                    <div className="min-w-0">
+                      <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Job Posts</h1>
+                      <p className="text-sm text-slate-500 mt-0.5">
                         {filteredJobs.length}{filteredJobs.length !== jobs.length ? ` of ${jobs.length}` : ''} job{filteredJobs.length !== 1 ? 's' : ''}
                       </p>
                     </div>
                   </div>
                   <button onClick={() => setShowNewJob(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:bg-blue-700 shadow-sm bg-blue-600">
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20 transition-all">
                     <Plus className="w-4 h-4" /> New Job
                   </button>
                 </div>
 
                 {/* ── Filter Bar ── */}
-                <div className="flex items-center gap-3 mb-5 flex-wrap rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                <div className="flex items-center gap-3 mb-5 flex-wrap rounded-2xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-950/[0.02]">
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <Filter className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Filter</span>
+                    <Filter className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Filter</span>
                   </div>
-                  <div className="w-px h-5 bg-gray-200 flex-shrink-0" />
+                  <div className="w-px h-5 bg-slate-200 flex-shrink-0" />
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Role</span>
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Role</span>
                     <input value={filterJobRole} onChange={e => setFilterJobRole(e.target.value)}
                       placeholder="Search role…"
-                      className="pl-2 pr-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 w-32" />
+                      className="pl-2 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 w-32" />
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Company</span>
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Company</span>
                     <input value={filterJobCompany} onChange={e => setFilterJobCompany(e.target.value)}
                       placeholder="Search company…"
-                      className="pl-2 pr-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 w-32" />
+                      className="pl-2 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 w-32" />
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Status</span>
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Status</span>
                     <select value={filterJobStatus} onChange={e => setFilterJobStatus(e.target.value)}
-                      className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20">
+                      className="appearance-none pl-2 pr-6 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15">
                       <option value="">All</option>
                       <option value="active">Active</option>
                       <option value="closed">Closed</option>
@@ -3206,9 +3425,9 @@ export default function DashboardPage() {
                     </select>
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Job Type</span>
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Job Type</span>
                     <select value={filterJobType} onChange={e => setFilterJobType(e.target.value)}
-                      className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20">
+                      className="appearance-none pl-2 pr-6 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15">
                       <option value="">All</option>
                       <option value="full-time">Full-Time</option>
                       <option value="part-time">Part-Time</option>
@@ -3219,11 +3438,11 @@ export default function DashboardPage() {
                   </div>
                   {(filterJobStatus || filterJobType || filterJobRole || filterJobCompany) && (
                     <button onClick={() => { setFilterJobStatus(''); setFilterJobType(''); setFilterJobRole(''); setFilterJobCompany('') }}
-                      className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-red-600 border border-gray-200 px-2.5 py-1.5 rounded-lg bg-white hover:bg-red-50 hover:border-red-200 transition-colors">
+                      className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-red-600 border border-slate-200 px-2.5 py-1.5 rounded-xl bg-white hover:bg-red-50 hover:border-red-200 transition-colors">
                       <X className="w-3 h-3" /> Clear
                     </button>
                   )}
-                  <span className="ml-auto text-xs font-semibold text-gray-400">{filteredJobs.length} result{filteredJobs.length !== 1 ? 's' : ''}</span>
+                  <span className="ml-auto text-xs font-semibold text-slate-400">{filteredJobs.length} result{filteredJobs.length !== 1 ? 's' : ''}</span>
                 </div>
 
                 {loading ? (
@@ -3236,13 +3455,13 @@ export default function DashboardPage() {
                     <p className="text-gray-500 mb-4">{jobs.length === 0 ? 'No jobs yet. Create your first job post.' : 'No jobs match the selected filters.'}</p>
                     {jobs.length === 0 && (
                       <button onClick={() => setShowNewJob(true)}
-                        className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors hover:bg-blue-700 bg-blue-600">
+                        className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20 transition-all">
                         Create Job Post
                       </button>
                     )}
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+                  <div className="overflow-x-auto ent-table-wrap">
                     <table className="ent-table">
                       <thead>
                         <tr>
@@ -3310,14 +3529,18 @@ export default function DashboardPage() {
             {activeTab === 'analytics' && (
               <div className="space-y-6">
 
-                {/* Page header */}
-                <div className="flex items-center justify-between pb-4 border-b border-gray-200">
-                  <div>
-                    <h1 className="text-xl font-bold text-gray-900">Recruitment Analytics</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">Live snapshot of your hiring pipeline and team performance</p>
+                <div className="dash-section-head">
+                  <div className="flex items-start gap-4 min-w-0">
+                    <div className="dash-section-icon">
+                      <BarChart3 className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Recruitment Analytics</h1>
+                      <p className="text-sm text-slate-500 mt-0.5">Live snapshot of your hiring pipeline and team performance</p>
+                    </div>
                   </div>
-                  <button onClick={loadData} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-50 transition-all">
-                    <RefreshCw className="w-3 h-3" /> Refresh
+                  <button onClick={loadData} className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-200 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 shadow-sm transition-all">
+                    <RefreshCw className="w-3.5 h-3.5" /> Refresh
                   </button>
                 </div>
 
@@ -3567,26 +3790,27 @@ export default function DashboardPage() {
             {/* ── SETTINGS ─────────────────────────────────────────────────── */}
             {activeTab === 'settings' && (
               <div className="max-w-3xl">
-                <div className="flex items-center gap-4 mb-6 pb-5 border-b border-gray-100">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
-                    style={{ background: 'linear-gradient(135deg, #64748b, #334155)' }}>
-                    <Settings className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Account Settings</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">Manage your profile, subscription and API access</p>
+                <div className="dash-section-head">
+                  <div className="flex items-start gap-4 min-w-0">
+                    <div className="dash-section-icon">
+                      <Settings className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Account Settings</h1>
+                      <p className="text-sm text-slate-500 mt-0.5">Manage your profile, subscription and API access</p>
+                    </div>
                   </div>
                 </div>
 
                 {profileLoading ? (
                   <div className="flex items-center justify-center py-20">
-                    <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                    <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
                   </div>
                 ) : profileData ? (
                   <div className="space-y-5">
 
                     {/* Profile Card */}
-                    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-sm ring-1 ring-slate-950/[0.02]">
                       <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2">
                           <UserIcon className="w-4 h-4 text-blue-600" />
@@ -3999,7 +4223,14 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Team Management */}
-                    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-sm ring-1 ring-slate-950/[0.02]">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 mb-4 text-xs text-slate-700 leading-relaxed">
+                        <p className="font-semibold text-slate-900 mb-1">SaaS workspace model</p>
+                        <p>Each subscription/workspace (<span className="font-mono">tenant</span>) has its own jobs, candidates, integrations, and team. Duplicates and permissions are evaluated <strong>only</strong> inside this workspace — data is never merged with other tenants.</p>
+                        <p className="mt-2 text-slate-600">
+                          <span className="font-semibold text-slate-800">Member tenure:</span> after <span className="font-mono font-semibold">{WORKSPACE_MEMBER_TENURE_REVIEW_MONTHS} months</span> in this workspace, admins may reassign primary ownership of shared operational duties (similar in spirit to a 6‑month rule elsewhere; here we use {WORKSPACE_MEMBER_TENURE_REVIEW_MONTHS} months for team alignment).
+                        </p>
+                      </div>
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                           <Users className="w-4 h-4 text-indigo-600" />
@@ -4017,6 +4248,9 @@ export default function DashboardPage() {
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-gray-800 truncate">{m.name ?? m.email}</p>
                               <p className="text-xs text-gray-500 truncate">{m.email}</p>
+                              {m.invite_accepted && m.role !== 'owner' && monthsSince(m.created_at) >= WORKSPACE_MEMBER_TENURE_REVIEW_MONTHS && (
+                                <p className="text-[10px] text-indigo-600 font-semibold mt-0.5">Tenure ≥ {WORKSPACE_MEMBER_TENURE_REVIEW_MONTHS} mo — eligible for admin ownership review</p>
+                              )}
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               {!m.invite_accepted && (
@@ -4156,13 +4390,12 @@ export default function DashboardPage() {
       {/* ── New Job Modal ──────────────────────────────────────────────────────── */}
       {showNewJob && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 overflow-y-auto flex items-start justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-auto flex flex-col border border-gray-100" style={{ maxHeight: '92vh' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-auto flex flex-col border border-slate-200/90 ring-1 ring-slate-950/[0.03]" style={{ maxHeight: '92vh' }}>
             {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 flex-shrink-0 bg-slate-50/50">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-sm"
-                  style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-                  <Briefcase className="w-4.5 h-4.5 text-white" style={{ width: 18, height: 18 }} />
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-md bg-gradient-to-br from-indigo-600 to-violet-600 ring-1 ring-indigo-900/15">
+                  <Briefcase className="w-[18px] h-[18px] text-white" />
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-gray-900">New Job Post</h2>
@@ -4276,6 +4509,13 @@ export default function DashboardPage() {
                 <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Requirements</label>
                 <textarea value={newJob.requirements} onChange={e => setNewJob(p => ({ ...p, requirements: e.target.value }))}
                   rows={3} placeholder="Key skills and experience required…"
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all resize-none" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Nice-to-have / optional skills</label>
+                <p className="text-[11px] text-gray-500 mb-1.5">Used when you link this job to AI screening — candidates get credit for these without being penalized as hard gaps.</p>
+                <textarea value={newJob.optional_requirements} onChange={e => setNewJob(p => ({ ...p, optional_requirements: e.target.value }))}
+                  rows={2} placeholder="e.g. Terraform, public speaking, prior startup experience…"
                   className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all resize-none" />
               </div>
             </div>
@@ -4412,10 +4652,30 @@ export default function DashboardPage() {
       {selectedCandidate && (
         <CandidateDetailModal
           candidate={selectedCandidate}
+          duplicateSiblings={
+            (selectedCandidate.candidate_email ?? '').trim()
+              ? candidates.filter(x =>
+                  x.id !== selectedCandidate.id &&
+                  (x.candidate_email ?? '').trim().toLowerCase() === (selectedCandidate.candidate_email ?? '').trim().toLowerCase()
+                )
+              : []
+          }
+          onJumpToCandidate={(id) => {
+            const nc = candidates.find(x => x.id === id)
+            if (nc) setSelectedCandidate(nc)
+          }}
           jobs={jobs}
           onClose={() => setSelectedCandidate(null)}
           onStageChange={moveStage}
           onJobChange={changeJob}
+          onRecordSaved={(id, profile) => {
+            setCandidates(prev => prev.map(x => (x.id === id ? { ...x, candidate_profile: profile } : x)))
+            setSelectedCandidate(prev => (prev?.id === id ? { ...prev, candidate_profile: profile } : prev))
+          }}
+          onPhoneSaved={(id, phone) => {
+            setCandidates(prev => prev.map(x => (x.id === id ? { ...x, candidate_phone: phone } : x)))
+            setSelectedCandidate(prev => (prev?.id === id ? { ...prev, candidate_phone: phone } : prev))
+          }}
         />
       )}
 
@@ -4434,8 +4694,23 @@ export default function DashboardPage() {
                 <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-amber-300">Duplicate candidate detected</p>
-                  <p className="text-xs text-amber-200/70 mt-0.5">
-                    <span className="font-medium">{candDupWarning.name || 'This candidate'}</span> already exists in your workspace.
+                  <p className="text-xs text-amber-100/90 mt-0.5 font-medium">{candDupWarning.name || 'This person'}</p>
+                  <p className="text-xs text-amber-200/80 mt-0.5 space-y-1">
+                    <span className="block">
+                      Existing record <span className="font-mono font-semibold">{candDupWarning.short_id}</span>
+                      {candDupWarning.pipeline_stage != null && (
+                        <> · stage <span className="capitalize font-medium">{candDupWarning.pipeline_stage}</span></>
+                      )}
+                      {candDupWarning.status != null && (
+                        <> · status <span className="capitalize font-medium">{candDupWarning.status}</span></>
+                      )}
+                    </span>
+                    {candDupWarning.created_at && (
+                      <span className="block text-amber-200/70">
+                        Added {fmtDate(candDupWarning.created_at)}
+                        {candDupWarning.uploaded_by ? <> · by {formatUploader(candDupWarning.uploaded_by)}</> : null}
+                      </span>
+                    )}
                   </p>
                   <button
                     onClick={() => {
@@ -4739,12 +5014,13 @@ function ScreenResultCard({ result: r, onAddCandidate, defaultOpen = true }: { r
   // Skills — prefer new jd_match fields, fall back to legacy evaluation
   const matchedSkills  = r.jd_match?.matching_skills ?? [...(ev?.high_match_skills ?? []), ...(ev?.medium_match_skills ?? [])]
   const missingSkills  = r.jd_match?.missing_skills  ?? ev?.low_or_missing_match_skills ?? ev?.missing_skills ?? []
+  const optionalMatched = r.jd_match?.optional_skills_match ?? []
   const strengths      = ev?.candidate_strengths ?? ev?.strengths ?? []
   const weaknesses     = ev?.candidate_weaknesses ?? ev?.weaknesses ?? []
   // Red flags — prefer explicit red_flags array, fall back to weaknesses
   const redFlags = (r.red_flags && r.red_flags.length > 0) ? r.red_flags : weaknesses.slice(0, 3)
 
-  const score = Math.round(r.score ?? 0)
+  const score = Math.round(Number(r.score) || 0)
 
   // Classification badge config (new AI schema)
   const classConfig: Record<string, { bg: string; text: string; border: string }> = {
@@ -4926,6 +5202,17 @@ function ScreenResultCard({ result: r, onAddCandidate, defaultOpen = true }: { r
             </div>
           )}
 
+          {optionalMatched.length > 0 && (
+            <div className="px-5 py-4 border-t border-gray-100 bg-cyan-50/40">
+              <p className="text-[11px] font-bold text-cyan-800 uppercase tracking-wide mb-2">Nice-to-have matched</p>
+              <div className="flex flex-wrap gap-1.5">
+                {optionalMatched.map(s => (
+                  <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800 border border-cyan-200 font-medium">{s}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* ── Experience Audit + Gap Analysis (new AI schema) ─── */}
           {(showExpAudit || totalMissingMonths > 0) && (
             <div className="grid grid-cols-1 sm:grid-cols-2 border-t border-gray-100 bg-orange-50/20">
@@ -5052,10 +5339,11 @@ function CandidateScreeningDetail({ data: r }: { data: ScreenResult }) {
   const ev = r.evaluation
   const matchedSkills  = r.jd_match?.matching_skills ?? [...(ev?.high_match_skills ?? []), ...(ev?.medium_match_skills ?? [])]
   const missingSkills  = r.jd_match?.missing_skills  ?? ev?.low_or_missing_match_skills ?? ev?.missing_skills ?? []
+  const optionalMatched = r.jd_match?.optional_skills_match ?? []
   const strengths      = ev?.candidate_strengths ?? ev?.strengths ?? []
   const weaknesses     = ev?.candidate_weaknesses ?? ev?.weaknesses ?? []
   const redFlags = (r.red_flags && r.red_flags.length > 0) ? r.red_flags : weaknesses.slice(0, 3)
-  const score = Math.round(r.score ?? 0)
+  const score = Math.round(Number(r.score) || 0)
   const jdMatch = r.jd_match?.match_percent ?? ev?.overall_fit_rating
   const expAudit = r.experience_audit
   const expDiff  = expAudit?.difference_years != null ? Math.abs(expAudit.difference_years) : 0
@@ -5139,6 +5427,17 @@ function CandidateScreeningDetail({ data: r }: { data: ScreenResult }) {
         </div>
       )}
 
+      {optionalMatched.length > 0 && (
+        <div className="bg-cyan-500/5 rounded-xl border border-cyan-500/25 p-3">
+          <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-wide mb-2">Nice-to-have / optional skills matched</p>
+          <div className="flex flex-wrap gap-1">
+            {optionalMatched.map(s => (
+              <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-200 border border-cyan-500/25">{s}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Experience audit + gaps */}
       {(showExpAudit || totalMissingMonths > 0) && (
         <div className="grid grid-cols-2 gap-3">
@@ -5207,20 +5506,39 @@ function CandidateScreeningDetail({ data: r }: { data: ScreenResult }) {
 }
 
 // ── KanbanCard ────────────────────────────────────────────────────────────────
-function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDragEnd }: {
+function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDragEnd, emailIsDup }: {
   candidate: Candidate; onMove: (id: string, stage: string) => void
   onOpen: (c: Candidate) => void
   dragging: boolean; onDragStart: () => void; onDragEnd: () => void
+  /** Same email exists on more than one resume row in this workspace (tenant-scoped). */
+  emailIsDup?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const { dossierPercent, requiredMissing, recommendedMissing } = getCandidateDossierStatus(c)
+  const dossierTone = requiredMissing.length ? 'text-red-600' : recommendedMissing.length ? 'text-amber-600' : 'text-emerald-600'
   return (
     <div draggable
       onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart() }}
       onDragEnd={onDragEnd}
-      className={`bg-white border rounded-lg p-2.5 cursor-grab active:cursor-grabbing transition-all select-none shadow-sm ${
+      className={`relative bg-white border rounded-lg p-2.5 cursor-grab active:cursor-grabbing transition-all select-none shadow-sm ${
         dragging ? 'opacity-40 border-indigo-400 scale-95 shadow-md' : 'border-gray-200 hover:border-indigo-300 hover:shadow-md'
       }`}>
-      <div className="flex items-start justify-between gap-1">
+      {emailIsDup && (
+        <span className="absolute bottom-1 left-1 z-[1] rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-amber-900" title="Duplicate email — another record exists in this workspace">
+          Dup
+        </span>
+      )}
+      <button type="button" title="Dossier completeness — click card to open details"
+        onClick={e => { e.stopPropagation(); onOpen(c) }}
+        className={`absolute top-1.5 right-1.5 flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-bold border ${
+          requiredMissing.length ? 'border-red-200 bg-red-50' : recommendedMissing.length ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'
+        } ${dossierTone}`}>
+        {dossierPercent}%
+        {(requiredMissing.length > 0 || recommendedMissing.length > 0) && (
+          <AlertCircle className="w-2.5 h-2.5" />
+        )}
+      </button>
+      <div className="flex items-start justify-between gap-1 pr-12">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-6 h-6 rounded-full bg-indigo-600 flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white">
             {c.candidate_name?.[0] ?? '?'}
@@ -5262,19 +5580,198 @@ function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDra
 }
 
 // ── CandidateDetailModal ──────────────────────────────────────────────────────
-function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJobChange }: {
+const EMPTY_RECORD: Record<string, string> = {
+  current_company: '',
+  current_title: '',
+  current_location: '',
+  salary_expectation: '',
+  notice_period: '',
+  nationality: '',
+  work_authorization: '',
+  visa_type: '',
+  visa_expiry: '',
+  india_pan: '',
+  india_aadhaar_last4: '',
+  id_document_type: '',
+  id_document_reference: '',
+  notes: '',
+}
+
+function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, onJumpToCandidate, onStageChange, onJobChange, onRecordSaved, onPhoneSaved }: {
   candidate: Candidate
+  /** Other resume rows in this workspace with the same email (tenant-scoped). */
+  duplicateSiblings: Candidate[]
   jobs: Job[]
   onClose: () => void
+  /** Switch modal to another candidate row in this workspace. */
+  onJumpToCandidate?: (id: string) => void
   onStageChange: (id: string, stage: string) => void
   onJobChange: (id: string, jobId: string) => void
+  onRecordSaved: (id: string, profile: Record<string, string | null>) => void
+  onPhoneSaved: (id: string, phone: string | null) => void
 }) {
-  const [tab, setTab] = useState<'profile' | 'ai' | 'resume'>('profile')
-  const hasAiData = !!(c.ai_screening_data || c.ai_summary)
+  const [tab, setTab] = useState<'profile' | 'record' | 'ai' | 'resume'>('profile')
+  const [recordDraft, setRecordDraft] = useState(EMPTY_RECORD)
+  const [recordSaving, setRecordSaving] = useState(false)
+  const [recordMsg, setRecordMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [phoneDraft, setPhoneDraft] = useState('')
+  const [phoneSaving, setPhoneSaving] = useState(false)
+  const [phoneMsg, setPhoneMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const { checks, requiredMissing, recommendedMissing, dossierPercent, warnRecordIds } = getCandidateDossierStatus(c)
+  const recWarn = (key: keyof typeof recordDraft) => warnRecordIds.has(key as string)
+
+  const structuredAi =
+    c.ai_screening_data &&
+    typeof c.ai_screening_data === 'object' &&
+    !Array.isArray(c.ai_screening_data) &&
+    Object.keys(c.ai_screening_data as object).length > 0 &&
+    !('error' in (c.ai_screening_data as object))
+  const hasAiData = !!(structuredAi || (c.ai_summary && c.ai_summary.trim()))
+
+  useEffect(() => {
+    const p = c.candidate_profile ?? {}
+    setRecordDraft({
+      current_company: String(p.current_company ?? ''),
+      current_title: String(p.current_title ?? ''),
+      current_location: String(p.current_location ?? ''),
+      salary_expectation: String(p.salary_expectation ?? ''),
+      notice_period: String(p.notice_period ?? ''),
+      nationality: String(p.nationality ?? ''),
+      work_authorization: String(p.work_authorization ?? ''),
+      visa_type: String(p.visa_type ?? ''),
+      visa_expiry: String(p.visa_expiry ?? ''),
+      india_pan: String(p.india_pan ?? ''),
+      india_aadhaar_last4: String(p.india_aadhaar_last4 ?? ''),
+      id_document_type: String(p.id_document_type ?? ''),
+      id_document_reference: String(p.id_document_reference ?? ''),
+      notes: String(p.notes ?? ''),
+    })
+    setRecordMsg(null)
+  }, [c.id, c.candidate_profile])
+
+  useEffect(() => {
+    setPhoneDraft(c.candidate_phone ?? '')
+    setPhoneMsg(null)
+  }, [c.id, c.candidate_phone])
+
+  const savePhone = async () => {
+    setPhoneSaving(true)
+    setPhoneMsg(null)
+    try {
+      const res = await fetch(`/api/candidates/${c.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidate_phone: phoneDraft.trim() || null }),
+      })
+      let data: { error?: string; candidate?: { candidate_phone?: string | null } } = {}
+      try { data = await res.json() } catch { /* ignore */ }
+      if (!res.ok) {
+        setPhoneMsg({ ok: false, text: data.error ?? 'Could not save phone' })
+        return
+      }
+      const saved = data.candidate?.candidate_phone ?? (phoneDraft.trim() || null)
+      onPhoneSaved(c.id, saved)
+      setPhoneMsg({ ok: true, text: 'Phone updated.' })
+    } finally {
+      setPhoneSaving(false)
+    }
+  }
+
+  const saveRecord = async () => {
+    setRecordSaving(true)
+    setRecordMsg(null)
+    try {
+      const res = await fetch(`/api/candidates/${c.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidate_profile: recordDraft }),
+      })
+      let data: { error?: string; candidate?: { candidate_profile?: Record<string, string | null> } } = {}
+      try { data = await res.json() } catch { /* ignore */ }
+      if (!res.ok) {
+        setRecordMsg({ ok: false, text: data.error ?? 'Save failed' })
+        return
+      }
+      const prof = data.candidate?.candidate_profile ?? (recordDraft as Record<string, string | null>)
+      onRecordSaved(c.id, prof)
+      setRecordMsg({ ok: true, text: 'Saved to this workspace (tenant-scoped).' })
+    } finally {
+      setRecordSaving(false)
+    }
+  }
+
+  const recField = (key: keyof typeof recordDraft, label: string, ph: string, type: 'text' | 'textarea' = 'text', warn = false) => {
+    const border = warn ? 'border-amber-500/50 ring-1 ring-amber-500/25' : 'border-white/10'
+    return (
+      <div key={key}>
+        <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1 flex items-center gap-1">
+          {label}
+          {warn && <span className="text-amber-400 font-bold normal-case" title="Missing — recommended for a complete dossier">!</span>}
+        </label>
+        {type === 'textarea' ? (
+          <textarea value={recordDraft[key]} onChange={e => setRecordDraft(d => ({ ...d, [key]: e.target.value }))}
+            rows={2} placeholder={ph}
+            className={`w-full px-3 py-2 rounded-lg bg-[#12121f] border text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none ${border}`} />
+        ) : (
+          <input value={recordDraft[key]} onChange={e => setRecordDraft(d => ({ ...d, [key]: e.target.value }))}
+            type="text" placeholder={ph}
+            className={`w-full px-3 py-2 rounded-lg bg-[#12121f] border text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 ${border}`} />
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] overflow-y-auto flex items-start justify-center p-4"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="glass-card rounded-2xl w-full max-w-2xl border border-white/10 my-auto">
+      <div className="glass-card rounded-2xl w-full max-w-3xl border-2 border-indigo-500/25 ring-1 ring-white/10 shadow-2xl shadow-indigo-950/50 my-auto">
+
+        {duplicateSiblings.length > 0 && (
+          <div className="mx-6 mt-5 rounded-xl border border-amber-400/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            <p className="font-semibold text-amber-200 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {duplicateSiblings.length + 1} workspace record{(duplicateSiblings.length + 1) !== 1 ? 's' : ''} share this email
+            </p>
+            <p className="text-xs text-amber-100/80 mt-1 leading-relaxed">
+              Shown only inside this tenant. Other workspaces never see or merge these rows.
+            </p>
+            <ul className="mt-2 space-y-1.5 text-xs border-t border-amber-400/20 pt-2">
+              <li className="flex flex-wrap gap-x-2 gap-y-0.5 text-amber-50/95">
+                <span className="font-mono font-semibold">{c.short_id ?? c.id.slice(0, 8)}</span>
+                <span className="text-amber-200/70">·</span>
+                <span>{formatUploader(c.uploaded_by)}</span>
+                <span className="text-amber-200/70">·</span>
+                <span>{fmtDate(c.created_at)}</span>
+                <span className="text-amber-200/70">·</span>
+                <span className="capitalize">{c.pipeline_stage}</span>
+                <span className="text-amber-200/70">·</span>
+                <span className="capitalize">{c.status}</span>
+              </li>
+              {duplicateSiblings.map(s => (
+                <li key={s.id} className="flex flex-wrap gap-x-2 gap-y-0.5 text-amber-50/90">
+                  {onJumpToCandidate ? (
+                    <button type="button" className="font-mono font-semibold text-indigo-300 hover:text-white underline-offset-2 hover:underline"
+                      onClick={() => onJumpToCandidate(s.id)}>
+                      {s.short_id ?? s.id.slice(0, 8)}
+                    </button>
+                  ) : (
+                    <span className="font-mono font-semibold">{s.short_id ?? s.id.slice(0, 8)}</span>
+                  )}
+                  <span className="text-amber-200/70">·</span>
+                  <span>{formatUploader(s.uploaded_by)}</span>
+                  <span className="text-amber-200/70">·</span>
+                  <span>{fmtDate(s.created_at)}</span>
+                  <span className="text-amber-200/70">·</span>
+                  <span className="capitalize">{s.pipeline_stage}</span>
+                  <span className="text-amber-200/70">·</span>
+                  <span className="capitalize">{s.status}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-[10px] text-amber-200/60 mt-2">Use another row&apos;s ID above to open that record, or pick it from the Candidates list.</p>
+          </div>
+        )}
 
         {/* Header */}
         <div className="flex items-start gap-4 p-6 border-b border-white/5">
@@ -5295,7 +5792,10 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
               <StagePill stage={c.pipeline_stage} />
               <ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} />
               {c.created_at && (
-                <span className="text-xs text-gray-500 font-mono">Uploaded: {fmtDate(c.created_at)}</span>
+                <span className="text-xs text-gray-500 font-mono">
+                  Added {fmtDate(c.created_at)}
+                  {c.uploaded_by ? <> · by {formatUploader(c.uploaded_by)}</> : null}
+                </span>
               )}
             </div>
           </div>
@@ -5304,20 +5804,107 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
           </button>
         </div>
 
+        {/* Dossier completeness (missing-field hints) */}
+        <div className="px-6 pb-4 space-y-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
+            <span className="font-mono font-semibold text-gray-300">Dossier {dossierPercent}%</span>
+            <span className="text-gray-600">·</span>
+            <span>Required fields marked * in the summary below; amber = recommended for handoff.</span>
+          </div>
+          {requiredMissing.length > 0 && (
+            <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+              <p className="font-semibold flex items-center gap-2 text-red-200">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" /> Missing required details
+              </p>
+              <ul className="mt-2 list-disc list-inside text-xs text-red-100/90 space-y-0.5">
+                {requiredMissing.map(m => <li key={m}>{m}</li>)}
+              </ul>
+            </div>
+          )}
+          {requiredMissing.length === 0 && recommendedMissing.length > 0 && (
+            <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              <p className="font-semibold flex items-center gap-2 text-amber-200">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" /> Incomplete dossier — add recommended details
+              </p>
+              <p className="text-xs text-amber-100/85 mt-1 mb-2">Recruiters get clearer handoff when these are filled (phone, job link, ATS record, resume text, compliance IDs).</p>
+              <ul className="list-disc list-inside text-xs text-amber-50/95 space-y-0.5 max-h-28 overflow-y-auto">
+                {recommendedMissing.map(m => <li key={m}>{m}</li>)}
+              </ul>
+              <button type="button" onClick={() => setTab('record')} className="mt-3 text-xs font-semibold text-amber-200 underline underline-offset-2 hover:text-white">
+                Open ATS record tab →
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Tabs */}
-        <div className="flex border-b border-white/5">
-          {(['profile', ...(hasAiData ? ['ai'] : []), 'resume'] as const).map(t => (
-            <button key={t} onClick={() => setTab(t as 'profile' | 'ai' | 'resume')}
-              className={`px-6 py-3 text-sm font-medium transition-all ${
+        <div className="flex flex-wrap border-b border-white/5 gap-x-1">
+          {(['profile', 'record', ...(hasAiData ? ['ai'] as const : []), 'resume'] as const).map(t => {
+            const recordNeeds = [...warnRecordIds].some(id => (Object.keys(EMPTY_RECORD) as string[]).includes(id))
+            const tabWarn = t === 'record' && recordNeeds
+            return (
+            <button key={t} onClick={() => setTab(t)}
+              className={`relative px-5 py-3 text-sm font-medium transition-all ${
                 tab === t ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-500 hover:text-gray-300'
               }`}>
-              {t === 'resume' ? 'Resume / CV' : t === 'ai' ? 'AI Screening' : 'Profile & Actions'}
+              {t === 'resume' ? 'Resume / CV' : t === 'ai' ? 'AI Screening' : t === 'record' ? 'ATS record' : 'Profile & Actions'}
+              {tabWarn && (
+                <span className="absolute top-2 right-1 w-2 h-2 rounded-full bg-amber-400 shadow shadow-amber-500/50" title="Missing recommended ATS fields" />
+              )}
             </button>
-          ))}
+            )
+          })}
         </div>
 
         {tab === 'profile' && (
           <div className="p-6 space-y-5">
+
+            {/* Full dossier (all tracked fields — read-only) */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Full dossier summary</p>
+              <div className="rounded-xl border border-white/10 overflow-hidden max-h-56 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-white/[0.04] sticky top-0">
+                    <tr className="text-left text-gray-500">
+                      <th className="px-3 py-2 font-semibold">Field</th>
+                      <th className="px-3 py-2 font-semibold">Value</th>
+                      <th className="px-2 py-2 w-8" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {checks.map(ch => (
+                      <tr key={ch.id} className={ch.ok ? 'border-t border-white/5' : 'border-t border-amber-500/20 bg-amber-500/5'}>
+                        <td className="px-3 py-2 text-gray-400">
+                          {ch.label}
+                          {ch.level === 'required' ? <span className="text-red-400"> *</span> : null}
+                        </td>
+                        <td className="px-3 py-2 text-gray-200 break-all max-w-[200px]">{dossierDisplayValue(c, ch.id)}</td>
+                        <td className="px-2 py-2 text-center">
+                          {ch.ok
+                            ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500 inline-block" aria-label="OK" />
+                            : <AlertCircle className="w-3.5 h-3.5 text-amber-400 inline-block" aria-label="Missing" />}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Phone (stored on candidate row) */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Phone</p>
+              <div className={`flex flex-col sm:flex-row gap-2 rounded-xl border p-3 ${warnRecordIds.has('candidate_phone') ? 'border-amber-500/40 bg-amber-500/5' : 'border-white/10 bg-white/[0.02]'}`}>
+                <input value={phoneDraft} onChange={e => setPhoneDraft(e.target.value)}
+                  type="tel" placeholder="+91 … or local number"
+                  className="flex-1 px-3 py-2 rounded-lg bg-[#12121f] border border-white/10 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500" />
+                <button type="button" onClick={savePhone} disabled={phoneSaving}
+                  className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm font-semibold text-gray-200 border border-white/10 disabled:opacity-50">
+                  {phoneSaving ? 'Saving…' : 'Save phone'}
+                </button>
+              </div>
+              {phoneMsg && <p className={`text-xs mt-2 ${phoneMsg.ok ? 'text-emerald-400' : 'text-red-400'}`}>{phoneMsg.text}</p>}
+            </div>
 
             {/* Pipeline Stage */}
             <div>
@@ -5341,7 +5928,9 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Assigned Job</p>
               <select value={c.job_posts?.id ?? ''}
                 onChange={e => onJobChange(c.id, e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border border-white/15 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+                className={`w-full px-3 py-2 rounded-lg bg-[#1a1a2e] border text-sm text-gray-200 focus:outline-none focus:border-indigo-500 ${
+                  warnRecordIds.has('job_post') ? 'border-amber-500/50 ring-1 ring-amber-500/20' : 'border-white/15'
+                }`}>
                 <option value="">— No Job Assigned —</option>
                 {jobs.map(j => <option key={j.id} value={j.id}>{j.title} · {j.company} ({j.short_id})</option>)}
               </select>
@@ -5373,6 +5962,10 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
               </div>
             )}
 
+            <div className="rounded-lg border border-indigo-500/20 bg-indigo-500/5 px-3 py-2 text-xs text-indigo-200/90">
+              Store compensation, notice, visa, and ID references under <span className="font-semibold">ATS record</span>. Data stays in this workspace and is not visible to other tenants.
+            </div>
+
             {/* Meta */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 pt-2 border-t border-white/5">
               {c.file_name && (
@@ -5393,9 +5986,45 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
           </div>
         )}
 
+        {tab === 'record' && (
+          <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Recruiter-maintained facts (not inferred from CV). Prefer masked or partial IDs in notes; full values are visible only inside this tenant.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {recField('current_company', 'Current company', 'e.g. Acme Ltd', 'text', recWarn('current_company'))}
+              {recField('current_title', 'Current title', 'e.g. Senior Engineer', 'text', recWarn('current_title'))}
+              {recField('current_location', 'Current location', 'City, country', 'text', recWarn('current_location'))}
+              {recField('salary_expectation', 'Salary expectation', 'Range + currency, e.g. 24–28 LPA INR', 'text', recWarn('salary_expectation'))}
+              {recField('notice_period', 'Notice period', 'e.g. 60 days', 'text', recWarn('notice_period'))}
+              {recField('nationality', 'Nationality / citizenship', '', 'text', recWarn('nationality'))}
+              {recField('work_authorization', 'Work authorization', 'e.g. Citizen, PR, EP holder', 'text', recWarn('work_authorization'))}
+              {recField('visa_type', 'Visa type (if applicable)', '', 'text', recWarn('visa_type'))}
+              {recField('visa_expiry', 'Visa expiry', 'YYYY-MM-DD or as on passport', 'text', recWarn('visa_expiry'))}
+            </div>
+            <div className="border-t border-white/10 pt-4 space-y-4">
+              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Government / legal ID (workspace only)</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {recField('india_pan', 'India — PAN', 'e.g. ABCDE1234F', 'text', recWarn('india_pan'))}
+                {recField('india_aadhaar_last4', 'India — Aadhaar (masked / last digits)', 'Prefer last 4 or masked per policy', 'text', recWarn('india_aadhaar_last4'))}
+                {recField('id_document_type', 'Other — ID type', 'NRIC, passport, SSN last-4, driver license…', 'text', recWarn('id_document_type'))}
+                {recField('id_document_reference', 'Other — ID reference', 'Masked or reference as allowed by policy', 'text', recWarn('id_document_reference'))}
+              </div>
+            </div>
+            {recField('notes', 'Internal notes', 'References, background check status…', 'textarea')}
+            {recordMsg && (
+              <p className={`text-sm ${recordMsg.ok ? 'text-emerald-400' : 'text-red-400'}`}>{recordMsg.text}</p>
+            )}
+            <button type="button" onClick={saveRecord} disabled={recordSaving}
+              className="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold disabled:opacity-50">
+              {recordSaving ? 'Saving…' : 'Save ATS record'}
+            </button>
+          </div>
+        )}
+
         {tab === 'ai' && (
           <div className="p-6 max-h-[70vh] overflow-y-auto">
-            {c.ai_screening_data
+            {structuredAi
               ? <CandidateScreeningDetail data={c.ai_screening_data as ScreenResult} />
               : c.ai_summary
                 ? <div>
@@ -5411,7 +6040,7 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
                         </div>
                       </div>
                     )}
-                    <p className="text-xs text-gray-600 mt-4 italic">Full structured breakdown is available for candidates screened after the latest update.</p>
+                    <p className="text-xs text-gray-600 mt-4 italic">Structured screening was not stored for this candidate. Re-run AI screening to capture the full report.</p>
                   </div>
                 : <p className="text-sm text-gray-500">No AI screening data available for this candidate.</p>
             }
@@ -5419,7 +6048,15 @@ function CandidateDetailModal({ candidate: c, jobs, onClose, onStageChange, onJo
         )}
 
         {tab === 'resume' && (
-          <div className="p-6">
+          <div className="p-6 space-y-4">
+            {!c.raw_text?.trim() && (
+              <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                <p className="font-semibold flex items-center gap-2 text-amber-200">
+                  <AlertCircle className="w-4 h-4" /> Missing resume / CV text
+                </p>
+                <p className="text-xs text-amber-100/85 mt-1">This counts against dossier completeness. Close this dialog, open <span className="font-semibold">AI Screening</span>, and run screening with a file or paste text to store the CV.</p>
+              </div>
+            )}
             {c.raw_text ? (
               <pre className="text-xs text-gray-400 leading-relaxed whitespace-pre-wrap bg-[#0d0d1a] rounded-lg p-4 border border-white/5 max-h-[60vh] overflow-y-auto font-mono">
                 {c.raw_text.replace(/[□☐■▪◦◆►▸]/g, '•')}

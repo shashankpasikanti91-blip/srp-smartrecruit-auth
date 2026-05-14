@@ -80,8 +80,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, sent_via: result.sent_via, from: result.from })
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error('[email/send]', msg)
-    return NextResponse.json({ error: msg }, { status: 502 })
+    console.error('[email/send]', err)
+    return NextResponse.json({ error: 'Could not send email. Please try again.' }, { status: 502 })
   }
 }
