@@ -31,7 +31,7 @@ server {
 
     # ── NextAuth + Next.js auth routes --> Next.js :3010
     # MUST appear before the general /api/auth/ block (regex beats prefix in nginx)
-    location ~ ^/api/auth/(providers|session|csrf|callback|signin|signout|error|forgot-password|reset-password|signup|me)(/.*)?$ {
+    location ~ ^/api/auth/(providers|session|csrf|callback|signin|signout|error|forgot-password|reset-password|signup)(/.*)?$ {
         proxy_pass http://127.0.0.1:3010;
         proxy_http_version 1.1;
         proxy_set_header Host $host;

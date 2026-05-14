@@ -172,7 +172,7 @@ jobs:
           get("/signup",                [200, 307, 308])
           get("/api/auth/csrf",         200)
           get("/api/auth/providers",    200)
-          get("/api/auth/me",           [401, 403, 405])
+          get("/api/auth/me",           [400, 401, 403, 405])
           get("/api/resume/list",       [401, 403, 405])
           get("/api/support/tickets",   [401, 403, 405])
           get("/api/screening/results", [401, 403, 405])
