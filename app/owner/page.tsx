@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
+import { isPlatformOwnerEmail } from '@/lib/platformAccess'
 import {
   Users, Briefcase, FileText, CreditCard, Activity, Zap, AlertCircle,
   TrendingUp, LogOut, RefreshCw, Bell, Shield, ChevronRight, CheckCircle2,
@@ -68,8 +69,7 @@ export default function OwnerDashboard() {
   useEffect(() => {
     if (status === 'unauthenticated') { router.replace('/login'); return }
     if (status === 'authenticated' && role !== 'owner' && role !== 'admin') {
-      const ownerEmails = ['pasikantishashank24@gmail.com']
-      if (!ownerEmails.includes(user?.email ?? '')) {
+      if (!isPlatformOwnerEmail(user?.email)) {
         router.replace('/dashboard')
       }
     }
@@ -99,7 +99,13 @@ export default function OwnerDashboard() {
     } finally { setLoading(false) }
   }, [fetchStats])
 
-  useEffect(() => { if (status === 'authenticated') { fetchStats(); fetchTab(tab) } }, [status])
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    void fetchStats()
+    void fetchTab(tab)
+    // Intentionally depend only on auth: tab switches load via handleTabChange to avoid duplicate fetches
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
+  }, [status])
 
   const handleTabChange = (t: Tab) => {
     setTab(t)

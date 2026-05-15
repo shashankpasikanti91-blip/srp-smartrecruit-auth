@@ -78,10 +78,10 @@ export default function SecurityPage() {
               Security
             </span>
             <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">
-              Security is not a feature. It's a foundation.
+              Security is not a feature. It&apos;s a foundation.
             </h1>
             <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-              Your candidate data is sensitive. We treat it that way. Here's exactly how we keep it safe.
+              Your candidate data is sensitive. We treat it that way. Here&apos;s exactly how we keep it safe.
             </p>
           </div>
         </section>

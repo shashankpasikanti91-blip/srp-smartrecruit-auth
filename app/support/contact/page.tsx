@@ -78,9 +78,9 @@ export default function ContactPage() {
             <span className="inline-block text-xs font-semibold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20 mb-5">
               Get in touch
             </span>
-            <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">Let's talk</h1>
+            <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">Let&apos;s talk</h1>
             <p className="text-gray-400 text-lg max-w-xl mx-auto">
-              Whether you're ready to buy, just exploring, or have a specific question — we'd love to hear from you.
+              Whether you&apos;re ready to buy, just exploring, or have a specific question — we&apos;d love to hear from you.
             </p>
           </div>
         </section>
@@ -110,7 +110,7 @@ export default function ContactPage() {
                   <CheckCircle className="w-7 h-7 text-green-400" />
                 </div>
                 <h2 className="text-white font-bold text-xl mb-2">Message sent!</h2>
-                <p className="text-gray-500 text-sm mb-6">We'll get back to you within 1 business day.</p>
+                <p className="text-gray-500 text-sm mb-6">We&apos;ll get back to you within 1 business day.</p>
                 <button onClick={() => setSubmitted(false)}
                   className="text-indigo-400 hover:text-indigo-300 text-sm font-medium transition-colors">
                   Send another message

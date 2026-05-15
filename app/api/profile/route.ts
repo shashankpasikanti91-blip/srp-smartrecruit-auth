@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
+import { computeRetentionInfo, isEnvProtectedTenant } from '@/lib/dataRetention'
 import crypto from 'crypto'
 
 export async function GET() {
@@ -72,6 +73,49 @@ export async function GET() {
       }
     } catch { /* counts fallback */ }
 
+    // Data-retention summary (non-fatal; DB column may not exist on older installs)
+    let retention: Record<string, unknown> = {
+      phase: 'none',
+      period_end: null,
+      purge_eligible_after: null,
+      days_until_purge_eligible: null,
+      banner: null,
+    }
+    try {
+      const tenantCtx = await resolveTenant()
+      let tenantRetentionExempt = false
+      if (tenantCtx?.tenantId) {
+        tenantRetentionExempt = isEnvProtectedTenant(tenantCtx.tenantId)
+        if (!tenantRetentionExempt) {
+          try {
+            const ex = await pool.query<{ retention_exempt: boolean }>(
+              'SELECT retention_exempt FROM tenants WHERE id = $1 LIMIT 1',
+              [tenantCtx.tenantId]
+            )
+            tenantRetentionExempt = Boolean(ex.rows[0]?.retention_exempt)
+          } catch {
+            /* column retention_exempt may be missing until migrate_v13 applied */
+          }
+        }
+      }
+      const r = computeRetentionInfo({
+        plan: String(subscription.plan ?? 'free'),
+        status: String(subscription.status ?? 'active'),
+        billing_cycle: subscription.billing_cycle as string | null,
+        current_period_end: subscription.current_period_end as string | null,
+        tenantRetentionExempt,
+      })
+      retention = {
+        phase: r.phase,
+        period_end: r.periodEnd,
+        purge_eligible_after: r.purgeEligibleAfter,
+        days_until_purge_eligible: r.daysUntilPurgeEligible,
+        banner: r.banner,
+      }
+    } catch {
+      /* retention optional */
+    }
+
     return NextResponse.json({
       user: {
         id: user.id,
@@ -88,6 +132,7 @@ export async function GET() {
         billing_cycle: subscription.billing_cycle ?? null,
         current_period_end: subscription.current_period_end ?? null,
         trial_ends_at: subscription.trial_ends_at ?? null,
+        retention,
       },
       usage: {
         screens_this_month: parseInt(String(usage.screens_this_month ?? '0')),

@@ -28,10 +28,14 @@ function LoginContent() {
     if (status === 'authenticated') router.replace('/dashboard')
   }, [status, router])
 
-  // Pre-fill email if remember me was set previously
+  // Pre-fill email if remember me was set previously (client-only; avoids sync setState-in-effect lint)
   useEffect(() => {
     const saved = localStorage.getItem('srp_remember_email')
-    if (saved) { setEmail(saved); setRemember(true) }
+    if (!saved) return
+    queueMicrotask(() => {
+      setEmail(saved)
+      setRemember(true)
+    })
   }, [])
 
   const errorMessages: Record<string, string> = {

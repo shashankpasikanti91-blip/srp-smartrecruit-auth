@@ -11,7 +11,10 @@
  * …it should call: `requireTenant(req, 'jobs.create')`
  * That returns { session, tenantId, tenantRole, permissions } or throws HTTP errors.
  *
- * All DB queries must include `AND tenant_id = $N` to enforce tenant isolation.
+ * All DB queries must include `tenant_id = $N` (or equivalent) so a bug in one route
+ * cannot leak another workspace’s rows. Fail closed: missing tenant → 401/403, not empty lists from other tenants.
+ *
+ * API errors to clients should be generic (`{ error: '…' }`); log stack traces only server-side.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 

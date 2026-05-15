@@ -45,7 +45,6 @@ export async function POST(req: NextRequest) {
     if (ext === '.pdf') {
       // Try inner lib path first (avoids missing test-file in Docker standalone)
       // Fall back to main entry if inner path unavailable
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       let pdfParse: (buf: Buffer, opts?: object) => Promise<{ text: string }>
       try {
         pdfParse = require('pdf-parse/lib/pdf-parse')
@@ -61,7 +60,6 @@ export async function POST(req: NextRequest) {
         )
       }
     } else if (ext === '.docx' || ext === '.doc') {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const mammoth = require('mammoth') as { extractRawText: (opts: { buffer: Buffer }) => Promise<{ value: string }> }
       const result = await mammoth.extractRawText({ buffer })
       text = result.value

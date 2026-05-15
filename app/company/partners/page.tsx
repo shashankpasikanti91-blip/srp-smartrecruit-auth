@@ -43,7 +43,7 @@ export default function PartnersPage() {
               </span>
             </h1>
             <p className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed mb-10">
-              SRP Recruit AI integrates with the world's leading HRIS, ATS, sourcing, and collaboration
+              SRP Recruit AI integrates with the world&apos;s leading HRIS, ATS, sourcing, and collaboration
               platforms — so your hiring data flows freely, without copy-paste.
             </p>
             <Link href="/support/contact"
@@ -85,7 +85,7 @@ export default function PartnersPage() {
               </div>
               <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">Grow your business with SRP</h2>
               <p className="text-gray-400 leading-relaxed mb-8">
-                Whether you're a recruiter, consultant, staffing agency, or HR tech vendor — our partner
+                Whether you&apos;re a recruiter, consultant, staffing agency, or HR tech vendor — our partner
                 program is designed to help you expand your offering and deliver more value to clients.
               </p>
               <ul className="space-y-3">
@@ -99,7 +99,7 @@ export default function PartnersPage() {
             </div>
             <div className="bg-white/3 border border-white/10 rounded-2xl p-8">
               <h3 className="text-white font-semibold text-lg mb-2">Ready to partner with us?</h3>
-              <p className="text-gray-500 text-sm mb-6">Tell us about your platform or agency and we'll set up a discovery call within 24 hours.</p>
+              <p className="text-gray-500 text-sm mb-6">Tell us about your platform or agency and we&apos;ll set up a discovery call within 24 hours.</p>
               <Link href="/support/contact"
                 className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold transition-all shadow-lg">
                 Apply to partner program <ArrowRight className="w-4 h-4" />

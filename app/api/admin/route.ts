@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { isPlatformOwnerEmail } from '@/lib/platformAccess'
 import { getOwnerStats, getAllUsers, getActivityLog, getAllJobPosts, getAllResumes, getAllSubscriptions, getTokenStats } from '@/lib/db'
 
 // Guard — only owner/admin may call these endpoints
 async function requireOwner() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) return null
-  const ownerEmails = (process.env.OWNER_EMAILS ?? '').split(',').map(e => e.trim().toLowerCase())
   const role = (session.user as Record<string, unknown>).role as string
-  if (role !== 'owner' && role !== 'admin' && !ownerEmails.includes(session.user.email.toLowerCase())) {
+  const email = session.user.email.toLowerCase()
+  if (role !== 'owner' && role !== 'admin' && !isPlatformOwnerEmail(email)) {
     return null
   }
   return session

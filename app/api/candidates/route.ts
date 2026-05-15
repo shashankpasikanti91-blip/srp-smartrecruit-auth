@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
       SELECT r.id, r.short_id, r.candidate_name, r.candidate_email, r.candidate_phone,
              r.ai_score, r.match_category, r.pipeline_stage, r.status, r.reviewer_notes,
              r.ai_summary, r.ai_skills, r.ai_screening_data, r.candidate_profile,
-             r.job_post_id, r.raw_text, r.file_name, r.source_type,
+             r.job_post_id, r.raw_text, r.file_name, r.resume_original_path, r.source_type,
              r.created_at, r.updated_at, r.last_contacted_at,
              u.name AS upload_user_name, u.email AS upload_user_email,
              jp.id AS jp_id, jp.short_id AS jp_short_id, jp.title AS jp_title, jp.company AS jp_company

@@ -18,4 +18,20 @@ test.describe('Public pages', () => {
     await page.goto('/accept-invite')
     await expect(page.getByText('No invite token found.')).toBeVisible({ timeout: 15_000 })
   })
+
+  test('marketing / legal / support pages return 200', async ({ page }) => {
+    const paths = [
+      '/company/about',
+      '/company/careers',
+      '/company/partners',
+      '/legal/privacy',
+      '/legal/security',
+      '/support/contact',
+    ]
+    for (const p of paths) {
+      const res = await page.goto(p, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+      expect(res, `${p} should return a response`).not.toBeNull()
+      expect(res!.ok(), `${p} should be HTTP 2xx`).toBeTruthy()
+    }
+  })
 })

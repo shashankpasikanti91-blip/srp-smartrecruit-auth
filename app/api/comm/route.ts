@@ -13,7 +13,6 @@ async function sendViaSMTP(
   body: string
 ): Promise<void> {
   // nodemailer dynamically imported to keep cold-start fast
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const nodemailer = require('nodemailer')
   const transport = nodemailer.createTransport({
     host: cfg.host,

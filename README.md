@@ -5,6 +5,8 @@
 
 > Production dashboard and API for agentic recruiting: pipeline, jobs, candidates, AI screening, compose, analytics, multi-tenant isolation.
 
+**Operations (owners, backups, retention, client protection):** see [docs/OPERATIONS.md](docs/OPERATIONS.md).
+
 Full monorepo context (FastAPI backend, deployment): see the repository root [README.md](../README.md). **This folder is the production SmartRecruit web app** — keep unrelated third-party app trees out of the repository root.
 
 ---

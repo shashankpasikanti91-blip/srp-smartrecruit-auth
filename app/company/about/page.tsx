@@ -41,14 +41,14 @@ export default function AboutPage() {
               About SRP Recruit AI Labs
             </span>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
-              We deliver your company's{' '}
+              We deliver your company&apos;s{' '}
               <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
                 most valuable asset.
               </span>{' '}
               People.
             </h1>
             <p className="text-gray-400 text-lg sm:text-xl max-w-3xl mx-auto leading-relaxed mb-10">
-              Employees mean everything to your business and to ours. That's why we built our talent
+              Employees mean everything to your business and to ours. That&apos;s why we built our talent
               acquisition platform for the leaders and recruiters who need it most.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -58,7 +58,7 @@ export default function AboutPage() {
               </Link>
               <Link href="/company/careers"
                 className="px-6 py-3 rounded-lg border border-white/15 hover:border-white/30 text-gray-300 hover:text-white font-medium transition-all flex items-center gap-2 justify-center">
-                We're hiring <ArrowRight className="w-4 h-4" />
+                We&apos;re hiring <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
           </div>
@@ -81,11 +81,7 @@ export default function AboutPage() {
           <div className="bg-white/3 border border-white/8 rounded-2xl p-8 sm:p-12">
             <p className="text-xs font-semibold uppercase tracking-widest text-indigo-400 mb-4">A message from our founders</p>
             <blockquote className="text-lg sm:text-xl text-gray-200 leading-relaxed italic mb-6">
-              "Recruiting the right talent is no simple feat. The last thing you need is technology that
-              makes it harder instead of easier. We spent years listening to recruiters, understanding their
-              friction, and building the platform they actually asked for. This product doesn't belong to
-              anyone at our company — it belongs to the professionals who connect people with jobs and
-              change lives."
+              {`"Recruiting the right talent is no simple feat. The last thing you need is technology that makes it harder instead of easier. We spent years listening to recruiters, understanding their friction, and building the platform they actually asked for. This product doesn't belong to anyone at our company — it belongs to the professionals who connect people with jobs and change lives."`}
             </blockquote>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">S</div>
@@ -100,7 +96,7 @@ export default function AboutPage() {
         {/* Values */}
         <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
           <div className="text-center mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Here's how we do it</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Here&apos;s how we do it</h2>
             <p className="text-gray-400">The principles that guide every decision we make.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -137,8 +133,8 @@ export default function AboutPage() {
 
         {/* CTA */}
         <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">Let's get together</h2>
-          <p className="text-gray-400 mb-8">Whether you're looking to use our platform or help build it, we're excited to work with you.</p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">Let&apos;s get together</h2>
+          <p className="text-gray-400 mb-8">Whether you&apos;re looking to use our platform or help build it, we&apos;re excited to work with you.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/login"
               className="px-6 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-all shadow-lg">

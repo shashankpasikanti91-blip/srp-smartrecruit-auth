@@ -48,7 +48,7 @@ export default function CareersPage() {
               </span>
             </h1>
             <p className="text-gray-400 text-lg sm:text-xl max-w-3xl mx-auto leading-relaxed mb-10">
-              We're building the most intelligent talent acquisition platform on the planet.
+              We&apos;re building the most intelligent talent acquisition platform on the planet.
               Join a team that moves fast, thinks big, and puts people first.
             </p>
             <a href="#open-roles"
@@ -62,7 +62,7 @@ export default function CareersPage() {
         <section className="border-y border-white/5 bg-white/2 py-16">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <blockquote className="text-xl sm:text-2xl text-white font-medium leading-relaxed italic mb-6">
-              "We don't hire for roles. We hire for impact. Every person here raises the bar."
+              {`"We don't hire for roles. We hire for impact. Every person here raises the bar."`}
             </blockquote>
             <p className="text-gray-500 text-sm">Culture at SRP Recruit AI Labs</p>
           </div>
@@ -106,7 +106,7 @@ export default function CareersPage() {
         <section id="open-roles" className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="text-center mb-12">
             <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Open roles</h2>
-            <p className="text-gray-400">We're actively hiring across engineering, product, and go-to-market.</p>
+            <p className="text-gray-400">We&apos;re actively hiring across engineering, product, and go-to-market.</p>
           </div>
           <div className="space-y-3">
             {openRoles.map((r) => (
@@ -127,8 +127,8 @@ export default function CareersPage() {
         {/* CTA */}
         <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pb-20 text-center">
           <div className="bg-gradient-to-br from-indigo-950/60 to-purple-950/60 border border-indigo-500/20 rounded-2xl p-10">
-            <h2 className="text-2xl font-bold text-white mb-3">Don't see the right role?</h2>
-            <p className="text-gray-400 mb-6">We're always interested in exceptional people. Send us a note and tell us how you'd like to contribute.</p>
+            <h2 className="text-2xl font-bold text-white mb-3">Don&apos;t see the right role?</h2>
+            <p className="text-gray-400 mb-6">We&apos;re always interested in exceptional people. Send us a note and tell us how you&apos;d like to contribute.</p>
             <Link href="/support/contact"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-all shadow-lg hover:shadow-indigo-500/30">
               Get in touch <ArrowRight className="w-4 h-4" />

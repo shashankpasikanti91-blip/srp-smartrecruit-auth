@@ -123,7 +123,7 @@ export default function PrivacyPage() {
         <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="bg-indigo-500/8 border border-indigo-500/20 rounded-xl p-5 mb-10">
             <p className="text-indigo-300 text-sm leading-relaxed">
-              SRP Recruit AI Labs ("SRP", "we", "us", "our") operates the SRP Recruit AI platform. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our services. Please read this policy carefully.
+              SRP Recruit AI Labs (&ldquo;SRP&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;, &ldquo;our&rdquo;) operates the SRP Recruit AI platform. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our services. Please read this policy carefully.
             </p>
           </div>
 
