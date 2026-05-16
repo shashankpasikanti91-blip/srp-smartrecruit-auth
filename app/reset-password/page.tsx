@@ -195,7 +195,7 @@ export default function ResetPasswordPage() {
 
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
-          <div className="glass-card rounded-2xl p-8 shadow-2xl border border-white/10">
+          <div className="glass-card-dark rounded-2xl p-8 shadow-2xl border border-white/10">
             <Suspense fallback={<div className="text-center text-gray-400">Loading...</div>}>
               <ResetPasswordContent />
             </Suspense>
@@ -206,7 +206,6 @@ export default function ResetPasswordPage() {
       <style jsx>{`
         .orb { position: absolute; border-radius: 50%; filter: blur(120px); pointer-events: none; animation: float 8s ease-in-out infinite; }
         @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-20px)} }
-        .glass-card { background: rgba(255,255,255,0.03); backdrop-filter: blur(40px); }
         .gradient-text { background: linear-gradient(135deg,#818cf8,#c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
       `}</style>
     </div>

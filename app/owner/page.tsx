@@ -204,7 +204,7 @@ export default function OwnerDashboard() {
           <button
             onClick={() => fetchTab(tab)}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass-card text-xs text-gray-400 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass-card-dark text-xs text-gray-400 hover:text-white transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -217,7 +217,7 @@ export default function OwnerDashboard() {
             <div>
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
                 {statCards.map(s => (
-                  <div key={s.label} className="glass-card rounded-2xl p-5">
+                  <div key={s.label} className="glass-card-dark rounded-2xl p-5">
                     <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center text-white mb-3`}>
                       {s.icon}
                     </div>
@@ -228,7 +228,7 @@ export default function OwnerDashboard() {
               </div>
 
               {/* Quick info */}
-              <div className="glass-card rounded-2xl p-6">
+              <div className="glass-card-dark rounded-2xl p-6">
                 <h3 className="font-bold text-white mb-4 flex items-center gap-2">
                   <Shield className="w-4 h-4 text-indigo-400" /> Owner Account
                 </h3>
@@ -252,7 +252,7 @@ export default function OwnerDashboard() {
 
           {/* ── Generic table view ─────────────────────────── */}
           {tab !== 'overview' && (
-            <div className="glass-card rounded-2xl overflow-hidden">
+            <div className="glass-card-dark rounded-2xl overflow-hidden">
               {loading ? (
                 <div className="flex items-center justify-center py-20">
                   <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />

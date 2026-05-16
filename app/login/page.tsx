@@ -100,7 +100,7 @@ function LoginContent() {
       {/* Card */}
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
-          <div className="glass-card rounded-2xl p-8 shadow-2xl border border-white/10">
+          <div className="glass-card-dark rounded-2xl p-8 shadow-2xl border border-white/10">
 
             {/* Heading */}
             <div className="text-center mb-6">

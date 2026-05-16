@@ -125,7 +125,7 @@ function SignupForm() {
       {/* Card */}
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
-          <div className="glass-card rounded-2xl p-8 shadow-2xl border border-white/10">
+          <div className="glass-card-dark rounded-2xl p-8 shadow-2xl border border-white/10">
 
             <div className="flex justify-center mb-5">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
