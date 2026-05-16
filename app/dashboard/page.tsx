@@ -120,6 +120,7 @@ const PIPELINE_STAGES = [
   { key: 'interview', label: 'Interview',  color: 'bg-amber-900/60',   text: 'text-amber-300',   bar: 'bg-amber-500',      icon: Clock },
   { key: 'offer',     label: 'Offer',      color: 'bg-emerald-900/60', text: 'text-emerald-300', bar: 'bg-emerald-500',    icon: CheckCircle },
   { key: 'hired',     label: 'Hired',      color: 'bg-green-900/60',   text: 'text-green-300',   bar: 'bg-green-500',      icon: Star },
+  { key: 'rejected',  label: 'Rejected',   color: 'bg-red-900/60',     text: 'text-red-300',     bar: 'bg-red-500',        icon: X },
 ]
 
 // Light variants for white-bg contexts (candidates table, job rows etc.)
@@ -130,6 +131,7 @@ const STAGE_LIGHT: Record<string, { bg: string; text: string; border: string }> 
   interview: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
   offer:     { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
   hired:     { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' },
+  rejected:  { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200' },
 }
 
 const MATCH_CONFIG = {
@@ -1678,6 +1680,7 @@ export default function DashboardPage() {
   const [filterJobType, setFilterJobType] = useState('')
   const [filterJobRole, setFilterJobRole] = useState('')
   const [filterJobCompany, setFilterJobCompany] = useState('')
+  const [selectedJobView, setSelectedJobView] = useState<Job | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [matchCounts, setMatchCounts] = useState<Record<string, number>>({})
@@ -2193,6 +2196,8 @@ export default function DashboardPage() {
     const jp = job ? { id: job.id, short_id: job.short_id, title: job.title, company: job.company } : null
     setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, job_posts: jp } : c))
     setSelectedCandidate(prev => prev?.id === candidateId ? { ...prev, job_posts: jp } : prev)
+    // Keep job view candidate list in sync
+    setSelectedJobView(prev => prev ? { ...prev } : null)
     await fetch(`/api/candidates/${candidateId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -2618,20 +2623,23 @@ export default function DashboardPage() {
           )}
 
           {/* Stats strip — compact KPI row for 100% zoom */}
-          <div className="sticky top-0 z-10 border-b border-slate-200/90 bg-white/80 backdrop-blur-md shadow-sm shadow-slate-900/5">
+          <div className="sticky top-0 z-10 border-b border-slate-200/90 bg-white/95 backdrop-blur-md shadow-sm shadow-slate-900/5">
             <div className="dash-page-shell py-2 flex items-center gap-1.5 sm:gap-2 flex-wrap">
             {([
-              { label: 'Active Jobs',   value: jobs.length },
-              { label: 'Candidates',    value: totalCandidates },
-              { label: 'Interviews',    value: interviewCount },
-              { label: 'Shortlisted',   value: stageCounts['screening'] ?? 0 },
-              { label: 'Offers Sent',   value: stageCounts['offer'] ?? 0 },
-              { label: 'Hired',         value: hiredCount },
-              { label: 'Hire Rate',     value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '—' },
-            ] as const).map(({ label, value }) => (
-              <div key={label} className="flex flex-col items-start px-2.5 py-1.5 rounded-xl bg-white border border-slate-200/90 shadow-sm min-w-[4.75rem] ring-1 ring-slate-950/[0.03]">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 leading-none">{label}</span>
-                <span className="text-base sm:text-lg font-bold text-slate-900 tabular-nums leading-tight mt-0.5">{value}</span>
+              { label: 'Active Jobs',  value: jobs.length,                                                           accent: 'text-indigo-700',  bg: 'bg-indigo-50',  border: 'border-indigo-200',  dot: 'bg-indigo-500' },
+              { label: 'Candidates',   value: totalCandidates,                                                        accent: 'text-slate-800',   bg: 'bg-slate-50',   border: 'border-slate-200',   dot: 'bg-slate-400' },
+              { label: 'Interviews',   value: interviewCount,                                                         accent: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200',   dot: 'bg-amber-500' },
+              { label: 'Shortlisted',  value: stageCounts['screening'] ?? 0,                                          accent: 'text-purple-700',  bg: 'bg-purple-50',  border: 'border-purple-200',  dot: 'bg-purple-500' },
+              { label: 'Offers Sent',  value: stageCounts['offer'] ?? 0,                                              accent: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+              { label: 'Hired',        value: hiredCount,                                                             accent: 'text-green-700',   bg: 'bg-green-50',   border: 'border-green-200',   dot: 'bg-green-500' },
+              { label: 'Hire Rate',    value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '—', accent: 'text-sky-700', bg: 'bg-sky-50', border: 'border-sky-200', dot: 'bg-sky-500' },
+            ] as const).map(({ label, value, accent, bg, border, dot }) => (
+              <div key={label} className={`flex flex-col items-start px-2.5 py-1.5 rounded-xl ${bg} border ${border} shadow-sm min-w-[4.75rem] ring-1 ring-slate-950/[0.02]`}>
+                <div className="flex items-center gap-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${dot} flex-shrink-0`} />
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 leading-none">{label}</span>
+                </div>
+                <span className={`text-base sm:text-lg font-bold ${accent} tabular-nums leading-tight mt-0.5`}>{value}</span>
               </div>
             ))}
             <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
@@ -2935,87 +2943,83 @@ export default function DashboardPage() {
                     <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : (
-                  <div className="overflow-x-auto ent-table-wrap">
-                    <table className="ent-table">
+                  <div className="ent-table-wrap">
+                    <table className="ent-table w-full">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
-                          {['ID', 'Candidate', 'Record', 'Dossier', 'Workspace', 'Updated', 'AI', 'Match', 'Stage', 'Job', 'Source', 'Skills', 'Actions'].map(h => (
-                            <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">{h}</th>
-                          ))}
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">ID</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Candidate</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Contact</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Stage</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Match</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Job</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Location</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Source</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Skills</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Added</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {candidates.length === 0 ? (
-                          <tr><td colSpan={13} className="px-4 py-12 text-center text-gray-400">No candidates found</td></tr>
+                          <tr><td colSpan={11} className="px-4 py-12 text-center text-gray-400">No candidates found</td></tr>
                         ) : candidates.map((c, i) => (
-                          <tr key={c.id} onClick={() => setSelectedCandidate(c)} className={i % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}>
-                            <td className="px-4 py-3"><ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} /></td>
-                            <td className="px-4 py-3">
-                              <p className="font-bold text-gray-900">{c.candidate_name}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">{c.candidate_email}</p>
-                              {c.candidate_phone && <p className="text-xs text-gray-400 mt-0.5">{c.candidate_phone}</p>}
-                            </td>
-                            <td className="px-4 py-3 text-xs text-gray-600 max-w-[200px]">
-                              {(() => {
-                                const sum = candidateRecordSummary(c.candidate_profile ?? undefined)
-                                const co = (c.candidate_profile?.current_company ?? '').trim()
-                                if (!sum && !co) return <span className="text-gray-400">—</span>
-                                return (
-                                  <div className="space-y-0.5">
-                                    {co ? <p className="font-medium text-gray-800 line-clamp-1">{co}</p> : null}
-                                    {sum ? <p className="text-gray-500 line-clamp-2">{sum}</p> : null}
-                                  </div>
-                                )
-                              })()}
-                            </td>
-                            <td className="px-4 py-3">
-                              <CandidateDossierListCell c={c} />
-                            </td>
-                            <td className="px-4 py-3 text-xs max-w-[200px]">
-                              <p className="text-gray-700 font-medium leading-snug">{formatUploader(c.uploaded_by)}</p>
-                              <p className="text-gray-500 mt-0.5 whitespace-nowrap">{fmtDate(c.created_at)}</p>
-                              <p className="text-[10px] text-slate-500 mt-1 capitalize">
-                                <span className="font-semibold text-slate-600">Status:</span> {c.status || '—'}
-                              </p>
+                          <tr key={c.id} onClick={() => setSelectedCandidate(c)} className={`cursor-pointer transition-colors ${i % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'} hover:bg-indigo-50/40`}>
+                            <td className="px-3 py-2.5"><ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} /></td>
+                            <td className="px-3 py-2.5 min-w-[150px] max-w-[200px]">
+                              <p className="font-semibold text-[13px] text-gray-900 truncate">{c.candidate_name}</p>
                               {duplicateEmailKeys.has((c.candidate_email ?? '').trim().toLowerCase()) && (
-                                <span className="mt-1 inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
-                                  <AlertCircle className="w-3 h-3 shrink-0" /> Dup email
+                                <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 mb-0.5">
+                                  <AlertCircle className="w-2.5 h-2.5 shrink-0" /> Dup email
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{c.updated_at && c.updated_at !== c.created_at ? fmtDate(c.updated_at) : '—'}</td>
-                            <td className="px-4 py-3 text-xs font-semibold tabular-nums text-slate-700">
-                              {c.ai_score != null && !Number.isNaN(Number(c.ai_score)) ? `${Math.round(Number(c.ai_score))}` : '—'}
+                            <td className="px-3 py-2.5 min-w-[160px] max-w-[200px]">
+                              <p className="text-[12px] text-slate-700 font-medium truncate">{c.candidate_email}</p>
+                              {c.candidate_phone && <p className="text-[11px] text-slate-500 mt-0.5">{c.candidate_phone}</p>}
                             </td>
-                            <td className="px-4 py-3"><MatchBadge category={c.match_category} score={c.ai_score} variant="light" /></td>
-                            <td className="px-4 py-3"><StagePill stage={c.pipeline_stage} variant="light" /></td>
-                            <td className="px-4 py-3 text-xs text-gray-600">
-                              {c.job_posts ? (
-                                <div className="space-y-0.5"><p className="font-medium text-gray-700 line-clamp-1">{c.job_posts.title}</p><ShortIdBadge id={c.job_posts.short_id ?? ''} /></div>
-                              ) : <span className="text-gray-400">—</span>}
+                            <td className="px-3 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                              <select
+                                value={c.pipeline_stage}
+                                onChange={e => moveStage(c.id, e.target.value)}
+                                className={`text-xs font-medium px-2 py-0.5 rounded-full border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${STAGE_LIGHT[c.pipeline_stage]?.bg ?? 'bg-slate-100'} ${STAGE_LIGHT[c.pipeline_stage]?.text ?? 'text-slate-600'} ${STAGE_LIGHT[c.pipeline_stage]?.border ?? 'border-slate-200'}`}
+                                title="Change stage">
+                                {PIPELINE_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                              </select>
                             </td>
-                            <td className="px-4 py-3">
-                              <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">{c.source_type || 'Manual'}</span>
+                            <td className="px-3 py-2.5 whitespace-nowrap"><MatchBadge category={c.match_category} score={c.ai_score} variant="light" /></td>
+                            <td className="px-3 py-2.5 min-w-[110px] max-w-[150px]" onClick={e => e.stopPropagation()}>
+                              {c.job_posts
+                                ? <button onClick={() => { const j = jobs.find(jb => jb.id === c.job_posts?.id); if (j) setSelectedJobView(j) }}
+                                    className="text-xs font-medium text-indigo-600 hover:text-indigo-900 hover:underline text-left line-clamp-2">{c.job_posts.title}</button>
+                                : <span className="text-xs text-gray-400">—</span>}
                             </td>
-                            <td className="px-4 py-3">
-                              <div className="flex flex-wrap gap-1 max-w-[140px]">
-                                {(c.ai_skills ?? []).slice(0, 3).map(s => (
-                                  <span key={s} className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">{s}</span>
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                              {c.candidate_profile?.current_location
+                                ? <p className="text-xs text-gray-600">{c.candidate_profile.current_location}</p>
+                                : <span className="text-xs text-gray-300">—</span>}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200 whitespace-nowrap">{c.source_type || 'Manual'}</span>
+                            </td>
+                            <td className="px-3 py-2.5 min-w-[100px]">
+                              <div className="flex flex-wrap gap-1">
+                                {(c.ai_skills ?? []).slice(0, 2).map(s => (
+                                  <span key={s} className="text-[11px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100 whitespace-nowrap">{s}</span>
                                 ))}
-                                {(c.ai_skills?.length ?? 0) > 3 && (
-                                  <span className="text-xs text-gray-400">+{c.ai_skills.length - 3}</span>
+                                {(c.ai_skills?.length ?? 0) > 2 && (
+                                  <span className="text-[11px] text-gray-400 whitespace-nowrap">+{(c.ai_skills?.length ?? 0) - 2}</span>
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                              <div className="flex flex-col gap-1.5">
-                                <select value={c.pipeline_stage} onChange={e => moveStage(c.id, e.target.value)}
-                                  className="text-xs bg-white border border-gray-200 text-gray-600 rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:border-blue-400 font-medium">
-                                  {PIPELINE_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                                </select>
-                                <button onClick={() => setSelectedCandidate(c)}
-                                  className="text-xs text-blue-600 hover:text-blue-800 font-medium text-left">View →</button>
-                              </div>
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                              <p className="text-xs text-gray-500">{fmtDate(c.created_at)}</p>
+                              <p className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[90px]">{formatUploader(c.uploaded_by)}</p>
+                              <p className="text-[10px] capitalize mt-0.5 font-medium" style={{ color: c.status === 'reviewed' ? '#16a34a' : '#64748b' }}>{c.status || '—'}</p>
+                            </td>
+                            <td className="px-3 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                              <button onClick={() => setSelectedCandidate(c)}
+                                className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors">View →</button>
                             </td>
                           </tr>
                         ))}
@@ -3602,8 +3606,9 @@ export default function DashboardPage() {
                       <tbody>
                         {filteredJobs.map(job => {
                           const jobCands = candidates.filter(c => c.job_posts?.id === job.id)
+                          const stageSummary = PIPELINE_STAGES.slice(1).map(s => ({ ...s, count: jobCands.filter(c => c.pipeline_stage === s.key).length }))
                           return (
-                            <tr key={job.id} onClick={() => openJobDetails(job)}>
+                            <tr key={job.id} onClick={() => setSelectedJobView(job)} className="cursor-pointer hover:bg-indigo-50/30 transition-colors">
                               <td><ShortIdBadge id={job.short_id ?? job.id.slice(0, 8)} /></td>
                               <td>
                                 <p className="font-semibold text-gray-900 text-sm">{job.title}</p>
@@ -3612,11 +3617,19 @@ export default function DashboardPage() {
                               <td className="text-sm text-gray-600">{job.company || '—'}</td>
                               <td className="text-sm text-gray-500">{job.location || '—'}</td>
                               <td className="text-sm text-gray-500 capitalize">{job.type || '—'}</td>
-                              <td className="text-center">
-                                <span className="inline-flex items-center gap-1 text-sm text-gray-700">
-                                  <Users className="w-3.5 h-3.5 text-gray-400" />
+                              <td className="text-center" onClick={e => e.stopPropagation()}>
+                                <button onClick={() => setSelectedJobView(job)}
+                                  className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-700 hover:text-indigo-900">
+                                  <Users className="w-3.5 h-3.5" />
                                   {jobCands.length}
-                                </span>
+                                </button>
+                                {jobCands.length > 0 && (
+                                  <div className="flex items-center gap-0.5 mt-1 justify-center flex-wrap">
+                                    {stageSummary.filter(s => s.count > 0).slice(0, 4).map(s => (
+                                      <span key={s.key} className={`text-[10px] px-1 py-0 rounded border font-semibold ${STAGE_LIGHT[s.key]?.bg} ${STAGE_LIGHT[s.key]?.text} ${STAGE_LIGHT[s.key]?.border}`}>{s.label[0]}: {s.count}</span>
+                                    ))}
+                                  </div>
+                                )}
                               </td>
                               <td>
                                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${job.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
@@ -3627,12 +3640,16 @@ export default function DashboardPage() {
                               <td className="text-xs text-gray-400 whitespace-nowrap">{job.updated_at && job.updated_at !== job.created_at ? fmtDate(job.updated_at) : '—'}</td>
                               <td>
                                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                                  <button onClick={() => setSelectedJobView(job)}
+                                    className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-200">
+                                    <Users className="w-3 h-3" /> Candidates
+                                  </button>
                                   <button onClick={() => openJobDetails(job)}
                                     className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap">
                                     <Sparkles className="w-3 h-3" /> {job.post_contents ? 'Posts' : 'JD'}
                                   </button>
                                   <button onClick={() => { setSelectedJob(job.id); setActiveTab('pipeline') }}
-                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap">
+                                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 font-medium whitespace-nowrap">
                                     Pipeline <ArrowRight className="w-3 h-3" />
                                   </button>
                                 </div>
@@ -4771,6 +4788,28 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ── Job Detail Drawer ───────────────────────────────────────────── */}
+      {selectedJobView && (
+        <JobDetailDrawer
+          job={selectedJobView}
+          candidates={candidates.filter(c => c.job_posts?.id === selectedJobView.id)}
+          jobs={jobs}
+          onClose={() => setSelectedJobView(null)}
+          onOpenCandidate={c => setSelectedCandidate(c)}
+          onStageChange={moveStage}
+          onJobStatusChange={async (jobId, status) => {
+            setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status } : j))
+            setSelectedJobView(prev => prev ? { ...prev, status } : null)
+            await fetch(`/api/jobs/${jobId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status }),
+            })
+          }}
+          onOpenPosts={job => { setSelectedJobView(null); openJobDetails(job) }}
+        />
+      )}
+
       {/* ── Candidate Detail Modal ──────────────────────────────────────────── */}
       {selectedCandidate && (
         <CandidateDetailModal
@@ -5708,21 +5747,202 @@ function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDra
   )
 }
 
+// ── JobDetailDrawer ───────────────────────────────────────────────────────────
+function JobDetailDrawer({ job, candidates, jobs, onClose, onOpenCandidate, onStageChange, onJobStatusChange, onOpenPosts }: {
+  job: Job
+  candidates: Candidate[]
+  jobs: Job[]
+  onClose: () => void
+  onOpenCandidate: (c: Candidate) => void
+  onStageChange: (id: string, stage: string) => void
+  onJobStatusChange: (jobId: string, status: string) => Promise<void>
+  onOpenPosts: (job: Job) => void
+}) {
+  const [savingStatus, setSavingStatus] = useState(false)
+  const [assigningId, setAssigningId] = useState<string | null>(null)
+
+  const stageSummary = PIPELINE_STAGES.map(s => ({
+    ...s,
+    count: candidates.filter(c => c.pipeline_stage === s.key).length,
+  }))
+  const total = candidates.length
+
+  const handleStatusChange = async (newStatus: string) => {
+    setSavingStatus(true)
+    try { await onJobStatusChange(job.id, newStatus) } finally { setSavingStatus(false) }
+  }
+
+  const handleInlineStage = async (candId: string, stage: string) => {
+    setAssigningId(candId)
+    await onStageChange(candId, stage)
+    setAssigningId(null)
+  }
+
+  return (
+    <div className="drawer-overlay" style={{ zIndex: 45 }} onClick={onClose}>
+      <div className="drawer-panel flex flex-col bg-white" style={{ maxWidth: 780 }} onClick={e => e.stopPropagation()}>
+        {/* ── Header ── */}
+        <div className="flex items-start gap-4 p-6 border-b border-slate-200 bg-slate-50/80 flex-shrink-0">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex-shrink-0 flex items-center justify-center shadow-md">
+            <Briefcase className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-bold text-slate-900 leading-tight">{job.title}</h2>
+            <p className="text-sm text-slate-500 mt-0.5">{[job.company, job.location, job.type].filter(Boolean).join(' · ')}</p>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <ShortIdBadge id={job.short_id ?? job.id.slice(0, 8)} />
+              <select
+                value={job.status}
+                disabled={savingStatus}
+                onChange={e => handleStatusChange(e.target.value)}
+                className={`text-xs font-semibold px-2 py-0.5 rounded-full border appearance-none cursor-pointer focus:outline-none ${
+                  job.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' :
+                  job.status === 'closed' ? 'bg-red-50 text-red-700 border-red-200' :
+                  'bg-gray-100 text-gray-600 border-gray-200'
+                }`}
+                title="Change job status">
+                <option value="active">Active</option>
+                <option value="closed">Closed</option>
+                <option value="draft">Draft</option>
+              </select>
+              <span className="text-xs text-slate-400 font-mono">Posted {fmtDate(job.created_at)}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={() => onOpenPosts(job)}
+              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium border border-blue-100 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors">
+              <Sparkles className="w-3.5 h-3.5" /> JD / Posts
+            </button>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Pipeline Funnel ── */}
+        <div className="flex-shrink-0 px-6 pt-4 pb-3 border-b border-slate-100">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Pipeline · {total} candidate{total !== 1 ? 's' : ''}</p>
+          <div className="grid grid-cols-7 gap-1.5">
+            {stageSummary.map(s => (
+              <div key={s.key} className={`rounded-xl p-2 text-center border ${STAGE_LIGHT[s.key]?.bg ?? 'bg-slate-50'} ${STAGE_LIGHT[s.key]?.border ?? 'border-slate-200'}`}>
+                <p className={`text-base font-bold ${STAGE_LIGHT[s.key]?.text ?? 'text-slate-600'}`}>{s.count}</p>
+                <p className={`text-[10px] font-semibold ${STAGE_LIGHT[s.key]?.text ?? 'text-slate-500'} truncate`}>{s.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Description preview ── */}
+        {job.description && (
+          <div className="flex-shrink-0 px-6 py-3 border-b border-slate-100 bg-slate-50/50">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Job description</p>
+            <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">{job.description}</p>
+          </div>
+        )}
+
+        {/* ── Candidate List ── */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-6 pt-4 pb-2 flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Candidates for this job</p>
+            <span className="text-xs text-slate-400">{total} total</span>
+          </div>
+          {total === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 text-center px-6">
+              <Users className="w-8 h-8 text-slate-300 mb-2" />
+              <p className="text-sm text-slate-500 mb-1">No candidates linked to this job yet.</p>
+              <p className="text-xs text-slate-400">Upload a CV on the AI Screen tab and select this job, or assign existing candidates via their profile.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-4 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Candidate</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Stage</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Match</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Added</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {candidates.map((c, i) => (
+                    <tr key={c.id}
+                      onClick={() => onOpenCandidate(c)}
+                      className={`cursor-pointer transition-colors border-b border-slate-100 ${i % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'} hover:bg-indigo-50/40`}>
+                      <td className="px-4 py-3 min-w-[180px]">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex-shrink-0 flex items-center justify-center text-xs font-bold text-white">
+                            {c.candidate_name?.[0]?.toUpperCase() ?? '?'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-900 truncate">{c.candidate_name}</p>
+                            <p className="text-[11px] text-slate-500 truncate">{c.candidate_email}</p>
+                            {c.candidate_phone && <p className="text-[10px] text-slate-400">{c.candidate_phone}</p>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                        {assigningId === c.id
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+                          : <select
+                              value={c.pipeline_stage}
+                              onChange={e => handleInlineStage(c.id, e.target.value)}
+                              className={`text-xs font-medium px-2 py-0.5 rounded-full border appearance-none cursor-pointer focus:outline-none ${STAGE_LIGHT[c.pipeline_stage]?.bg ?? 'bg-slate-100'} ${STAGE_LIGHT[c.pipeline_stage]?.text ?? 'text-slate-600'} ${STAGE_LIGHT[c.pipeline_stage]?.border ?? 'border-slate-200'}`}>
+                              {PIPELINE_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                            </select>
+                        }
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <MatchBadge category={c.match_category} score={c.ai_score} variant="light" />
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <span className="text-xs text-slate-400">{fmtDate(c.created_at)}</span>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <button onClick={e => { e.stopPropagation(); onOpenCandidate(c) }}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors">
+                          View →
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── CandidateDetailModal ──────────────────────────────────────────────────────
 const EMPTY_RECORD: Record<string, string> = {
+  // ── Employment
   current_company: '',
   current_title: '',
   current_location: '',
-  salary_expectation: '',
+  preferred_location: '',
+  // ── Experience
+  total_experience: '',
+  relevant_experience: '',
+  // ── Compensation
+  current_salary: '',
+  expected_salary: '',
   notice_period: '',
+  // ── Compliance / visa
   nationality: '',
   work_authorization: '',
   visa_type: '',
   visa_expiry: '',
+  // ── Government / legal IDs
   india_pan: '',
   india_aadhaar_last4: '',
+  passport_number: '',
+  pf_number: '',
   id_document_type: '',
   id_document_reference: '',
+  // ── Notes
   notes: '',
 }
 
@@ -5764,7 +5984,11 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
       current_company: String(p.current_company ?? ''),
       current_title: String(p.current_title ?? ''),
       current_location: String(p.current_location ?? ''),
-      salary_expectation: String(p.salary_expectation ?? ''),
+      preferred_location: String(p.preferred_location ?? ''),
+      total_experience: String(p.total_experience ?? ''),
+      relevant_experience: String(p.relevant_experience ?? ''),
+      current_salary: String(p.current_salary ?? ''),
+      expected_salary: String(p.expected_salary ?? ''),
       notice_period: String(p.notice_period ?? ''),
       nationality: String(p.nationality ?? ''),
       work_authorization: String(p.work_authorization ?? ''),
@@ -5772,6 +5996,8 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
       visa_expiry: String(p.visa_expiry ?? ''),
       india_pan: String(p.india_pan ?? ''),
       india_aadhaar_last4: String(p.india_aadhaar_last4 ?? ''),
+      passport_number: String(p.passport_number ?? ''),
+      pf_number: String(p.pf_number ?? ''),
       id_document_type: String(p.id_document_type ?? ''),
       id_document_reference: String(p.id_document_reference ?? ''),
       notes: String(p.notes ?? ''),
@@ -5852,9 +6078,8 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[60] overflow-y-auto flex items-start justify-center p-4"
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-white rounded-2xl w-full max-w-3xl border border-slate-200 shadow-2xl shadow-slate-900/15 my-auto max-h-[min(90vh,920px)] overflow-hidden flex flex-col">
+    <div className="drawer-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="drawer-panel" style={{ maxWidth: '720px' }}>
 
         {duplicateSiblings.length > 0 && (
           <div className="mx-6 mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -5986,64 +6211,74 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
         </div>
 
         {tab === 'profile' && (
-          <div className="p-6 space-y-5 overflow-y-auto max-h-[60vh] bg-white">
+          <div className="p-5 space-y-5 bg-white">
 
-            {/* Full dossier (all tracked fields — read-only) */}
+            {/* ── Quick Info Grid ── */}
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Full dossier summary</p>
-              <div className="rounded-xl border border-slate-200 overflow-hidden max-h-56 overflow-y-auto bg-slate-50/50">
-                <table className="w-full text-xs">
-                  <thead className="bg-slate-100 sticky top-0 border-b border-slate-200">
-                    <tr className="text-left text-slate-600">
-                      <th className="px-3 py-2 font-semibold">Field</th>
-                      <th className="px-3 py-2 font-semibold">Value</th>
-                      <th className="px-2 py-2 w-8" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {checks.map(ch => (
-                      <tr key={ch.id} className={ch.ok ? 'border-t border-slate-100 bg-white' : 'border-t border-amber-100 bg-amber-50/50'}>
-                        <td className="px-3 py-2 text-slate-600">
-                          {ch.label}
-                          {ch.level === 'required' ? <span className="text-red-500"> *</span> : null}
-                        </td>
-                        <td className="px-3 py-2 text-slate-900 break-all max-w-[200px]">{dossierDisplayValue(c, ch.id)}</td>
-                        <td className="px-2 py-2 text-center">
-                          {ch.ok
-                            ? <CheckCircle className="w-3.5 h-3.5 text-emerald-600 inline-block" aria-label="OK" />
-                            : <AlertCircle className="w-3.5 h-3.5 text-amber-500 inline-block" aria-label="Missing" />}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3">Candidate Overview</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  { label: 'Email ID', value: c.candidate_email, color: 'text-indigo-700' },
+                  { label: 'Contact Number', value: c.candidate_phone || null },
+                  { label: 'Current Company', value: c.candidate_profile?.current_company || null },
+                  { label: 'Current Title', value: c.candidate_profile?.current_title || null },
+                  { label: 'Current Location', value: c.candidate_profile?.current_location || null },
+                  { label: 'Preferred Location', value: c.candidate_profile?.preferred_location || null },
+                  { label: 'Total Experience', value: c.candidate_profile?.total_experience || null },
+                  { label: 'Relevant Experience', value: c.candidate_profile?.relevant_experience || null },
+                  { label: 'Nationality', value: c.candidate_profile?.nationality || null },
+                  { label: 'Visa Type', value: c.candidate_profile?.visa_type || null },
+                  { label: 'Visa Validity', value: c.candidate_profile?.visa_expiry || null },
+                  { label: 'Work Authorization', value: c.candidate_profile?.work_authorization || null },
+                  { label: 'Current Salary', value: c.candidate_profile?.current_salary || null },
+                  { label: 'Expected Salary', value: c.candidate_profile?.expected_salary || null },
+                  { label: 'Notice Period', value: c.candidate_profile?.notice_period || null },
+                  { label: 'PAN Number', value: c.candidate_profile?.india_pan || null },
+                  { label: 'Aadhaar (masked)', value: c.candidate_profile?.india_aadhaar_last4 || null },
+                  { label: 'Passport Number', value: c.candidate_profile?.passport_number || null },
+                  { label: 'PF Number', value: c.candidate_profile?.pf_number || null },
+                  { label: 'Other ID Type', value: c.candidate_profile?.id_document_type ? `${c.candidate_profile.id_document_type}${c.candidate_profile.id_document_reference ? ': ' + c.candidate_profile.id_document_reference : ''}` : null },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{label}</p>
+                    <p className={`text-[13px] font-medium break-all leading-snug ${color ?? (value ? 'text-slate-800' : 'text-slate-300')}`}>
+                      {value || '—'}
+                    </p>
+                  </div>
+                ))}
               </div>
+              {(c.candidate_profile?.notes) && (
+                <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Internal Notes</p>
+                  <p className="text-[13px] text-slate-700 whitespace-pre-line">{c.candidate_profile.notes}</p>
+                </div>
+              )}
             </div>
 
-            {/* Phone (stored on candidate row) */}
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Phone</p>
-              <div className={`flex flex-col sm:flex-row gap-2 rounded-xl border p-3 ${warnRecordIds.has('candidate_phone') ? 'border-amber-300 bg-amber-50/80' : 'border-slate-200 bg-slate-50'}`}>
+            {/* ── Edit phone (stored on row, not in profile JSONB) ── */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-2">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Update Phone</p>
+              <div className={`flex gap-2 rounded-lg border p-2 ${warnRecordIds.has('candidate_phone') ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'}`}>
                 <input value={phoneDraft} onChange={e => setPhoneDraft(e.target.value)}
                   type="tel" placeholder="+91 … or local number"
-                  className="flex-1 px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
+                  className="flex-1 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
                 <button type="button" onClick={savePhone} disabled={phoneSaving}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold border border-indigo-700 disabled:opacity-50 shadow-sm">
-                  {phoneSaving ? 'Saving…' : 'Save phone'}
+                  className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold disabled:opacity-50 shadow-sm whitespace-nowrap">
+                  {phoneSaving ? 'Saving…' : 'Save'}
                 </button>
               </div>
-              {phoneMsg && <p className={`text-xs mt-2 ${phoneMsg.ok ? 'text-emerald-600' : 'text-red-600'}`}>{phoneMsg.text}</p>}
+              {phoneMsg && <p className={`text-xs ${phoneMsg.ok ? 'text-emerald-600' : 'text-red-600'}`}>{phoneMsg.text}</p>}
             </div>
 
-            {/* Pipeline Stage */}
+            {/* ── Pipeline Stage ── */}
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Pipeline Stage</p>
-              <div className="flex flex-wrap gap-2">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">Pipeline Stage</p>
+              <div className="flex flex-wrap gap-1.5">
                 {PIPELINE_STAGES.map(s => (
                   <button key={s.key} onClick={() => onStageChange(c.id, s.key)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
                       c.pipeline_stage === s.key
-                        ? 'bg-indigo-50 text-indigo-800 border-indigo-300 ring-2 ring-indigo-100'
+                        ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm'
                         : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                     }`}>
                     {s.label}
@@ -6052,9 +6287,9 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
               </div>
             </div>
 
-            {/* Assign to Job */}
+            {/* ── Assign to Job ── */}
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Assigned Job</p>
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Assigned Job</p>
               <select value={c.job_posts?.id ?? ''}
                 onChange={e => onJobChange(c.id, e.target.value)}
                 className={`w-full px-3 py-2 rounded-lg bg-white border text-sm text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 ${
@@ -6063,96 +6298,124 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
                 <option value="">— No Job Assigned —</option>
                 {jobs.map(j => <option key={j.id} value={j.id}>{j.title} · {j.company} ({j.short_id})</option>)}
               </select>
-              <p className="text-xs text-slate-500 mt-1">Reassign this resume to a different job opening.</p>
             </div>
 
-            {/* Skills */}
+            {/* ── AI Skills ── */}
             {(c.ai_skills?.length ?? 0) > 0 && (
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Extracted Skills</p>
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">AI-Extracted Skills</p>
                 <div className="flex flex-wrap gap-1.5">
                   {c.ai_skills.map(s => (
-                    <span key={s} className="px-2 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-100 text-xs">{s}</span>
+                    <span key={s} className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-100 text-xs font-medium">{s}</span>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* AI Assessment */}
+            {/* ── AI Summary ── */}
             {hasAiData && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">AI Assessment</p>
-                  <button onClick={() => setTab('ai')} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1">
-                    View full report →
-                  </button>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">AI Assessment</p>
+                  <button onClick={() => setTab('ai')} className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">Full report →</button>
                 </div>
-                <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-3 border border-slate-200">{c.ai_summary || 'AI screening data available — click "View full report" to see details.'}</p>
+                <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-3 border border-slate-200">{c.ai_summary || 'AI screening data available — click "Full report" to see details.'}</p>
               </div>
             )}
 
-            <div className="rounded-lg border border-indigo-100 bg-indigo-50/80 px-3 py-2 text-xs text-indigo-900">
-              Store compensation, notice, visa, and ID references under <span className="font-semibold">ATS record</span>. Data stays in this workspace and is not visible to other tenants.
+            {/* ── Meta ── */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+              <span className="font-mono">ID: {c.short_id ?? c.id.slice(0, 8)}</span>
+              <span>Added: {fmtDate(c.created_at)}</span>
+              {c.source_type && <span className="capitalize bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">via {c.source_type.replace('_', ' ')}</span>}
+              {c.file_name && <span className="flex items-center gap-1"><FileText className="w-3 h-3 text-slate-400" />{c.file_name}</span>}
+              {c.last_contacted_at && <span>Last contacted: {fmtDate(c.last_contacted_at)}</span>}
             </div>
 
-            {/* Meta */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 pt-2 border-t border-slate-200">
-              {c.file_name && (
-                <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5 text-slate-400" />{c.file_name}</span>
-              )}
-              {c.source_type && c.source_type !== 'direct_upload' && (
-                <span className="capitalize bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">via {c.source_type.replace('_', ' ')}</span>
-              )}
-              <span className="font-mono text-slate-500">ID: {c.short_id ?? c.id.slice(0, 8)}</span>
-              <span>Added: {fmtDate(c.created_at)}</span>
-              {c.updated_at && c.updated_at !== c.created_at && (
-                <span>Updated: {fmtDate(c.updated_at)}</span>
-              )}
-              {c.last_contacted_at && (
-                <span>Last contacted: {fmtDate(c.last_contacted_at)}</span>
-              )}
+            <div className="rounded-lg border border-indigo-100 bg-indigo-50/80 px-3 py-2 text-xs text-indigo-900">
+              To edit compensation, visa, notice, and IDs — switch to the <button type="button" onClick={() => setTab('record')} className="font-semibold underline underline-offset-2">ATS record tab</button>.
             </div>
           </div>
         )}
 
         {tab === 'record' && (
-          <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto bg-white">
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Recruiter-maintained facts (not inferred from CV). Prefer masked or partial IDs in notes; full values are visible only inside this tenant.
+          <div className="p-5 space-y-5 bg-white">
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Recruiter-maintained details (not inferred from CV). Visible only to your workspace. Prefer masked/last-4 digits for government IDs per data policy.
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {recField('current_company', 'Current company', 'e.g. Acme Ltd', 'text', recWarn('current_company'))}
-              {recField('current_title', 'Current title', 'e.g. Senior Engineer', 'text', recWarn('current_title'))}
-              {recField('current_location', 'Current location', 'City, country', 'text', recWarn('current_location'))}
-              {recField('salary_expectation', 'Salary expectation', 'Range + currency, e.g. 24–28 LPA INR', 'text', recWarn('salary_expectation'))}
-              {recField('notice_period', 'Notice period', 'e.g. 60 days', 'text', recWarn('notice_period'))}
-              {recField('nationality', 'Nationality / citizenship', '', 'text', recWarn('nationality'))}
-              {recField('work_authorization', 'Work authorization', 'e.g. Citizen, PR, EP holder', 'text', recWarn('work_authorization'))}
-              {recField('visa_type', 'Visa type (if applicable)', '', 'text', recWarn('visa_type'))}
-              {recField('visa_expiry', 'Visa expiry', 'YYYY-MM-DD or as on passport', 'text', recWarn('visa_expiry'))}
-            </div>
-            <div className="border-t border-slate-200 pt-4 space-y-4">
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Government / legal ID (workspace only)</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {recField('india_pan', 'India — PAN', 'e.g. ABCDE1234F', 'text', recWarn('india_pan'))}
-                {recField('india_aadhaar_last4', 'India — Aadhaar (masked / last digits)', 'Prefer last 4 or masked per policy', 'text', recWarn('india_aadhaar_last4'))}
-                {recField('id_document_type', 'Other — ID type', 'NRIC, passport, SSN last-4, driver license…', 'text', recWarn('id_document_type'))}
-                {recField('id_document_reference', 'Other — ID reference', 'Masked or reference as allowed by policy', 'text', recWarn('id_document_reference'))}
+
+            {/* ── Employment ── */}
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Employment</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {recField('current_company', 'Current / Previous Employer', 'e.g. Acme Ltd', 'text', recWarn('current_company'))}
+                {recField('current_title', 'Current Job Title', 'e.g. Senior Engineer', 'text', recWarn('current_title'))}
+                {recField('current_location', 'Current Location', 'City, country', 'text', recWarn('current_location'))}
+                {recField('preferred_location', 'Preferred Location', 'City or "Open to relocation"', 'text', false)}
               </div>
             </div>
-            {recField('notes', 'Internal notes', 'References, background check status…', 'textarea')}
+
+            {/* ── Experience ── */}
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Experience</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {recField('total_experience', 'Total Experience', 'e.g. 8 years', 'text', false)}
+                {recField('relevant_experience', 'Relevant Experience', 'e.g. 5 years in React', 'text', false)}
+              </div>
+            </div>
+
+            {/* ── Compensation & Availability ── */}
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Compensation &amp; Availability</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {recField('current_salary', 'Current Salary', 'e.g. 18 LPA INR or 5,000 MYR/mo', 'text', recWarn('current_salary' as keyof typeof recordDraft))}
+                {recField('expected_salary', 'Expected Salary', 'e.g. 24–28 LPA INR', 'text', recWarn('salary_expectation' as keyof typeof recordDraft))}
+                {recField('notice_period', 'Notice Period', 'e.g. 60 days', 'text', recWarn('notice_period'))}
+              </div>
+            </div>
+
+            {/* ── Compliance / Visa ── */}
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Nationality &amp; Visa</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {recField('nationality', 'Nationality / Citizenship', '', 'text', recWarn('nationality'))}
+                {recField('work_authorization', 'Work Authorization', 'e.g. Citizen, PR, EP holder', 'text', recWarn('work_authorization'))}
+                {recField('visa_type', 'Visa Type', 'e.g. Employment Pass, H1-B, Work Permit', 'text', recWarn('visa_type'))}
+                {recField('visa_expiry', 'Visa Validity', 'YYYY-MM-DD or as on passport', 'text', recWarn('visa_expiry'))}
+              </div>
+            </div>
+
+            {/* ── Government / Legal IDs ── */}
+            <div className="border-t border-slate-200 pt-4">
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Government / Legal IDs <span className="text-slate-300 font-normal normal-case">(workspace only — use masked values)</span></p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {recField('india_pan', 'PAN Number (India)', 'e.g. ABCDE1234F', 'text', recWarn('india_pan'))}
+                {recField('india_aadhaar_last4', 'Aadhaar (last 4 / masked)', 'Prefer last 4 digits per policy', 'text', recWarn('india_aadhaar_last4'))}
+                {recField('passport_number', 'Passport Number', 'Masked or reference', 'text', false)}
+                {recField('pf_number', 'PF / EPF Number', 'e.g. MH/12345/6789', 'text', false)}
+                {recField('id_document_type', 'Other ID Type', 'NRIC, SSN last-4, Driver License…', 'text', recWarn('id_document_type'))}
+                {recField('id_document_reference', 'Other ID Reference', 'Masked or reference as per policy', 'text', recWarn('id_document_reference'))}
+              </div>
+            </div>
+
+            {/* ── Notes ── */}
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Internal Notes</p>
+              {recField('notes', '', 'References, background check status, interview notes…', 'textarea')}
+            </div>
+
             {recordMsg && (
               <p className={`text-sm ${recordMsg.ok ? 'text-emerald-600' : 'text-red-600'}`}>{recordMsg.text}</p>
             )}
             <button type="button" onClick={saveRecord} disabled={recordSaving}
-              className="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold disabled:opacity-50 shadow-sm">
-              {recordSaving ? 'Saving…' : 'Save ATS record'}
+              className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold disabled:opacity-50 shadow-sm transition-colors">
+              {recordSaving ? 'Saving…' : 'Save ATS Record'}
             </button>
           </div>
         )}
 
         {tab === 'ai' && (
-          <div className="p-6 max-h-[70vh] overflow-y-auto bg-white">
+          <div className="p-6 bg-white">
             {structuredAi
               ? <CandidateScreeningDetail data={c.ai_screening_data as ScreenResult} />
               : c.ai_summary
@@ -6177,54 +6440,65 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
         )}
 
         {tab === 'resume' && (
-          <div className="p-6 space-y-4 bg-white overflow-y-auto max-h-[70vh]">
-            {!c.raw_text?.trim() && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                <p className="font-semibold flex items-center gap-2 text-amber-900">
-                  <AlertCircle className="w-4 h-4" /> Missing resume / CV text
-                </p>
-                <p className="text-xs text-amber-900/85 mt-1">Close this dialog, open <span className="font-semibold">AI Screening</span>, and run screening with a file or paste text to store the CV.</p>
-              </div>
-            )}
-            {c.resume_original_path && (
-              <div className="flex flex-wrap items-center gap-3">
-                <a
-                  href={`/api/candidates/${c.id}/resume-file`}
-                  download={c.file_name || 'resume'}
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-800">
-                  <Download className="w-4 h-4" /> Download original file
-                </a>
+          <div className="p-6 space-y-4 bg-white">
+            {/* Original file download + PDF embed */}
+            {c.resume_original_path ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                  <FileText className="w-5 h-5 text-indigo-500 flex-shrink-0" />
+                  <span className="text-sm font-medium text-slate-700 flex-1 truncate">{c.file_name || 'Resume file'}</span>
+                  <a
+                    href={`/api/candidates/${c.id}/resume-file`}
+                    download={c.file_name || 'resume'}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-colors">
+                    <Download className="w-3.5 h-3.5" /> Download
+                  </a>
+                  {c.resume_original_path.toLowerCase().endsWith('.pdf') && (
+                    <a
+                      href={`/api/candidates/${c.id}/resume-file?inline=1`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors">
+                      <ExternalLink className="w-3.5 h-3.5" /> Open PDF
+                    </a>
+                  )}
+                </div>
                 {c.resume_original_path.toLowerCase().endsWith('.pdf') && (
-                  <span className="text-xs text-slate-500">PDF preview below</span>
+                  <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-100">
+                    <iframe
+                      title="Original resume PDF"
+                      className="w-full bg-white"
+                      style={{ height: '65vh', minHeight: '480px' }}
+                      src={`/api/candidates/${c.id}/resume-file?inline=1`}
+                    />
+                  </div>
                 )}
               </div>
-            )}
-            {!c.resume_original_path && c.file_name && (
-              <p className="text-xs text-slate-500 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                Original file was not stored for this record. Add new candidates with a resume file attached to enable download and PDF preview here.
-              </p>
-            )}
-            {c.resume_original_path?.toLowerCase().endsWith('.pdf') && (
-              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-100 min-h-[420px]">
-                <iframe
-                  title="Original resume PDF"
-                  className="w-full h-[min(70vh,560px)] bg-white"
-                  src={`/api/candidates/${c.id}/resume-file?inline=1`}
-                />
+            ) : (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 flex items-start gap-3">
+                <FileText className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-slate-700">No original file stored</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {c.file_name
+                      ? `"${c.file_name}" was imported without file storage. Add new candidates with a resume file attached to enable download and PDF preview.`
+                      : 'Add candidates using the AI Screening upload to store and preview the original file.'}
+                  </p>
+                </div>
               </div>
             )}
+            {/* Extracted text */}
             {c.raw_text ? (
               <div>
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Extracted text (searchable)</p>
-                <pre className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50 rounded-lg p-4 border border-slate-200 max-h-[40vh] overflow-y-auto font-sans">
+                <pre className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50 rounded-lg p-4 border border-slate-200 font-sans">
                   {c.raw_text.replace(/[□☐■▪◦◆►▸]/g, '•')}
                 </pre>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-40 text-slate-500">
+              <div className="flex flex-col items-center justify-center py-12 text-slate-500 rounded-lg border border-slate-100 bg-slate-50">
                 <FileText className="w-10 h-10 mb-2 opacity-30" />
-                <p className="text-sm">No resume text stored for this candidate</p>
-                <p className="text-xs mt-1">Run AI Screening with a CV file to extract and save text</p>
+                <p className="text-sm font-medium">No resume text stored</p>
+                <p className="text-xs mt-1 text-slate-400">Run AI Screening with a CV file to extract and save text</p>
               </div>
             )}
           </div>

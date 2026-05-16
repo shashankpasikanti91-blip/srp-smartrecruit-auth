@@ -411,7 +411,7 @@ aside ::-webkit-scrollbar-thumb:hover { background: #64748b; }
   border: 1px solid var(--dash-border);
   border-radius: 16px;
   box-shadow: var(--shadow-card);
-  overflow: hidden;
+  overflow: auto;
 }
 .ent-table th {
   background: #f8fafc;
@@ -476,7 +476,7 @@ aside ::-webkit-scrollbar-thumb:hover { background: #64748b; }
 }
 .drawer-panel {
   width: 100%;
-  max-width: 520px;
+  max-width: 720px;
   height: 100%;
   background: #FFFFFF;
   border-left: 1px solid var(--dash-border);
