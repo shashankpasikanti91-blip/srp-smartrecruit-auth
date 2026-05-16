@@ -210,7 +210,7 @@ export default function Home() {
         <div className="orb w-64 h-64 bg-pink-600 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" style={{ animationDelay: '-2s' }} />
 
         {/* Badge */}
-        <div className="relative z-10 mb-6 inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-card text-xs font-medium text-indigo-300">
+        <div className="relative z-10 mb-6 inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-card-dark text-xs font-medium text-indigo-300">
           <Rocket className="w-3.5 h-3.5" />
           Powered by Advanced AI · Now with Bulk Screening
         </div>
@@ -238,7 +238,7 @@ export default function Home() {
             href="https://recruit.srpailabs.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-8 py-4 rounded-xl glass-card text-white font-semibold text-base hover:bg-white/10 transition-colors"
+            className="px-8 py-4 rounded-xl glass-card-dark text-white font-semibold text-base hover:bg-white/10 transition-colors border border-white/15"
           >
             Open Recruit →
           </a>
@@ -247,7 +247,7 @@ export default function Home() {
         {/* Stats */}
         <div className="relative z-10 mt-20 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl w-full animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
           {stats.map((stat) => (
-            <div key={stat.label} className="glass-card rounded-2xl p-5 text-center">
+            <div key={stat.label} className="glass-card-dark rounded-2xl p-5 text-center">
               <div className="text-3xl font-extrabold gradient-text">{stat.value}</div>
               <div className="mt-1 text-xs text-gray-500 font-medium">{stat.label}</div>
             </div>
@@ -278,7 +278,7 @@ export default function Home() {
             {features.map((f) => (
               <div
                 key={f.title}
-                className="glass-card rounded-2xl p-7 group hover:border-white/15 transition-all hover:-translate-y-1"
+                className="glass-card-dark rounded-2xl p-7 group hover:border-white/20 transition-all hover:-translate-y-1"
               >
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${f.color} flex items-center justify-center text-white mb-5 shadow-lg`}>
                   {f.icon}
@@ -307,7 +307,7 @@ export default function Home() {
 
             {steps.map((step, i) => (
               <div key={step.number} className="relative flex flex-col items-center text-center" style={{ animationDelay: `${i * 0.15}s` }}>
-                <div className="w-20 h-20 rounded-2xl glass-card flex flex-col items-center justify-center mb-6 relative z-10 border border-white/10">
+                <div className="w-20 h-20 rounded-2xl glass-card-dark flex flex-col items-center justify-center mb-6 relative z-10 border border-white/10">
                   {step.icon}
                   <span className="text-[10px] font-bold text-gray-600 mt-1">{step.number}</span>
                 </div>
@@ -331,7 +331,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {howItWorks.map((s) => (
-              <div key={s.step} className="glass-card rounded-2xl p-7 flex flex-col">
+              <div key={s.step} className="glass-card-dark rounded-2xl p-7 flex flex-col">
                 <p className={`text-3xl font-bold ${s.color} mb-4`}>{s.step}</p>
                 <p className="text-white font-semibold text-lg mb-2">{s.title}</p>
                 <p className="text-gray-400 text-sm leading-relaxed flex-1">{s.description}</p>
@@ -359,7 +359,7 @@ export default function Home() {
                 className={`relative rounded-2xl p-8 flex flex-col ${
                   plan.highlighted
                     ? 'bg-gradient-to-b from-indigo-600/20 to-purple-600/10 border border-indigo-500/40 shadow-xl shadow-indigo-500/10'
-                    : 'glass-card'
+                    : 'glass-card-dark'
                 }`}
               >
                 {plan.highlighted && (
@@ -388,7 +388,7 @@ export default function Home() {
                   className={`mt-8 w-full py-3 rounded-xl text-center font-semibold text-sm transition-all ${
                     plan.highlighted
                       ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white btn-glow'
-                      : 'glass-card text-white hover:bg-white/10'
+                      : 'glass-card-dark text-white hover:bg-white/10 border border-white/15'
                   }`}
                 >
                   {plan.cta}
