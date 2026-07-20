@@ -42,7 +42,7 @@ jobs:
     name: Deploy & E2E
     runs-on: ubuntu-latest
     needs: build-check
-    timeout-minutes: 25
+    timeout-minutes: 50
 
     steps:
       - name: Checkout
@@ -70,10 +70,19 @@ jobs:
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
           port: ${{ secrets.HETZNER_PORT || 22 }}
+          command_timeout: 45m
           envs: FRONTEND_ENV
           script: |
             set -euo pipefail
             cd /opt/srp-smartrecruit-auth
+
+            echo "=== [0/5] If app is down, start existing image immediately ==="
+            HTTP_NOW=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3010/api/health 2>/dev/null || echo "000")
+            if [ "$HTTP_NOW" != "200" ]; then
+              echo "Health is $HTTP_NOW — bringing up existing containers (DB untouched)"
+              docker compose up -d || true
+              sleep 5
+            fi
 
             echo "=== [1/5] Pull latest code (main) ==="
             git fetch origin
@@ -125,26 +134,26 @@ jobs:
             docker exec srp-auth-db psql -U srp_auth -d srp_auth -c \
               "SELECT email, is_active, (password_hash IS NOT NULL) AS has_password FROM auth_users WHERE email IN ('demo@srpailabs.com','pasikantishashank24@gmail.com','hareesh4u22@gmail.com','priyapasikanti0@gmail.com') ORDER BY email;"
 
-            echo "=== [3/5] Stop app only — DB stays running ==="
-            docker compose stop app  2>/dev/null || true
-            docker compose rm -f app 2>/dev/null || true
+            echo "=== [3/5] Build app image (DB stays up; keep serving until recreate) ==="
+            # Do NOT stop app before build — previous timeout left site 502
+            docker compose build app
 
-            echo "=== [4/5] Rebuild Docker image (no cache) ==="
-            docker compose build --no-cache app
+            echo "=== [4/5] Recreate app container only ==="
+            docker compose up -d --no-deps --force-recreate app
+            docker compose up -d
 
             echo "=== [5/5] Start & health-check ==="
-            docker compose up -d
             HEALTHY=0
-            for i in $(seq 1 25); do
+            for i in $(seq 1 40); do
               HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3010/api/health 2>/dev/null || echo "000")
               if [ "$HTTP" = "200" ]; then
-                echo "Γ£à Next.js healthy (attempt $i)"
+                echo "Next.js healthy (attempt $i)"
                 HEALTHY=1; break
               fi
-              echo "   Attempt $i/25 ΓÇö HTTP $HTTP"
+              echo "   Attempt $i/40 — HTTP $HTTP"
               sleep 4
             done
-            [ "$HEALTHY" -eq 1 ] || { echo "Γ¥î Next.js never became healthy"; exit 1; }
+            [ "$HEALTHY" -eq 1 ] || { echo "Next.js never became healthy"; docker logs srp-auth-app --tail 80 || true; exit 1; }
 
             sudo systemctl reload nginx 2>/dev/null || true
             docker image prune -f 2>/dev/null || true
