@@ -2,8 +2,101 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { pool } from '@/lib/db'
+import { requireTenant } from '@/lib/tenant'
+import { writeTimeline } from '@/lib/timelineEngine'
+import { logAudit } from '@/lib/audit'
+import { isValidUUID } from '@/lib/validate'
 
 export const maxDuration = 30
+
+const CHANNEL_MAP: Record<string, string> = {
+  smtp: 'email', outlook: 'email', sendgrid: 'email', mailgun: 'email', gmail: 'email',
+  telegram: 'telegram', whatsapp: 'whatsapp',
+}
+
+async function dispatchMessage(
+  connector_id: string,
+  cfg: Record<string, string>,
+  to: string,
+  subject: string,
+  body: string,
+): Promise<void> {
+  switch (connector_id) {
+    case 'smtp':
+    case 'outlook':
+      await sendViaSMTP(cfg, to, subject, body); break
+    case 'sendgrid':
+      await sendViaSendGrid(cfg, to, subject, body); break
+    case 'mailgun':
+      await sendViaMailgun(cfg, to, subject, body); break
+    case 'telegram':
+      await sendViaTelegram(cfg, to, subject, body); break
+    case 'whatsapp':
+      await sendViaWhatsApp(cfg, to, subject, body); break
+    default:
+      throw new Error(`Unsupported channel: ${connector_id}`)
+  }
+}
+
+async function insertCommLog(opts: {
+  userId: string
+  tenantId?: string | null
+  channel: string
+  to: string
+  subject: string
+  body: string
+  status: string
+  errorMsg?: string | null
+  resumeId?: string | null
+  jobPostId?: string | null
+  clientId?: string | null
+  recruiterUserId?: string | null
+  retryOf?: string | null
+  threadKey?: string | null
+  deliveryStatus?: string | null
+}): Promise<string | null> {
+  try {
+    const { rows } = await pool.query<{ id: string }>(
+      `INSERT INTO communication_logs
+         (user_id, tenant_id, channel, recipient, subject, body_preview, body, status,
+          error_message, sent_at, resume_id, job_post_id, client_id, retry_of, thread_key,
+          delivery_status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
+               CASE WHEN $8 IN ('sent','delivered') THEN NOW() ELSE NULL END,
+               $10,$11,$12,$13,$14,$15)
+       RETURNING id`,
+      [
+        opts.userId,
+        opts.tenantId ?? null,
+        opts.channel,
+        opts.to,
+        opts.subject,
+        opts.body.substring(0, 500),
+        opts.body,
+        opts.status,
+        opts.errorMsg ?? null,
+        opts.resumeId ?? null,
+        opts.jobPostId ?? null,
+        opts.clientId ?? null,
+        opts.retryOf ?? null,
+        opts.threadKey ?? opts.resumeId ?? opts.to,
+        opts.deliveryStatus ?? (opts.status === 'sent' ? 'sent' : opts.status === 'failed' ? 'failed' : 'pending'),
+      ]
+    )
+    return rows[0]?.id ?? null
+  } catch (logErr) {
+    console.warn('[comms] Log write failed:', logErr instanceof Error ? logErr.message : logErr)
+    try {
+      await pool.query(
+        `INSERT INTO communication_logs
+           (user_id, channel, recipient, subject, body_preview, status, error_message, sent_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7, CASE WHEN $6='sent' THEN NOW() ELSE NULL END)`,
+        [opts.userId, opts.channel, opts.to, opts.subject, opts.body.substring(0, 500), opts.status, opts.errorMsg ?? null]
+      )
+    } catch { /* ignore */ }
+    return null
+  }
+}
 
 // ─── SMTP dispatcher ─────────────────────────────────────────────────────────
 async function sendViaSMTP(
@@ -334,11 +427,126 @@ Welcome aboard!
       return NextResponse.json({ inserted, status: 'seeded' })
     }
 
+    // ── Retry failed message ──────────────────────────────────────────────
+    if (action === 'retry') {
+      const logId = body.log_id as string
+      if (!isValidUUID(logId)) {
+        return NextResponse.json({ error: 'log_id required' }, { status: 400 })
+      }
+      const tenantCtx = await requireTenant(req)
+      const tenantId = tenantCtx instanceof NextResponse ? null : tenantCtx.tenantId
+      const tenantEmail = tenantCtx instanceof NextResponse ? (session.user?.email ?? '') : tenantCtx.userEmail
+
+      const { rows: logs } = await pool.query(
+        `SELECT * FROM communication_logs WHERE id = $1 AND user_id = $2 LIMIT 1`,
+        [logId, userId]
+      )
+      if (!logs[0]) return NextResponse.json({ error: 'Log not found' }, { status: 404 })
+      const prev = logs[0] as Record<string, unknown>
+      const channel = String(prev.channel ?? 'email')
+      const connector =
+        channel === 'whatsapp' ? 'whatsapp'
+          : channel === 'telegram' ? 'telegram'
+            : 'smtp'
+
+      const provRows = await pool.query(
+        `SELECT config, provider_name FROM communication_providers
+         WHERE user_id = $1 AND is_active = true
+           AND (provider_name = $2 OR channel = $3 OR ($2 = 'smtp' AND provider_name IN ('smtp','outlook','sendgrid','mailgun')))
+         ORDER BY CASE WHEN provider_name = $2 THEN 0 ELSE 1 END
+         LIMIT 1`,
+        [userId, connector, channel]
+      )
+      if (!provRows.rows.length) {
+        return NextResponse.json({ error: 'No active provider for retry' }, { status: 422 })
+      }
+      const cfg = provRows.rows[0].config as Record<string, string>
+      const connectorId = String(provRows.rows[0].provider_name ?? connector)
+      const to = String(prev.recipient ?? '')
+      const finalSubject = String(prev.subject ?? '')
+      const finalBody = String(prev.body ?? prev.body_preview ?? '')
+      let status = 'sent'
+      let errorMsg: string | null = null
+      try {
+        await dispatchMessage(connectorId, cfg, to, finalSubject, finalBody)
+      } catch (e) {
+        status = 'failed'
+        errorMsg = e instanceof Error ? e.message : String(e)
+      }
+      const newId = await insertCommLog({
+        userId,
+        tenantId,
+        channel: CHANNEL_MAP[connectorId] ?? channel,
+        to,
+        subject: finalSubject,
+        body: finalBody,
+        status,
+        errorMsg,
+        resumeId: (prev.resume_id as string) ?? null,
+        jobPostId: (prev.job_post_id as string) ?? null,
+        clientId: (prev.client_id as string) ?? null,
+        recruiterUserId: userId,
+        retryOf: logId,
+        threadKey: (prev.thread_key as string) ?? null,
+      })
+      if (tenantId) {
+        await logAudit({
+          userId, userEmail: tenantEmail, tenantId,
+          action: 'comm_retry', resourceType: 'communication', resourceId: newId ?? logId,
+          resumeId: (prev.resume_id as string) ?? null, module: 'comms',
+          details: { retry_of: logId, status },
+        })
+        if (prev.resume_id) {
+          await writeTimeline({
+            tenantId, entityType: channel === 'whatsapp' ? 'whatsapp' : 'email',
+            entityId: newId ?? logId, resumeId: prev.resume_id as string,
+            eventType: 'comm_retry', title: `Retry ${status}`,
+            detail: to, actorUserId: userId, actorEmail: tenantEmail,
+          })
+        }
+      }
+      if (status === 'failed') return NextResponse.json({ error: errorMsg }, { status: 502 })
+      return NextResponse.json({ status: 'sent', id: newId })
+    }
+
+    // ── Manual delivery / read status ─────────────────────────────────────
+    if (action === 'mark_status') {
+      const logId = body.log_id as string
+      const delivery = String(body.delivery_status ?? body.status ?? '')
+      if (!isValidUUID(logId) || !delivery) {
+        return NextResponse.json({ error: 'log_id and delivery_status required' }, { status: 400 })
+      }
+      const sets: string[] = [`delivery_status = $1`]
+      const vals: unknown[] = [delivery]
+      let i = 2
+      if (delivery === 'delivered') { sets.push(`status = 'sent'`) }
+      if (delivery === 'opened' || delivery === 'read') {
+        sets.push(`opened_at = COALESCE(opened_at, NOW())`)
+        if (delivery === 'read') sets.push(`read_at = COALESCE(read_at, NOW())`)
+      }
+      if (delivery === 'failed') {
+        sets.push(`status = 'failed'`)
+        if (body.failed_reason) {
+          sets.push(`failed_reason = $${i}`)
+          vals.push(String(body.failed_reason).slice(0, 500))
+          i++
+        }
+      }
+      vals.push(logId, userId)
+      await pool.query(
+        `UPDATE communication_logs SET ${sets.join(', ')}
+         WHERE id = $${i} AND user_id = $${i + 1}`,
+        vals
+      )
+      return NextResponse.json({ status: 'updated', delivery_status: delivery })
+    }
+
     // ── Send message ──────────────────────────────────────────────────────
     if (action === 'send') {
       const {
         connector_id, to, subject, message,
         template_id, template_vars,
+        resume_id, job_post_id, client_id, thread_key,
       } = body as {
         connector_id: string
         to: string
@@ -346,13 +554,16 @@ Welcome aboard!
         message?: string
         template_id?: string
         template_vars?: Record<string, string>
+        resume_id?: string
+        job_post_id?: string
+        client_id?: string
+        thread_key?: string
       }
 
       if (!connector_id || !to) {
         return NextResponse.json({ error: 'connector_id and to are required' }, { status: 400 })
       }
 
-      // Resolve template if provided
       let finalSubject = subject ?? ''
       let finalBody = message ?? ''
       if (template_id) {
@@ -370,7 +581,6 @@ Welcome aboard!
         return NextResponse.json({ error: 'message body is empty' }, { status: 400 })
       }
 
-      // Get provider config (query by provider_name which matches connector_id)
       const provRows = await pool.query(
         `SELECT config FROM communication_providers
          WHERE user_id = $1 AND provider_name = $2 AND is_active = true LIMIT 1`,
@@ -387,47 +597,57 @@ Welcome aboard!
       let errorMsg: string | null = null
 
       try {
-        switch (connector_id) {
-          case 'smtp':
-          case 'outlook':
-            await sendViaSMTP(cfg, to, finalSubject, finalBody); break
-          case 'sendgrid':
-            await sendViaSendGrid(cfg, to, finalSubject, finalBody); break
-          case 'mailgun':
-            await sendViaMailgun(cfg, to, finalSubject, finalBody); break
-          case 'telegram':
-            await sendViaTelegram(cfg, to, finalSubject, finalBody); break
-          case 'whatsapp':
-            await sendViaWhatsApp(cfg, to, finalSubject, finalBody); break
-          default:
-            return NextResponse.json({ error: `Unsupported channel: ${connector_id}` }, { status: 400 })
-        }
+        await dispatchMessage(connector_id, cfg, to, finalSubject, finalBody)
       } catch (dispatchErr) {
         status = 'failed'
         errorMsg = dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr)
       }
 
-      // Log (comm_logs uses channel + recipient)
-      const CHANNEL_MAP2: Record<string, string> = {
-        smtp: 'email', outlook: 'email', sendgrid: 'email', mailgun: 'email', gmail: 'email',
-        telegram: 'telegram', whatsapp: 'whatsapp',
-      }
-      try {
-        await pool.query(
-          `INSERT INTO communication_logs
-             (user_id, channel, recipient, subject, body_preview, status, error_message, sent_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7, CASE WHEN $6='sent' THEN NOW() ELSE NULL END)`,
-          [userId, CHANNEL_MAP2[connector_id] ?? 'custom', to,
-           finalSubject, finalBody.substring(0, 500), status, errorMsg]
-        )
-      } catch (logErr) {
-        console.warn('[comms] Log write failed:', logErr instanceof Error ? logErr.message : logErr)
+      const tenantCtx = await requireTenant(req)
+      const tenantId = tenantCtx instanceof NextResponse ? null : tenantCtx.tenantId
+      const tenantEmail = tenantCtx instanceof NextResponse ? (session.user?.email ?? '') : tenantCtx.userEmail
+
+      const logId = await insertCommLog({
+        userId,
+        tenantId,
+        channel: CHANNEL_MAP[connector_id] ?? 'custom',
+        to,
+        subject: finalSubject,
+        body: finalBody,
+        status,
+        errorMsg,
+        resumeId: resume_id && isValidUUID(resume_id) ? resume_id : null,
+        jobPostId: job_post_id && isValidUUID(job_post_id) ? job_post_id : null,
+        clientId: client_id && isValidUUID(client_id) ? client_id : null,
+        recruiterUserId: userId,
+        threadKey: thread_key ?? resume_id ?? to,
+      })
+
+      if (tenantId && resume_id && isValidUUID(resume_id)) {
+        await writeTimeline({
+          tenantId,
+          entityType: CHANNEL_MAP[connector_id] === 'whatsapp' ? 'whatsapp' : 'email',
+          entityId: logId ?? resume_id,
+          resumeId: resume_id,
+          eventType: status === 'sent' ? 'comm_sent' : 'comm_failed',
+          title: status === 'sent' ? 'Message sent' : 'Message failed',
+          detail: `${CHANNEL_MAP[connector_id] ?? connector_id} → ${to}`,
+          actorUserId: userId,
+          actorEmail: tenantEmail,
+        })
+        await logAudit({
+          userId, userEmail: tenantEmail, tenantId,
+          action: status === 'sent' ? 'comm_sent' : 'comm_failed',
+          resourceType: 'communication', resourceId: logId ?? undefined,
+          resumeId: resume_id, module: 'comms',
+          details: { to, channel: CHANNEL_MAP[connector_id], job_post_id, client_id },
+        })
       }
 
       if (status === 'failed') {
         return NextResponse.json({ error: errorMsg }, { status: 502 })
       }
-      return NextResponse.json({ status: 'sent' })
+      return NextResponse.json({ status: 'sent', id: logId })
     }
 
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
@@ -463,15 +683,91 @@ export async function GET(req: NextRequest) {
       )
       return NextResponse.json({ templates: rows })
     }
-    // logs (default)
+
+    const channel = url.searchParams.get('channel')
+    const status = url.searchParams.get('status')
+    const resumeId = url.searchParams.get('resume_id')
+    const jobId = url.searchParams.get('job_post_id')
+    const clientId = url.searchParams.get('client_id')
+    const dateFrom = url.searchParams.get('date_from')
+    const dateTo = url.searchParams.get('date_to')
+    const threadKey = url.searchParams.get('thread_key')
+    const limit = Math.min(200, parseInt(url.searchParams.get('limit') ?? '80', 10))
+
+    const conditions = ['user_id = $1']
+    const params: unknown[] = [userId]
+    let p = 2
+
+    // Prefer tenant scope when available
+    const tenantCtx = await requireTenant(req)
+    if (!(tenantCtx instanceof NextResponse)) {
+      conditions[0] = '(user_id = $1 OR tenant_id = $2)'
+      params.push(tenantCtx.tenantId)
+      p = 3
+    }
+
+    if (channel === 'email') {
+      conditions.push(`channel ILIKE $${p}`)
+      params.push('%email%')
+      p++
+    } else if (channel === 'whatsapp') {
+      conditions.push(`channel ILIKE $${p}`)
+      params.push('%whatsapp%')
+      p++
+    } else if (channel) {
+      conditions.push(`channel = $${p}`)
+      params.push(channel)
+      p++
+    }
+    if (status) {
+      conditions.push(`(COALESCE(delivery_status, status) = $${p})`)
+      params.push(status)
+      p++
+    }
+    if (resumeId && isValidUUID(resumeId)) {
+      conditions.push(`resume_id = $${p}`)
+      params.push(resumeId)
+      p++
+    }
+    if (jobId && isValidUUID(jobId)) {
+      conditions.push(`job_post_id = $${p}`)
+      params.push(jobId)
+      p++
+    }
+    if (clientId && isValidUUID(clientId)) {
+      conditions.push(`client_id = $${p}`)
+      params.push(clientId)
+      p++
+    }
+    if (threadKey) {
+      conditions.push(`thread_key = $${p}`)
+      params.push(threadKey)
+      p++
+    }
+    if (dateFrom) {
+      conditions.push(`created_at >= $${p}`)
+      params.push(dateFrom)
+      p++
+    }
+    if (dateTo) {
+      conditions.push(`created_at <= $${p}`)
+      params.push(dateTo)
+      p++
+    }
+
     const { rows } = await pool.query(
-      `SELECT id, channel, recipient AS to_address, subject, status, error_message, created_at
-       FROM communication_logs WHERE user_id = $1
-       ORDER BY created_at DESC LIMIT 50`,
-      [userId]
+      `SELECT id, channel, recipient AS to_address, subject, body, body_preview, status,
+              delivery_status, error_message, failed_reason, opened_at, read_at,
+              resume_id, job_post_id, client_id, thread_key, retry_of, template_name,
+              created_at, sent_at
+       FROM communication_logs
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY created_at DESC
+       LIMIT $${p}`,
+      [...params, limit]
     )
     return NextResponse.json({ logs: rows })
   } catch {
-    return NextResponse.json({ items: [] })
+    return NextResponse.json({ logs: [], items: [] })
   }
 }

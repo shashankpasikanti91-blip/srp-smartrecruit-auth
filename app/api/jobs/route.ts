@@ -48,6 +48,9 @@ export async function POST(req: NextRequest) {
     }
 
     const toInt = (v: unknown) => (v === '' || v === null || v === undefined) ? null : Number(v) || null
+    const toArr = (v: unknown) =>
+      Array.isArray(v) ? v.map(x => String(x).trim()).filter(Boolean)
+        : typeof v === 'string' ? v.split(',').map(s => s.trim()).filter(Boolean) : []
 
     const job = await createJobPost({
       tenant_id: ctx.tenantId,
@@ -61,10 +64,31 @@ export async function POST(req: NextRequest) {
       optional_requirements: typeof body.optional_requirements === 'string' ? body.optional_requirements.trim().slice(0, 8000) || null : null,
       salary_min: toInt(body.salary_min),
       salary_max: toInt(body.salary_max),
-      currency: body.currency ?? 'USD',
+      currency: body.currency ?? 'MYR',
       status: body.status ?? 'active',
       ai_generated: body.ai_generated ?? false,
-      tags: body.tags ?? [],
+      tags: body.tags ?? toArr(body.skills_mandatory),
+      department: body.department?.trim() || null,
+      experience_min: toInt(body.experience_min),
+      experience_max: toInt(body.experience_max),
+      client_id: body.client_id || null,
+      headcount: toInt(body.headcount) ?? 1,
+      candidate_type: body.candidate_type || 'any',
+      jd_received_date: body.jd_received_date || null,
+      priority: body.priority || 'medium',
+      target_cv_submissions: toInt(body.target_cv_submissions),
+      internal_sla_days: toInt(body.internal_sla_days) ?? 10,
+      target_submission_date: body.target_submission_date || null,
+      share_jd_with_client: Boolean(body.share_jd_with_client),
+      raw_jd_text: body.raw_jd_text || null,
+      contract_duration: body.contract_duration || null,
+      max_budget: toInt(body.max_budget),
+      client_jr_no: body.client_jr_no || null,
+      skills_mandatory: toArr(body.skills_mandatory),
+      skills_required: toArr(body.skills_required),
+      assigned_recruiter_ids: Array.isArray(body.assigned_recruiter_ids) ? body.assigned_recruiter_ids : [],
+      assign_all_team: Boolean(body.assign_all_team),
+      job_meta: typeof body.job_meta === 'object' && body.job_meta ? body.job_meta : {},
     })
 
     if (!job) {

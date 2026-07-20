@@ -3,13 +3,8 @@ import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import { isValidUUID, sanitizeText } from '@/lib/validate'
 import { logAudit } from '@/lib/audit'
-
-function newSubId(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let id = 'SUB-'
-  for (let i = 0; i < 6; i++) id += chars[Math.floor(Math.random() * chars.length)]
-  return id
-}
+import { nextYearSeqId } from '@/lib/recruitmentOs'
+import { upsertWorkflowInstance } from '@/lib/workflowEngine'
 
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, 'candidates.read')
@@ -84,7 +79,8 @@ export async function POST(req: NextRequest) {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
       [
-        ctx.tenantId, resume_id, job_post_id, ctx.userId, newSubId(),
+        ctx.tenantId, resume_id, job_post_id, ctx.userId,
+        await nextYearSeqId(pool, { tenantId: ctx.tenantId, table: 'submissions', prefix: 'SUB' }),
         sanitizeText(body.client_name, 200),
         sanitizeText(body.applying_for, 200),
         sanitizeText(body.hire_type, 40),
@@ -102,6 +98,32 @@ export async function POST(req: NextRequest) {
       resourceId: own.rows[0].short_id,
       details: { submission_id: rows[0].id, stage: rows[0].stage },
       tenantId: ctx.tenantId,
+    })
+
+    let slaDays = 3
+    if (job_post_id) {
+      try {
+        const job = await pool.query<{ internal_sla_days: number | null }>(
+          'SELECT internal_sla_days FROM job_posts WHERE id = $1 AND tenant_id = $2',
+          [job_post_id, ctx.tenantId]
+        )
+        if (job.rows[0]?.internal_sla_days != null) {
+          slaDays = Number(job.rows[0].internal_sla_days) || 3
+        }
+      } catch { /* ignore */ }
+    }
+    const slaDueAt = new Date(Date.now() + slaDays * 86400000)
+    await upsertWorkflowInstance({
+      tenantId: ctx.tenantId,
+      entityType: 'submission',
+      entityId: rows[0].id,
+      stage: rows[0].stage ?? 'draft',
+      resumeId: resume_id,
+      jobPostId: job_post_id,
+      slaDueAt,
+      actorUserId: ctx.userId,
+      actorEmail: ctx.userEmail,
+      detail: `SLA ${slaDays}d from submission`,
     })
 
     return NextResponse.json({ submission: rows[0] }, { status: 201 })

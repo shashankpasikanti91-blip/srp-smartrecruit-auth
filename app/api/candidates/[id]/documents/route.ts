@@ -35,6 +35,8 @@ export async function GET(
 
   const { rows } = await pool.query(
     `SELECT cd.id, cd.slot_type, cd.label, cd.created_at, cd.updated_at,
+            cd.verification_status, cd.verified_by, cd.verified_at, cd.expiry_date,
+            cd.country_code, cd.category, cd.short_id, cd.status AS doc_status,
             COALESCE(
               json_agg(
                 json_build_object(
@@ -149,7 +151,12 @@ export async function POST(
     )
 
     await client.query(
-      'UPDATE candidate_documents SET updated_at = NOW() WHERE id = $1',
+      `UPDATE candidate_documents SET
+         updated_at = NOW(),
+         verification_status = 'pending_verification',
+         verified_by = NULL,
+         verified_at = NULL
+       WHERE id = $1`,
       [documentId]
     )
 

@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { FileText, Loader2, Plus } from 'lucide-react'
+import { Download, FileText, Loader2, Plus } from 'lucide-react'
+import { exportCsv } from '@/lib/exportCsv'
 
 type Doc = { id: string; doc_type: string; title: string; external_url: string | null; visible_to_all: boolean; created_at: string }
 
@@ -47,10 +48,21 @@ export function DocumentsRegistryTab() {
         <div className="flex items-start gap-4">
           <div className="dash-section-icon"><FileText className="w-5 h-5 text-white" /></div>
           <div>
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900">Company Documents</h1>
+            <h1 className="page-title text-lg sm:text-xl">Company Documents</h1>
             <p className="text-sm text-slate-500 mt-0.5">HR document registry (visible in ESS)</p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => exportCsv(
+            'company-documents.csv',
+            ['Title', 'Type', 'URL', 'Visible', 'Created'],
+            docs.map(d => [d.title, d.doc_type, d.external_url, d.visible_to_all ? 'all' : 'specific', d.created_at]),
+          )}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+        >
+          <Download className="w-4 h-4" /> Export Excel
+        </button>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 mb-4 grid sm:grid-cols-2 gap-3">

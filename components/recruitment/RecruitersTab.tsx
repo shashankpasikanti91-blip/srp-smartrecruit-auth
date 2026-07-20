@@ -1,6 +1,7 @@
 'use client'
 
-import { Users, Loader2 } from 'lucide-react'
+import { Download, Users } from 'lucide-react'
+import { exportCsv } from '@/lib/exportCsv'
 
 type Member = {
   user_id: string
@@ -20,10 +21,21 @@ export function RecruitersTab({ teamMembers }: { teamMembers: Member[] }) {
         <div className="flex items-start gap-4">
           <div className="dash-section-icon"><Users className="w-5 h-5 text-white" /></div>
           <div>
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900">Recruiters</h1>
+            <h1 className="page-title text-lg sm:text-xl">Recruiters</h1>
             <p className="text-sm text-slate-500 mt-0.5">{active.length} team members in this workspace</p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => exportCsv(
+            'recruiters.csv',
+            ['Name', 'Email', 'Role', 'Last Active'],
+            active.map(m => [m.name, m.email, m.role, m.last_active_at]),
+          )}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+        >
+          <Download className="w-4 h-4" /> Export Excel
+        </button>
       </div>
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
         <table className="ent-table w-full">

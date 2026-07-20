@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Bell, Check, Loader2, Plus, RefreshCw } from 'lucide-react'
+import { Bell, Check, Download, Loader2, Plus, RefreshCw } from 'lucide-react'
+import { exportCsv } from '@/lib/exportCsv'
 
 type FollowUp = {
   id: string
@@ -95,7 +96,7 @@ export function FollowUpsTab() {
         <div className="flex items-start gap-4">
           <div className="dash-section-icon"><Bell className="w-5 h-5 text-white" /></div>
           <div>
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900">Follow-ups</h1>
+            <h1 className="page-title text-lg sm:text-xl">Follow-ups</h1>
             <p className="text-sm text-slate-500 mt-0.5">Your pending candidate touchpoints</p>
           </div>
         </div>
@@ -103,6 +104,17 @@ export function FollowUpsTab() {
           <button type="button" onClick={() => setShowCreate(s => !s)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500">
             <Plus className="w-4 h-4" /> New follow-up
+          </button>
+          <button
+            type="button"
+            onClick={() => exportCsv(
+              `follow-ups-${bucket}.csv`,
+              ['Title', 'Candidate', 'Candidate ID', 'Channel', 'Due', 'Status', 'Notes'],
+              rows.map(r => [r.title, r.candidate_name, r.candidate_short_id, r.channel, r.due_at, r.status, r.notes]),
+            )}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+          >
+            <Download className="w-4 h-4" /> Export Excel
           </button>
           <button onClick={() => { load(); loadCounts() }} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50">
             <RefreshCw className="w-4 h-4" /> Refresh

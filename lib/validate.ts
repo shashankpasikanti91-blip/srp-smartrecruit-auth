@@ -209,6 +209,9 @@ export function sanitizeCandidateProfile(value: unknown): Record<string, string 
     next_action: pick('next_action', 500),
     education: pick('education', 2000),
     certifications: pick('certifications', 2000),
+    linkedin_url: pick('linkedin_url', 500),
+    portfolio_url: pick('portfolio_url', 500),
+    experience_summary: pick('experience_summary', 4000),
   }
 }
 

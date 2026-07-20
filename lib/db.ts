@@ -220,22 +220,83 @@ export async function createJobPost(job: {
   optional_requirements?: string | null
   salary_min?: number | null; salary_max?: number | null; currency?: string
   status?: string; ai_generated?: boolean; tags?: string[]
+  department?: string | null
+  experience_min?: number | null
+  experience_max?: number | null
+  client_id?: string | null
+  headcount?: number | null
+  candidate_type?: string | null
+  jd_received_date?: string | null
+  priority?: string | null
+  target_cv_submissions?: number | null
+  internal_sla_days?: number | null
+  target_submission_date?: string | null
+  share_jd_with_client?: boolean
+  raw_jd_text?: string | null
+  contract_duration?: string | null
+  max_budget?: number | null
+  client_jr_no?: string | null
+  skills_mandatory?: string[]
+  skills_required?: string[]
+  assigned_recruiter_ids?: string[]
+  assign_all_team?: boolean
+  job_meta?: Record<string, unknown>
 }): Promise<JobPost | null> {
   try {
     const { rows } = await pool.query<JobPost>(
-      `INSERT INTO job_posts (tenant_id, user_id, title, company, location, type, description, requirements,
-         optional_requirements, salary_min, salary_max, currency, status, ai_generated, tags, applications_count)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,0) RETURNING *`,
-      [job.tenant_id ?? null, job.user_id, job.title, job.company ?? null, job.location ?? null,
-       job.type ?? 'full-time', job.description ?? null, job.requirements ?? null,
-       job.optional_requirements ?? null,
-       job.salary_min ?? null, job.salary_max ?? null, job.currency ?? 'USD',
-       job.status ?? 'active', job.ai_generated ?? false, job.tags ?? []]
+      `INSERT INTO job_posts (
+         tenant_id, user_id, title, company, location, type, description, requirements,
+         optional_requirements, salary_min, salary_max, currency, status, ai_generated, tags,
+         applications_count, department, experience_min, experience_max,
+         client_id, headcount, candidate_type, jd_received_date, priority,
+         target_cv_submissions, internal_sla_days, target_submission_date, share_jd_with_client,
+         raw_jd_text, contract_duration, max_budget, client_jr_no,
+         skills_mandatory, skills_required, assigned_recruiter_ids, assign_all_team, job_meta
+       )
+       VALUES (
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,0,$16,$17,$18,
+         $19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36
+       ) RETURNING *`,
+      [
+        job.tenant_id ?? null, job.user_id, job.title, job.company ?? null, job.location ?? null,
+        job.type ?? 'full-time', job.description ?? null, job.requirements ?? null,
+        job.optional_requirements ?? null,
+        job.salary_min ?? null, job.salary_max ?? null, job.currency ?? 'MYR',
+        job.status ?? 'active', job.ai_generated ?? false, job.tags ?? [],
+        job.department ?? null, job.experience_min ?? null, job.experience_max ?? null,
+        job.client_id ?? null, job.headcount ?? 1, job.candidate_type ?? 'any',
+        job.jd_received_date ?? null, job.priority ?? 'medium',
+        job.target_cv_submissions ?? null, job.internal_sla_days ?? 10,
+        job.target_submission_date ?? null, job.share_jd_with_client ?? false,
+        job.raw_jd_text ?? null, job.contract_duration ?? null, job.max_budget ?? null,
+        job.client_jr_no ?? null,
+        job.skills_mandatory ?? [], job.skills_required ?? [],
+        job.assigned_recruiter_ids ?? [], job.assign_all_team ?? false,
+        JSON.stringify(job.job_meta ?? {}),
+      ]
     )
     return rows[0] ?? null
   } catch (err) {
-    console.error('[db] createJobPost:', err)
-    return null
+    // Fallback without v24 columns
+    console.warn('[db] createJobPost enriched failed, falling back:', err instanceof Error ? err.message : err)
+    try {
+      const { rows } = await pool.query<JobPost>(
+        `INSERT INTO job_posts (tenant_id, user_id, title, company, location, type, description, requirements,
+           optional_requirements, salary_min, salary_max, currency, status, ai_generated, tags, applications_count,
+           department, experience_min, experience_max)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,0,$16,$17,$18) RETURNING *`,
+        [job.tenant_id ?? null, job.user_id, job.title, job.company ?? null, job.location ?? null,
+         job.type ?? 'full-time', job.description ?? null, job.requirements ?? null,
+         job.optional_requirements ?? null,
+         job.salary_min ?? null, job.salary_max ?? null, job.currency ?? 'MYR',
+         job.status ?? 'active', job.ai_generated ?? false, job.tags ?? [],
+         job.department ?? null, job.experience_min ?? null, job.experience_max ?? null]
+      )
+      return rows[0] ?? null
+    } catch (err2) {
+      console.error('[db] createJobPost:', err2)
+      return null
+    }
   }
 }
 

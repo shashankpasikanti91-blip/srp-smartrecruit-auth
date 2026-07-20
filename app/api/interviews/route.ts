@@ -18,12 +18,15 @@ import { pool }                          from '@/lib/db'
 import { logAudit }                      from '@/lib/audit'
 import { createInterviewEvent }          from '@/lib/calendar'
 import { sendEmailFromTenant }           from '@/lib/email-oauth'
+import { nextYearSeqId }                 from '@/lib/recruitmentOs'
+import { ensureAutoFollowUp }            from '@/lib/autoFollowUps'
+import { scheduleInterviewReminders }    from '@/lib/reminderEngine'
+import { writeTimeline }                 from '@/lib/timelineEngine'
+import { createNotification }            from '@/lib/notificationCenter'
+import { upsertWorkflowInstance }        from '@/lib/workflowEngine'
 
-function newInterviewId(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let id = 'INT-'
-  for (let i = 0; i < 8; i++) id += chars[Math.floor(Math.random() * chars.length)]
-  return id
+async function newInterviewId(tenantId: string): Promise<string> {
+  return nextYearSeqId(pool, { tenantId, table: 'interviews', prefix: 'INT' })
 }
 
 // ── GET ───────────────────────────────────────────────────────────────────────
@@ -56,12 +59,7 @@ export async function GET(req: NextRequest) {
 
   const { rows } = await pool.query(
     `SELECT
-       i.id, i.short_id, i.job_post_id, i.resume_id,
-       i.candidate_name, i.candidate_email,
-       i.interviewer_id, i.scheduled_at, i.duration_minutes,
-       i.format, i.status, i.meet_link, i.calendar_event_id,
-       i.platform, i.location, i.notes, i.rating, i.feedback,
-       i.created_at, i.updated_at,
+       i.*,
        jp.title AS job_title,
        au.name AS interviewer_name,
        au.email AS interviewer_email
@@ -103,6 +101,8 @@ export async function POST(req: NextRequest) {
     send_invite?:     boolean // default true — send email invite to candidate
     create_calendar?: boolean // default true — create calendar event
     additional_attendees?: string[]
+    round?:           number
+    timezone?:        string
   }
 
   try {
@@ -130,7 +130,9 @@ export async function POST(req: NextRequest) {
   const durationMins  = body.duration_minutes ?? 60
   const interviewerId = body.interviewer_id ?? ctx.userId
   const format        = body.format ?? 'video'
-  const shortId       = newInterviewId()
+  const shortId       = await newInterviewId(ctx.tenantId)
+  const round         = body.round ?? 1
+  const timezone      = body.timezone ?? 'Asia/Kuala_Lumpur'
 
   let meetLink:        string | null = null
   let calendarEventId: string | null = null
@@ -171,25 +173,103 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Insert interview record
-  const { rows: inserted } = await pool.query(
-    `INSERT INTO interviews
-       (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
-        interviewer_id, scheduled_at, duration_minutes, format, platform,
-        location, notes, status, meet_link, calendar_event_id, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'scheduled',$14,$15,NOW())
-     RETURNING id, short_id, scheduled_at, meet_link, calendar_event_id, status`,
-    [
-      shortId, ctx.tenantId, body.resume_id, body.job_post_id ?? null,
-      body.candidate_name, body.candidate_email,
-      interviewerId, scheduledAt.toISOString(), durationMins,
-      format, body.platform ?? (calendarProvider === 'google' ? 'google_meet' : calendarProvider === 'outlook' ? 'teams' : 'other'),
-      body.location ?? null, body.notes ?? null,
-      meetLink, calendarEventId,
-    ]
-  )
+  // Insert interview record (round/timezone require v22 migration — fall back if missing)
+  let interview: { id: string; short_id: string; scheduled_at: string; meet_link: string | null; calendar_event_id: string | null; status: string }
+  try {
+    const { rows: inserted } = await pool.query(
+      `INSERT INTO interviews
+         (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
+          interviewer_id, scheduled_at, duration_minutes, format, platform,
+          location, notes, status, meet_link, calendar_event_id, round, timezone, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'scheduled',$14,$15,$16,$17,NOW())
+       RETURNING id, short_id, scheduled_at, meet_link, calendar_event_id, status`,
+      [
+        shortId, ctx.tenantId, body.resume_id, body.job_post_id ?? null,
+        body.candidate_name, body.candidate_email,
+        interviewerId, scheduledAt.toISOString(), durationMins,
+        format, body.platform ?? (calendarProvider === 'google' ? 'google_meet' : calendarProvider === 'outlook' ? 'teams' : 'other'),
+        body.location ?? null, body.notes ?? null,
+        meetLink, calendarEventId, round, timezone,
+      ]
+    )
+    interview = inserted[0]
+  } catch {
+    const { rows: inserted } = await pool.query(
+      `INSERT INTO interviews
+         (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
+          interviewer_id, scheduled_at, duration_minutes, format, platform,
+          location, notes, status, meet_link, calendar_event_id, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'scheduled',$14,$15,NOW())
+       RETURNING id, short_id, scheduled_at, meet_link, calendar_event_id, status`,
+      [
+        shortId, ctx.tenantId, body.resume_id, body.job_post_id ?? null,
+        body.candidate_name, body.candidate_email,
+        interviewerId, scheduledAt.toISOString(), durationMins,
+        format, body.platform ?? (calendarProvider === 'google' ? 'google_meet' : calendarProvider === 'outlook' ? 'teams' : 'other'),
+        body.location ?? null, body.notes ?? null,
+        meetLink, calendarEventId,
+      ]
+    )
+    interview = inserted[0]
+  }
 
-  const interview = inserted[0]
+  await ensureAutoFollowUp({
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    resumeId: body.resume_id,
+    interviewId: interview.id,
+    title: `Interview reminder — ${body.candidate_name}`,
+    dueAt: new Date(scheduledAt.getTime() - 60 * 60 * 1000),
+    source: 'interview_reminder',
+    channel: 'other',
+    notes: `Auto reminder 1h before interview ${shortId}`,
+  })
+
+  await scheduleInterviewReminders({
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    resumeId: body.resume_id,
+    interviewId: interview.id,
+    scheduledAt,
+    candidateName: body.candidate_name,
+  })
+
+  await writeTimeline({
+    tenantId: ctx.tenantId,
+    entityType: 'interview',
+    entityId: interview.id,
+    resumeId: body.resume_id,
+    eventType: 'interview_scheduled',
+    title: 'Interview Scheduled',
+    detail: `${shortId} · ${scheduledAt.toISOString()}`,
+    actorUserId: ctx.userId,
+    actorEmail: ctx.userEmail,
+  })
+
+  await createNotification({
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    category: 'interview',
+    title: `Interview scheduled — ${body.candidate_name}`,
+    body: `${shortId} at ${scheduledAt.toLocaleString()}`,
+    resumeId: body.resume_id,
+    entityType: 'interview',
+    entityId: interview.id,
+  })
+
+  const feedbackSla = new Date(scheduledAt.getTime() + 24 * 3600_000)
+  await upsertWorkflowInstance({
+    tenantId: ctx.tenantId,
+    entityType: 'interview',
+    entityId: interview.id,
+    stage: 'scheduled',
+    resumeId: body.resume_id,
+    jobPostId: body.job_post_id ?? null,
+    slaDueAt: feedbackSla,
+    actorUserId: ctx.userId,
+    actorEmail: ctx.userEmail,
+    detail: 'Feedback due 24h after scheduled interview',
+  })
 
   // Send invite email to candidate
   const sendInvite = body.send_invite !== false
@@ -259,5 +339,5 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return NextResponse.json({ interview: inserted[0], calendar_provider: calendarProvider }, { status: 201 })
+  return NextResponse.json({ interview, calendar_provider: calendarProvider }, { status: 201 })
 }

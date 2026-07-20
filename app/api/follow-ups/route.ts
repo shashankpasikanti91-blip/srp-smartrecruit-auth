@@ -43,6 +43,13 @@ export async function GET(req: NextRequest) {
     idx++
   }
 
+  const resumeId = new URL(req.url).searchParams.get('resume_id')
+  if (resumeId && isValidUUID(resumeId)) {
+    conditions.push(`f.resume_id = $${idx}`)
+    params.push(resumeId)
+    idx++
+  }
+
   if (bucket === 'overdue') {
     conditions.push(`f.status = 'pending' AND f.due_at < $${idx}`)
     params.push(now.toISOString())

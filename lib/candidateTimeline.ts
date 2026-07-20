@@ -12,16 +12,24 @@ export type TimelineEvent = {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  candidate_updated: 'Profile updated',
-  stage_changed: 'Pipeline stage changed',
-  ownership_changed: 'Recruiter assigned',
-  document_uploaded: 'Document uploaded',
-  document_replaced: 'Document replaced',
-  resume_replaced: 'Resume replaced',
-  lifecycle_changed: 'Status changed',
-  submission_updated: 'Submission updated',
-  ai_screened: 'AI screening completed',
-  candidate_created: 'Candidate added',
+  candidate_updated: 'Profile Updated',
+  stage_changed: 'Pipeline Stage Changed',
+  ownership_changed: 'Recruiter Assigned',
+  document_uploaded: 'Documents Uploaded',
+  document_replaced: 'Document Replaced',
+  resume_replaced: 'Resume Uploaded',
+  resume_uploaded: 'Resume Uploaded',
+  lifecycle_changed: 'Status Changed',
+  submission_updated: 'Submission Updated',
+  submission_created: 'Submission Created',
+  ai_screened: 'Candidate Screened',
+  candidate_created: 'Candidate Created',
+  interview_scheduled: 'Interview Scheduled',
+  interview_completed: 'Interview Completed',
+  offer_released: 'Offer Released',
+  offer_accepted: 'Offer Accepted',
+  joined: 'Joined',
+  follow_up_sent: 'Follow-up Sent',
 }
 
 function auditTitle(action: string, details: Record<string, unknown>): string {
@@ -137,36 +145,78 @@ export async function buildCandidateTimeline(opts: {
   }
 
   try {
-    const subRes = await pool.query<{
-      id: string; short_id: string; stage: string; client_name: string | null; updated_at: Date
+    const entityRes = await pool.query<{
+      id: string; event_type: string; title: string; detail: string | null
+      actor_email: string | null; created_at: Date
     }>(
-      `SELECT id, short_id, stage, client_name, updated_at FROM submissions
+      `SELECT id, event_type, title, detail, actor_email, created_at
+       FROM entity_timeline
+       WHERE tenant_id = $1 AND resume_id = $2
+       ORDER BY created_at DESC LIMIT $3`,
+      [opts.tenantId, opts.resumeId, limit]
+    )
+    for (const row of entityRes.rows) {
+      events.push({
+        id: `etl-${row.id}`,
+        type: row.event_type,
+        title: row.title,
+        detail: row.detail,
+        actor_email: row.actor_email,
+        at: new Date(row.created_at).toISOString(),
+      })
+    }
+  } catch {
+    /* entity_timeline may not exist yet */
+  }
+
+  try {
+    const subRes = await pool.query<{
+      id: string; short_id: string; stage: string; client_name: string | null; updated_at: Date; created_at: Date
+    }>(
+      `SELECT id, short_id, stage, client_name, updated_at, created_at FROM submissions
        WHERE tenant_id = $1 AND resume_id = $2 ORDER BY updated_at DESC LIMIT $3`,
       [opts.tenantId, opts.resumeId, limit]
     )
     for (const row of subRes.rows) {
       events.push({
-        id: `sub-${row.id}`,
-        type: 'submission',
-        title: `Submission ${row.stage}`,
+        id: `sub-c-${row.id}`,
+        type: 'submission_created',
+        title: 'Submission Created',
         detail: row.client_name ? `${row.short_id} · ${row.client_name}` : row.short_id,
-        at: new Date(row.updated_at).toISOString(),
+        at: new Date(row.created_at).toISOString(),
       })
+      if (row.updated_at.getTime() !== row.created_at.getTime()) {
+        events.push({
+          id: `sub-${row.id}`,
+          type: 'submission',
+          title: `Submission ${row.stage.replace(/_/g, ' ')}`,
+          detail: row.client_name ? `${row.short_id} · ${row.client_name}` : row.short_id,
+          at: new Date(row.updated_at).toISOString(),
+        })
+      }
     }
 
     const offerRes = await pool.query<{
-      id: string; status: string; offer_salary: string | null; updated_at: Date
+      id: string; status: string; offer_salary: string | null; updated_at: Date; short_id: string | null
     }>(
-      `SELECT id, status, offer_salary, updated_at FROM offer_cases
+      `SELECT id, status, offer_salary, updated_at, short_id FROM offer_cases
        WHERE tenant_id = $1 AND resume_id = $2 ORDER BY updated_at DESC LIMIT $3`,
       [opts.tenantId, opts.resumeId, limit]
     )
     for (const row of offerRes.rows) {
+      const statusTitle: Record<string, string> = {
+        offer_released: 'Offer Released',
+        offer_accepted: 'Offer Accepted',
+        offer_rejected: 'Offer Declined',
+        joined: 'Joined',
+        joining_confirmed: 'Joining Confirmed',
+        offer_draft: 'Offer Draft',
+      }
       events.push({
         id: `offer-${row.id}`,
         type: 'offer',
-        title: `Offer ${row.status.replace(/_/g, ' ')}`,
-        detail: row.offer_salary ?? null,
+        title: statusTitle[row.status] ?? `Offer ${row.status.replace(/_/g, ' ')}`,
+        detail: [row.short_id, row.offer_salary].filter(Boolean).join(' · ') || null,
         at: new Date(row.updated_at).toISOString(),
       })
     }
@@ -182,7 +232,7 @@ export async function buildCandidateTimeline(opts: {
       events.push({
         id: `fu-${row.id}`,
         type: 'follow_up',
-        title: `Follow-up: ${row.title}`,
+        title: row.title?.toLowerCase().includes('follow') ? row.title : `Follow-up Sent: ${row.title}`,
         detail: row.status,
         at: new Date(row.due_at).toISOString(),
       })

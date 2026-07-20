@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Calendar, Loader2, Plus, RefreshCw, X } from 'lucide-react'
+import { Calendar, Download, Loader2, Plus, RefreshCw, X } from 'lucide-react'
 import { ScrollableTable } from '@/components/dashboard/ScrollableTable'
+import { exportCsv } from '@/lib/exportCsv'
+import { INTERVIEW_STATUSES } from '@/lib/recruitmentOs'
 
 type Interview = {
   id: string
@@ -17,6 +19,8 @@ type Interview = {
   status: string
   meet_link: string | null
   interviewer_name: string | null
+  round?: number
+  rating?: number | null
 }
 
 type CandPick = { id: string; short_id: string; candidate_name: string; candidate_email: string }
@@ -37,9 +41,11 @@ export function InterviewsTab() {
     duration_minutes: '60',
     format: 'video' as 'video' | 'phone' | 'in_person',
     notes: '',
+    round: '1',
   })
   const [feedbackId, setFeedbackId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState('')
+  const [rating, setRating] = useState('3')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -83,11 +89,12 @@ export function InterviewsTab() {
           duration_minutes: parseInt(form.duration_minutes, 10) || 60,
           format: form.format,
           notes: form.notes || undefined,
+          round: Number(form.round) || 1,
         }),
       })
       if (res.ok) {
         setShowSchedule(false)
-        setForm({ resume_id: '', candidate_name: '', candidate_email: '', scheduled_at: '', duration_minutes: '60', format: 'video', notes: '' })
+        setForm({ resume_id: '', candidate_name: '', candidate_email: '', scheduled_at: '', duration_minutes: '60', format: 'video', notes: '', round: '1' })
         load()
       } else {
         const err = await res.json().catch(() => ({}))
@@ -119,7 +126,7 @@ export function InterviewsTab() {
         <div className="flex items-start gap-4">
           <div className="dash-section-icon"><Calendar className="w-5 h-5 text-white" /></div>
           <div>
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900">Interviews</h1>
+            <h1 className="page-title text-lg sm:text-xl">Interviews</h1>
             <p className="text-sm text-slate-500 mt-0.5">Schedule and track interview rounds</p>
           </div>
         </div>
@@ -127,6 +134,17 @@ export function InterviewsTab() {
           <button type="button" onClick={() => setShowSchedule(true)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500">
             <Plus className="w-4 h-4" /> Schedule
+          </button>
+          <button
+            type="button"
+            onClick={() => exportCsv(
+              `interviews-${status || 'all'}.csv`,
+              ['ID', 'Candidate', 'Email', 'Job', 'Scheduled', 'Duration', 'Format', 'Status', 'Interviewer'],
+              rows.map(r => [r.short_id, r.candidate_name, r.candidate_email, r.job_title, r.scheduled_at, r.duration_minutes, r.format, r.status, r.interviewer_name]),
+            )}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+          >
+            <Download className="w-4 h-4" /> Export Excel
           </button>
           <button onClick={load} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50">
             <RefreshCw className="w-4 h-4" /> Refresh
@@ -162,10 +180,14 @@ export function InterviewsTab() {
             <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))}
               className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
             <select value={form.format} onChange={e => setForm(f => ({ ...f, format: e.target.value as typeof form.format }))}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm">
-              <option value="video">Video</option>
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm appearance-none">
+              <option value="video">Virtual</option>
               <option value="phone">Phone</option>
-              <option value="in_person">In person</option>
+              <option value="in_person">Face-to-Face</option>
+            </select>
+            <select value={form.round} onChange={e => setForm(f => ({ ...f, round: e.target.value }))}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm appearance-none">
+              {[1, 2, 3, 4, 5].map(r => <option key={r} value={r}>Round {r}</option>)}
             </select>
             <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               rows={2} placeholder="Notes (optional)" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
@@ -193,27 +215,28 @@ export function InterviewsTab() {
           <table className="ent-table w-full">
             <thead>
               <tr>
-                <th>ID</th><th>Candidate</th><th>Job</th><th>When</th><th>Format</th><th>Status</th><th>Interviewer</th><th>Link</th><th>Actions</th>
+                <th>ID</th><th>Candidate</th><th>Job</th><th>When</th><th>Round</th><th>Format</th><th>Status</th><th>Interviewer</th><th>Link</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-10 text-slate-400">No interviews scheduled</td></tr>
+                <tr><td colSpan={10} className="text-center py-10 text-slate-400">No interviews scheduled</td></tr>
               ) : rows.map((iv, i) => (
                 <tr key={iv.id} className={i % 2 ? 'bg-slate-50/70' : ''}>
-                  <td className="font-mono text-xs">{iv.short_id}</td>
+                  <td className="font-mono text-xs font-bold">{iv.short_id}</td>
                   <td>
                     <p className="font-medium text-sm">{iv.candidate_name}</p>
                     <p className="text-xs text-slate-500">{iv.candidate_email}</p>
                   </td>
                   <td>{iv.job_title || '—'}</td>
                   <td className="text-xs whitespace-nowrap">{new Date(iv.scheduled_at).toLocaleString()}</td>
+                  <td className="text-xs font-bold">{iv.round ?? 1}</td>
                   <td className="capitalize text-sm">{iv.format || '—'}</td>
                   <td>
                     <select value={iv.status} onChange={e => patchInterview(iv.id, { status: e.target.value })}
-                      className="text-xs capitalize rounded-lg border border-slate-200 px-2 py-1 bg-white">
-                      {['scheduled','confirmed','completed','cancelled','no_show'].map(s => (
-                        <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                      className="text-xs rounded-lg border border-slate-200 px-2 py-1 bg-white appearance-none max-w-[150px]">
+                      {INTERVIEW_STATUSES.map(s => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
                       ))}
                     </select>
                   </td>
@@ -239,8 +262,11 @@ export function InterviewsTab() {
             <h2 className="font-bold text-slate-900">Interview feedback</h2>
             <textarea value={feedback} onChange={e => setFeedback(e.target.value)} rows={4}
               className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" placeholder="Notes for the hiring team…" />
+            <select value={rating} onChange={e => setRating(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm appearance-none">
+              {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>Rating {n}/5</option>)}
+            </select>
             <button type="button" onClick={async () => {
-              await patchInterview(feedbackId, { feedback, status: 'completed' })
+              await patchInterview(feedbackId, { feedback, rating: Number(rating), status: 'completed' })
               setFeedbackId(null)
             }} className="w-full py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold">Save feedback</button>
           </div>

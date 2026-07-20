@@ -326,17 +326,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const status = body.status === 'reviewed' ? 'reviewed' : 'pending'
+
     const { rows } = await pool.query(
       `INSERT INTO resumes
          (tenant_id, user_id, candidate_name, candidate_email, candidate_phone,
           ai_skills, ai_score, ai_summary, job_post_id, pipeline_stage,
           raw_text, file_name, file_size_bytes, candidate_profile, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,'pending')
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15)
        RETURNING *`,
       [ctx.tenantId, ctx.userId, candidate_name, candidate_email,
        candidate_phone, ai_skills, ai_score, ai_summary,
        job_post_id, pipeline_stage, raw_text, file_name, file_size_bytes,
-       candidate_profile ? JSON.stringify(candidate_profile) : '{}']
+       candidate_profile ? JSON.stringify(candidate_profile) : '{}',
+       status]
     )
 
     return NextResponse.json({ candidate: rows[0] }, { status: 201 })

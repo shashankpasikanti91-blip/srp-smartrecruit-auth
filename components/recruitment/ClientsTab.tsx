@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Building2, Loader2, Plus, RefreshCw } from 'lucide-react'
+import { Building2, Download, Loader2, Plus, RefreshCw } from 'lucide-react'
 import { ScrollableTable } from '@/components/dashboard/ScrollableTable'
+import { exportCsv } from '@/lib/exportCsv'
+import { Client360View } from '@/components/recruitment/Client360View'
 
 type Client = {
   id: string
@@ -18,6 +20,7 @@ export function ClientsTab() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', industry: '', contact_name: '', contact_email: '', contact_phone: '', notes: '' })
 
   const load = useCallback(async () => {
@@ -53,13 +56,24 @@ export function ClientsTab() {
         <div className="flex items-start gap-4">
           <div className="dash-section-icon"><Building2 className="w-5 h-5 text-white" /></div>
           <div>
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900">Clients</h1>
+            <h1 className="page-title text-lg sm:text-xl">Clients</h1>
             <p className="text-sm text-slate-500 mt-0.5">{clients.length} active clients</p>
           </div>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500">
             <Plus className="w-4 h-4" /> Add Client
+          </button>
+          <button
+            type="button"
+            onClick={() => exportCsv(
+              'clients.csv',
+              ['Name', 'Industry', 'Contact', 'Email', 'Phone', 'Notes'],
+              clients.map(c => [c.name, c.industry, c.contact_name, c.contact_email, c.contact_phone, c.notes]),
+            )}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+          >
+            <Download className="w-4 h-4" /> Export Excel
           </button>
           <button onClick={load} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50">
             <RefreshCw className="w-4 h-4" />
@@ -92,7 +106,11 @@ export function ClientsTab() {
               {clients.length === 0 ? (
                 <tr><td colSpan={5} className="text-center py-10 text-slate-400">No clients yet</td></tr>
               ) : clients.map(c => (
-                <tr key={c.id}>
+                <tr
+                  key={c.id}
+                  onClick={() => setSelectedClientId(c.id)}
+                  className="cursor-pointer hover:bg-indigo-50/40 transition-colors"
+                >
                   <td className="font-medium">{c.name}</td>
                   <td>{c.industry || '—'}</td>
                   <td>{c.contact_name || '—'}</td>
@@ -103,6 +121,13 @@ export function ClientsTab() {
             </tbody>
           </table>
         </ScrollableTable>
+      )}
+
+      {selectedClientId && (
+        <Client360View
+          clientId={selectedClientId}
+          onClose={() => setSelectedClientId(null)}
+        />
       )}
     </div>
   )

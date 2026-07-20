@@ -12,6 +12,11 @@ const MIGRATIONS = [
   'migrate_v19_ess_full.sql',
   'migrate_v20_governance.sql',
   'migrate_v21_ess_approval_audit.sql',
+  'migrate_v22_recruitment_os.sql',
+  'migrate_v23_phase2_os.sql',
+  'migrate_v24_job_candidate_parse.sql',
+  'migrate_v25_phase25_production.sql',
+  'migrate_v26_phase3_intelligence.sql',
 ]
 
 export async function runPendingMigrations(): Promise<string[]> {

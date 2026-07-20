@@ -3,6 +3,7 @@ import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import { isValidUUID, sanitizeText } from '@/lib/validate'
 import { logAudit } from '@/lib/audit'
+import { upsertWorkflowInstance } from '@/lib/workflowEngine'
 
 async function logSubmissionHistory(
   submissionId: string,
@@ -112,6 +113,22 @@ export async function PATCH(
     details: { submission_id: id, stage: newStage, old_stage: oldStage },
     tenantId: ctx.tenantId,
   })
+
+  if (newStage !== oldStage) {
+    const sla = new Date(Date.now() + 3 * 86400000)
+    await upsertWorkflowInstance({
+      tenantId: ctx.tenantId,
+      entityType: 'submission',
+      entityId: id,
+      stage: newStage,
+      resumeId: prev.rows[0].resume_id,
+      jobPostId: rows[0].job_post_id ?? null,
+      slaDueAt: sla,
+      actorUserId: ctx.userId,
+      actorEmail: ctx.userEmail,
+      detail: `${oldStage} → ${newStage}`,
+    })
+  }
 
   return NextResponse.json({ submission: rows[0] })
 }
