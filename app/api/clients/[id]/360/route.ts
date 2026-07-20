@@ -45,17 +45,8 @@ export async function GET(
        WHERE o.tenant_id = $1 AND j.client_id = $2
        ORDER BY o.updated_at DESC LIMIT 30`,
       [ctx.tenantId, id]
-    ).catch(async () => {
-      // offers may not have job_post_id always
-      return pool.query(
-        `SELECT o.id, o.short_id, o.status, o.offer_salary, r.candidate_name, o.updated_at
-         FROM offer_cases o
-         JOIN resumes r ON r.id = o.resume_id
-         WHERE o.tenant_id = $1
-         ORDER BY o.updated_at DESC LIMIT 10`,
-        [ctx.tenantId]
-      ).catch(() => ({ rows: [] }))
-    }),
+    ).catch(() => ({ rows: [] })),
+    // Do NOT fall back to all tenant offers — that leaks other clients' placements
     pool.query(
       `SELECT DISTINCT u.id, u.name, u.email, COUNT(s.id)::int AS submissions
        FROM submissions s

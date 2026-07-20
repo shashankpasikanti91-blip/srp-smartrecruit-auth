@@ -1,101 +1,173 @@
 # SmartRecruit — operations, security, backups, retention
 
-This document is the **source of truth** for how we run the product safely: tenant isolation, who can access the owner console, client data protection, subscription retention messaging, and backups. Read it before every production deploy.
+Source of truth for safe production operation. Read before every cloud deploy.
 
-## 1. Multi-tenant isolation (no cross-workspace leaks)
+Related: [INDEX.md](./INDEX.md) · [PHASE_3_1_LIVE_UAT.md](./PHASE_3_1_LIVE_UAT.md) · [CHANGELOG.md](./CHANGELOG.md)
 
-- API routes that touch jobs, candidates, or uploads must use **`requireTenant()`** from `lib/tenant.ts` and **`tenant_id`** in SQL `WHERE` clauses (see `app/api/candidates/route.ts` as the reference pattern).
-- A failure in one route must **not** return another tenant’s data: prefer **401/403** or empty scoped results over guessing tenant.
-- Client-facing errors stay **generic**; details and stack traces belong in **server logs** only.
+---
 
-## 2. Platform owners (Shashank, Harish, Priya, …)
+## 1. Multi-tenant isolation
 
-There are two different “owner” concepts:
+- API routes use **`requireTenant()`** and SQL `WHERE tenant_id = $N`.
+- Fail closed: **401/403**, never another tenant’s rows.
+- Client errors stay generic; stacks only in server logs.
+
+---
+
+## 2. Platform owners vs workspace owners
 
 | Concept | Meaning |
-|--------|--------|
-| **Workspace `owner` role** | `tenant_members.role = owner` for *that* tenant only. Full control inside that workspace. |
-| **Platform operator** | May open **`/owner`** and **`/api/admin`** (cross-tenant read for support). Controlled by env, not by vibe. |
+|---------|---------|
+| Workspace `owner` | `tenant_members.role = owner` for that tenant only |
+| Platform operator | `/owner` + `/api/admin` via env allow-list |
 
-**Environment variables**
+| Variable | Purpose |
+|----------|---------|
+| `OWNER_EMAILS` | Server allow-list for `/api/admin` |
+| `NEXT_PUBLIC_PLATFORM_OWNER_EMAILS` | Client allow-list for `/owner` |
+| `NEXT_PUBLIC_OWNER_EMAIL` | Legacy single email (merged if set) |
 
-| Variable | Where | Purpose |
-|----------|--------|---------|
-| `OWNER_EMAILS` | Server | Comma-separated emails allowed for **`/api/admin`**. |
-| `NEXT_PUBLIC_PLATFORM_OWNER_EMAILS` | Client + server | Same list (or subset) for **`/owner`** UI redirect; Next.js only exposes `NEXT_PUBLIC_*` to the browser. |
-| `NEXT_PUBLIC_OWNER_EMAIL` | Legacy | Single email; still merged if set. |
+Keep server and public lists aligned.
 
-Set `OWNER_EMAILS` and **`NEXT_PUBLIC_PLATFORM_OWNER_EMAILS` to the same comma-separated list** so server and client stay aligned. Example:
+---
+
+## 3. Client workspaces — no accidental data loss
+
+**Never** bulk-delete `resumes` / `job_posts` without a single-tenant ticket and owner consent.
+
+1. Set `tenants.retention_exempt = TRUE` for protected clients (after `migrate_v13`).
+2. Set `SRP_PROTECTED_TENANT_IDS` to those UUIDs.
+3. Any future purge job must skip both, support dry-run, and log every tenant.
+
+See `lib/dataRetention.ts` and `db/retention_dry_run.example.sql`.
+
+---
+
+## 4. Subscription retention (policy only)
+
+Exposed on `GET /api/profile` → `subscription.retention`.
+
+- Monthly: 1 month grace after period end  
+- Yearly: 3 months grace  
+
+**No automated purge is implemented.** Do not add deletes without dry-run + consent.
+
+---
+
+## 5. Backups (mandatory before every production deploy)
+
+### Script
 
 ```bash
-OWNER_EMAILS="shashank@example.com,harish@example.com,priya@example.com"
-NEXT_PUBLIC_PLATFORM_OWNER_EMAILS="shashank@example.com,harish@example.com,priya@example.com"
+# On server (after code pull)
+sudo cp /opt/srp-smartrecruit-auth/scripts/srp-backup.sh /usr/local/bin/srp-backup
+sudo chmod +x /usr/local/bin/srp-backup
+sudo /usr/local/bin/srp-backup
 ```
 
-Use real addresses in deployment secrets—do not rely on defaults in code.
+Creates under `/var/backups/srp-smartrecruit/<UTC-stamp>/`:
 
-## 3. Client workspaces (Harish, Priya) — no accidental data loss
+| File | Contents |
+|------|----------|
+| `srp_auth.dump` | Custom-format `pg_dump` (all tenants) |
+| `srp_auth.sql.gz` | Plain SQL dump |
+| `uploads.tar.gz` | Resume / document files (if present) |
+| `row_counts.txt` | Tenant / user / job / candidate counts |
+| `env_keys.txt` | Env **key names only** (no secrets) |
+| `MANIFEST.txt` | Stamp + file list |
 
-**Never** run bulk `DELETE` across `resumes` / `job_posts` without scoping to a single tenant and without an explicit ticket.
+Retention default: **14 days** (`SRP_BACKUP_KEEP_DAYS`).
 
-1. **Database flag (preferred)**  
-   After migration `db/migrate_v13_tenant_retention_exempt.sql`, set for the client tenant row:
+### What backup never does
 
-   ```sql
-   UPDATE tenants SET retention_exempt = TRUE WHERE slug IN ('harish-workspace', 'priya-workspace');
-   ```
+- No `DROP` / `TRUNCATE` / mass `DELETE`
+- No rewriting of user passwords (except demo account rules in legacy v12, which only touch known-bad hashes)
+- No deletion of Docker volume `srp_auth_pgdata`
 
-   Use the actual `slug` or `id` from your database.
+### Restore (emergency only — requires explicit owner approval)
 
-2. **Environment belt-and-suspenders**  
-   `SRP_PROTECTED_TENANT_IDS` — comma-separated **tenant UUIDs**. Any future automated purge job **must** skip these IDs (see `lib/dataRetention.ts`).
+```bash
+# Prefer restore into a new DB first, then cut over
+gunzip -c /var/backups/srp-smartrecruit/<stamp>/srp_auth.sql.gz \
+  | docker exec -i srp-auth-db psql -U srp_auth -d srp_auth
+```
 
-## 4. Subscription retention policy (UX + future automation)
+---
 
-Implemented in **`lib/dataRetention.ts`** and exposed on **`GET /api/profile`** as `subscription.retention`:
+## 6. Migrations (additive only)
 
-- **Monthly** billing: **1 month** grace after `current_period_end` before data would be *eligible* for automated cleanup (policy only today—no cron deletes in this repo).
-- **Yearly** billing: **3 months** grace after `current_period_end`.
+Tracked list (also in `scripts/apply-tracked-migrations.sh` and `lib/runMigrations.ts`):
 
-The dashboard shows an **amber banner** when `retention.banner` is non-null (grace or post-grace messaging). **Free** plans do not show purge messaging.
+`v0`, `v14` … `v27` (includes Phase 2 / 2.5 / 3 schema + perf indexes).
 
-Constants: `RETENTION_GRACE_MONTHS_MONTHLY`, `RETENTION_GRACE_MONTHS_YEARLY`.
+Rules:
 
-**Important:** Purge jobs are **not** implemented here on purpose. When you add a cron or worker, it must:
+1. Run **backup** first.
+2. Apply with `ON_ERROR_STOP=1`.
+3. Script aborts if **`auth_users` count changes**.
+4. App container may restart; **DB container and volume stay up**.
 
-1. Skip `tenants.retention_exempt = TRUE`.
-2. Skip IDs in `SRP_PROTECTED_TENANT_IDS`.
-3. Log every tenant touched and require a dry-run mode first.
+Legacy early patches (`v10`–`v13`) remain in the GitHub deploy workflow and are idempotent.
 
-Example dry-run stub: `db/retention_dry_run.example.sql`.
+---
 
-## 5. Backups (mandatory)
+## 7. Deploy runbook (cloud — no data loss)
 
-- **PostgreSQL:** scheduled logical dumps (e.g. nightly `pg_dump` with rotation) and tested restores at least quarterly.
-- **File uploads:** `uploads/` (e.g. `uploads/candidate-resumes/`) must live on a **persistent volume** and be included in backup or replicated object storage.
-- **Secrets:** back up env / secret manager definitions separately; never commit `.env.local`.
+Live: https://recruit.srpailabs.com  
+Host app dir: `/opt/srp-smartrecruit-auth`  
+Compose: app on `127.0.0.1:3010`; DB volume `srp_auth_pgdata`.
 
-## 6. Billing / payments (current product stance)
+### Order of operations
 
-- **No in-app card payment** is wired. The upgrade modal states that users should **email the team** to subscribe or renew.
-- Marketing pages should continue to point to **contact** / **mailto**, not a fake checkout.
+1. **Approve** deploy in chat / ticket (owner).
+2. Ensure Phase 3.1 UAT passed (or staging deploy only).
+3. Push `main` (triggers `.github/workflows/deploy.yml`) **or** manual SSH deploy.
+4. Workflow / operator must:
+   - Pull code (preserves `.env` and `uploads/`)
+   - Run **required** `srp-backup`
+   - Write `.env` from secrets (preserves `NEXTAUTH_URL`, `DATABASE_URL`)
+   - Apply migrations via `apply-tracked-migrations.sh`
+   - Verify login accounts still active + have password hashes
+   - Stop/rebuild **app only** (`docker compose stop app` — DB stays)
+   - Health-check `/api/health` = 200
+   - Smoke login + dashboard + one candidate open
 
-## 7. Pre-deploy checklist
+### Abort conditions
 
-1. `npm run lint`
-2. `npm run build`
-3. Optional: `npm run test:e2e` with `PLAYWRIGHT_BASE_URL` and demo credentials in `.env.e2e.local` (see `playwright.config.ts`).
-4. Apply any new SQL under `db/` to production **after backup**.
-5. Smoke: `/`, `/login`, `/api/health`, sign-in, open **Pipeline** and **Candidates**.
+- Backup failed and `ALLOW_DEPLOY_WITHOUT_BACKUP` is not `1`
+- `auth_users` count changed after migrate
+- Health check never returns 200
+- Login smoke fails
 
-## 8. Change log (high level)
+### Login preservation
 
-| Area | Notes |
+- Do not reset Postgres volume.
+- Do not run destructive SQL against `auth_users` / `tenant_members`.
+- `migrate_v12_fix_passwords.sql` only resets **demo** password and known-bad hashes; custom passwords are kept.
+- NextAuth sessions may need re-login after deploy (normal); **accounts and tenant memberships must remain**.
+
+---
+
+## 8. Pre-deploy checklist
+
+1. [ ] Backup completed; path recorded  
+2. [ ] `npm run lint` / `npx tsc --noEmit` / `npm run build` on CI  
+3. [ ] New SQL under `db/` reviewed (additive only)  
+4. [ ] `COMM_WEBHOOK_SECRET` set in production  
+5. [ ] Smoke: `/`, `/login`, `/api/health`, Pipeline, Candidates  
+6. [ ] Confirm existing tenant data still visible after deploy  
+
+---
+
+## 9. Billing stance
+
+No in-app card checkout. Upgrade = contact team / mailto.
+
+---
+
+## 10. Operations change log
+
+| Date | Change |
 |------|--------|
-| Tenant SQL | All tenant-scoped APIs use `tenant_id` with `requireTenant`. |
-| Platform access | `lib/platformAccess.ts` + `OWNER_EMAILS` / `NEXT_PUBLIC_PLATFORM_OWNER_EMAILS`. |
-| Retention UX | `lib/dataRetention.ts` + profile `subscription.retention` + dashboard banner. |
-| Client protection | `retention_exempt` column + `SRP_PROTECTED_TENANT_IDS`. |
-| Lint / build | ESLint 9 flat config; `next build` typecheck. |
-
-Update this table when you ship materially new behaviour.
+| 2026-07-20 | Required pre-deploy backup script; tracked migrations through v27; login count guard; Phase 3.1 UAT pack |
+| Prior | Tenant SQL isolation; platform owner emails; retention UX; client `retention_exempt` |

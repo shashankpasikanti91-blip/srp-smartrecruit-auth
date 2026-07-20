@@ -4,6 +4,8 @@ import { pool } from '@/lib/db'
 import { isValidUUID, sanitizeText } from '@/lib/validate'
 import { logAudit } from '@/lib/audit'
 import { upsertWorkflowInstance } from '@/lib/workflowEngine'
+import { writeTimeline } from '@/lib/timelineEngine'
+import { createNotification } from '@/lib/notificationCenter'
 
 async function logSubmissionHistory(
   submissionId: string,
@@ -115,6 +117,47 @@ export async function PATCH(
   })
 
   if (newStage !== oldStage) {
+    const stageTitles: Record<string, string> = {
+      submitted: 'Submitted to Client',
+      client_reviewing: 'Client Reviewing',
+      client_shortlisted: 'Client Shortlisted',
+      interview_scheduled: 'Interview Scheduled',
+      interview_completed: 'Interview Completed',
+      waiting_feedback: 'Awaiting Feedback',
+      selected: 'Selected',
+      rejected: 'Rejected by Client',
+      rejected_by_candidate: 'Rejected by Candidate',
+      duplicate: 'Marked Duplicate',
+      position_closed: 'Position Closed',
+      hold: 'Position On Hold',
+      withdrawn: 'Submission Withdrawn',
+      offer_released: 'Offer Released',
+      offer_accepted: 'Offer Accepted',
+      offer_declined: 'Offer Declined',
+      joined: 'Joined',
+      no_show: 'No Show',
+    }
+    await writeTimeline({
+      tenantId: ctx.tenantId,
+      entityType: 'submission',
+      entityId: id,
+      resumeId: prev.rows[0].resume_id,
+      eventType: `submission_${newStage}`,
+      title: stageTitles[newStage] ?? `Submission → ${newStage.replace(/_/g, ' ')}`,
+      detail: `${oldStage} → ${newStage}`,
+      actorUserId: ctx.userId,
+      actorEmail: ctx.userEmail,
+    })
+    await createNotification({
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      category: 'submission',
+      title: stageTitles[newStage] ?? `Submission updated`,
+      body: `${oldStage} → ${newStage}`,
+      resumeId: prev.rows[0].resume_id,
+      entityType: 'submission',
+      entityId: id,
+    })
     const sla = new Date(Date.now() + 3 * 86400000)
     await upsertWorkflowInstance({
       tenantId: ctx.tenantId,

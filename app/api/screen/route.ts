@@ -5,6 +5,8 @@ import { checkAiScreenLimit } from '@/lib/limits'
 import { logAudit } from '@/lib/audit'
 import { isValidUUID } from '@/lib/validate'
 import { extractResumeFields } from '@/lib/resumeExtract'
+import { writeTimeline } from '@/lib/timelineEngine'
+import { createNotification } from '@/lib/notificationCenter'
 
 /** AI models sometimes return score as a string — DB ai_score must be numeric for match_category. */
 function normalizeScreeningScore(value: unknown): number | null {
@@ -444,6 +446,52 @@ export async function POST(req: NextRequest) {
       }
 
       results.push({ ...parsed, filename: resume.filename, screened_at: new Date().toISOString() })
+    }
+
+    const saved = (results as Record<string, unknown>[]).filter(
+      (r): r is Record<string, unknown> & { db_id: string } =>
+        typeof r.db_id === 'string' && r.db_id.length > 0
+    )
+    for (const row of saved) {
+      const displayName = (row.candidate_name || row.name) as string | undefined
+      const score = typeof row.score === 'number' ? row.score : undefined
+      const shortId = typeof row.short_id === 'string' ? row.short_id : undefined
+      const filename = typeof row.filename === 'string' ? row.filename : undefined
+      await writeTimeline({
+        tenantId,
+        entityType: 'candidate',
+        entityId: row.db_id,
+        resumeId: row.db_id,
+        eventType: 'candidate_screened',
+        title: 'AI Screening Completed',
+        detail: displayName
+          ? `${displayName}${score != null ? ` · score ${score}` : ''}`
+          : filename ?? 'Screened',
+        actorUserId: userId,
+        actorEmail: ctx.userEmail,
+        meta: { score, short_id: shortId },
+      })
+      await logAudit({
+        userId,
+        userEmail: ctx.userEmail,
+        tenantId,
+        action: 'candidate_screened',
+        resourceType: 'candidate',
+        resourceId: shortId ?? row.db_id,
+        resumeId: row.db_id,
+        details: { score, filename },
+      })
+    }
+    if (saved.length > 0) {
+      await createNotification({
+        tenantId,
+        userId,
+        category: 'screening',
+        title: `Screening complete — ${saved.length} candidate${saved.length === 1 ? '' : 's'}`,
+        body: 'AI screening results saved to Candidate 360',
+        entityType: 'candidate',
+        entityId: saved[0].db_id,
+      })
     }
 
     return NextResponse.json({ results })

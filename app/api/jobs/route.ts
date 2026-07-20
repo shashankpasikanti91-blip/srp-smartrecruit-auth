@@ -3,6 +3,8 @@ import { requireTenant } from '@/lib/tenant'
 import { createJobPost, getJobPosts, logActivity, pool } from '@/lib/db'
 import { checkJobPostLimit } from '@/lib/limits'
 import { logAudit } from '@/lib/audit'
+import { writeTimeline } from '@/lib/timelineEngine'
+import { createNotification } from '@/lib/notificationCenter'
 
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, 'jobs.read')
@@ -100,9 +102,35 @@ export async function POST(req: NextRequest) {
       event_type: 'job_post_created',
       event_data: { job_id: job.id, title: job.title },
     })
-    logAudit({ userId: ctx.userId, userEmail: ctx.userEmail, action: 'job_created',
-      resourceType: 'job', resourceId: job.short_id ?? job.id,
-      details: { title: job.title }, tenantId: ctx.tenantId })
+    await logAudit({
+      userId: ctx.userId,
+      userEmail: ctx.userEmail,
+      action: 'job_created',
+      resourceType: 'job',
+      resourceId: job.short_id ?? job.id,
+      details: { title: job.title },
+      tenantId: ctx.tenantId,
+    })
+    await writeTimeline({
+      tenantId: ctx.tenantId,
+      entityType: 'job',
+      entityId: job.id,
+      eventType: 'job_created',
+      title: 'Job Created',
+      detail: job.title,
+      actorUserId: ctx.userId,
+      actorEmail: ctx.userEmail,
+      meta: { short_id: job.short_id, company: job.company },
+    })
+    await createNotification({
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      category: 'job',
+      title: `Job created — ${job.title}`,
+      body: job.short_id ? `${job.short_id}` : undefined,
+      entityType: 'job',
+      entityId: job.id,
+    })
 
     return NextResponse.json({ job }, { status: 201 })
   } catch (err) {

@@ -81,11 +81,14 @@ jobs:
             git reset --hard origin/main
             git clean -fd -e uploads -e .env
 
-            echo "=== [1b/5] Pre-deploy backup (DB + uploads) ==="
-            if [ -x /usr/local/bin/srp-backup ]; then
-              sudo /usr/local/bin/srp-backup || echo "WARN: backup script returned non-zero — continuing deploy"
+            echo "=== [1b/5] Pre-deploy backup (DB + uploads) — REQUIRED ==="
+            # Install/refresh backup helper from repo (additive; never deletes tenants)
+            sudo cp /opt/srp-smartrecruit-auth/scripts/srp-backup.sh /usr/local/bin/srp-backup
+            sudo chmod +x /usr/local/bin/srp-backup
+            if [ "${ALLOW_DEPLOY_WITHOUT_BACKUP:-0}" = "1" ]; then
+              sudo /usr/local/bin/srp-backup || echo "WARN: backup failed but ALLOW_DEPLOY_WITHOUT_BACKUP=1"
             else
-              echo "WARN: /usr/local/bin/srp-backup not installed — skipping pre-deploy backup"
+              sudo /usr/local/bin/srp-backup
             fi
 
             echo "=== [2/5] Write .env from secret ==="
@@ -101,43 +104,28 @@ jobs:
             echo 'POSTGRES_PASSWORD=SrpAuth2024Secure!' >> /opt/srp-smartrecruit-auth/.env
             echo "DB URL injected, POSTGRES_PASSWORD set"
 
-            echo "=== [2b/5] Run DB migrations ==="
-            # Run all migrations idempotently (IF NOT EXISTS / ON CONFLICT safe)
-            docker exec -i srp-auth-db psql -U srp_auth -d srp_auth \
-              < /opt/srp-smartrecruit-auth/db/migrate_v10_candidate_record_optional_jd.sql
-            docker exec -i srp-auth-db psql -U srp_auth -d srp_auth \
-              < /opt/srp-smartrecruit-auth/db/migrate_v11_dup_index.sql
-            # Ensure password_hash column and user passwords are set (idempotent)
-            docker exec -i srp-auth-db psql -U srp_auth -d srp_auth \
-              < /opt/srp-smartrecruit-auth/db/migrate_v12_fix_passwords.sql
-            # v12: resume_original_path column for in-app file preview
-            docker exec -i srp-auth-db psql -U srp_auth -d srp_auth \
-              < /opt/srp-smartrecruit-auth/db/migrate_v12_resume_original.sql
-            # v13: retention_exempt flag on tenants
-            docker exec -i srp-auth-db psql -U srp_auth -d srp_auth \
-              < /opt/srp-smartrecruit-auth/db/migrate_v13_tenant_retention_exempt.sql
-            for f in migrate_v0_schema_migrations.sql \
-                     migrate_v14_candidate_documents.sql \
-                     migrate_v15_workflow.sql \
-                     migrate_v16_ess_lite.sql \
-                     migrate_v17_submission_history.sql \
-                     migrate_v18_offer_history.sql \
-                     migrate_v19_ess_full.sql \
-                     migrate_v20_governance.sql \
-                     migrate_v21_ess_approval_audit.sql; do
+            echo "=== [2b/5] Run DB migrations (additive; preserve tenants + logins) ==="
+            # Legacy early patches (idempotent ALTER/ADD COLUMN)
+            for f in migrate_v10_candidate_record_optional_jd.sql \
+                     migrate_v11_dup_index.sql \
+                     migrate_v12_fix_passwords.sql \
+                     migrate_v12_resume_original.sql \
+                     migrate_v13_tenant_retention_exempt.sql; do
               if [ -f "/opt/srp-smartrecruit-auth/db/$f" ]; then
                 echo "==> $f"
-                docker exec -i srp-auth-db psql -U srp_auth -d srp_auth \
+                docker exec -i srp-auth-db psql -U srp_auth -d srp_auth -v ON_ERROR_STOP=1 \
                   < "/opt/srp-smartrecruit-auth/db/$f"
-              else
-                echo "SKIP missing migration file: $f"
               fi
             done
-            echo "--- Verifying user password status ---"
+            # Tracked OS migrations v0 + v14–v27 (auth_users count must stay stable)
+            chmod +x /opt/srp-smartrecruit-auth/scripts/apply-tracked-migrations.sh
+            APP_DIR=/opt/srp-smartrecruit-auth /opt/srp-smartrecruit-auth/scripts/apply-tracked-migrations.sh
+
+            echo "--- Verifying login accounts still active ---"
             docker exec srp-auth-db psql -U srp_auth -d srp_auth -c \
               "SELECT email, is_active, (password_hash IS NOT NULL) AS has_password FROM auth_users WHERE email IN ('demo@srpailabs.com','pasikantishashank24@gmail.com','hareesh4u22@gmail.com','priyapasikanti0@gmail.com') ORDER BY email;"
 
-            echo "=== [3/5] Stop app only ΓÇö DB stays running ==="
+            echo "=== [3/5] Stop app only — DB stays running ==="
             docker compose stop app  2>/dev/null || true
             docker compose rm -f app 2>/dev/null || true
 

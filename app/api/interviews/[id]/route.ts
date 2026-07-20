@@ -10,19 +10,24 @@ import { requireTenant }              from '@/lib/tenant'
 import { pool }                       from '@/lib/db'
 import { logAudit }                   from '@/lib/audit'
 import { deleteCalendarEvent }        from '@/lib/calendar'
+import { writeTimeline }              from '@/lib/timelineEngine'
+import { createNotification }         from '@/lib/notificationCenter'
+import { upsertWorkflowInstance }     from '@/lib/workflowEngine'
+import { runCollaborativeChain }      from '@/lib/agentCollaboration'
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const ctx = await requireTenant(req)
+  const ctx = await requireTenant(req, 'pipeline.update')
   if (ctx instanceof NextResponse) return ctx
 
   const { id } = await params
 
   // Fetch existing interview
   const { rows } = await pool.query(
-    `SELECT id, short_id, tenant_id, interviewer_id, calendar_event_id, status
+    `SELECT id, short_id, tenant_id, interviewer_id, calendar_event_id, status,
+            resume_id, job_post_id, candidate_name
      FROM interviews WHERE id = $1 AND tenant_id = $2`,
     [id, ctx.tenantId]
   )
@@ -31,6 +36,7 @@ export async function PATCH(
   }
 
   const interview = rows[0]
+  const oldStatus = interview.status as string
 
   let body: {
     status?:          string
@@ -83,6 +89,7 @@ export async function PATCH(
     [...vals, id, ctx.tenantId]
   )
 
+  const newStatus = updated[0]?.status as string
   await logAudit({
     userId:       ctx.userId,
     userEmail:    ctx.userEmail,
@@ -90,8 +97,64 @@ export async function PATCH(
     action:       'interview_updated',
     resourceType: 'interview',
     resourceId:   id,
-    details:      { changes: body },
+    resumeId:     interview.resume_id,
+    details:      { changes: body, old_status: oldStatus, new_status: newStatus },
   })
+
+  if (body.status !== undefined && newStatus !== oldStatus) {
+    const statusTitles: Record<string, string> = {
+      scheduled: 'Interview Scheduled',
+      confirmed: 'Interview Confirmed',
+      rescheduled: 'Interview Rescheduled',
+      completed: 'Interview Completed',
+      cancelled: 'Interview Cancelled',
+      no_show: 'Interview No-Show',
+    }
+    await writeTimeline({
+      tenantId: ctx.tenantId,
+      entityType: 'interview',
+      entityId: id,
+      resumeId: interview.resume_id,
+      eventType: `interview_${newStatus}`,
+      title: statusTitles[newStatus] ?? `Interview ${newStatus}`,
+      detail: `${oldStatus} → ${newStatus}${interview.candidate_name ? ` · ${interview.candidate_name}` : ''}`,
+      actorUserId: ctx.userId,
+      actorEmail: ctx.userEmail,
+    })
+    await createNotification({
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      category: 'interview',
+      title: statusTitles[newStatus] ?? `Interview updated`,
+      body: `${oldStatus} → ${newStatus}`,
+      resumeId: interview.resume_id,
+      entityType: 'interview',
+      entityId: id,
+    })
+    await upsertWorkflowInstance({
+      tenantId: ctx.tenantId,
+      entityType: 'interview',
+      entityId: id,
+      stage: newStatus,
+      resumeId: interview.resume_id,
+      jobPostId: interview.job_post_id,
+      actorUserId: ctx.userId,
+      actorEmail: ctx.userEmail,
+      detail: `${oldStatus} → ${newStatus}`,
+    })
+    if (newStatus === 'completed') {
+      await runCollaborativeChain({
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        triggerEvent: 'interview_completed',
+        resumeId: interview.resume_id,
+        jobPostId: interview.job_post_id,
+        entityType: 'interview',
+        entityId: id,
+        candidateName: interview.candidate_name,
+      })
+    }
+  }
 
   return NextResponse.json({ interview: updated[0] })
 }
@@ -100,13 +163,13 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const ctx = await requireTenant(req)
+  const ctx = await requireTenant(req, 'pipeline.update')
   if (ctx instanceof NextResponse) return ctx
 
   const { id } = await params
 
   const { rows } = await pool.query(
-    `SELECT id, tenant_id, interviewer_id, calendar_event_id
+    `SELECT id, tenant_id, interviewer_id, calendar_event_id, resume_id, short_id, candidate_name
      FROM interviews WHERE id = $1 AND tenant_id = $2`,
     [id, ctx.tenantId]
   )
@@ -116,15 +179,14 @@ export async function DELETE(
 
   const interview = rows[0]
 
-  // Mark cancelled (soft delete)
+  // Mark cancelled (soft delete) — always include tenant_id
   await pool.query(
-    `UPDATE interviews SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
-    [id]
+    `UPDATE interviews SET status = 'cancelled', updated_at = NOW()
+     WHERE id = $1 AND tenant_id = $2`,
+    [id, ctx.tenantId]
   )
 
-  // Delete calendar event if it exists
   if (interview.calendar_event_id) {
-    // Detect provider by calendar_connections
     const { rows: calRows } = await pool.query(
       `SELECT provider FROM calendar_connections
        WHERE tenant_id = $1 AND user_id = $2 AND is_active = TRUE LIMIT 1`,
@@ -144,6 +206,18 @@ export async function DELETE(
     }
   }
 
+  await writeTimeline({
+    tenantId: ctx.tenantId,
+    entityType: 'interview',
+    entityId: id,
+    resumeId: interview.resume_id,
+    eventType: 'interview_cancelled',
+    title: 'Interview Cancelled',
+    detail: interview.candidate_name ?? interview.short_id,
+    actorUserId: ctx.userId,
+    actorEmail: ctx.userEmail,
+  })
+
   await logAudit({
     userId:       ctx.userId,
     userEmail:    ctx.userEmail,
@@ -151,6 +225,17 @@ export async function DELETE(
     action:       'interview_cancelled',
     resourceType: 'interview',
     resourceId:   id,
+    resumeId:     interview.resume_id,
+  })
+
+  await createNotification({
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    category: 'interview',
+    title: `Interview cancelled${interview.candidate_name ? ` — ${interview.candidate_name}` : ''}`,
+    resumeId: interview.resume_id,
+    entityType: 'interview',
+    entityId: id,
   })
 
   return NextResponse.json({ ok: true })

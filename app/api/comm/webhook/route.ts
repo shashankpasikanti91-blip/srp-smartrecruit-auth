@@ -5,11 +5,17 @@ import { isValidUUID } from '@/lib/validate'
 /**
  * Provider-agnostic delivery webhook stub.
  * Accepts { log_id | message_id, event: delivered|opened|read|failed, reason? }
- * No auth provider signature validation in v1 — protect via network / secret header if set.
+ * Fail-closed: COMM_WEBHOOK_SECRET is required outside development.
  */
 export async function POST(req: NextRequest) {
   const secret = process.env.COMM_WEBHOOK_SECRET
-  if (secret) {
+  const isProd = process.env.NODE_ENV === 'production'
+  if (!secret) {
+    if (isProd) {
+      return NextResponse.json({ error: 'COMM_WEBHOOK_SECRET not configured' }, { status: 503 })
+    }
+    console.warn('[comm/webhook] COMM_WEBHOOK_SECRET unset — allowing unauthenticated updates in non-production only')
+  } else {
     const hdr = req.headers.get('x-comm-webhook-secret') || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
     if (hdr !== secret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

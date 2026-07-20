@@ -1,17 +1,21 @@
 # SRP AI Labs — SmartRecruit (Next.js app)
 
 **Live:** https://recruit.srpailabs.com  
-**Stack:** Next.js 16 · NextAuth v4 · PostgreSQL (Supabase or self-hosted) · Tailwind CSS · TypeScript
+**Release:** `v1.0.0-rc1` (internal) · Production `v1.0.0` after [Phase 3.1 Live UAT](docs/PHASE_3_1_LIVE_UAT.md)  
+**Stack:** Next.js 16 · NextAuth v4 · PostgreSQL · Tailwind CSS · TypeScript
 
-> Production dashboard and API for agentic recruiting: pipeline, jobs, candidates, AI screening, compose, analytics, multi-tenant isolation.
+> AI-powered **Recruitment Operating System** — pipeline, jobs, candidates, multi-country documents, offers, AI Copilot, multi-tenant isolation.
 
-**Operations (owners, backups, retention, client protection):** see [docs/OPERATIONS.md](docs/OPERATIONS.md).
+**Documentation index:** [docs/INDEX.md](docs/INDEX.md)  
+**Operations / backups / safe deploy:** [docs/OPERATIONS.md](docs/OPERATIONS.md)  
+**What changed (RC1 → 3.1):** [docs/CHANGELOG.md](docs/CHANGELOG.md)  
+**Product vision map:** [fullrecuruitmentOS.md](fullrecuruitmentOS.md)
 
-Full monorepo context (FastAPI backend, deployment): see the repository root [README.md](../README.md). **This folder is the production SmartRecruit web app** — keep unrelated third-party app trees out of the repository root.
+Full monorepo context (FastAPI backend, deployment): see the repository root [README.md](../README.md). **This folder is the production SmartRecruit web app.**
 
 ---
 
-## Features (May 2026)
+## Features (May–Jul 2026)
 
 | Area | Description |
 |---|---|
@@ -26,9 +30,11 @@ Full monorepo context (FastAPI backend, deployment): see the repository root [RE
 | **Short IDs** | Human-readable IDs (`JOB-…`, `RES-…`, `USR-…`) alongside UUIDs |
 | **Candidate dossier** | `candidate_profile` JSONB (salary, notice, location, visa, masked IDs, notes). Dashboard: dossier column, Kanban badge, modal summary + **ATS record** tab + phone save |
 | **Jobs** | Create/list jobs with `optional_requirements` for AI context |
+| **Recruitment OS** | Submissions, interviews, offers, timelines, audit, reminders, Candidate/Client/Job 360, HR country packs |
+| **AI Copilot** | Senior recruiter intents (JD, boolean, compare, WhatsApp, missing docs, joining) |
 | **Owner panel** | Admin: users, activity, token usage, subscriptions |
-| **Notifications** | Telegram + email on signup, login, errors (when configured) |
-| **Deploy** | Docker + nginx + Let’s Encrypt; GitHub Actions CI/CD |
+| **Notifications** | In-app center + Telegram/email on signup/login/errors (when configured) |
+| **Deploy** | Docker + nginx + Let’s Encrypt; GitHub Actions CI/CD with **required pre-deploy backup** |
 
 ---
 
@@ -80,14 +86,10 @@ Lightweight HTTPS smoke (no browser): from repo root, `python deployment/e2e_liv
 
 ## Database setup
 
-1. Create a PostgreSQL database (e.g. Supabase).
-2. Run base schema if this is a greenfield project: `db/schema.sql` (creates core tables).
-3. Apply **migrations in order** from `db/` (see list in root [README.md](../README.md) § Database Migrations). At minimum after v9, apply:
-   - `migrate_v10_invite_hardening.sql` — invite flow indexes and cleanup
-   - **`migrate_v10_candidate_record_optional_jd.sql`** — `resumes.candidate_profile` JSONB + `job_posts.optional_requirements`
-   - `migrate_v11_dup_index.sql` — index on `(tenant_id, candidate_email)` for duplicate checks
-
-Supabase: SQL Editor → paste each file → Run.
+1. Create a PostgreSQL database (e.g. Supabase or Docker `srp-auth-db`).
+2. Run base schema if greenfield: `db/schema.sql`.
+3. Apply migrations in order. Production deploy uses `scripts/apply-tracked-migrations.sh` (`v0` + `v14`–`v27`) **after backup**.
+4. Never reset the Postgres volume to “fix” schema — that destroys all tenants.
 
 ---
 
@@ -98,15 +100,23 @@ Supabase: SQL Editor → paste each file → Run.
 | `NEXTAUTH_SECRET` | server | Random 32-byte base64 string |
 | `NEXTAUTH_URL` | server | Full public URL (e.g. `https://recruit.srpailabs.com`) |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | server | Google OAuth |
-| `DATABASE_URL` | server | PostgreSQL connection string |
-| `OPENAI_API_KEY` | server | Used by `/api/screen` and other AI routes (see code) |
-| `NEXT_PUBLIC_SUPABASE_URL` | public | Optional; if you use Supabase client-side |
-| `SUPABASE_SERVICE_ROLE_KEY` | server | Optional; server-only |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | server | Owner notifications |
-| `OWNER_EMAIL` | server | Owner account email |
-| `SMTP_USER` / `SMTP_PASS` | server | Email alerts (e.g. Gmail app password) |
+| `DATABASE_URL` | server | Postgres connection string |
+| `COMM_WEBHOOK_SECRET` | server | Required in production for `/api/comm/webhook` |
+| `OPENAI_API_KEY` / `OPENROUTER_API_KEY` | server | AI Copilot + screening |
+| `OWNER_EMAILS` / `NEXT_PUBLIC_PLATFORM_OWNER_EMAILS` | server/client | Platform owner allow-list |
 
-Use `.env.example` as the checklist for your deployment.
+See `.env.example` / `.env.production` for the full list (SMTP, Telegram, Supabase, etc.).
+
+---
+
+## Safe production deploy
+
+1. Complete [Phase 3.1 Live UAT](docs/PHASE_3_1_LIVE_UAT.md).  
+2. Owner approves commit / push.  
+3. CI runs **required backup** → additive migrations (through v27) → rebuild **app only** (DB volume untouched).  
+4. Verify `/api/health`, login, and existing tenant candidates still present.
+
+Details: [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ---
 
@@ -118,56 +128,39 @@ Use `.env.example` as the checklist for your deployment.
 | `/api/health` | GET | `{ ok: true }` |
 | `/api/jobs` | GET/POST | Jobs; POST accepts `optional_requirements` |
 | `/api/candidates` | GET/POST | Tenant-scoped list / create |
-| `/api/candidates/[id]` | PATCH | `pipeline_stage`, `status`, `reviewer_notes`, `ai_score`, `ai_summary`, `job_post_id`, **`candidate_phone`**, **`candidate_profile`** (object → JSONB) |
+| `/api/candidates/[id]` | PATCH | Pipeline, profile, scores |
 | `/api/candidates/[id]` | DELETE | Remove candidate (tenant-guarded) |
-| `/api/screen` | POST | AI screening; body may include `job_post_id`, resume text or candidate ids |
-| `/api/resumes`, `/api/resumes/[id]` | various | Resume CRUD |
+| `/api/screen` | POST | AI screening |
+| `/api/coach` | POST | AI Recruiter Copilot |
+| `/api/submissions`, `/api/interviews`, `/api/offers` | various | Recruitment OS modules |
 | `/api/admin` | GET | Owner stats (when authorized) |
-| `/api/notify/test` | POST | Test Telegram + email |
 
 ---
 
 ## Architecture
 
 ```
-recruit.srpailabs.com (Cloudflare)
-    │
-    ▼
-Nginx (443 TLS)
-    │
-    ▼
-Docker: Next.js app (this package)
-    │
-    ├─► PostgreSQL — tenants, jobs, resumes, screening JSON
-    ├─► Google OAuth
-    ├─► OpenAI-compatible API — screening / compose
-    ├─► Telegram / SMTP — notifications
-    └─► Optional: Supabase for hosting DB
+recruit.srpailabs.com
+    → Nginx (TLS)
+    → Docker Next.js app (127.0.0.1:3010)
+    → PostgreSQL volume srp_auth_pgdata (all tenants — never wipe)
 ```
 
 ---
 
 ## Entity IDs
 
-| Entity | Format | Example |
-|---|---|---|
-| User | `USR-000001` | `USR-000042` |
-| Job | `JOB-000001` | `JOB-000007` |
-| Resume / candidate | `RES-000001` | `RES-000123` |
-
----
-
-## Deploy (Hetzner) — summary
-
-One-time server setup, DNS `A` record, GitHub Actions secrets (`HETZNER_*`, `PRODUCTION_ENV`, etc.) are documented in deploy scripts and the root README. Typical redeploy:
-
-```bash
-cd /opt/srp-smartrecruit-auth
-git pull && docker compose up -d --build
-```
+| Entity | Format |
+|---|---|
+| User | `USR-…` |
+| Job | `JOB-…` |
+| Candidate | `RES-…` |
+| Submission | `SUB-YYYY-######` |
+| Interview | `INT-…` |
+| Offer | `OFF-YYYY-######` |
 
 ---
 
 ## Owner account
 
-First Google sign-in for the configured owner email receives `role=owner` (see app logic / seed). Do not commit secrets or production `.env` files.
+Platform owners use `OWNER_EMAILS` / `NEXT_PUBLIC_PLATFORM_OWNER_EMAILS`. Do not commit secrets or production `.env` files.

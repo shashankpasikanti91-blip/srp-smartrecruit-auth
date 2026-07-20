@@ -69,11 +69,36 @@ export async function GET(req: NextRequest) {
     resourceType: 'offer_cases',
   })
 
-  const offers = await Promise.all(rows.map(async (o: { resume_id: string; hr_checklist?: Record<string, boolean> }) => {
-    const liveSlots = await docSlotsForResume(ctx.tenantId, o.resume_id)
+  const resumeIds = rows.map((o: { resume_id: string }) => o.resume_id).filter(Boolean)
+  const slotByResume = new Map<string, Record<string, boolean>>()
+  if (resumeIds.length > 0) {
+    const { rows: docRows } = await pool.query<{
+      resume_id: string
+      slot_type: string
+      has_file: boolean
+    }>(
+      `SELECT cd.resume_id, cd.slot_type,
+              EXISTS (SELECT 1 FROM document_versions dv WHERE dv.document_id = cd.id) AS has_file
+       FROM candidate_documents cd
+       WHERE cd.tenant_id = $1 AND cd.resume_id = ANY($2::uuid[])`,
+      [ctx.tenantId, resumeIds]
+    )
+    for (const id of resumeIds) {
+      const out: Record<string, boolean> = {}
+      for (const slot of HR_SLOTS) out[slot] = false
+      slotByResume.set(id, out)
+    }
+    for (const r of docRows) {
+      const out = slotByResume.get(r.resume_id)
+      if (out) out[r.slot_type] = r.has_file
+    }
+  }
+
+  const offers = rows.map((o: { resume_id: string; hr_checklist?: Record<string, boolean> }) => {
+    const liveSlots = slotByResume.get(o.resume_id) ?? Object.fromEntries(HR_SLOTS.map(s => [s, false]))
     const merged = { ...(o.hr_checklist ?? {}), ...liveSlots }
     return { ...o, hr_checklist: merged, doc_slots: liveSlots }
-  }))
+  })
 
   return NextResponse.json({ offers })
 }

@@ -21,6 +21,7 @@ const FILES = [
   'migrate_v24_job_candidate_parse.sql',
   'migrate_v25_phase25_production.sql',
   'migrate_v26_phase3_intelligence.sql',
+  'migrate_v27_perf_indexes.sql',
 ]
 
 const url = process.env.DATABASE_URL

@@ -183,6 +183,32 @@ Live LinkedIn/SMS providers · Vector embeddings · Full BPMN · Auto-send of ag
 
 ---
 
+## Phase 3.1 — Live UAT & safe cloud deploy (2026-07-20)
+
+**Status:** Documentation + deploy safety + OS write gaps closed in code. **Live UAT not yet signed off.** Do not cut `v1.0.0` until [docs/PHASE_3_1_LIVE_UAT.md](docs/PHASE_3_1_LIVE_UAT.md) Pass.
+
+### Added / fixed
+
+| Area | Detail |
+|------|--------|
+| Docs | `docs/INDEX.md`, `CHANGELOG.md`, `PHASE_3_1_LIVE_UAT.md`, rewritten `OPERATIONS.md`, cleaned `VALIDATION_RC1.md` / `fullrecuruitmentOS.md` |
+| Backup | `scripts/srp-backup.sh` — required before production deploy |
+| Migrations | `scripts/apply-tracked-migrations.sh` includes **v22–v27**; CI deploy was stopping at v21 |
+| Login guard | Abort migrate if `auth_users` count changes |
+| OS writes | Job/candidate/screen/interview/submission stage → timeline + audit + notifications |
+| Security | Webhook fail-closed; Client 360 offer scope; notification self-only; interview tenant delete |
+| Perf | Candidate aggregates; offers batch slots; `migrate_v27_perf_indexes.sql` |
+
+### Deploy rule
+
+Backup → additive migrate → rebuild **app only** → health + login smoke. Postgres volume never wiped.
+
+### Next
+
+Execute Phase 3.1 scenarios 1–5 on live/staging, then owner approval for commit → push → tag `v1.0.0` → deploy.
+
+---
+
 ## Files touched (high level)
 
 **New:** migration v23, timelineEngine, reminderEngine, notificationCenter, CandidateCommsPanel, HrConfigTab, NotificationBell, dashboard insights API, hr-config API, notifications API, candidate comms/audit/jobs APIs  

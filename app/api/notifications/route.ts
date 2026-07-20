@@ -47,18 +47,18 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'create') {
+    // Only self — prevents cross-user notification spam
     const title = sanitizeText(body.title, 300)
     if (!title) return NextResponse.json({ error: 'title required' }, { status: 400 })
     await createNotification({
       tenantId: ctx.tenantId,
-      userId: body.user_id || ctx.userId,
-      category: sanitizeText(body.category, 40) ?? 'general',
+      userId: ctx.userId,
+      category: sanitizeText(body.category, 40) ?? 'system',
       title,
-      body: sanitizeText(body.body, 2000),
-      link: sanitizeText(body.link, 500),
-      entityType: sanitizeText(body.entity_type, 40),
-      entityId: sanitizeText(body.entity_id, 80),
-      resumeId: body.resume_id || null,
+      body: sanitizeText(body.body, 2000) ?? undefined,
+      entityType: sanitizeText(body.entity_type, 40) ?? undefined,
+      entityId: sanitizeText(body.entity_id, 80) ?? undefined,
+      resumeId: body.resume_id ?? undefined,
     })
     return NextResponse.json({ ok: true })
   }

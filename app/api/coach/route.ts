@@ -73,6 +73,20 @@ function detectIntent(prompt: string): { mode: string; maxTokens: number; hint: 
   if (/\b(boolean|linkedin search|jobstreet)\b/.test(p)) {
     return { mode: 'boolean', maxTokens: 1000, hint: 'Return ready-to-paste boolean / LinkedIn / JobStreet search strings.' }
   }
+  if (/\b(missing documents?|doc gaps?|which candidates?.{0,40}missing|documents? outstanding)\b/.test(p)) {
+    return {
+      mode: 'docs',
+      maxTokens: 1200,
+      hint: 'List candidates with missing / pending / rejected documents from TENANT DATA (DOC GAPS). Be specific by name. Suggest WhatsApp chase message.',
+    }
+  }
+  if (/\b(joining this week|join(ing)? (this|next) week|expected joining|who.?s joining|start(s|ing) this week)\b/.test(p)) {
+    return {
+      mode: 'joining',
+      maxTokens: 1200,
+      hint: 'List candidates/offers with expected_joining this week from TENANT DATA. Flag missing docs and follow-ups. Recruiter action list.',
+    }
+  }
   if (/\b(offer letter|rejection|interview (invite|questions)|screen(ing)? questions)\b/.test(p)) {
     return { mode: 'compose', maxTokens: 1400, hint: 'Return ready-to-use professional recruitment copy. Use MEMORY candidate/job when referenced.' }
   }
@@ -145,6 +159,19 @@ async function loadTenantRag(tenantId: string) {
     [tenantId]
   ).catch(() => ({ rows: [] }))
 
+  const joiningThisWeek = await pool.query(
+    `SELECT o.short_id, o.status, o.expected_joining, r.candidate_name
+     FROM offer_cases o
+     JOIN resumes r ON r.id = o.resume_id
+     WHERE o.tenant_id = $1
+       AND o.expected_joining IS NOT NULL
+       AND o.expected_joining::date >= date_trunc('week', CURRENT_DATE)::date
+       AND o.expected_joining::date < (date_trunc('week', CURRENT_DATE) + interval '7 days')::date
+     ORDER BY o.expected_joining ASC
+     LIMIT 15`,
+    [tenantId]
+  ).catch(() => ({ rows: [] }))
+
   const templates = await pool.query(
     `SELECT template_type, name, country_code FROM hr_templates
      WHERE tenant_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 8`,
@@ -169,7 +196,16 @@ async function loadTenantRag(tenantId: string) {
     [tenantId]
   ).catch(() => ({ rows: [] }))
 
-  return { jobs: jobs.rows, candidates: candidates.rows, submissions: submissions.rows, offers: offers.rows, templates: templates.rows, docGaps: docGaps.rows, overdue: overdue.rows }
+  return {
+    jobs: jobs.rows,
+    candidates: candidates.rows,
+    submissions: submissions.rows,
+    offers: offers.rows,
+    joiningThisWeek: joiningThisWeek.rows,
+    templates: templates.rows,
+    docGaps: docGaps.rows,
+    overdue: overdue.rows,
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -300,6 +336,9 @@ ${rag.submissions.length === 0 ? '(none)' : rag.submissions.map((s: Record<strin
 
 Recent offers:
 ${rag.offers.length === 0 ? '(none)' : rag.offers.map((o: Record<string, unknown>) => `- [${o.short_id}] ${o.status} · joining ${o.expected_joining ?? '—'}`).join('\n')}
+
+Joining this week:
+${rag.joiningThisWeek.length === 0 ? '(none)' : rag.joiningThisWeek.map((o: Record<string, unknown>) => `- ${o.candidate_name} [${o.short_id}] ${o.status} · ${o.expected_joining}`).join('\n')}
 
 HR templates:
 ${rag.templates.length === 0 ? '(none)' : rag.templates.map((t: Record<string, unknown>) => `- ${t.template_type}: ${t.name} (${t.country_code ?? '—'})`).join('\n')}

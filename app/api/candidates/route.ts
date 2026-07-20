@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant }            from '@/lib/tenant'
 import { pool }                     from '@/lib/db'
 import { sanitizeEmail, sanitizeText, sanitizeStringArray, sanitizePositiveInt, isValidUUID, sanitizeCandidateProfile } from '@/lib/validate'
+import { logAudit } from '@/lib/audit'
+import { writeTimeline } from '@/lib/timelineEngine'
+import { createNotification } from '@/lib/notificationCenter'
 
 /** pg sometimes returns JSONB as object; legacy TEXT/json columns may return a string. */
 function parseJsonObject<T extends Record<string, unknown>>(v: unknown): T | null {
@@ -200,34 +203,39 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    const stageRes = await pool.query<{ pipeline_stage: string }>(
-      'SELECT pipeline_stage FROM resumes WHERE tenant_id = $1',
+    const stageRes = await pool.query<{ pipeline_stage: string; n: string }>(
+      `SELECT COALESCE(pipeline_stage, 'sourced') AS pipeline_stage, COUNT(*)::text AS n
+       FROM resumes WHERE tenant_id = $1
+       GROUP BY 1`,
       [ctx.tenantId]
     )
     const counts: Record<string, number> = {}
     for (const row of stageRes.rows) {
-      counts[row.pipeline_stage] = (counts[row.pipeline_stage] ?? 0) + 1
+      counts[row.pipeline_stage] = parseInt(row.n, 10)
     }
 
-    // match counts and top skills from ALL candidates (not filtered)
-    const globalRes = await pool.query<{ match_category: string | null; ai_skills: string[] }>(
-      'SELECT match_category, ai_skills FROM resumes WHERE tenant_id = $1',
+    // Aggregates via SQL — avoid loading all rows at 10k+ scale
+    const matchRes = await pool.query<{ match_category: string; n: string }>(
+      `SELECT match_category, COUNT(*)::text AS n
+       FROM resumes WHERE tenant_id = $1 AND match_category IS NOT NULL
+       GROUP BY 1`,
       [ctx.tenantId]
     )
     const matchCounts: Record<string, number> = {}
-    const skillMap: Record<string, number> = {}
-    for (const row of globalRes.rows) {
-      if (row.match_category) matchCounts[row.match_category] = (matchCounts[row.match_category] ?? 0) + 1
-      if (Array.isArray(row.ai_skills)) {
-        for (const s of row.ai_skills) {
-          if (s) skillMap[s] = (skillMap[s] ?? 0) + 1
-        }
-      }
+    for (const row of matchRes.rows) {
+      matchCounts[row.match_category] = parseInt(row.n, 10)
     }
-    const topSkills = Object.entries(skillMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 20)
-      .map(([skill, count]) => ({ skill, count }))
+
+    const skillRes = await pool.query<{ skill: string; n: string }>(
+      `SELECT sk AS skill, COUNT(*)::text AS n
+       FROM resumes r, LATERAL unnest(COALESCE(r.ai_skills, ARRAY[]::text[])) AS sk
+       WHERE r.tenant_id = $1 AND sk IS NOT NULL AND sk <> ''
+       GROUP BY sk
+       ORDER BY COUNT(*) DESC
+       LIMIT 20`,
+      [ctx.tenantId]
+    ).catch(() => ({ rows: [] as { skill: string; n: string }[] }))
+    const topSkills = skillRes.rows.map(r => ({ skill: r.skill, count: parseInt(r.n, 10) }))
 
     return NextResponse.json({
       candidates,
@@ -342,7 +350,41 @@ export async function POST(req: NextRequest) {
        status]
     )
 
-    return NextResponse.json({ candidate: rows[0] }, { status: 201 })
+    const cand = rows[0]
+    await logAudit({
+      userId: ctx.userId,
+      userEmail: ctx.userEmail,
+      tenantId: ctx.tenantId,
+      action: 'candidate_created',
+      resourceType: 'candidate',
+      resourceId: cand.short_id ?? cand.id,
+      resumeId: cand.id,
+      details: { name: cand.candidate_name, stage: pipeline_stage },
+    })
+    await writeTimeline({
+      tenantId: ctx.tenantId,
+      entityType: 'candidate',
+      entityId: cand.id,
+      resumeId: cand.id,
+      eventType: 'candidate_sourced',
+      title: 'Candidate Sourced',
+      detail: cand.candidate_name,
+      actorUserId: ctx.userId,
+      actorEmail: ctx.userEmail,
+      meta: { pipeline_stage, job_post_id },
+    })
+    await createNotification({
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      category: 'candidate',
+      title: `Candidate added — ${cand.candidate_name}`,
+      body: pipeline_stage ? `Stage: ${pipeline_stage}` : undefined,
+      resumeId: cand.id,
+      entityType: 'candidate',
+      entityId: cand.id,
+    })
+
+    return NextResponse.json({ candidate: cand }, { status: 201 })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Server error'
     console.error('[api/candidates POST]', err)
