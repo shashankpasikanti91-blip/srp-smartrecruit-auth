@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ── 1. Type-check & build locally to catch errors before SSH ─────────────
+  # ΓöÇΓöÇ 1. Type-check & build locally to catch errors before SSH ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   build-check:
     name: Type Check & Build
     runs-on: ubuntu-latest
@@ -37,7 +37,7 @@ jobs:
           NEXTAUTH_URL: https://recruit.srpailabs.com
         run: npm run build
 
-  # ── 2. Deploy to Hetzner & E2E ──────────────────────────────────────────
+  # ΓöÇΓöÇ 2. Deploy to Hetzner & E2E ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   deploy:
     name: Deploy & E2E
     runs-on: ubuntu-latest
@@ -80,6 +80,13 @@ jobs:
             git checkout main
             git pull --ff-only origin main
 
+            echo "=== [1b/5] Pre-deploy backup (DB + uploads) ==="
+            if [ -x /usr/local/bin/srp-backup ]; then
+              sudo /usr/local/bin/srp-backup || echo "WARN: backup script returned non-zero — continuing deploy"
+            else
+              echo "WARN: /usr/local/bin/srp-backup not installed — skipping pre-deploy backup"
+            fi
+
             echo "=== [2/5] Write .env from secret ==="
             printf '%s\n' "$FRONTEND_ENV" > /opt/srp-smartrecruit-auth/.env
             chmod 600 /opt/srp-smartrecruit-auth/.env
@@ -108,11 +115,28 @@ jobs:
             # v13: retention_exempt flag on tenants
             docker exec -i srp-auth-db psql -U srp_auth -d srp_auth \
               < /opt/srp-smartrecruit-auth/db/migrate_v13_tenant_retention_exempt.sql
+            for f in migrate_v0_schema_migrations.sql \
+                     migrate_v14_candidate_documents.sql \
+                     migrate_v15_workflow.sql \
+                     migrate_v16_ess_lite.sql \
+                     migrate_v17_submission_history.sql \
+                     migrate_v18_offer_history.sql \
+                     migrate_v19_ess_full.sql \
+                     migrate_v20_governance.sql \
+                     migrate_v21_ess_approval_audit.sql; do
+              if [ -f "/opt/srp-smartrecruit-auth/db/$f" ]; then
+                echo "==> $f"
+                docker exec -i srp-auth-db psql -U srp_auth -d srp_auth \
+                  < "/opt/srp-smartrecruit-auth/db/$f"
+              else
+                echo "SKIP missing migration file: $f"
+              fi
+            done
             echo "--- Verifying user password status ---"
             docker exec srp-auth-db psql -U srp_auth -d srp_auth -c \
               "SELECT email, is_active, (password_hash IS NOT NULL) AS has_password FROM auth_users WHERE email IN ('demo@srpailabs.com','pasikantishashank24@gmail.com','hareesh4u22@gmail.com','priyapasikanti0@gmail.com') ORDER BY email;"
 
-            echo "=== [3/5] Stop app only — DB stays running ==="
+            echo "=== [3/5] Stop app only ΓÇö DB stays running ==="
             docker compose stop app  2>/dev/null || true
             docker compose rm -f app 2>/dev/null || true
 
@@ -125,13 +149,13 @@ jobs:
             for i in $(seq 1 25); do
               HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3010/api/health 2>/dev/null || echo "000")
               if [ "$HTTP" = "200" ]; then
-                echo "✅ Next.js healthy (attempt $i)"
+                echo "Γ£à Next.js healthy (attempt $i)"
                 HEALTHY=1; break
               fi
-              echo "   Attempt $i/25 — HTTP $HTTP"
+              echo "   Attempt $i/25 ΓÇö HTTP $HTTP"
               sleep 4
             done
-            [ "$HEALTHY" -eq 1 ] || { echo "❌ Next.js never became healthy"; exit 1; }
+            [ "$HEALTHY" -eq 1 ] || { echo "Γ¥î Next.js never became healthy"; exit 1; }
 
             sudo systemctl reload nginx 2>/dev/null || true
             docker image prune -f 2>/dev/null || true
@@ -141,15 +165,15 @@ jobs:
             NGINX_CONF="/etc/nginx/sites-available/recruit.srpailabs.com"
             if [ -f "$NGINX_CONF" ]; then
               cp /opt/srp-smartrecruit-auth/deployment/recruit.srpailabs.com.nginx "$NGINX_CONF"
-              nginx -t 2>&1 && sudo systemctl reload nginx && echo "✅ Nginx config updated" \
-                || echo "⚠️ Nginx config test failed — keeping old config"
+              nginx -t 2>&1 && sudo systemctl reload nginx && echo "Γ£à Nginx config updated" \
+                || echo "ΓÜá∩╕Å Nginx config test failed ΓÇö keeping old config"
             else
-              echo "⚠️ Nginx site config not found at $NGINX_CONF — skipping update"
+              echo "ΓÜá∩╕Å Nginx site config not found at $NGINX_CONF ΓÇö skipping update"
             fi
 
-            echo "✅ Frontend deploy complete"
+            echo "Γ£à Frontend deploy complete"
 
-      # ── E2E: HTTP checks against live HTTPS domain (no SSH needed) ──
+      # ΓöÇΓöÇ E2E: HTTP checks against live HTTPS domain (no SSH needed) ΓöÇΓöÇ
       - name: Run HTTPS E2E checks
         run: |
           python3 - << 'PYEOF'
@@ -194,6 +218,6 @@ jobs:
           get("/api/support/tickets",   [401, 403, 405])
           get("/api/screening/results", [401, 403, 405])
 
-          print(f"\n{'✅ All checks passed!' if not failures else '❌ FAILED: ' + str(failures)}")
+          print(f"\n{'Γ£à All checks passed!' if not failures else 'Γ¥î FAILED: ' + str(failures)}")
           sys.exit(1 if failures else 0)
           PYEOF

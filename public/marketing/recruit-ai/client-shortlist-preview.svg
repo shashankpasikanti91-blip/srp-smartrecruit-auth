@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 360" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Client shortlist preview</title>
+  <desc id="desc">Submission-ready candidate pack for client review</desc>
+  <rect width="560" height="360" rx="24" fill="#050810"/>
+  <rect x="32" y="32" width="496" height="56" rx="12" fill="#0f1628" stroke="rgba(52,211,153,0.3)"/>
+  <text x="56" y="66" fill="#34d399" font-size="13" font-weight="600" font-family="system-ui">Client submission pack</text>
+  <g transform="translate(32,108)">
+    <rect width="150" height="200" rx="12" fill="#0f1628" stroke="rgba(34,211,238,0.2)"/>
+    <circle cx="75" cy="50" r="24" fill="rgba(34,211,238,0.15)"/>
+    <rect x="24" y="88" width="102" height="10" rx="3" fill="rgba(255,255,255,0.18)"/>
+    <rect x="24" y="108" width="80" height="8" rx="2" fill="rgba(255,255,255,0.08)"/>
+    <rect x="24" y="130" width="60" height="18" rx="6" fill="rgba(52,211,153,0.12)"/>
+  </g>
+  <g transform="translate(205,108)">
+    <rect width="150" height="200" rx="12" fill="#0f1628" stroke="rgba(139,92,246,0.2)"/>
+    <circle cx="75" cy="50" r="24" fill="rgba(139,92,246,0.15)"/>
+    <rect x="24" y="88" width="102" height="10" rx="3" fill="rgba(255,255,255,0.18)"/>
+    <rect x="24" y="108" width="80" height="8" rx="2" fill="rgba(255,255,255,0.08)"/>
+  </g>
+  <g transform="translate(378,108)">
+    <rect width="150" height="200" rx="12" fill="#0f1628" stroke="rgba(255,255,255,0.08)"/>
+    <circle cx="75" cy="50" r="24" fill="rgba(255,255,255,0.06)"/>
+    <rect x="24" y="88" width="102" height="10" rx="3" fill="rgba(255,255,255,0.14)"/>
+  </g>
+</svg>

@@ -2,22 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { isValidUUID, sanitizeText, sanitizeEnum, ValidationError, sanitizeCandidateProfile } from '@/lib/validate'
+import {
+  isValidUUID,
+  sanitizeText,
+  sanitizeEmail,
+  sanitizeEnum,
+  sanitizeStringArray,
+  ValidationError,
+  sanitizeCandidateProfile,
+} from '@/lib/validate'
+import { LIFECYCLE_STATUSES, lifecycleToPipelineStage } from '@/lib/candidateLifecycle'
 
-// Allowed fields that PATCH may update
-const PATCH_ALLOWED = [
-  'pipeline_stage',
-  'status',
-  'reviewer_notes',
-  'ai_score',
-  'ai_summary',
-  'job_post_id',
-  'candidate_phone',
-  'candidate_profile',
-] as const
-
-const VALID_STAGES   = ['sourced', 'applied', 'new', 'screening', 'interview', 'offer', 'hired', 'rejected']
+const VALID_STAGES = ['sourced', 'applied', 'new', 'screening', 'interview', 'offer', 'hired', 'rejected']
 const VALID_STATUSES = ['pending', 'reviewed', 'shortlisted', 'rejected', 'hired']
+
+function parseProfile(v: unknown): Record<string, unknown> {
+  if (v == null) return {}
+  if (typeof v === 'object' && !Array.isArray(v)) return v as Record<string, unknown>
+  if (typeof v === 'string') {
+    try {
+      const o = JSON.parse(v)
+      if (o && typeof o === 'object' && !Array.isArray(o)) return o as Record<string, unknown>
+    } catch { /* ignore */ }
+  }
+  return {}
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -28,28 +37,57 @@ export async function PATCH(
 
   try {
     const { id } = await params
-
-    // Validate route param UUID — prevents injection through path
     if (!isValidUUID(id)) {
       return NextResponse.json({ error: 'Invalid candidate id' }, { status: 400 })
     }
 
     const body = await req.json()
-
-    // Sanitize & validate each allowed field
     const sanitized: Record<string, unknown> = {}
+    const auditDetails: Record<string, unknown> = {}
+
+    if (body.candidate_name !== undefined) {
+      const name = sanitizeText(body.candidate_name, 200)
+      if (!name) return NextResponse.json({ error: 'candidate_name cannot be empty' }, { status: 400 })
+      sanitized.candidate_name = name
+      auditDetails.name_updated = true
+    }
+
+    if (body.candidate_email !== undefined) {
+      if (body.candidate_email === null || body.candidate_email === '') {
+        sanitized.candidate_email = null
+      } else {
+        const email = sanitizeEmail(body.candidate_email)
+        if (!email) return NextResponse.json({ error: 'Invalid candidate_email' }, { status: 400 })
+        sanitized.candidate_email = email
+      }
+      auditDetails.email_updated = true
+    }
+
+    if (body.candidate_phone !== undefined) {
+      sanitized.candidate_phone = body.candidate_phone === null || body.candidate_phone === ''
+        ? null
+        : sanitizeText(body.candidate_phone, 50)
+      auditDetails.phone_updated = true
+    }
+
+    if (body.ai_skills !== undefined) {
+      sanitized.ai_skills = sanitizeStringArray(body.ai_skills, 100, 200)
+      auditDetails.skills_updated = true
+    }
 
     if (body.pipeline_stage !== undefined) {
       const stage = sanitizeEnum(body.pipeline_stage, VALID_STAGES, null)
-      if (stage === null)
+      if (stage === null) {
         return NextResponse.json({ error: `pipeline_stage must be one of: ${VALID_STAGES.join(', ')}` }, { status: 400 })
+      }
       sanitized.pipeline_stage = stage
     }
 
     if (body.status !== undefined) {
       const st = sanitizeEnum(body.status, VALID_STATUSES, null)
-      if (st === null)
+      if (st === null) {
         return NextResponse.json({ error: `status must be one of: ${VALID_STATUSES.join(', ')}` }, { status: 400 })
+      }
       sanitized.status = st
     }
 
@@ -66,23 +104,16 @@ export async function PATCH(
       sanitized.ai_summary = sanitizeText(body.ai_summary, 5000)
     }
 
-    if (body.candidate_phone !== undefined) {
-      sanitized.candidate_phone = body.candidate_phone === null || body.candidate_phone === ''
-        ? null
-        : sanitizeText(body.candidate_phone, 50)
-    }
-
     if (body.job_post_id !== undefined) {
-      if (body.job_post_id !== null && !isValidUUID(body.job_post_id))
+      if (body.job_post_id !== null && !isValidUUID(body.job_post_id)) {
         return NextResponse.json({ error: 'Invalid job_post_id' }, { status: 400 })
-      // Verify job belongs to this tenant before linking
+      }
       if (body.job_post_id !== null) {
         const { rows: jobRows } = await pool.query(
           'SELECT id FROM job_posts WHERE id = $1 AND tenant_id = $2',
           [body.job_post_id, ctx.tenantId]
         )
-        if (!jobRows[0])
-          return NextResponse.json({ error: 'Job post not found' }, { status: 404 })
+        if (!jobRows[0]) return NextResponse.json({ error: 'Job post not found' }, { status: 404 })
       }
       sanitized.job_post_id = body.job_post_id
     }
@@ -91,14 +122,76 @@ export async function PATCH(
       if (body.candidate_profile !== null && typeof body.candidate_profile !== 'object') {
         return NextResponse.json({ error: 'candidate_profile must be an object' }, { status: 400 })
       }
-      sanitized.candidate_profile = JSON.stringify(sanitizeCandidateProfile(body.candidate_profile))
+      const incoming = sanitizeCandidateProfile(body.candidate_profile)
+      // Merge with existing so partial saves do not wipe fields
+      const { rows: existingRows } = await pool.query(
+        'SELECT candidate_profile FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1',
+        [id, ctx.tenantId]
+      )
+      if (!existingRows[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      const prev = parseProfile(existingRows[0].candidate_profile)
+      const merged: Record<string, unknown> = { ...prev }
+      for (const [k, v] of Object.entries(incoming)) {
+        // Only overwrite keys present on the request object (allow explicit clear via null/empty → null)
+        if (body.candidate_profile && Object.prototype.hasOwnProperty.call(body.candidate_profile, k)) {
+          merged[k] = v
+        } else if (v != null && !(k in merged)) {
+          merged[k] = v
+        }
+      }
+      // Alias sync
+      if (incoming.nric) {
+        merged.nric = incoming.nric
+        if (!merged.id_document_type) merged.id_document_type = 'NRIC'
+        merged.id_document_reference = incoming.nric
+      }
+      if (incoming.expected_salary) {
+        merged.expected_salary = incoming.expected_salary
+        merged.salary_expectation = incoming.expected_salary
+      }
+
+      // Sync lifecycle → pipeline board when lifecycle changes
+      const life = typeof merged.lifecycle_status === 'string' ? merged.lifecycle_status : null
+      if (life && (LIFECYCLE_STATUSES as readonly string[]).includes(life) && body.pipeline_stage === undefined) {
+        const mapped = lifecycleToPipelineStage(life)
+        if (mapped) sanitized.pipeline_stage = mapped
+      }
+
+      sanitized.candidate_profile = JSON.stringify(merged)
+      auditDetails.profile_edited = true
+      if (incoming.nric) auditDetails.nric_updated = true
+      if (incoming.visa_type || incoming.visa_expiry) auditDetails.visa_updated = true
+      if (incoming.current_salary || incoming.expected_salary) auditDetails.salary_updated = true
+      if (incoming.lifecycle_status) auditDetails.status_changed = incoming.lifecycle_status
+      if (incoming.client_name) auditDetails.client_changed = incoming.client_name
+    }
+
+    if (body.user_id !== undefined) {
+      if (!ctx.permissions.users.manage && ctx.tenantRole !== 'owner' && ctx.tenantRole !== 'admin') {
+        return NextResponse.json({ error: 'Only workspace owner/admin can change ownership' }, { status: 403 })
+      }
+      if (!isValidUUID(body.user_id)) {
+        return NextResponse.json({ error: 'Invalid user_id' }, { status: 400 })
+      }
+      const { rows: memberRows } = await pool.query(
+        `SELECT user_id FROM tenant_members
+          WHERE tenant_id = $1 AND user_id = $2 AND invite_accepted = TRUE`,
+        [ctx.tenantId, body.user_id]
+      )
+      if (!memberRows[0]) {
+        return NextResponse.json(
+          { error: 'Owner must be an accepted member of this workspace' },
+          { status: 422 }
+        )
+      }
+      sanitized.user_id = body.user_id
+      auditDetails.recruiter_changed = body.user_id
     }
 
     if (Object.keys(sanitized).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
     }
 
-    // Build parameterized SET clause — tenant_id guard prevents cross-tenant write
     const sets: string[] = []
     const values: unknown[] = []
     let idx = 1
@@ -111,7 +204,7 @@ export async function PATCH(
       values.push(val)
       idx++
     }
-    // Bind id and tenant_id last
+    sets.push('updated_at = NOW()')
     values.push(id)
     values.push(ctx.tenantId)
 
@@ -119,12 +212,13 @@ export async function PATCH(
       `UPDATE resumes
           SET ${sets.join(', ')}
         WHERE id = $${idx} AND tenant_id = $${idx + 1}
-        RETURNING id, short_id, pipeline_stage, status, match_category, ai_score, candidate_profile, candidate_phone, updated_at`,
+        RETURNING id, short_id, candidate_name, candidate_email, candidate_phone,
+                  pipeline_stage, status, match_category, ai_score, ai_skills,
+                  candidate_profile, job_post_id, user_id, reviewer_notes, updated_at`,
       values
     )
     if (!rows[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    // Audit trail (fire-and-forget)
     if (sanitized.pipeline_stage) {
       logAudit({
         userId: ctx.userId, userEmail: ctx.userEmail,
@@ -133,11 +227,25 @@ export async function PATCH(
         details: { stage: sanitized.pipeline_stage }, tenantId: ctx.tenantId,
       })
     }
+    if (Object.keys(auditDetails).length) {
+      logAudit({
+        userId: ctx.userId, userEmail: ctx.userEmail,
+        action: 'candidate_updated', resourceType: 'candidate',
+        resourceId: rows[0].short_id ?? id,
+        details: auditDetails, tenantId: ctx.tenantId,
+      })
+    }
 
-    return NextResponse.json({ candidate: rows[0] })
+    const cand = rows[0]
+    if (cand.candidate_profile && typeof cand.candidate_profile === 'string') {
+      try { cand.candidate_profile = JSON.parse(cand.candidate_profile) } catch { /* keep */ }
+    }
+
+    return NextResponse.json({ candidate: cand })
   } catch (err) {
-    if (err instanceof ValidationError)
+    if (err instanceof ValidationError) {
       return NextResponse.json({ error: err.message }, { status: 400 })
+    }
     console.error('[api/candidates/[id]] PATCH error:', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
@@ -152,12 +260,10 @@ export async function DELETE(
 
   try {
     const { id } = await params
-
     if (!isValidUUID(id)) {
       return NextResponse.json({ error: 'Invalid candidate id' }, { status: 400 })
     }
 
-    // tenant_id guard — prevents deleting another tenant's candidates
     const { rows } = await pool.query(
       'DELETE FROM resumes WHERE id = $1 AND tenant_id = $2 RETURNING id, short_id',
       [id, ctx.tenantId]
@@ -177,4 +283,3 @@ export async function DELETE(
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
-

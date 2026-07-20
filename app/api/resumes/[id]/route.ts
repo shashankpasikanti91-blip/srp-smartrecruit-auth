@@ -12,7 +12,8 @@ export async function PATCH(
     const { id } = await params
     const { status, reviewer_notes } = await req.json()
     if (!status) return NextResponse.json({ error: 'status required' }, { status: 400 })
-    await updateResumeStatus(id, status, reviewer_notes)
+    const ok = await updateResumeStatus(id, status, reviewer_notes, ctx.tenantId)
+    if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json({ ok: true })
   } catch (err) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

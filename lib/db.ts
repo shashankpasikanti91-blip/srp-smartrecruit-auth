@@ -319,18 +319,33 @@ export async function getResumes(userId: string, jobPostId?: string, tenantId?: 
   return rows
 }
 
-export async function getResumeById(id: string): Promise<Resume | null> {
+export async function getResumeById(id: string, tenantId?: string): Promise<Resume | null> {
+  if (tenantId) {
+    const { rows } = await pool.query<Resume>(
+      'SELECT * FROM resumes WHERE id = $1 AND tenant_id = $2', [id, tenantId]
+    )
+    return rows[0] ?? null
+  }
   const { rows } = await pool.query<Resume>(
     'SELECT * FROM resumes WHERE id = $1', [id]
   )
   return rows[0] ?? null
 }
 
-export async function updateResumeStatus(id: string, status: string, notes?: string): Promise<void> {
-  await pool.query(
-    'UPDATE resumes SET status = $1, reviewer_notes = $2, updated_at = NOW() WHERE id = $3',
-    [status, notes ?? null, id]
+/** Tenant-scoped status update — never write across tenants. Returns false if not found in tenant. */
+export async function updateResumeStatus(
+  id: string,
+  status: string,
+  notes: string | undefined,
+  tenantId: string,
+): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `UPDATE resumes
+        SET status = $1, reviewer_notes = $2, updated_at = NOW()
+      WHERE id = $3 AND tenant_id = $4`,
+    [status, notes ?? null, id, tenantId]
   )
+  return (rowCount ?? 0) > 0
 }
 
 export async function getAllResumes(limit = 500) {
@@ -419,8 +434,10 @@ export async function getActivityLog(limit = 200): Promise<ActivityLog[]> {
 // ─────────────────────────── Admin Stats ─────────────────────────────────────
 
 export async function getOwnerStats() {
-  const [usersRes, jobsRes, resumesRes, subsRes, tokenRes] = await Promise.all([
+  const [usersRes, tenantsRes, activeTenantsRes, jobsRes, resumesRes, subsRes, tokenRes] = await Promise.all([
     pool.query<{ count: string }>('SELECT COUNT(*) FROM auth_users'),
+    pool.query<{ count: string }>('SELECT COUNT(*) FROM tenants'),
+    pool.query<{ count: string }>('SELECT COUNT(*) FROM tenants WHERE is_active = TRUE'),
     pool.query<{ count: string }>('SELECT COUNT(*) FROM job_posts'),
     pool.query<{ count: string }>('SELECT COUNT(*) FROM resumes'),
     pool.query<{ plan: string }>('SELECT plan FROM subscriptions'),
@@ -430,11 +447,124 @@ export async function getOwnerStats() {
     (sum, r) => sum + (Number(r.cost_usd) ?? 0), 0)
   return {
     totalUsers: parseInt(usersRes.rows[0]?.count ?? '0'),
+    totalTenants: parseInt(tenantsRes.rows[0]?.count ?? '0'),
+    activeTenants: parseInt(activeTenantsRes.rows[0]?.count ?? '0'),
     totalJobs: parseInt(jobsRes.rows[0]?.count ?? '0'),
     totalResumes: parseInt(resumesRes.rows[0]?.count ?? '0'),
     totalSubs: subsRes.rows.length,
     totalTokenCostUsd: totalTokenCost.toFixed(4),
     proUsers: subsRes.rows.filter(s => s.plan === 'pro').length,
+  }
+}
+
+export interface AdminTenantSummary {
+  id: string
+  short_id: string
+  name: string
+  slug: string
+  plan: string
+  plan_status: string
+  is_active: boolean
+  created_at: string
+  member_count: number
+  active_members: number
+  jobs_count: number
+  candidates_count: number
+  interviews_count: number
+  offers_count: number
+  screens_this_month: number
+  latest_activity_at: string | null
+}
+
+export async function getAdminTenantSummaries(limit = 200): Promise<AdminTenantSummary[]> {
+  const { rows } = await pool.query<AdminTenantSummary>(
+    `SELECT
+       t.id,
+       t.short_id,
+       t.name,
+       t.slug,
+       t.plan,
+       t.plan_status,
+       t.is_active,
+       t.created_at,
+       COUNT(DISTINCT tm.id)::int AS member_count,
+       COUNT(DISTINCT tm.id) FILTER (WHERE tm.invite_accepted = TRUE)::int AS active_members,
+       COUNT(DISTINCT jp.id)::int AS jobs_count,
+       COUNT(DISTINCT r.id)::int AS candidates_count,
+       COUNT(DISTINCT i.id)::int AS interviews_count,
+       COUNT(DISTINCT o.id)::int AS offers_count,
+       COUNT(DISTINCT tu.id) FILTER (
+         WHERE tu.operation LIKE '%screen%' AND tu.created_at >= date_trunc('month', NOW())
+       )::int AS screens_this_month,
+       GREATEST(
+         MAX(t.updated_at),
+         MAX(tm.updated_at),
+         MAX(jp.updated_at),
+         MAX(r.updated_at),
+         MAX(i.updated_at),
+         MAX(o.updated_at)
+       ) AS latest_activity_at
+     FROM tenants t
+     LEFT JOIN tenant_members tm ON tm.tenant_id = t.id
+     LEFT JOIN job_posts jp ON jp.tenant_id = t.id
+     LEFT JOIN resumes r ON r.tenant_id = t.id
+     LEFT JOIN interviews i ON i.tenant_id = t.id
+     LEFT JOIN offer_cases o ON o.tenant_id = t.id
+     LEFT JOIN token_usage tu ON tu.tenant_id = t.id
+     GROUP BY t.id
+     ORDER BY t.created_at DESC
+     LIMIT $1`,
+    [limit]
+  )
+  return rows
+}
+
+export async function setAdminTenantStatus(args: {
+  tenantId: string
+  isActive?: boolean
+  plan?: string
+  planStatus?: string
+  maxUsers?: number
+  maxJobs?: number
+  maxCandidates?: number
+}) {
+  const updates: string[] = []
+  const params: unknown[] = []
+  let idx = 1
+  if (args.isActive !== undefined) { updates.push(`is_active = $${idx++}`); params.push(args.isActive) }
+  if (args.plan !== undefined) { updates.push(`plan = $${idx++}`); params.push(args.plan) }
+  if (args.planStatus !== undefined) { updates.push(`plan_status = $${idx++}`); params.push(args.planStatus) }
+  if (args.maxUsers !== undefined) { updates.push(`max_users = $${idx++}`); params.push(args.maxUsers) }
+  if (args.maxJobs !== undefined) { updates.push(`max_jobs = $${idx++}`); params.push(args.maxJobs) }
+  if (args.maxCandidates !== undefined) { updates.push(`max_candidates = $${idx++}`); params.push(args.maxCandidates) }
+  if (!updates.length) return false
+  updates.push(`updated_at = NOW()`)
+  params.push(args.tenantId)
+  const res = await pool.query(
+    `UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx}`,
+    params
+  )
+  return (res.rowCount ?? 0) > 0
+}
+
+export async function getAdminPlatformHealth() {
+  const [dbRes, failedLoginsRes, activeSessionsRes, pendingInvitesRes] = await Promise.all([
+    pool.query('SELECT 1'),
+    pool.query<{ count: string }>(
+      `SELECT COUNT(*) FROM login_events WHERE success = FALSE AND created_at >= NOW() - interval '7 days'`
+    ).catch(() => ({ rows: [{ count: '0' }] })),
+    pool.query<{ count: string }>(
+      `SELECT COUNT(*) FROM user_sessions WHERE is_active = TRUE`
+    ).catch(() => ({ rows: [{ count: '0' }] })),
+    pool.query<{ count: string }>(
+      `SELECT COUNT(*) FROM tenant_members WHERE invite_accepted = FALSE`
+    ),
+  ])
+  return {
+    dbOk: !!dbRes,
+    failedLogins7d: parseInt(failedLoginsRes.rows[0]?.count ?? '0'),
+    activeSessions: parseInt(activeSessionsRes.rows[0]?.count ?? '0'),
+    pendingInvites: parseInt(pendingInvitesRes.rows[0]?.count ?? '0'),
   }
 }
 

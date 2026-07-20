@@ -4,6 +4,7 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { pool, upsertUser, logActivity } from './db'
 import { notifyNewSignup, notifyLogin, notifyError, sendWelcomeEmail } from './notifications'
+import { logLogin } from './activityLog'
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -70,6 +71,7 @@ export const authOptions: AuthOptions = {
             event_data: { email: user.email, provider: 'credentials' },
             severity: 'info',
           })
+          await logLogin({ userId: dbUser.id, email: user.email!, success: true })
           await notifyLogin({ name: user.name ?? null, email: user.email! })
         } catch { /* non-fatal */ }
         return true
@@ -108,6 +110,7 @@ export const authOptions: AuthOptions = {
             provider: 'google',
           }).catch(() => {})
         } else {
+          await logLogin({ userId: dbUser.id, email: user.email!, success: true })
           await notifyLogin({ name: user.name ?? null, email: user.email! })
         }
 

@@ -14,22 +14,55 @@ import Link from 'next/link'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Stats {
+  totalTenants: number
+  activeTenants: number
   totalUsers: number; totalJobs: number; totalResumes: number
   totalSubs: number; totalTokenCostUsd: string; proUsers: number
 }
 interface User { id: string; name: string | null; email: string; role: string; created_at: string; is_active: boolean }
 interface ActivityItem { id: string; user_id: string | null; event_type: string; severity: string; created_at: string; event_data: Record<string, unknown> | null; auth_users?: { name: string; email: string } }
+interface TenantSummary {
+  id: string
+  short_id: string
+  name: string
+  slug: string
+  plan: string
+  plan_status: string
+  is_active: boolean
+  member_count: number
+  active_members: number
+  jobs_count: number
+  candidates_count: number
+  interviews_count: number
+  offers_count: number
+  screens_this_month: number
+  latest_activity_at: string | null
+}
+interface PlatformHealth {
+  dbOk: boolean
+  failedLogins7d: number
+  activeSessions: number
+  pendingInvites: number
+}
+interface SecuritySummary {
+  recentActivity: ActivityItem[]
+  errorEvents7d: number
+  failedLogins7d: number
+}
 
-type Tab = 'overview' | 'users' | 'activity' | 'jobs' | 'resumes' | 'subscriptions' | 'tokens'
+type Tab = 'overview' | 'tenants' | 'users' | 'activity' | 'jobs' | 'resumes' | 'subscriptions' | 'tokens' | 'health' | 'security'
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'overview',       label: 'Overview',       icon: <TrendingUp className="w-4 h-4" /> },
+  { id: 'tenants',        label: 'Tenants',        icon: <Shield className="w-4 h-4" /> },
   { id: 'users',          label: 'Users',          icon: <Users className="w-4 h-4" /> },
   { id: 'activity',       label: 'Activity Log',   icon: <Activity className="w-4 h-4" /> },
   { id: 'jobs',           label: 'Job Posts',      icon: <Briefcase className="w-4 h-4" /> },
   { id: 'resumes',        label: 'Resumes',        icon: <FileText className="w-4 h-4" /> },
   { id: 'subscriptions',  label: 'Subscriptions',  icon: <CreditCard className="w-4 h-4" /> },
   { id: 'tokens',         label: 'Token Usage',    icon: <Zap className="w-4 h-4" /> },
+  { id: 'health',         label: 'System Health',  icon: <CheckCircle2 className="w-4 h-4" /> },
+  { id: 'security',       label: 'Security',       icon: <AlertCircle className="w-4 h-4" /> },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -60,18 +93,28 @@ export default function OwnerDashboard() {
   const [tab, setTab] = useState<Tab>('overview')
   const [stats, setStats] = useState<Stats | null>(null)
   const [data, setData] = useState<Record<string, unknown[]>>({})
+  const [health, setHealth] = useState<PlatformHealth | null>(null)
+  const [security, setSecurity] = useState<SecuritySummary | null>(null)
   const [loading, setLoading] = useState(false)
   const [testNotifStatus, setTestNotifStatus] = useState<string | null>(null)
+  const [tenantForm, setTenantForm] = useState({
+    name: '',
+    slug: '',
+    ownerEmail: '',
+    plan: 'free',
+    maxUsers: '3',
+    maxJobs: '5',
+    maxCandidates: '200',
+  })
+  const [tenantActionStatus, setTenantActionStatus] = useState<string | null>(null)
 
   const user = session?.user
   const role = (user as Record<string, unknown> | undefined)?.role as string | undefined
 
   useEffect(() => {
     if (status === 'unauthenticated') { router.replace('/login'); return }
-    if (status === 'authenticated' && role !== 'owner' && role !== 'admin') {
-      if (!isPlatformOwnerEmail(user?.email)) {
-        router.replace('/dashboard')
-      }
+    if (status === 'authenticated' && !isPlatformOwnerEmail(user?.email)) {
+      router.replace('/dashboard')
     }
   }, [status, role, user, router])
 
@@ -89,13 +132,18 @@ export default function OwnerDashboard() {
     setLoading(true)
     try {
       const map: Record<Tab, string> = {
-        overview: 'stats', users: 'users', activity: 'activity',
+        overview: 'stats', tenants: 'tenants', users: 'users', activity: 'activity',
         jobs: 'jobs', resumes: 'resumes', subscriptions: 'subscriptions', tokens: 'tokens',
+        health: 'health', security: 'security',
       }
       const res = await fetch(`/api/admin?view=${map[t]}`)
       const json = await res.json()
-      const key = Object.keys(json)[0]
-      setData(prev => ({ ...prev, [t]: json[key] }))
+      if (t === 'health') setHealth(json.health)
+      else if (t === 'security') setSecurity(json.security)
+      else {
+        const key = Object.keys(json)[0]
+        setData(prev => ({ ...prev, [t]: json[key] }))
+      }
     } finally { setLoading(false) }
   }, [fetchStats])
 
@@ -120,6 +168,47 @@ export default function OwnerDashboard() {
     setTimeout(() => setTestNotifStatus(null), 5000)
   }
 
+  const createTenant = async () => {
+    setTenantActionStatus('Creating tenant…')
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create_tenant',
+          name: tenantForm.name,
+          slug: tenantForm.slug || undefined,
+          ownerEmail: tenantForm.ownerEmail || undefined,
+          plan: tenantForm.plan,
+          maxUsers: Number(tenantForm.maxUsers || '3'),
+          maxJobs: Number(tenantForm.maxJobs || '5'),
+          maxCandidates: Number(tenantForm.maxCandidates || '200'),
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed to create tenant')
+      setTenantForm({ name: '', slug: '', ownerEmail: '', plan: 'free', maxUsers: '3', maxJobs: '5', maxCandidates: '200' })
+      setTenantActionStatus(`Tenant created: ${json.shortId}`)
+      await fetchTab('tenants')
+      await fetchStats()
+    } catch (e) {
+      setTenantActionStatus(e instanceof Error ? e.message : 'Failed to create tenant')
+    }
+  }
+
+  const updateTenant = async (tenantId: string, patch: Record<string, unknown>, message: string) => {
+    setTenantActionStatus(message)
+    const res = await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_tenant', tenantId, ...patch }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setTenantActionStatus(res.ok ? 'Tenant updated' : (json.error ?? 'Tenant update failed'))
+    await fetchTab('tenants')
+    await fetchStats()
+  }
+
   if (status === 'loading') {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
@@ -129,10 +218,12 @@ export default function OwnerDashboard() {
   }
 
   const statCards = [
+    { label: 'Tenants',          value: stats?.totalTenants ?? '—',    icon: <Shield className="w-5 h-5" />,      color: 'from-cyan-500 to-cyan-700' },
+    { label: 'Active Tenants',   value: stats?.activeTenants ?? '—',   icon: <CheckCircle2 className="w-5 h-5" />,color: 'from-emerald-500 to-emerald-700' },
     { label: 'Total Users',      value: stats?.totalUsers ?? '—',      icon: <Users className="w-5 h-5" />,       color: 'from-indigo-500 to-indigo-700' },
     { label: 'Job Posts',        value: stats?.totalJobs ?? '—',       icon: <Briefcase className="w-5 h-5" />,   color: 'from-purple-500 to-purple-700' },
     { label: 'Resumes',          value: stats?.totalResumes ?? '—',    icon: <FileText className="w-5 h-5" />,    color: 'from-sky-500 to-sky-700' },
-    { label: 'Pro Users',        value: stats?.proUsers ?? '—',        icon: <CreditCard className="w-5 h-5" />,  color: 'from-emerald-500 to-emerald-700' },
+    { label: 'Pro Users',        value: stats?.proUsers ?? '—',        icon: <CreditCard className="w-5 h-5" />,  color: 'from-lime-500 to-lime-700' },
     { label: 'Subscriptions',    value: stats?.totalSubs ?? '—',       icon: <TrendingUp className="w-5 h-5" />,  color: 'from-amber-500 to-amber-700' },
     { label: 'AI Cost (USD)',     value: `$${stats?.totalTokenCostUsd ?? '0.0000'}`, icon: <Zap className="w-5 h-5" />, color: 'from-pink-500 to-pink-700' },
   ]
@@ -215,7 +306,7 @@ export default function OwnerDashboard() {
           {/* ── Overview ──────────────────────────────────── */}
           {tab === 'overview' && (
             <div>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 {statCards.map(s => (
                   <div key={s.label} className="glass-card-dark rounded-2xl p-5">
                     <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center text-white mb-3`}>
@@ -247,11 +338,120 @@ export default function OwnerDashboard() {
                   </div>
                 </div>
               </div>
+
+              <div className="glass-card-dark rounded-2xl p-6 mt-6">
+                <h3 className="font-bold text-white mb-4">Create Tenant</h3>
+                <div className="grid md:grid-cols-3 gap-3">
+                  <input value={tenantForm.name} onChange={e => setTenantForm(prev => ({ ...prev, name: e.target.value }))} placeholder="Tenant name" className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm" />
+                  <input value={tenantForm.slug} onChange={e => setTenantForm(prev => ({ ...prev, slug: e.target.value }))} placeholder="Slug (optional)" className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm" />
+                  <input value={tenantForm.ownerEmail} onChange={e => setTenantForm(prev => ({ ...prev, ownerEmail: e.target.value }))} placeholder="Existing owner email (optional)" className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm" />
+                  <select value={tenantForm.plan} onChange={e => setTenantForm(prev => ({ ...prev, plan: e.target.value }))} className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm">
+                    <option value="free">free</option>
+                    <option value="pro">pro</option>
+                    <option value="enterprise">enterprise</option>
+                  </select>
+                  <input value={tenantForm.maxUsers} onChange={e => setTenantForm(prev => ({ ...prev, maxUsers: e.target.value }))} placeholder="Max users" className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm" />
+                  <input value={tenantForm.maxJobs} onChange={e => setTenantForm(prev => ({ ...prev, maxJobs: e.target.value }))} placeholder="Max jobs" className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm" />
+                  <input value={tenantForm.maxCandidates} onChange={e => setTenantForm(prev => ({ ...prev, maxCandidates: e.target.value }))} placeholder="Max candidates" className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm" />
+                </div>
+                <div className="mt-4 flex items-center gap-3">
+                  <button onClick={createTenant} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">Create tenant</button>
+                  {tenantActionStatus && <p className="text-xs text-gray-400">{tenantActionStatus}</p>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === 'tenants' && (
+            <div className="glass-card-dark rounded-2xl p-4 overflow-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-white/5">
+                  {['Tenant','Plan','Members','Usage','Last Activity','Controls'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>{((data.tenants ?? []) as TenantSummary[]).map((tenant, i) => (
+                  <tr key={tenant.id} className={i % 2 === 0 ? 'bg-white/[0.01]' : ''}>
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-white">{tenant.name}</p>
+                      <p className="text-xs text-gray-500">{tenant.short_id} · {tenant.slug}</p>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-300">
+                      <p>{tenant.plan}</p>
+                      <p className="text-gray-500">{tenant.plan_status} · {tenant.is_active ? 'active' : 'suspended'}</p>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-300">{tenant.active_members}/{tenant.member_count}</td>
+                    <td className="px-4 py-3 text-xs text-gray-400">
+                      <p>{tenant.jobs_count} jobs · {tenant.candidates_count} candidates</p>
+                      <p>{tenant.interviews_count} interviews · {tenant.offers_count} offers · {tenant.screens_this_month} screens</p>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{tenant.latest_activity_at ? fmt(tenant.latest_activity_at) : '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => updateTenant(tenant.id, { isActive: !tenant.is_active }, tenant.is_active ? 'Suspending tenant…' : 'Reactivating tenant…')} className="rounded-md border border-white/10 px-2 py-1 text-xs text-gray-300 hover:bg-white/5">
+                          {tenant.is_active ? 'Suspend' : 'Activate'}
+                        </button>
+                        <button onClick={() => updateTenant(tenant.id, { plan: tenant.plan === 'free' ? 'pro' : 'enterprise' }, 'Updating plan…')} className="rounded-md border border-indigo-500/20 px-2 py-1 text-xs text-indigo-300 hover:bg-indigo-500/10">
+                          Upgrade plan
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+
+          {tab === 'health' && (
+            <div className="grid md:grid-cols-4 gap-4">
+              {[
+                { label: 'Database', value: health?.dbOk ? 'Healthy' : 'Unavailable' },
+                { label: 'Active Sessions', value: health?.activeSessions ?? '—' },
+                { label: 'Failed Logins (7d)', value: health?.failedLogins7d ?? '—' },
+                { label: 'Pending Invites', value: health?.pendingInvites ?? '—' },
+              ].map(card => (
+                <div key={card.label} className="glass-card-dark rounded-2xl p-5">
+                  <p className="text-xs text-gray-500">{card.label}</p>
+                  <p className="mt-2 text-2xl font-bold text-white">{String(card.value)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab === 'security' && (
+            <div className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="glass-card-dark rounded-2xl p-5">
+                  <p className="text-xs text-gray-500">Failed Logins (7d)</p>
+                  <p className="mt-2 text-2xl font-bold text-white">{security?.failedLogins7d ?? '—'}</p>
+                </div>
+                <div className="glass-card-dark rounded-2xl p-5">
+                  <p className="text-xs text-gray-500">Error / Critical Events (7d)</p>
+                  <p className="mt-2 text-2xl font-bold text-white">{security?.errorEvents7d ?? '—'}</p>
+                </div>
+              </div>
+              <div className="glass-card-dark rounded-2xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b border-white/5">
+                    {['Event','User','Severity','Time'].map(h => (
+                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>{(security?.recentActivity ?? []).map((row, i) => (
+                    <tr key={row.id} className={i % 2 === 0 ? 'bg-white/[0.01]' : ''}>
+                      <td className="px-5 py-3 text-white font-mono text-xs">{row.event_type}</td>
+                      <td className="px-5 py-3 text-gray-400 text-xs">{row.auth_users?.email ?? '—'}</td>
+                      <td className="px-5 py-3"><StatusBadge status={row.severity} /></td>
+                      <td className="px-5 py-3 text-gray-500 text-xs">{fmt(row.created_at)}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
             </div>
           )}
 
           {/* ── Generic table view ─────────────────────────── */}
-          {tab !== 'overview' && (
+          {!['overview', 'tenants', 'health', 'security'].includes(tab) && (
             <div className="glass-card-dark rounded-2xl overflow-hidden">
               {loading ? (
                 <div className="flex items-center justify-center py-20">
@@ -268,6 +468,13 @@ export default function OwnerDashboard() {
   )
 }
 
+function fmtShortId(row: Record<string, unknown>): string {
+  const sid = row.short_id
+  if (typeof sid === 'string' && sid.trim()) return sid
+  const id = String(row.id ?? '')
+  return id.length > 8 ? `${id.slice(0, 8)}…` : id || '—'
+}
+
 // ── Table renderer ────────────────────────────────────────────────────────────
 function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
   if (!rows.length) {
@@ -281,7 +488,7 @@ function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
 
   const r = rows as Record<string, unknown>[]
 
-  if (tab === 'users') return (
+  const table = tab === 'users' ? (
     <table className="w-full text-sm">
       <thead><tr className="border-b border-white/5">
         {['Name','Email','Role','Active','Joined'].map(h => (
@@ -298,9 +505,7 @@ function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
         </tr>
       ))}</tbody>
     </table>
-  )
-
-  if (tab === 'activity') return (
+  ) : tab === 'activity' ? (
     <table className="w-full text-sm">
       <thead><tr className="border-b border-white/5">
         {['Event','User','Severity','Time'].map(h => (
@@ -318,9 +523,7 @@ function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
         </tr>
       ))}</tbody>
     </table>
-  )
-
-  if (tab === 'jobs') return (
+  ) : tab === 'jobs' ? (
     <table className="w-full text-sm">
       <thead><tr className="border-b border-white/5">
         {['ID','Title','Status','Company','Applications','Created'].map(h => (
@@ -329,7 +532,7 @@ function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
       </tr></thead>
       <tbody>{r.map((j, i) => (
         <tr key={String(j.id)} className={i % 2 === 0 ? 'bg-white/[0.01]' : ''}>
-          <td className="px-5 py-3 text-gray-600 font-mono text-[10px]">{String(j.id).slice(0,8)}…</td>
+          <td className="px-5 py-3 text-indigo-300 font-mono text-xs font-semibold">{fmtShortId(j)}</td>
           <td className="px-5 py-3 text-white font-medium">{String(j.title)}</td>
           <td className="px-5 py-3"><StatusBadge status={String(j.status)} /></td>
           <td className="px-5 py-3 text-gray-400 text-xs">{String(j.company ?? '—')}</td>
@@ -338,9 +541,7 @@ function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
         </tr>
       ))}</tbody>
     </table>
-  )
-
-  if (tab === 'resumes') return (
+  ) : tab === 'resumes' ? (
     <table className="w-full text-sm">
       <thead><tr className="border-b border-white/5">
         {['ID','Candidate','Email','AI Score','Status','Uploaded'].map(h => (
@@ -349,7 +550,7 @@ function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
       </tr></thead>
       <tbody>{r.map((rv, i) => (
         <tr key={String(rv.id)} className={i % 2 === 0 ? 'bg-white/[0.01]' : ''}>
-          <td className="px-5 py-3 text-gray-600 font-mono text-[10px]">{String(rv.id).slice(0,8)}…</td>
+          <td className="px-5 py-3 text-indigo-300 font-mono text-xs font-semibold">{fmtShortId(rv)}</td>
           <td className="px-5 py-3 text-white font-medium">{String(rv.candidate_name ?? '—')}</td>
           <td className="px-5 py-3 text-gray-400 text-xs">{String(rv.candidate_email ?? '—')}</td>
           <td className="px-5 py-3">
@@ -362,9 +563,7 @@ function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
         </tr>
       ))}</tbody>
     </table>
-  )
-
-  if (tab === 'subscriptions') return (
+  ) : tab === 'subscriptions' ? (
     <table className="w-full text-sm">
       <thead><tr className="border-b border-white/5">
         {['User','Plan','Status','Amount','Period End'].map(h => (
@@ -383,9 +582,7 @@ function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
         </tr>
       ))}</tbody>
     </table>
-  )
-
-  if (tab === 'tokens') return (
+  ) : tab === 'tokens' ? (
     <table className="w-full text-sm">
       <thead><tr className="border-b border-white/5">
         {['User','Model','Operation','Tokens','Cost','Time'].map(h => (
@@ -403,7 +600,7 @@ function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
         </tr>
       ))}</tbody>
     </table>
-  )
+  ) : null
 
-  return null
+  return table ? <div className="owner-table-wrap">{table}</div> : null
 }

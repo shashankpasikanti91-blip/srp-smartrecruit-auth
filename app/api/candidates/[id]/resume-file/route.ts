@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import { isValidUUID } from '@/lib/validate'
-import { mkdir, writeFile, readFile, unlink } from 'fs/promises'
+import { logAudit } from '@/lib/audit'
+import { logDataAccess } from '@/lib/activityLog'
+import { syncResumeToDocumentSlot } from '@/lib/resumeDocumentSync'
+import { readStoredFile, mimeForExt } from '@/lib/documentStorage'
 import path from 'path'
 
 const MAX_BYTES = 15 * 1024 * 1024
 const ALLOWED_EXT = new Set(['.pdf', '.docx', '.doc', '.txt'])
-
-function uploadsRoot() {
-  return path.join(process.cwd(), 'uploads', 'candidate-resumes')
-}
 
 function extFromFilename(name: string): string {
   const lower = (name || '').toLowerCase()
@@ -20,14 +19,7 @@ function extFromFilename(name: string): string {
   return ''
 }
 
-function mimeForExt(ext: string): string {
-  if (ext === '.pdf') return 'application/pdf'
-  if (ext === '.docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  if (ext === '.doc') return 'application/msword'
-  return 'text/plain; charset=utf-8'
-}
-
-/** POST — attach or replace original resume binary for this candidate (tenant-scoped). */
+/** POST — attach or replace resume; syncs to candidate_documents resume slot. */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -40,8 +32,8 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid candidate id' }, { status: 400 })
   }
 
-  const own = await pool.query<{ id: string; resume_original_path: string | null }>(
-    'SELECT id, resume_original_path FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1',
+  const own = await pool.query<{ id: string; short_id: string; resume_original_path: string | null }>(
+    'SELECT id, short_id, resume_original_path FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1',
     [id, ctx.tenantId]
   )
   if (!own.rows[0]) {
@@ -67,42 +59,41 @@ export async function POST(
     return NextResponse.json({ error: 'Unsupported type — use PDF, DOCX, DOC, or TXT' }, { status: 400 })
   }
 
-  const relative = path.join(ctx.tenantId, `${id}${ext}`)
-  const absDir = path.join(uploadsRoot(), ctx.tenantId)
-  const absFile = path.join(uploadsRoot(), relative)
-
   try {
-    await mkdir(absDir, { recursive: true })
-    const buf = Buffer.from(await file.arrayBuffer())
-    await writeFile(absFile, buf)
+    await syncResumeToDocumentSlot({
+      tenantId: ctx.tenantId,
+      resumeId: id,
+      shortId: own.rows[0].short_id,
+      userId: ctx.userId,
+      storagePath: '',
+      fileName: file.name,
+      fileSize: file.size,
+      file,
+    })
 
-    const oldPath = own.rows[0].resume_original_path
-    if (oldPath && oldPath !== relative) {
-      try {
-        const oldAbs = path.join(uploadsRoot(), oldPath)
-        if (oldAbs.startsWith(uploadsRoot())) await unlink(oldAbs)
-      } catch {
-        /* ignore missing old file */
-      }
-    }
-
-    await pool.query(
-      `UPDATE resumes SET resume_original_path = $1,
-            file_name = COALESCE($2, file_name),
-            file_size_bytes = $3,
-            updated_at = NOW()
-          WHERE id = $4 AND tenant_id = $5`,
-      [relative, file.name.slice(0, 255), file.size, id, ctx.tenantId]
-    )
+    const hadPrior = !!own.rows[0].resume_original_path
+    logAudit({
+      userId: ctx.userId,
+      userEmail: ctx.userEmail,
+      action: hadPrior ? 'resume_replaced' : 'document_uploaded',
+      resourceType: 'candidate',
+      resourceId: own.rows[0].short_id,
+      details: { slot_type: 'resume', file_name: file.name },
+      tenantId: ctx.tenantId,
+    })
   } catch (e) {
     console.error('[resume-file POST]', e)
     return NextResponse.json({ error: 'Could not save file' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, resume_original_path: relative })
+  const { rows } = await pool.query<{ resume_original_path: string | null }>(
+    'SELECT resume_original_path FROM resumes WHERE id = $1',
+    [id]
+  )
+  return NextResponse.json({ ok: true, resume_original_path: rows[0]?.resume_original_path })
 }
 
-/** GET — stream stored original file (auth + tenant). */
+/** GET — stream stored resume (auth + tenant). */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -115,8 +106,8 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid candidate id' }, { status: 400 })
   }
 
-  const { rows } = await pool.query<{ resume_original_path: string | null }>(
-    'SELECT resume_original_path FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1',
+  const { rows } = await pool.query<{ resume_original_path: string | null; short_id: string }>(
+    'SELECT resume_original_path, short_id FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1',
     [id, ctx.tenantId]
   )
   const rel = rows[0]?.resume_original_path
@@ -124,28 +115,38 @@ export async function GET(
     return NextResponse.json({ error: 'No original file on record' }, { status: 404 })
   }
 
-  const normalized = path.normalize(rel)
-  if (normalized.includes('..') || path.isAbsolute(normalized)) {
-    return NextResponse.json({ error: 'Invalid storage path' }, { status: 500 })
-  }
-
-  const absFile = path.join(uploadsRoot(), normalized)
-  const root = uploadsRoot()
-  if (!absFile.startsWith(root)) {
-    return NextResponse.json({ error: 'Invalid storage path' }, { status: 500 })
-  }
+  logDataAccess({
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    userRole: ctx.tenantRole,
+    accessType: 'resume_download',
+    resourceType: 'candidate',
+    resourceId: rows[0].short_id,
+    ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
+  })
 
   let buf: Buffer
   try {
-    buf = await readFile(absFile)
+    buf = await readStoredFile(rel)
   } catch {
-    return NextResponse.json({ error: 'File missing on disk' }, { status: 404 })
+    // Fallback: legacy candidate-resumes path
+    const legacyRoot = path.join(process.cwd(), 'uploads', 'candidate-resumes')
+    const legacyPath = path.join(legacyRoot, rel)
+    if (!legacyPath.startsWith(legacyRoot)) {
+      return NextResponse.json({ error: 'Invalid storage path' }, { status: 500 })
+    }
+    const { readFile } = await import('fs/promises')
+    try {
+      buf = await readFile(legacyPath)
+    } catch {
+      return NextResponse.json({ error: 'File missing on disk' }, { status: 404 })
+    }
   }
 
-  const ext = path.extname(absFile).toLowerCase()
+  const ext = path.extname(rel).toLowerCase()
   const mime = mimeForExt(ext)
   const inline = req.nextUrl.searchParams.get('inline') === '1'
-  const disposition = inline ? 'inline' : `attachment; filename="${path.basename(absFile)}"`
+  const disposition = inline ? 'inline' : `attachment; filename="${path.basename(rel)}"`
 
   return new NextResponse(new Uint8Array(buf), {
     status: 200,

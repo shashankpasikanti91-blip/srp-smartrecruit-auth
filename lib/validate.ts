@@ -57,6 +57,18 @@ export function sanitizeText(value: unknown, maxLen = 1000): string | null {
   return trimmed.slice(0, maxLen)
 }
 
+export function sanitizeExternalUrl(value: unknown, maxLen = 1000): string | null {
+  const text = sanitizeText(value, maxLen)
+  if (!text) return null
+  try {
+    const url = new URL(text)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
 /**
  * Sanitize a required text field, throws if missing or empty.
  */
@@ -126,21 +138,77 @@ export function sanitizeCandidateProfile(value: unknown): Record<string, string 
   if (typeof value !== 'object' || Array.isArray(value)) return {}
   const src = value as Record<string, unknown>
   const pick = (k: string, max: number) => sanitizeText(src[k], max)
+
+  // Malaysian NRIC — prefer `nric`, fall back to legacy Other-ID when type is NRIC/IC
+  let nric = pick('nric', 20)
+  if (!nric) {
+    const idType = (pick('id_document_type', 80) ?? '').toLowerCase()
+    if (/\bnric\b|\bic\b|identity card|mykad/.test(idType)) {
+      nric = pick('id_document_reference', 20)
+    }
+  }
+  if (nric) {
+    const digits = nric.replace(/\D/g, '')
+    if (digits.length === 12) {
+      nric = `${digits.slice(0, 6)}-${digits.slice(6, 8)}-${digits.slice(8)}`
+    }
+  }
+
+  // Alias salary_expectation ↔ expected_salary for older UI rows
+  const expected =
+    pick('expected_salary', 120) ?? pick('salary_expectation', 120)
+
   return {
-    current_company: pick('current_company', 200),
-    current_title: pick('current_title', 200),
+    // Employment / role
+    current_company: pick('current_company', 200) ?? pick('current_employer', 200),
+    current_employer: pick('current_employer', 200) ?? pick('current_company', 200),
+    current_title: pick('current_title', 200) ?? pick('current_role', 200),
+    current_role: pick('current_role', 200) ?? pick('current_title', 200),
     current_location: pick('current_location', 200),
-    salary_expectation: pick('salary_expectation', 120),
+    preferred_location: pick('preferred_location', 200),
+    address: pick('address', 500),
+    // Experience
+    total_experience: pick('total_experience', 40),
+    relevant_experience: pick('relevant_experience', 40),
+    // Compensation
+    current_salary: pick('current_salary', 120),
+    expected_salary: expected,
+    salary_expectation: expected,
     notice_period: pick('notice_period', 80),
+    // Identity / MY
     nationality: pick('nationality', 100),
+    nric,
+    dob: pick('dob', 20),
+    gender: pick('gender', 20),
+    marital_status: pick('marital_status', 40),
+    passport_number: pick('passport_number', 40),
+    // Visa / work auth
     work_authorization: pick('work_authorization', 200),
     visa_type: pick('visa_type', 120),
     visa_expiry: pick('visa_expiry', 40),
+    // India IDs (kept for multi-market tenants)
     india_pan: pick('india_pan', 12),
     india_aadhaar_last4: pick('india_aadhaar_last4', 12),
+    pf_number: pick('pf_number', 40),
     id_document_type: pick('id_document_type', 80),
     id_document_reference: pick('id_document_reference', 80),
+    // Submission / commercial
+    hire_type: pick('hire_type', 40),
+    client_name: pick('client_name', 200),
+    applying_for: pick('applying_for', 200),
+    source_channel: pick('source_channel', 80),
+    interview_mode: pick('interview_mode', 40),
+    offers_in_hand: pick('offers_in_hand', 200),
+    submission_date: pick('submission_date', 40),
+    lifecycle_status: pick('lifecycle_status', 60),
+    // Notes
     notes: pick('notes', 2000),
+    follow_up_notes: pick('follow_up_notes', 2000),
+    candidate_feedback: pick('candidate_feedback', 2000),
+    internal_comments: pick('internal_comments', 2000),
+    next_action: pick('next_action', 500),
+    education: pick('education', 2000),
+    certifications: pick('certifications', 2000),
   }
 }
 

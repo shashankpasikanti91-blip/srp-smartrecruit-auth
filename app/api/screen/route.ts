@@ -4,6 +4,7 @@ import { pool } from '@/lib/db'
 import { checkAiScreenLimit } from '@/lib/limits'
 import { logAudit } from '@/lib/audit'
 import { isValidUUID } from '@/lib/validate'
+import { extractResumeFields } from '@/lib/resumeExtract'
 
 /** AI models sometimes return score as a string — DB ai_score must be numeric for match_category. */
 function normalizeScreeningScore(value: unknown): number | null {
@@ -327,6 +328,12 @@ export async function POST(req: NextRequest) {
       if (!parsed.error) {
         try {
           const p = parsed as Record<string, unknown>
+          const extracted = extractResumeFields(resume.text, resume.filename)
+          // Prefer AI fields; fall back to deterministic extract (never use job-title-like filename alone)
+          if (!(p.name as string)?.trim() && extracted.name) p.name = extracted.name
+          if (!(p.email as string)?.trim() && extracted.email) p.email = extracted.email
+          if (!(p.contact_number as string)?.trim() && extracted.phone) p.contact_number = extracted.phone
+
           const evalData = p.evaluation as Record<string, unknown> | undefined
           const jdMatch = p.jd_match as Record<string, unknown> | undefined
           const score = normalizeScreeningScore(p.score)
@@ -340,6 +347,10 @@ export async function POST(req: NextRequest) {
           const stage = decision === 'Shortlisted' ? 'screening' : 'applied'
           const resumeId = resume.id ?? candidate_id
 
+          const resolvedName = ((p.name as string)?.trim()
+            || extracted.name
+            || 'Unknown Candidate').slice(0, 200)
+
           if (resumeId) {
             // Validate resumeId belongs to this tenant before updating
             const existing = await pool.query(
@@ -347,26 +358,32 @@ export async function POST(req: NextRequest) {
               [resumeId, tenantId]
             )
             if (existing.rows.length) {
+              // Always refresh name/contact from AI+extract (fixes earlier job-title-as-name bugs).
+              // Link job when screening against a selected job post.
               await pool.query(
                 `UPDATE resumes SET
                   ai_score = $1, ai_summary = $2,
                   ai_skills = $3, pipeline_stage = $4,
                   ai_screening_data = $5,
-                  candidate_name = COALESCE(NULLIF(candidate_name,''), $6),
-                  candidate_email = COALESCE(NULLIF(candidate_email,''), $7),
-                  candidate_phone = COALESCE(NULLIF(candidate_phone,''), $8),
+                  candidate_name = $6,
+                  candidate_email = COALESCE(NULLIF($7::text, ''), candidate_email),
+                  candidate_phone = COALESCE(NULLIF($8::text, ''), candidate_phone),
+                  job_post_id = COALESCE($9::uuid, job_post_id),
                   status = 'reviewed', updated_at = NOW()
-                WHERE id = $9 AND tenant_id = $10`,
+                WHERE id = $10 AND tenant_id = $11`,
                 [score, summary.slice(0, 2000), skills, stage,
                  JSON.stringify(p),
-                 p.name ?? null, p.email ?? null, p.contact_number ?? null,
+                 resolvedName,
+                 ((p.email as string) || extracted.email || null),
+                 ((p.contact_number as string) || extracted.phone || null),
+                 job_post_id && isValidUUID(job_post_id) ? job_post_id : null,
                  resumeId, tenantId]
               )
               parsed = { ...parsed, db_id: resumeId }
             }
           } else {
             // Duplicate check by email within this tenant before inserting
-            const candidateEmail = (p.email as string | null) || null
+            const candidateEmail = ((p.email as string | null) || extracted.email || null)
             let existingId: string | null = null
             if (candidateEmail?.trim()) {
               const dupCheck = await pool.query<{ id: string }>(
@@ -381,13 +398,16 @@ export async function POST(req: NextRequest) {
                     ai_score = $1, ai_summary = $2, ai_skills = $3,
                     pipeline_stage = $4, status = 'reviewed',
                     ai_screening_data = $5,
-                    candidate_name = COALESCE(NULLIF(candidate_name,''), $6),
-                    candidate_phone = COALESCE(NULLIF(candidate_phone,''), $7),
+                    candidate_name = $6,
+                    candidate_phone = COALESCE(NULLIF($7::text, ''), candidate_phone),
+                    job_post_id = COALESCE($8::uuid, job_post_id),
                     updated_at = NOW()
-                  WHERE id = $8 AND tenant_id = $9`,
+                  WHERE id = $9 AND tenant_id = $10`,
                   [score, summary.slice(0, 2000), skills, stage,
                    JSON.stringify(p),
-                   p.name ?? null, p.contact_number ?? null,
+                   resolvedName,
+                   ((p.contact_number as string) || extracted.phone || null),
+                   job_post_id && isValidUUID(job_post_id) ? job_post_id : null,
                    existingId, tenantId]
                 )
                 parsed = { ...parsed, db_id: existingId, is_duplicate: true }
@@ -403,9 +423,9 @@ export async function POST(req: NextRequest) {
                  RETURNING id, short_id`,
                 [tenantId, userId,
                  job_post_id || null,
-                 ((p.name as string) || resume.filename || 'Unknown').slice(0, 200),
+                 resolvedName,
                  candidateEmail?.toLowerCase() ?? null,
-                 (p.contact_number as string | null)?.slice(0, 50) ?? null,
+                 ((p.contact_number as string | null) || extracted.phone)?.slice(0, 50) ?? null,
                  resume.filename?.slice(0, 255) || null,
                  resume.text.slice(0, 100000),
                  score,

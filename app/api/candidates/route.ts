@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant }            from '@/lib/tenant'
 import { pool }                     from '@/lib/db'
-import { sanitizeEmail, sanitizeText, sanitizeStringArray, sanitizePositiveInt, isValidUUID } from '@/lib/validate'
+import { sanitizeEmail, sanitizeText, sanitizeStringArray, sanitizePositiveInt, isValidUUID, sanitizeCandidateProfile } from '@/lib/validate'
 
 /** pg sometimes returns JSONB as object; legacy TEXT/json columns may return a string. */
 function parseJsonObject<T extends Record<string, unknown>>(v: unknown): T | null {
@@ -27,43 +27,135 @@ export async function GET(req: NextRequest) {
     const match     = sanitizeText(searchParams.get('match'), 50) ?? ''
     const jobId     = searchParams.get('job_id') ?? ''
     const skill     = sanitizeText(searchParams.get('skill'), 100) ?? ''
-    const dateRange = sanitizeText(searchParams.get('date_range'), 20) ?? ''
-    const limit     = Math.min(500, Math.max(1, parseInt(searchParams.get('limit') ?? '100', 10) || 100))
+    const dateRange = sanitizeText(searchParams.get('date_range'), 30) ?? ''
+    const hireType  = sanitizeText(searchParams.get('hire_type'), 40) ?? ''
+    const source    = sanitizeText(searchParams.get('source'), 80) ?? ''
+    const recruiter = searchParams.get('recruiter_id') ?? ''
+    const client    = sanitizeText(searchParams.get('client'), 200) ?? ''
+    const lifecycle = sanitizeText(searchParams.get('lifecycle'), 60) ?? ''
+    const location  = sanitizeText(searchParams.get('location'), 200) ?? ''
+    const visaType  = sanitizeText(searchParams.get('visa_type'), 80) ?? ''
+    const dateFrom  = sanitizeText(searchParams.get('date_from'), 40) ?? ''
+    const dateTo    = sanitizeText(searchParams.get('date_to'), 40) ?? ''
+    const page      = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1)
+    const limit     = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') ?? '50', 10) || 50))
+    const offset    = (page - 1) * limit
+    const sortByRaw = sanitizeText(searchParams.get('sort'), 40) ?? 'created_at'
+    const sortDir   = (searchParams.get('dir') === 'asc' ? 'ASC' : 'DESC') as 'ASC' | 'DESC'
+    const SORT_MAP: Record<string, string> = {
+      created_at: 'r.created_at',
+      name: 'r.candidate_name',
+      score: 'r.ai_score',
+      stage: 'r.pipeline_stage',
+      status: 'r.status',
+      updated_at: 'r.updated_at',
+    }
+    const sortCol = SORT_MAP[sortByRaw] ?? 'r.created_at'
 
-    // Validate jobId if provided
     if (jobId && !isValidUUID(jobId)) {
       return NextResponse.json({ error: 'Invalid job_id' }, { status: 400 })
+    }
+    if (recruiter && !isValidUUID(recruiter)) {
+      return NextResponse.json({ error: 'Invalid recruiter_id' }, { status: 400 })
     }
 
     const conditions: string[] = ['r.tenant_id = $1']
     const params: unknown[] = [ctx.tenantId]
     let idx = 2
 
-    if (q) { conditions.push(`(r.candidate_name ILIKE $${idx} OR r.candidate_email ILIKE $${idx} OR r.short_id ILIKE $${idx})`); params.push(`%${q}%`); idx++ }
+    if (q) {
+      conditions.push(`(
+        r.candidate_name ILIKE $${idx}
+        OR r.candidate_email ILIKE $${idx}
+        OR r.candidate_phone ILIKE $${idx}
+        OR r.short_id ILIKE $${idx}
+        OR COALESCE(r.candidate_profile->>'nric','') ILIKE $${idx}
+        OR COALESCE(r.candidate_profile->>'id_document_reference','') ILIKE $${idx}
+        OR EXISTS (SELECT 1 FROM unnest(r.ai_skills) s(sk) WHERE s.sk ILIKE $${idx})
+      )`)
+      params.push(`%${q}%`); idx++
+    }
     if (stage) { conditions.push(`r.pipeline_stage = $${idx}`); params.push(stage); idx++ }
     if (match)  { conditions.push(`r.match_category = $${idx}`); params.push(match); idx++ }
     if (jobId)  { conditions.push(`r.job_post_id = $${idx}`); params.push(jobId); idx++ }
     if (skill)  { conditions.push(`EXISTS (SELECT 1 FROM unnest(r.ai_skills) s(sk) WHERE s.sk ILIKE $${idx})`); params.push(`%${skill}%`); idx++ }
-    if (dateRange) {
+    if (hireType) {
+      conditions.push(`LOWER(COALESCE(r.candidate_profile->>'hire_type','')) = LOWER($${idx})`)
+      params.push(hireType); idx++
+    }
+    if (source) {
+      conditions.push(`(r.source_type ILIKE $${idx} OR COALESCE(r.candidate_profile->>'source_channel','') ILIKE $${idx})`)
+      params.push(`%${source}%`); idx++
+    }
+    if (recruiter) { conditions.push(`r.user_id = $${idx}`); params.push(recruiter); idx++ }
+    if (client) {
+      conditions.push(`(COALESCE(r.candidate_profile->>'client_name','') ILIKE $${idx} OR COALESCE(jp.company,'') ILIKE $${idx})`)
+      params.push(`%${client}%`); idx++
+    }
+    if (lifecycle) {
+      conditions.push(`LOWER(COALESCE(r.candidate_profile->>'lifecycle_status','')) = LOWER($${idx})`)
+      params.push(lifecycle); idx++
+    }
+    if (location) {
+      conditions.push(`(COALESCE(r.candidate_profile->>'current_location','') ILIKE $${idx} OR COALESCE(r.location,'') ILIKE $${idx})`)
+      params.push(`%${location}%`); idx++
+    }
+    if (visaType) {
+      conditions.push(`LOWER(COALESCE(r.candidate_profile->>'visa_type','')) = LOWER($${idx})`)
+      params.push(visaType); idx++
+    }
+    if (dateFrom) {
+      conditions.push(`r.created_at::date >= $${idx}::date`); params.push(dateFrom); idx++
+    }
+    if (dateTo) {
+      conditions.push(`r.created_at::date <= $${idx}::date`); params.push(dateTo); idx++
+    }
+    if (dateRange && !dateFrom && !dateTo) {
       const now = new Date()
-      if (dateRange === 'today') {
+      const startOfDay = (d: Date) => { const x = new Date(d); x.setHours(0,0,0,0); return x }
+      if (dateRange === 'today' || dateRange === 'day') {
         const today = now.toISOString().split('T')[0]
         conditions.push(`r.created_at::date = $${idx}::date`); params.push(today); idx++
-      } else if (dateRange === '7days') {
-        const d = new Date(now); d.setDate(d.getDate() - 7)
+      } else if (dateRange === 'yesterday') {
+        const y = new Date(now); y.setDate(y.getDate() - 1)
+        conditions.push(`r.created_at::date = $${idx}::date`); params.push(y.toISOString().split('T')[0]); idx++
+      } else if (dateRange === 'week' || dateRange === '7days' || dateRange === 'this_week') {
+        const d = startOfDay(now); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)) // Monday
         conditions.push(`r.created_at >= $${idx}`); params.push(d.toISOString()); idx++
-      } else if (dateRange === '30days') {
-        const d = new Date(now); d.setDate(d.getDate() - 30)
+      } else if (dateRange === 'last_week') {
+        const end = startOfDay(now); end.setDate(end.getDate() - ((end.getDay() + 6) % 7))
+        const start = new Date(end); start.setDate(start.getDate() - 7)
+        conditions.push(`r.created_at >= $${idx} AND r.created_at < $${idx + 1}`)
+        params.push(start.toISOString(), end.toISOString()); idx += 2
+      } else if (dateRange === 'month' || dateRange === '30days' || dateRange === 'this_month') {
+        const d = new Date(now.getFullYear(), now.getMonth(), 1)
+        conditions.push(`r.created_at >= $${idx}`); params.push(d.toISOString()); idx++
+      } else if (dateRange === 'last_month') {
+        const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const end = new Date(now.getFullYear(), now.getMonth(), 1)
+        conditions.push(`r.created_at >= $${idx} AND r.created_at < $${idx + 1}`)
+        params.push(start.toISOString(), end.toISOString()); idx += 2
+      } else if (dateRange === 'year' || dateRange === '365days' || dateRange === 'this_year') {
+        const d = new Date(now.getFullYear(), 0, 1)
         conditions.push(`r.created_at >= $${idx}`); params.push(d.toISOString()); idx++
       }
     }
 
     const where = conditions.join(' AND ')
+    const countRes = await pool.query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM resumes r
+       LEFT JOIN job_posts jp ON jp.id = r.job_post_id
+       WHERE ${where}`,
+      params
+    )
+    const total = parseInt(countRes.rows[0]?.total ?? '0', 10) || 0
+
     const sql = `
       SELECT r.id, r.short_id, r.candidate_name, r.candidate_email, r.candidate_phone,
              r.ai_score, r.match_category, r.pipeline_stage, r.status, r.reviewer_notes,
              r.ai_summary, r.ai_skills, r.ai_screening_data, r.candidate_profile,
-             r.job_post_id, r.raw_text, r.file_name, r.resume_original_path, r.source_type,
+             r.job_post_id, r.user_id, r.raw_text, r.file_name, r.resume_original_path, r.source_type,
              r.created_at, r.updated_at, r.last_contacted_at,
              u.name AS upload_user_name, u.email AS upload_user_email,
              jp.id AS jp_id, jp.short_id AS jp_short_id, jp.title AS jp_title, jp.company AS jp_company
@@ -71,10 +163,10 @@ export async function GET(req: NextRequest) {
       LEFT JOIN auth_users u ON u.id = r.user_id
       LEFT JOIN job_posts jp ON jp.id = r.job_post_id
       WHERE ${where}
-      ORDER BY r.created_at DESC
-      LIMIT $${idx}
+      ORDER BY ${sortCol} ${sortDir} NULLS LAST
+      LIMIT $${idx} OFFSET $${idx + 1}
     `
-    params.push(limit)
+    params.push(limit, offset)
     const { rows } = await pool.query(sql, params)
     type Row = Record<string, unknown> & {
       jp_id?: string | null
@@ -137,7 +229,16 @@ export async function GET(req: NextRequest) {
       .slice(0, 20)
       .map(([skill, count]) => ({ skill, count }))
 
-    return NextResponse.json({ candidates, stageCounts: counts, matchCounts, topSkills })
+    return NextResponse.json({
+      candidates,
+      stageCounts: counts,
+      matchCounts,
+      topSkills,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    })
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
@@ -159,6 +260,9 @@ export async function POST(req: NextRequest) {
     const file_name         = sanitizeText(body.file_name, 255)
     const file_size_bytes   = sanitizePositiveInt(body.file_size_bytes, 52428800) // 50 MB max
     const pipeline_stage    = sanitizeText(body.pipeline_stage, 50) ?? 'sourced'
+    const candidate_profile = body.candidate_profile
+      ? sanitizeCandidateProfile(body.candidate_profile)
+      : null
 
     if (!candidate_name && !candidate_email) {
       return NextResponse.json({ error: 'candidate_name or candidate_email required' }, { status: 400 })
@@ -226,12 +330,13 @@ export async function POST(req: NextRequest) {
       `INSERT INTO resumes
          (tenant_id, user_id, candidate_name, candidate_email, candidate_phone,
           ai_skills, ai_score, ai_summary, job_post_id, pipeline_stage,
-          raw_text, file_name, file_size_bytes, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pending')
+          raw_text, file_name, file_size_bytes, candidate_profile, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,'pending')
        RETURNING *`,
       [ctx.tenantId, ctx.userId, candidate_name, candidate_email,
        candidate_phone, ai_skills, ai_score, ai_summary,
-       job_post_id, pipeline_stage, raw_text, file_name, file_size_bytes]
+       job_post_id, pipeline_stage, raw_text, file_name, file_size_bytes,
+       candidate_profile ? JSON.stringify(candidate_profile) : '{}']
     )
 
     return NextResponse.json({ candidate: rows[0] }, { status: 201 })

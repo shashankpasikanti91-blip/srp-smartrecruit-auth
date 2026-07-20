@@ -9,14 +9,12 @@ const footerNav = {
     { label: 'Book a Demo', href: '/support/contact' },
   ],
   Platform: [
-    { label: 'AI Resume Screening', href: '/#features' },
-    { label: 'Candidate Pipeline', href: '/#features' },
-    { label: 'Bulk Upload', href: '/#features' },
-    { label: 'Interview Scheduling', href: '/#features' },
-    { label: 'Analytics & Reports', href: '/#features' },
-    { label: 'Bias Reduction', href: '/#features' },
-    { label: 'Agentic AI', href: '/#features' },
-    { label: 'Pricing', href: '/#pricing' },
+    { label: 'Features', href: '/features' },
+    { label: 'Platform overview', href: '/platform' },
+    { label: 'AI workflow', href: '/#workflow' },
+    { label: 'Product preview', href: '/#preview' },
+    { label: 'Security & trust', href: '/legal/security' },
+    { label: 'Pricing', href: '/pricing' },
   ],
   Company: [
     { label: 'About Us', href: '/company/about' },
@@ -55,8 +53,8 @@ export default function Footer() {
       <div className="border-b border-white/5 bg-gradient-to-r from-indigo-950/40 to-purple-950/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
-            <p className="text-white font-semibold text-lg">Hire 75% faster with SRP Recruit AI</p>
-            <p className="text-gray-400 text-sm mt-1">Recruitment strategy tips, guides, and live Q&amp;As delivered to your inbox.</p>
+            <p className="text-white font-semibold text-lg">AI-ranked shortlists for agency teams</p>
+            <p className="text-gray-400 text-sm mt-1">Recruitment insights and product updates delivered to your inbox.</p>
           </div>
           <div className="flex gap-3 shrink-0">
             <Link href="/signup"
@@ -85,7 +83,7 @@ export default function Footer() {
               </span>
             </Link>
             <p className="text-gray-500 text-xs leading-relaxed mb-5">
-              The AI-powered recruiting platform that helps teams match, engage, and hire talent faster.
+              Enterprise AI recruitment for agencies — screen, match, explain, and manage pipelines with human oversight.
             </p>
             <div className="flex gap-2 flex-wrap">
               {socials.map((s) => (
@@ -128,10 +126,9 @@ export default function Footer() {
               <Link key={l.label} href={l.href} className="hover:text-gray-400 transition-colors">{l.label}</Link>
             ))}
           </div>
-          <p className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
-            All systems operational
-          </p>
+          <Link href="/legal/security" className="hover:text-gray-400 transition-colors">
+            Security &amp; status
+          </Link>
         </div>
       </div>
     </footer>

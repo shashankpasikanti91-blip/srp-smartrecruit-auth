@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500" fill="none" role="img" aria-labelledby="t d">
+  <title id="t">Human review split panel</title>
+  <desc id="d">AI recommendation panel alongside recruiter approval panel</desc>
+  <rect width="900" height="500" fill="#020308"/>
+  <rect x="40" y="60" width="380" height="380" rx="16" fill="#0f1628" stroke="rgba(139,92,246,0.35)"/>
+  <text x="60" y="100" fill="#a78bfa" font-size="13" font-weight="600" font-family="system-ui">AI recommendation</text>
+  <rect x="60" y="120" width="300" height="10" rx="3" fill="rgba(255,255,255,0.15)"/>
+  <rect x="60" y="140" width="240" height="8" rx="2" fill="rgba(255,255,255,0.08)"/>
+  <rect x="60" y="170" width="80" height="24" rx="6" fill="rgba(139,92,246,0.2)"/>
+  <rect x="480" y="60" width="380" height="380" rx="16" fill="#0f1628" stroke="rgba(52,211,153,0.35)"/>
+  <text x="500" y="100" fill="#34d399" font-size="13" font-weight="600" font-family="system-ui">Recruiter approval</text>
+  <rect x="500" y="130" width="120" height="36" rx="8" fill="rgba(52,211,153,0.15)" stroke="rgba(52,211,153,0.4)"/>
+  <text x="530" y="153" fill="#34d399" font-size="11" font-family="system-ui">Approve</text>
+  <rect x="640" y="130" width="100" height="36" rx="8" fill="rgba(255,255,255,0.05)"/>
+</svg>

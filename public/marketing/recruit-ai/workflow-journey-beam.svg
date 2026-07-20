@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 200" fill="none" role="img" aria-labelledby="t d">
+  <title id="t">Agency workflow journey beam</title>
+  <desc id="d">Pipeline from source through screen, rank, review, submit, and track</desc>
+  <rect width="1000" height="200" fill="#050810" rx="16"/>
+  <defs>
+    <linearGradient id="line" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <line x1="80" y1="100" x2="920" y2="100" stroke="url(#line)" stroke-width="2" stroke-dasharray="6 4" opacity="0.6"/>
+  <g font-family="system-ui" font-size="10" fill="#94a3b8">
+    <circle cx="100" cy="100" r="8" fill="#22d3ee"/><text x="100" y="130" text-anchor="middle">Source</text>
+    <circle cx="280" cy="100" r="8" fill="#22d3ee"/><text x="280" y="130" text-anchor="middle">Screen</text>
+    <circle cx="460" cy="100" r="8" fill="#8b5cf6"/><text x="460" y="130" text-anchor="middle">Rank</text>
+    <circle cx="640" cy="100" r="8" fill="#8b5cf6"/><text x="640" y="130" text-anchor="middle">Review</text>
+    <circle cx="820" cy="100" r="8" fill="#34d399"/><text x="820" y="130" text-anchor="middle">Submit</text>
+    <circle cx="920" cy="100" r="8" fill="#34d399"/><text x="920" y="130" text-anchor="middle">Track</text>
+  </g>
+</svg>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { extractResumeFields } from '@/lib/resumeExtract'
 
 export const maxDuration = 60
 
@@ -67,7 +68,16 @@ export async function POST(req: NextRequest) {
       text = buffer.toString('utf-8')
     }
 
-    return NextResponse.json({ text: text.trim(), filename: file.name, size: file.size })
+    const trimmed = text.trim()
+    const extracted = extractResumeFields(trimmed, file.name)
+    return NextResponse.json({
+      text: trimmed,
+      filename: file.name,
+      size: file.size,
+      name: extracted.name,
+      email: extracted.email,
+      phone: extracted.phone,
+    })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[api/parse] error:', msg)

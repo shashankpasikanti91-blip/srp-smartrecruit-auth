@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" fill="none" role="img" aria-labelledby="t d">
+  <title id="t">From 500 CVs to focused shortlist</title>
+  <desc id="d">Editorial visual of CV volume narrowing to ranked candidate shortlist</desc>
+  <rect width="1200" height="700" fill="#050810"/>
+  <defs>
+    <linearGradient id="beam" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="80" y="120" width="80" height="100" rx="6" fill="rgba(34,211,238,0.15)" opacity="0.4"/>
+  <rect x="100" y="140" width="80" height="100" rx="6" fill="rgba(34,211,238,0.15)" opacity="0.5"/>
+  <rect x="120" y="160" width="80" height="100" rx="6" fill="rgba(34,211,238,0.15)" opacity="0.6"/>
+  <rect x="500" y="280" width="200" height="140" rx="16" fill="#0f1628" stroke="url(#beam)" stroke-width="2"/>
+  <circle cx="600" cy="330" r="30" stroke="#8b5cf6" stroke-width="3" fill="none"/>
+  <text x="600" y="338" text-anchor="middle" fill="#8b5cf6" font-size="14" font-family="system-ui">AI</text>
+  <rect x="900" y="200" width="160" height="90" rx="12" fill="#0f1628" stroke="rgba(52,211,153,0.4)"/>
+  <rect x="920" y="310" width="160" height="90" rx="12" fill="#0f1628" stroke="rgba(52,211,153,0.3)"/>
+  <rect x="940" y="420" width="160" height="90" rx="12" fill="#0f1628" stroke="rgba(52,211,153,0.2)"/>
+  <path d="M300 350 H500 M700 350 H900" stroke="url(#beam)" stroke-width="2" stroke-dasharray="8 6"/>
+</svg>

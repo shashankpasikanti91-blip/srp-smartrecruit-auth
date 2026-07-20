@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">AI match score ring</title>
+  <desc id="desc">Circular score indicator showing candidate fit percentage</desc>
+  <circle cx="100" cy="100" r="80" stroke="rgba(255,255,255,0.08)" stroke-width="12" fill="none"/>
+  <circle cx="100" cy="100" r="80" stroke="url(#ringGrad)" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="440" stroke-dashoffset="88" transform="rotate(-90 100 100)"/>
+  <defs>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <text x="100" y="95" text-anchor="middle" fill="#fff" font-size="36" font-weight="700" font-family="system-ui">82</text>
+  <text x="100" y="118" text-anchor="middle" fill="#94a3b8" font-size="12" font-family="system-ui">Match</text>
+</svg>

@@ -3,6 +3,27 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { ScrollableTable } from '@/components/dashboard/ScrollableTable'
+import { EditCandidateModal } from '@/components/candidates/EditCandidateModal'
+import { SubmissionDetailsModal } from '@/components/candidates/SubmissionDetailsModal'
+import { Candidate360TabBar, Candidate360Panels } from '@/components/candidates/Candidate360View'
+import { CandidateColumnPicker } from '@/components/candidates/CandidateColumnPicker'
+import { loadCandidateColumnPrefs, type CandidateColumnKey, CANDIDATE_COLUMNS } from '@/lib/candidateColumnPrefs'
+import { CandidateBulkBar } from '@/components/recruitment/CandidateBulkBar'
+import { SubmissionsTab } from '@/components/recruitment/SubmissionsTab'
+import { InterviewsTab } from '@/components/recruitment/InterviewsTab'
+import { FollowUpsTab } from '@/components/recruitment/FollowUpsTab'
+import { WorkspaceTab } from '@/components/recruitment/WorkspaceTab'
+import { SelectedPipelineTab } from '@/components/recruitment/SelectedPipelineTab'
+import { ESSTab } from '@/components/ess/ESSTab'
+import { MyPerformanceTab } from '@/components/analytics/MyPerformanceTab'
+import { CoachTab } from '@/components/recruitment/CoachTab'
+import { ClientsTab } from '@/components/recruitment/ClientsTab'
+import { RecruitersTab } from '@/components/recruitment/RecruitersTab'
+import { DocumentsRegistryTab } from '@/components/recruitment/DocumentsRegistryTab'
+import { ReportsTab } from '@/components/recruitment/ReportsTab'
+import { GovernanceTab } from '@/components/governance/GovernanceTab'
+import { formatLifecycle, HIRE_TYPES, HIRE_TYPE_LABELS, LIFECYCLE_STATUSES, LIFECYCLE_LABELS, VISA_TYPES, VISA_TYPE_LABELS } from '@/lib/candidateLifecycle'
 import {
   Briefcase, Users, Search, Plus, ChevronDown, LogOut,
   Zap, Star, TrendingUp, X, Crown, Filter,
@@ -10,8 +31,14 @@ import {
   Upload, FileText, Sparkles, Copy, Check, Mail,
   RefreshCw, AlertCircle, Layers, Brain, ChevronRight,
   MoreVertical, Send, Loader2, Download, Settings, User as UserIcon, CreditCard, Activity, Shield,
-  Key, Pencil, Eye, EyeOff, Link2, Trash2, ToggleLeft, ToggleRight, ExternalLink, Info
+  Key, Pencil, Eye, EyeOff, Link2, Trash2, ToggleLeft, ToggleRight, ExternalLink, Info,
+  Bell, Award, Calendar, Building2
 } from 'lucide-react'
+
+type DashboardTab =
+  | 'workspace' | 'pipeline' | 'candidates' | 'submissions' | 'interviews' | 'followups' | 'selected'
+  | 'performance' | 'coach' | 'clients' | 'recruiters' | 'documents' | 'reports' | 'governance'
+  | 'screen' | 'compose' | 'jobs' | 'analytics' | 'settings' | 'jd' | 'boolean' | 'import' | 'integrations' | 'comms' | 'ess'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Job {
@@ -58,6 +85,8 @@ interface Candidate {
   source_type?: string | null
   /** Who created this resume row in this tenant (never cross-tenant). */
   uploaded_by?: { name: string | null; email: string | null } | null
+  /** Workspace member who owns this profile (tenant-scoped). */
+  user_id?: string | null
   job_posts: { id: string; short_id: string; title: string; company: string } | null
   created_at: string
   updated_at?: string
@@ -270,6 +299,15 @@ function getCandidateDossierChecks(c: Candidate): DossierCheck[] {
       { id: 'india_aadhaar_last4', label: 'India — Aadhaar reference', level: 'recommended', ok: !!dossierStr(p.india_aadhaar_last4) },
     )
   }
+  const myLike = nat.includes('malay') || nat === 'my' || nat.includes('malaysia') || (!nat && !!dossierStr(p.nric))
+  if (myLike || dossierStr(p.nric) || String(p.id_document_type ?? '').toLowerCase().includes('nric')) {
+    checks.push({
+      id: 'nric',
+      label: 'Malaysia — NRIC',
+      level: 'recommended',
+      ok: !!(dossierStr(p.nric) || (String(p.id_document_type ?? '').toLowerCase().includes('nric') && dossierStr(p.id_document_reference))),
+    })
+  }
   return checks
 }
 
@@ -303,6 +341,7 @@ function dossierDisplayValue(c: Candidate, id: string): string {
     case 'visa_expiry': return dossierStr(p.visa_expiry) || '—'
     case 'india_pan': return dossierStr(p.india_pan) || '—'
     case 'india_aadhaar_last4': return dossierStr(p.india_aadhaar_last4) || '—'
+    case 'nric': return dossierStr(p.nric) || dossierStr(p.id_document_reference) || '—'
     default: return '—'
   }
 }
@@ -1651,7 +1690,11 @@ export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const [activeTab, setActiveTab] = useState<'pipeline' | 'candidates' | 'screen' | 'compose' | 'jobs' | 'analytics' | 'settings' | 'jd' | 'boolean' | 'import' | 'integrations' | 'comms'>('pipeline')
+  const [activeTab, setActiveTab] = useState<DashboardTab>('workspace')
+  const isWideTab = useMemo(
+    () => ['workspace', 'pipeline', 'candidates', 'jobs', 'screen', 'analytics', 'submissions', 'interviews', 'followups', 'selected', 'clients', 'reports', 'performance', 'recruiters', 'documents'].includes(activeTab),
+    [activeTab],
+  )
   const [jobs, setJobs] = useState<Job[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
 
@@ -1675,7 +1718,25 @@ export default function DashboardPage() {
   const [filterMatch, setFilterMatch] = useState('')
   const [filterJob, setFilterJob] = useState('')
   const [filterSkill, setFilterSkill] = useState('')
-  const [filterDate, setFilterDate] = useState('')  // 'today' | '7days' | '30days' | ''
+  const [filterDate, setFilterDate] = useState('')  // 'today' | 'week' | 'month' | 'year' | ...
+  const [filterHireType, setFilterHireType] = useState('')
+  const [filterSource, setFilterSource] = useState('')
+  const [filterRecruiter, setFilterRecruiter] = useState('')
+  const [filterClient, setFilterClient] = useState('')
+  const [filterLifecycle, setFilterLifecycle] = useState('')
+  const [filterVisa, setFilterVisa] = useState('')
+  const [filterLocation, setFilterLocation] = useState('')
+  const [candPage, setCandPage] = useState(1)
+  const [candTotal, setCandTotal] = useState(0)
+  const [candTotalPages, setCandTotalPages] = useState(1)
+  const [editCandidate, setEditCandidate] = useState<Candidate | null>(null)
+  const [submissionCandidate, setSubmissionCandidate] = useState<Candidate | null>(null)
+  const [actionsMenuId, setActionsMenuId] = useState<string | null>(null)
+  const [exportingTracker, setExportingTracker] = useState(false)
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<string[]>([])
+  const [visibleCandCols, setVisibleCandCols] = useState<Set<CandidateColumnKey>>(() => loadCandidateColumnPrefs())
+  const candColSpan = 1 + CANDIDATE_COLUMNS.filter(c => visibleCandCols.has(c.key)).length
+  const showCandCol = (k: CandidateColumnKey) => visibleCandCols.has(k)
   const [filterJobStatus, setFilterJobStatus] = useState('')
   const [filterJobType, setFilterJobType] = useState('')
   const [filterJobRole, setFilterJobRole] = useState('')
@@ -1694,7 +1755,7 @@ export default function DashboardPage() {
 
   // New Candidate modal state
   const [showNewCandidate, setShowNewCandidate] = useState(false)
-  const [newCand, setNewCand] = useState({ candidate_name: '', candidate_email: '', candidate_phone: '', ai_skills: '', job_post_id: '' })
+  const [newCand, setNewCand] = useState({ candidate_name: '', candidate_email: '', candidate_phone: '', ai_skills: '', job_post_id: '', nric: '' })
   const [savingCand, setSavingCand] = useState(false)
   const [candDupWarning, setCandDupWarning] = useState<CandDupExisting | null>(null)
   const [candResumeFile, setCandResumeFile] = useState<File | null>(null)
@@ -1796,10 +1857,32 @@ export default function DashboardPage() {
   const [inviteRole, setInviteRole] = useState('recruiter')
   const [inviting, setInviting] = useState(false)
   const [inviteResult, setInviteResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const [tenantRole, setTenantRole] = useState<string | null>(null)
+  const [tenantPermissions, setTenantPermissions] = useState<{ analytics?: { tenant?: boolean } } | null>(null)
+  const [tenantFunnel, setTenantFunnel] = useState<{ funnel: Record<string, number>; submission_stages: Record<string, number>; period_days: number } | null>(null)
+  const [tenantFunnelLoading, setTenantFunnelLoading] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login')
   }, [status, router])
+
+  // Resolve tenant role + permissions for sidebar filtering
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    const sessionRole = (session?.user as { tenantRole?: string } | undefined)?.tenantRole
+    if (sessionRole) setTenantRole(sessionRole)
+
+    fetch('/api/tenant')
+      .then(async (res) => {
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.myRole) setTenantRole(data.myRole)
+        if (data.myPermissions) setTenantPermissions(data.myPermissions)
+      })
+      .catch(() => { /* ignore */ })
+
+    loadTeamMembers()
+  }, [status, session?.user])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -1812,6 +1895,15 @@ export default function DashboardPage() {
       if (jobFilter) params.set('job_id', jobFilter)
       if (filterSkill) params.set('skill', filterSkill)
       if (filterDate) params.set('date_range', filterDate)
+      if (filterHireType) params.set('hire_type', filterHireType)
+      if (filterSource) params.set('source', filterSource)
+      if (filterRecruiter) params.set('recruiter_id', filterRecruiter)
+      if (filterClient) params.set('client', filterClient)
+      if (filterLifecycle) params.set('lifecycle', filterLifecycle)
+      if (filterVisa) params.set('visa_type', filterVisa)
+      if (filterLocation) params.set('location', filterLocation)
+      params.set('page', String(candPage))
+      params.set('limit', '50')
 
       const [jRes, cRes] = await Promise.all([
         fetch('/api/jobs').catch(() => null),
@@ -1827,11 +1919,20 @@ export default function DashboardPage() {
         setStageCounts(cData.stageCounts ?? {})
         setMatchCounts(cData.matchCounts ?? {})
         setTopSkills(cData.topSkills ?? [])
+        setCandTotal(cData.total ?? (cData.candidates ?? []).length)
+        setCandTotalPages(cData.totalPages ?? 1)
       }
     } finally {
       setLoading(false)
     }
-  }, [searchQ, filterStage, filterMatch, filterJob, filterSkill, selectedJob, filterDate])
+  }, [searchQ, filterStage, filterMatch, filterJob, filterSkill, selectedJob, filterDate, filterHireType, filterSource, filterRecruiter, filterClient, filterLifecycle, filterVisa, filterLocation, candPage])
+
+  const applyCandidatePatch = useCallback((id: string, patch: Partial<Candidate>) => {
+    setCandidates(prev => prev.map(x => (x.id === id ? { ...x, ...patch } : x)))
+    setSelectedCandidate(prev => (prev?.id === id ? { ...prev, ...patch } : prev))
+    setEditCandidate(prev => (prev?.id === id ? { ...prev, ...patch } : prev))
+    setSubmissionCandidate(prev => (prev?.id === id ? { ...prev, ...patch } : prev))
+  }, [])
 
   useEffect(() => {
     if (status === 'authenticated') loadData()
@@ -2026,7 +2127,33 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (activeTab === 'settings') { loadApiKeys(); loadIntegrations(); loadAuditLogs(); loadTeamMembers() }
+    if (activeTab === 'candidates') { loadTeamMembers() }
   }, [activeTab])
+
+  // Derive tenant role from team members when not available from session/API
+  useEffect(() => {
+    if (tenantRole || !session?.user?.email || teamMembers.length === 0) return
+    const me = teamMembers.find(m => m.email.toLowerCase() === session.user!.email!.toLowerCase())
+    if (me?.role) setTenantRole(me.role)
+  }, [tenantRole, session?.user, teamMembers])
+
+  // Fetch tenant-wide funnel for admin/owner analytics view
+  useEffect(() => {
+    if (activeTab !== 'analytics') return
+    const isAdminOrOwner = tenantRole === 'owner' || tenantRole === 'admin'
+    if (!isAdminOrOwner) return
+    let cancelled = false
+    setTenantFunnelLoading(true)
+    fetch('/api/analytics/tenant?days=90')
+      .then(async (res) => {
+        if (cancelled) return
+        if (res.ok) setTenantFunnel(await res.json())
+        else setTenantFunnel(null)
+      })
+      .catch(() => { if (!cancelled) setTenantFunnel(null) })
+      .finally(() => { if (!cancelled) setTenantFunnelLoading(false) })
+    return () => { cancelled = true }
+  }, [activeTab, tenantRole])
 
   const createJob = async () => {
     if (!newJob.title) return
@@ -2113,25 +2240,39 @@ export default function DashboardPage() {
       const data = await res.json()
       if (!res.ok) { setCandResumeError(data.error ?? 'Failed to parse resume'); return }
       setCandResumeText(data.text ?? '')
-      // Auto-fill name/email/phone from parsed text if fields are empty
-      if (!newCand.candidate_name) {
-        const nameMatch = data.text.match(/^([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)/m)
-        if (nameMatch) setNewCand(p => ({ ...p, candidate_name: nameMatch[1] }))
+      // Auto-fill from structured extract (avoids mistaking job titles for names)
+      setNewCand(p => ({
+        ...p,
+        candidate_name: p.candidate_name || data.name || '',
+        candidate_email: p.candidate_email || data.email || '',
+        candidate_phone: p.candidate_phone || data.phone || '',
+      }))
+      if (!data.name && !data.email) {
+        setCandResumeError('Resume parsed, but name/email were not detected — please fill them manually before saving.')
       }
     } catch { setCandResumeError('Network error — please try again') }
     finally { setCandResumeParsing(false) }
   }
 
   const createCandidate = async () => {
-    if (!newCand.candidate_name) return
+    if (!newCand.candidate_name?.trim()) {
+      setCandResumeError('Candidate name is required. Upload a resume or enter the name manually.')
+      return
+    }
     setSavingCand(true)
     setCandDupWarning(null)
     const payload = {
-      ...newCand,
+      candidate_name: newCand.candidate_name,
+      candidate_email: newCand.candidate_email,
+      candidate_phone: newCand.candidate_phone,
+      job_post_id: newCand.job_post_id || undefined,
       ai_skills: newCand.ai_skills.split(',').map(s => s.trim()).filter(Boolean),
       raw_text: candResumeText || undefined,
       file_name: candResumeFile?.name || undefined,
       file_size_bytes: candResumeFile?.size || undefined,
+      candidate_profile: newCand.nric.trim()
+        ? { nric: newCand.nric.trim(), id_document_type: 'NRIC', id_document_reference: newCand.nric.trim(), nationality: 'Malaysian' }
+        : undefined,
     }
     try {
       const res = await fetch('/api/candidates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
@@ -2169,7 +2310,7 @@ export default function DashboardPage() {
     setShowNewCandidate(false)
     setCandDupWarning(null)
     const addedName = newCand.candidate_name.trim()
-    setNewCand({ candidate_name: '', candidate_email: '', candidate_phone: '', ai_skills: '', job_post_id: '' })
+    setNewCand({ candidate_name: '', candidate_email: '', candidate_phone: '', ai_skills: '', job_post_id: '', nric: '' })
     setCandResumeFile(null); setCandResumeText(''); setCandResumeError('')
     loadData()
     setWorkspaceBanner(`Candidate saved to your workspace: ${addedName}`)
@@ -2430,17 +2571,53 @@ export default function DashboardPage() {
   const user = session.user
   const sessionWithRole = session as { user: { role?: string; email?: string; name?: string; image?: string } }
   const isOwner = sessionWithRole.user?.role === 'owner' || user?.email === process.env.NEXT_PUBLIC_OWNER_EMAIL
+  const isTenantAdminOrOwner = tenantRole === 'owner' || tenantRole === 'admin'
+  const canSeeAnalytics = isTenantAdminOrOwner || Boolean(tenantPermissions?.analytics?.tenant)
+  const canSeeReports = isTenantAdminOrOwner
+  const canSeeGovernance = isTenantAdminOrOwner
+  const canSeeClients = isTenantAdminOrOwner || tenantRole === 'recruiter'
+
+  const sidebarNavItems: Array<{ tab: DashboardTab; icon: typeof TrendingUp; label: string; badge: string | null }> = [
+    { tab: 'workspace', icon: TrendingUp, label: 'My Workspace', badge: null },
+    { tab: 'pipeline', icon: Layers, label: 'Pipeline', badge: null },
+    { tab: 'candidates', icon: Users, label: 'Candidates', badge: null },
+    { tab: 'submissions', icon: Send, label: 'Submissions', badge: null },
+    { tab: 'interviews', icon: Calendar, label: 'Interviews', badge: null },
+    { tab: 'followups', icon: Bell, label: 'Follow-ups', badge: null },
+    { tab: 'selected', icon: Award, label: 'Selected', badge: null },
+    ...(canSeeClients ? [{ tab: 'clients' as const, icon: Building2, label: 'Clients', badge: null }] : []),
+    { tab: 'recruiters', icon: Users, label: 'Recruiters', badge: null },
+    { tab: 'documents', icon: FileText, label: 'Documents', badge: null },
+    ...(canSeeReports ? [{ tab: 'reports' as const, icon: Download, label: 'Reports', badge: null }] : []),
+    { tab: 'performance', icon: TrendingUp, label: 'My Performance', badge: null },
+    { tab: 'coach', icon: Sparkles, label: 'AI Coach', badge: 'AI' },
+    ...(canSeeGovernance ? [{ tab: 'governance' as const, icon: Shield, label: 'Governance', badge: null }] : []),
+    { tab: 'screen', icon: Brain, label: 'AI Screen', badge: 'AI' },
+    { tab: 'compose', icon: Mail, label: 'Compose', badge: 'AI' },
+    { tab: 'jobs', icon: Briefcase, label: 'Jobs', badge: null },
+    ...(canSeeAnalytics ? [{ tab: 'analytics' as const, icon: BarChart3, label: 'Analytics', badge: null }] : []),
+    { tab: 'jd', icon: FileText, label: 'JD Writer', badge: 'AI' },
+    { tab: 'boolean', icon: Search, label: 'Boolean', badge: 'AI' },
+    { tab: 'import', icon: Upload, label: 'Import', badge: null },
+    { tab: 'integrations', icon: Link2, label: 'Integrations', badge: null },
+    { tab: 'comms', icon: Send, label: 'Comms Hub', badge: null },
+    { tab: 'ess', icon: Building2, label: 'My ESS', badge: null },
+    { tab: 'settings', icon: Settings, label: 'Settings', badge: null },
+  ]
 
   const totalCandidates = Object.values(stageCounts).reduce((a, b) => a + b, 0)
   const hiredCount = stageCounts['hired'] ?? 0
   const interviewCount = stageCounts['interview'] ?? 0
 
-  const filteredJobs = jobs.filter(j =>
-    (!filterJobStatus || j.status === filterJobStatus) &&
-    (!filterJobType || j.type === filterJobType) &&
-    (!filterJobRole || j.title?.toLowerCase().includes(filterJobRole.toLowerCase())) &&
-    (!filterJobCompany || (j.company ?? '').toLowerCase().includes(filterJobCompany.toLowerCase()))
-  )
+  const filteredJobs = jobs.filter(j => {
+    const roleQ = filterJobRole.toLowerCase()
+    return (
+      (!filterJobStatus || j.status === filterJobStatus) &&
+      (!filterJobType || j.type === filterJobType) &&
+      (!filterJobRole || j.title?.toLowerCase().includes(roleQ) || (j.short_id ?? '').toLowerCase().includes(roleQ)) &&
+      (!filterJobCompany || (j.company ?? '').toLowerCase().includes(filterJobCompany.toLowerCase()))
+    )
+  })
 
   // Subscription expiry alert logic
   const subAlert = (() => {
@@ -2498,20 +2675,7 @@ export default function DashboardPage() {
 
           <nav className="flex-1 px-2 py-2.5 space-y-0.5 overflow-y-auto min-h-0">
             <p className="px-2.5 mb-1.5 text-[9px] font-bold uppercase tracking-widest text-slate-400">Workspace</p>
-            {([
-              { tab: 'pipeline',   icon: Layers,      label: 'Pipeline',   badge: null },
-              { tab: 'candidates', icon: Users,        label: 'Candidates', badge: null },
-              { tab: 'screen',     icon: Brain,        label: 'AI Screen',  badge: 'AI' },
-              { tab: 'compose',    icon: Mail,         label: 'Compose',    badge: 'AI' },
-              { tab: 'jobs',       icon: Briefcase,    label: 'Jobs',       badge: null },
-              { tab: 'analytics',  icon: BarChart3,    label: 'Analytics',  badge: null },
-              { tab: 'jd',         icon: FileText,     label: 'JD Writer',  badge: 'AI' },
-              { tab: 'boolean',    icon: Search,       label: 'Boolean',    badge: 'AI' },
-              { tab: 'import',     icon: Upload,       label: 'Import',     badge: null },
-              { tab: 'integrations', icon: Link2,      label: 'Integrations', badge: null },
-              { tab: 'comms',      icon: Send,         label: 'Comms Hub',  badge: null },
-              { tab: 'settings',   icon: Settings,     label: 'Settings',   badge: null },
-            ] as const).map(({ tab, icon: Icon, label, badge }) => (
+            {sidebarNavItems.map(({ tab, icon: Icon, label, badge }) => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${
                   activeTab === tab
@@ -2673,7 +2837,12 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <div className="dash-page-shell py-5 lg:py-6 pb-10">
+          <div className={`dash-page-shell py-5 lg:py-6 pb-10${isWideTab ? ' dash-page-shell--wide' : ''}`}>
+
+            {/* ── MY WORKSPACE ─────────────────────────────────────────────── */}
+            {activeTab === 'workspace' && (
+              <WorkspaceTab onNavigate={(tab) => setActiveTab(tab as DashboardTab)} />
+            )}
 
             {/* ── PIPELINE ─────────────────────────────────────────────────── */}
             {activeTab === 'pipeline' && (
@@ -2741,7 +2910,8 @@ export default function DashboardPage() {
                     <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+                  <div className="pipeline-board-scroll">
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 min-w-[720px]">
                     {PIPELINE_STAGES.map(stage => {
                       const stageCands = candidates.filter(c => c.pipeline_stage === stage.key)
                       const isOver = dragOverStage === stage.key
@@ -2776,7 +2946,7 @@ export default function DashboardPage() {
                             </span>
                           </div>
                           {/* Column body */}
-                          <div className={`flex-1 p-2 space-y-2 min-h-[220px] transition-all ${
+                          <div className={`pipeline-column-scroll p-2 space-y-2 min-h-[220px] transition-all ${
                             isOver ? 'bg-blue-50' : 'bg-white'
                           }`} style={isOver ? { borderTop: `2px solid ${ca.stripe}` } : {}}>
                             {stageCands.length === 0
@@ -2803,6 +2973,7 @@ export default function DashboardPage() {
                       )
                     })}
                   </div>
+                  </div>
                 )}
               </div>
             )}
@@ -2826,8 +2997,7 @@ export default function DashboardPage() {
                           : filterSkill ? <><span className="text-indigo-600 font-semibold">{candidates.length}</span> with &quot;{filterSkill}&quot;</> : `${candidates.length} total`}
                       </p>
                       <p className="text-[11px] text-slate-500 mt-1.5 max-w-xl leading-relaxed">
-                        <span className="font-semibold text-slate-600">Dossier</span> shows completeness vs required (*) and recommended fields — hover the badge for what is missing. Open a row for the full summary and warnings.
-                        {' '}Duplicate detection is <span className="font-semibold text-slate-700">scoped to this workspace only</span> — other tenants never see your candidates.
+                        Each row shows <span className="font-semibold text-slate-600">RES-</span> and linked <span className="font-semibold text-slate-600">JOB-</span> IDs. Duplicate email warnings are scoped to this workspace only.
                       </p>
                     </div>
                   </div>
@@ -2846,11 +3016,11 @@ export default function DashboardPage() {
                       <input value={searchQ} onChange={e => {
                           const v = e.target.value
                           setSearchQ(v)
-                          // Smart ID routing: CAN-xxxxx → candidates tab, JOB-xxxxx → jobs tab
-                          if (/^CAN-\d+/i.test(v.trim())) { setActiveTab('candidates') }
+                          // Smart ID routing: RES-xxxxx → candidates tab, JOB-xxxxx → jobs tab
+                          if (/^RES-\d+/i.test(v.trim())) { setActiveTab('candidates') }
                           else if (/^JOB-\d+/i.test(v.trim())) { setActiveTab('jobs') }
                         }}
-                        placeholder="Search by name, email, or CAN-ID…"
+                        placeholder="Search name, email, phone, NRIC, RES-ID, skills…"
                         className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15" />
                     </div>
 
@@ -2905,21 +3075,131 @@ export default function DashboardPage() {
                     {/* Date */}
                     <div className="flex flex-col gap-0.5">
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Date</span>
-                      <select value={filterDate} onChange={e => setFilterDate(e.target.value)}
+                      <select value={filterDate} onChange={e => { setFilterDate(e.target.value); setCandPage(1) }}
                         className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500">
                         <option value="">All Time</option>
                         <option value="today">Today</option>
-                        <option value="7days">Last 7 Days</option>
-                        <option value="30days">Last 30 Days</option>
+                        <option value="yesterday">Yesterday</option>
+                        <option value="this_week">This Week</option>
+                        <option value="last_week">Last Week</option>
+                        <option value="this_month">This Month</option>
+                        <option value="last_month">Last Month</option>
+                        <option value="this_year">This Year</option>
                       </select>
                     </div>
 
-                    {(searchQ || filterStage || filterMatch || filterJob || filterSkill || filterDate) && (
-                      <button onClick={() => { setSearchQ(''); setFilterStage(''); setFilterMatch(''); setFilterJob(''); setFilterSkill(''); setFilterDate('') }}
+                    {/* Hire type */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Hire Type</span>
+                      <select value={filterHireType} onChange={e => { setFilterHireType(e.target.value); setCandPage(1) }}
+                        className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500">
+                        <option value="">All</option>
+                        {HIRE_TYPES.map(h => <option key={h} value={h}>{HIRE_TYPE_LABELS[h]}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Lifecycle */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Status</span>
+                      <select value={filterLifecycle} onChange={e => { setFilterLifecycle(e.target.value); setCandPage(1) }}
+                        className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500 max-w-[140px]">
+                        <option value="">All</option>
+                        {LIFECYCLE_STATUSES.map(s => <option key={s} value={s}>{LIFECYCLE_LABELS[s]}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Recruiter */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Recruiter</span>
+                      <select value={filterRecruiter} onChange={e => { setFilterRecruiter(e.target.value); setCandPage(1) }}
+                        className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500 max-w-[140px]">
+                        <option value="">All</option>
+                        {teamMembers.filter(m => m.invite_accepted).map(m => (
+                          <option key={m.user_id} value={m.user_id}>{m.name || m.email}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Client */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Client</span>
+                      <input value={filterClient} onChange={e => { setFilterClient(e.target.value); setCandPage(1) }}
+                        placeholder="Client name"
+                        className="px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 w-28" />
+                    </div>
+
+                    {/* Visa */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Visa</span>
+                      <select value={filterVisa} onChange={e => { setFilterVisa(e.target.value); setCandPage(1) }}
+                        className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500 max-w-[130px]">
+                        <option value="">All</option>
+                        {VISA_TYPES.map(v => <option key={v} value={v}>{VISA_TYPE_LABELS[v]}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Location */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Location</span>
+                      <input value={filterLocation} onChange={e => { setFilterLocation(e.target.value); setCandPage(1) }}
+                        placeholder="City"
+                        className="px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 w-24" />
+                    </div>
+
+                    {/* Source */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Source</span>
+                      <input value={filterSource} onChange={e => { setFilterSource(e.target.value); setCandPage(1) }}
+                        placeholder="Source"
+                        className="px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 w-24" />
+                    </div>
+
+                    {(searchQ || filterStage || filterMatch || filterJob || filterSkill || filterDate || selectedJob || filterHireType || filterSource || filterRecruiter || filterClient || filterLifecycle || filterVisa || filterLocation) && (
+                      <button onClick={() => {
+                        setSearchQ(''); setFilterStage(''); setFilterMatch(''); setFilterJob(''); setFilterSkill(''); setFilterDate(''); setSelectedJob('')
+                        setFilterHireType(''); setFilterSource(''); setFilterRecruiter(''); setFilterClient(''); setFilterLifecycle(''); setFilterVisa(''); setFilterLocation(''); setCandPage(1)
+                      }}
                         className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-red-600 border border-gray-200 px-2.5 py-1.5 rounded-lg bg-white hover:bg-red-50 hover:border-red-200 transition-colors">
                         <X className="w-3 h-3" /> Clear
                       </button>
                     )}
+                    <CandidateColumnPicker visible={visibleCandCols} onChange={setVisibleCandCols} />
+                    <button
+                      onClick={async () => {
+                        setExportingTracker(true)
+                        try {
+                          const params = new URLSearchParams()
+                          if (searchQ) params.set('q', searchQ)
+                          if (filterStage) params.set('stage', filterStage)
+                          if (filterMatch) params.set('match', filterMatch)
+                          if (filterJob || selectedJob) params.set('job_id', filterJob || selectedJob)
+                          if (filterSkill) params.set('skill', filterSkill)
+                          if (filterDate) params.set('date_range', filterDate)
+                          const res = await fetch(`/api/candidates/export?${params}`)
+                          if (!res.ok) {
+                            const err = await res.json().catch(() => ({}))
+                            alert(err.error ?? 'Export failed')
+                            return
+                          }
+                          const blob = await res.blob()
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `smartrecruit-tracker-${new Date().toISOString().slice(0, 10)}.csv`
+                          document.body.appendChild(a)
+                          a.click()
+                          a.remove()
+                          URL.revokeObjectURL(url)
+                        } finally {
+                          setExportingTracker(false)
+                        }
+                      }}
+                      disabled={exportingTracker}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                      title="Download filtered candidates for this workspace only (Excel-compatible CSV)"
+                    >
+                      <Download className="w-3.5 h-3.5" /> {exportingTracker ? 'Exporting…' : 'Export Excel'}
+                    </button>
                     <button onClick={loadData} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-700 border border-gray-200 bg-white hover:bg-gray-50 transition-colors">
                       <RefreshCw className="w-3.5 h-3.5" /> Refresh
                     </button>
@@ -2938,94 +3218,229 @@ export default function DashboardPage() {
                   </div>
                 )}
 
+                <CandidateBulkBar
+                  selectedIds={bulkSelectedIds}
+                  teamMembers={teamMembers.filter(m => m.invite_accepted)}
+                  onClear={() => setBulkSelectedIds([])}
+                  onDone={() => { setBulkSelectedIds([]); loadData() }}
+                  onExportSelected={async (ids) => {
+                    setExportingTracker(true)
+                    try {
+                      const params = new URLSearchParams()
+                      params.set('ids', ids.join(','))
+                      const res = await fetch(`/api/candidates/export?${params}`)
+                      if (!res.ok) { alert('Export failed'); return }
+                      const blob = await res.blob()
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `smartrecruit-selected-${new Date().toISOString().slice(0, 10)}.csv`
+                      document.body.appendChild(a)
+                      a.click()
+                      a.remove()
+                      URL.revokeObjectURL(url)
+                    } finally {
+                      setExportingTracker(false)
+                    }
+                  }}
+                />
+
                 {loading ? (
-                  <div className="flex items-center justify-center h-40">
-                    <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                  <div className="space-y-2 animate-pulse">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="h-12 rounded-lg bg-slate-100" />
+                    ))}
                   </div>
                 ) : (
-                  <div className="ent-table-wrap">
+                  <>
+                  <ScrollableTable stickyX>
                     <table className="ent-table w-full">
                       <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200">
-                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">ID</th>
-                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Candidate</th>
-                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Contact</th>
-                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Stage</th>
-                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Match</th>
-                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Job</th>
-                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Location</th>
-                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Source</th>
-                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Skills</th>
-                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Added</th>
-                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Actions</th>
+                        <tr>
+                          <th className="w-8">
+                            <input
+                              type="checkbox"
+                              checked={candidates.length > 0 && bulkSelectedIds.length === candidates.length}
+                              onChange={e => {
+                                if (e.target.checked) setBulkSelectedIds(candidates.map(c => c.id))
+                                else setBulkSelectedIds([])
+                              }}
+                              onClick={e => e.stopPropagation()}
+                              aria-label="Select all on page"
+                            />
+                          </th>
+                          {showCandCol('id') && <th>ID</th>}
+                          {showCandCol('name') && <th>Name</th>}
+                          {showCandCol('email') && <th>Email</th>}
+                          {showCandCol('phone') && <th>Phone</th>}
+                          {showCandCol('nric') && <th>NRIC</th>}
+                          {showCandCol('client') && <th>Client</th>}
+                          {showCandCol('hire_type') && <th>Hire Type</th>}
+                          {showCandCol('applying_for') && <th>Applying For</th>}
+                          {showCandCol('experience') && <th>Experience</th>}
+                          {showCandCol('source') && <th>Source</th>}
+                          {showCandCol('ai_score') && <th>AI Score</th>}
+                          {showCandCol('screened_job') && <th>Screened Job</th>}
+                          {showCandCol('location') && <th>Location</th>}
+                          {showCandCol('current_role') && <th>Current Role</th>}
+                          {showCandCol('parsed') && <th>Parsed</th>}
+                          {showCandCol('status') && <th>Status</th>}
+                          {showCandCol('uploaded') && <th>Uploaded</th>}
+                          {showCandCol('recruiter') && <th>Recruiter</th>}
+                          {showCandCol('cv') && <th>CV</th>}
+                          {showCandCol('actions') && <th>Actions</th>}
                         </tr>
                       </thead>
                       <tbody>
                         {candidates.length === 0 ? (
-                          <tr><td colSpan={11} className="px-4 py-12 text-center text-gray-400">No candidates found</td></tr>
-                        ) : candidates.map((c, i) => (
+                          <tr><td colSpan={candColSpan} className="px-4 py-12 text-center text-gray-400">
+                            <p className="font-medium text-slate-500">No candidates found</p>
+                            <p className="text-xs text-slate-400 mt-1">Try clearing filters or add a new candidate.</p>
+                          </td></tr>
+                        ) : candidates.map((c, i) => {
+                          const p = c.candidate_profile ?? {}
+                          const nric = p.nric || (String(p.id_document_type ?? '').toLowerCase().includes('nric') ? p.id_document_reference : null)
+                          const parsed = !!(c.raw_text && c.raw_text.trim().length > 20)
+                          return (
                           <tr key={c.id} onClick={() => setSelectedCandidate(c)} className={`cursor-pointer transition-colors ${i % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'} hover:bg-indigo-50/40`}>
-                            <td className="px-3 py-2.5"><ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} /></td>
-                            <td className="px-3 py-2.5 min-w-[150px] max-w-[200px]">
+                            <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={bulkSelectedIds.includes(c.id)}
+                                onChange={e => {
+                                  if (e.target.checked) setBulkSelectedIds(prev => [...prev, c.id])
+                                  else setBulkSelectedIds(prev => prev.filter(x => x !== c.id))
+                                }}
+                                aria-label={`Select ${c.candidate_name}`}
+                              />
+                            </td>
+                            {showCandCol('id') && <td className="px-3 py-2.5"><ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} /></td>}
+                            {showCandCol('name') && (
+                            <td className="px-3 py-2.5 min-w-[140px] max-w-[180px]">
                               <p className="font-semibold text-[13px] text-gray-900 truncate">{c.candidate_name}</p>
-                              {duplicateEmailKeys.has((c.candidate_email ?? '').trim().toLowerCase()) && (
-                                <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 mb-0.5">
-                                  <AlertCircle className="w-2.5 h-2.5 shrink-0" /> Dup email
-                                </span>
+                              {!nric && !p.passport_number && (
+                                <span className="inline-flex mt-0.5 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800">No NRIC</span>
                               )}
                             </td>
-                            <td className="px-3 py-2.5 min-w-[160px] max-w-[200px]">
-                              <p className="text-[12px] text-slate-700 font-medium truncate">{c.candidate_email}</p>
-                              {c.candidate_phone && <p className="text-[11px] text-slate-500 mt-0.5">{c.candidate_phone}</p>}
+                            )}
+                            {showCandCol('email') && <td className="px-3 py-2.5 text-[12px] text-slate-700 max-w-[160px] truncate">{c.candidate_email || '—'}</td>}
+                            {showCandCol('phone') && <td className="px-3 py-2.5 text-[12px] text-slate-600 whitespace-nowrap">{c.candidate_phone || '—'}</td>}
+                            {showCandCol('nric') && <td className="px-3 py-2.5 text-[12px] font-mono text-slate-700 whitespace-nowrap">{nric || '—'}</td>}
+                            {showCandCol('client') && <td className="px-3 py-2.5 text-[12px] text-slate-600 max-w-[120px] truncate">{p.client_name || c.job_posts?.company || '—'}</td>}
+                            {showCandCol('hire_type') && <td className="px-3 py-2.5 text-[12px] capitalize text-slate-600">{p.hire_type ? (HIRE_TYPE_LABELS[p.hire_type as keyof typeof HIRE_TYPE_LABELS] || p.hire_type) : '—'}</td>}
+                            {showCandCol('applying_for') && <td className="px-3 py-2.5 text-[12px] text-slate-600 max-w-[130px] truncate">{p.applying_for || c.job_posts?.title || '—'}</td>}
+                            {showCandCol('experience') && <td className="px-3 py-2.5 text-[12px] text-slate-600 whitespace-nowrap">{p.total_experience || '—'}</td>}
+                            {showCandCol('source') && (
+                            <td className="px-3 py-2.5">
+                              <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200 whitespace-nowrap">{p.source_channel || c.source_type || 'Manual'}</span>
                             </td>
+                            )}
+                            {showCandCol('ai_score') && <td className="px-3 py-2.5 whitespace-nowrap"><MatchBadge category={c.match_category} score={c.ai_score} variant="light" /></td>}
+                            {showCandCol('screened_job') && (
+                            <td className="min-w-[110px] max-w-[150px]" onClick={e => e.stopPropagation()}>
+                              {c.job_posts ? (
+                                <button onClick={() => { const j = jobs.find(jb => jb.id === c.job_posts?.id); if (j) setSelectedJobView(j) }}
+                                  className="text-left text-[12px] font-medium text-indigo-700 hover:underline truncate block max-w-[140px]">{c.job_posts.title}</button>
+                              ) : <span className="text-xs text-gray-400">—</span>}
+                            </td>
+                            )}
+                            {showCandCol('location') && <td className="px-3 py-2.5 text-[12px] text-slate-600 whitespace-nowrap">{p.current_location || '—'}</td>}
+                            {showCandCol('current_role') && <td className="px-3 py-2.5 text-[12px] text-slate-600 max-w-[120px] truncate">{p.current_role || p.current_title || '—'}</td>}
+                            {showCandCol('parsed') && (
+                            <td className="px-3 py-2.5">
+                              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${parsed ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                {parsed ? 'Yes' : 'No'}
+                              </span>
+                            </td>
+                            )}
+                            {showCandCol('status') && (
                             <td className="px-3 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                               <select
                                 value={c.pipeline_stage}
                                 onChange={e => moveStage(c.id, e.target.value)}
                                 className={`text-xs font-medium px-2 py-0.5 rounded-full border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${STAGE_LIGHT[c.pipeline_stage]?.bg ?? 'bg-slate-100'} ${STAGE_LIGHT[c.pipeline_stage]?.text ?? 'text-slate-600'} ${STAGE_LIGHT[c.pipeline_stage]?.border ?? 'border-slate-200'}`}
-                                title="Change stage">
+                                title={formatLifecycle(p.lifecycle_status)}>
                                 {PIPELINE_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                               </select>
+                              {p.lifecycle_status && (
+                                <p className="text-[10px] text-slate-400 mt-0.5 max-w-[100px] truncate">{formatLifecycle(p.lifecycle_status)}</p>
+                              )}
                             </td>
-                            <td className="px-3 py-2.5 whitespace-nowrap"><MatchBadge category={c.match_category} score={c.ai_score} variant="light" /></td>
-                            <td className="px-3 py-2.5 min-w-[110px] max-w-[150px]" onClick={e => e.stopPropagation()}>
-                              {c.job_posts
-                                ? <button onClick={() => { const j = jobs.find(jb => jb.id === c.job_posts?.id); if (j) setSelectedJobView(j) }}
-                                    className="text-xs font-medium text-indigo-600 hover:text-indigo-900 hover:underline text-left line-clamp-2">{c.job_posts.title}</button>
-                                : <span className="text-xs text-gray-400">—</span>}
-                            </td>
-                            <td className="px-3 py-2.5 whitespace-nowrap">
-                              {c.candidate_profile?.current_location
-                                ? <p className="text-xs text-gray-600">{c.candidate_profile.current_location}</p>
-                                : <span className="text-xs text-gray-300">—</span>}
-                            </td>
-                            <td className="px-3 py-2.5">
-                              <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200 whitespace-nowrap">{c.source_type || 'Manual'}</span>
-                            </td>
-                            <td className="px-3 py-2.5 min-w-[100px]">
-                              <div className="flex flex-wrap gap-1">
-                                {(c.ai_skills ?? []).slice(0, 2).map(s => (
-                                  <span key={s} className="text-[11px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100 whitespace-nowrap">{s}</span>
-                                ))}
-                                {(c.ai_skills?.length ?? 0) > 2 && (
-                                  <span className="text-[11px] text-gray-400 whitespace-nowrap">+{(c.ai_skills?.length ?? 0) - 2}</span>
-                                )}
-                              </div>
-                            </td>
+                            )}
+                            {showCandCol('uploaded') && (
                             <td className="px-3 py-2.5 whitespace-nowrap">
                               <p className="text-xs text-gray-500">{fmtDate(c.created_at)}</p>
-                              <p className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[90px]">{formatUploader(c.uploaded_by)}</p>
-                              <p className="text-[10px] capitalize mt-0.5 font-medium" style={{ color: c.status === 'reviewed' ? '#16a34a' : '#64748b' }}>{c.status || '—'}</p>
                             </td>
+                            )}
+                            {showCandCol('recruiter') && <td className="px-3 py-2.5 text-[11px] text-gray-500 truncate max-w-[110px]" title={formatUploader(c.uploaded_by)}>{formatUploader(c.uploaded_by)}</td>}
+                            {showCandCol('cv') && (
                             <td className="px-3 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                              <button onClick={() => setSelectedCandidate(c)}
-                                className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors">View →</button>
+                              {c.resume_original_path || c.raw_text ? (
+                                <div className="flex gap-1">
+                                  <a href={`/api/candidates/${c.id}/resume-file?inline=1`} target="_blank" rel="noreferrer"
+                                    className="px-1.5 py-0.5 rounded text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100">Preview</a>
+                                  <a href={`/api/candidates/${c.id}/resume-file`} 
+                                    className="px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-700 bg-slate-50 border border-slate-200 hover:bg-slate-100">DL</a>
+                                </div>
+                              ) : <span className="text-xs text-gray-300">—</span>}
                             </td>
+                            )}
+                            {showCandCol('actions') && (
+                            <td className="px-3 py-2.5 whitespace-nowrap relative" onClick={e => e.stopPropagation()}>
+                              <div className="flex items-center gap-1">
+                                <button type="button" onClick={() => setSubmissionCandidate(c)}
+                                  className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[10px] font-semibold text-slate-700 hover:bg-slate-100">Details</button>
+                                <button type="button" onClick={() => setSelectedCandidate(c)}
+                                  className="px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-100">View</button>
+                                <button type="button" onClick={() => setEditCandidate(c)}
+                                  className="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-100">Edit</button>
+                                <button type="button" onClick={() => setActionsMenuId(actionsMenuId === c.id ? null : c.id)}
+                                  className="p-1 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="More actions">
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              {actionsMenuId === c.id && (
+                                <div className="absolute right-2 top-9 z-20 w-48 rounded-xl border border-slate-200 bg-white shadow-lg py-1 text-xs">
+                                  <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50" onClick={() => { setSelectedCandidate(c); setActionsMenuId(null) }}>View candidate</button>
+                                  <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50" onClick={() => { setEditCandidate(c); setActionsMenuId(null) }}>Edit candidate</button>
+                                  <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50" onClick={() => { setSubmissionCandidate(c); setActionsMenuId(null) }}>Submission details</button>
+                                  <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50" onClick={() => { setActiveTab('screen'); setScreenMode('existing'); setSelectedCandIds([c.id]); setActionsMenuId(null) }}>AI analysis</button>
+                                  <a className="block w-full text-left px-3 py-2 hover:bg-slate-50" href={`/api/candidates/${c.id}/resume-file?inline=1`} target="_blank" rel="noreferrer" onClick={() => setActionsMenuId(null)}>Resume preview</a>
+                                  <a className="block w-full text-left px-3 py-2 hover:bg-slate-50" href={`/api/candidates/${c.id}/resume-file`} onClick={() => setActionsMenuId(null)}>Download resume</a>
+                                  <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50 text-amber-700"
+                                    onClick={async () => {
+                                      setActionsMenuId(null)
+                                      const life = 'hold'
+                                      const res = await fetch(`/api/candidates/${c.id}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ candidate_profile: { ...(c.candidate_profile ?? {}), lifecycle_status: life }, pipeline_stage: 'sourced' }),
+                                      })
+                                      if (res.ok) {
+                                        const data = await res.json()
+                                        applyCandidatePatch(c.id, { candidate_profile: data.candidate?.candidate_profile ?? { ...(c.candidate_profile ?? {}), lifecycle_status: life }, pipeline_stage: 'sourced' })
+                                      }
+                                    }}>Archive / Hold</button>
+                                </div>
+                              )}
+                            </td>
+                            )}
                           </tr>
-                        ))}
+                          )
+                        })}
                       </tbody>
                     </table>
+                  </ScrollableTable>
+                  <div className="flex items-center justify-between mt-3 text-xs text-slate-500">
+                    <span>{candTotal} candidate{candTotal !== 1 ? 's' : ''} · page {candPage} of {candTotalPages}</span>
+                    <div className="flex gap-2">
+                      <button type="button" disabled={candPage <= 1} onClick={() => setCandPage(p => Math.max(1, p - 1))}
+                        className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white disabled:opacity-40">Previous</button>
+                      <button type="button" disabled={candPage >= candTotalPages} onClick={() => setCandPage(p => p + 1)}
+                        className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white disabled:opacity-40">Next</button>
+                    </div>
                   </div>
+                  </>
                 )}
               </div>
             )}
@@ -3531,7 +3946,7 @@ export default function DashboardPage() {
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Role</span>
                     <input value={filterJobRole} onChange={e => setFilterJobRole(e.target.value)}
-                      placeholder="Search role…"
+                      placeholder="Role or JOB-ID…"
                       className="pl-2 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 w-32" />
                   </div>
                   <div className="flex flex-col gap-0.5">
@@ -3587,7 +4002,7 @@ export default function DashboardPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="overflow-x-auto ent-table-wrap">
+                  <ScrollableTable stickyX>
                     <table className="ent-table">
                       <thead>
                         <tr>
@@ -3612,7 +4027,6 @@ export default function DashboardPage() {
                               <td><ShortIdBadge id={job.short_id ?? job.id.slice(0, 8)} /></td>
                               <td>
                                 <p className="font-semibold text-gray-900 text-sm">{job.title}</p>
-                                {job.description && <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{job.description}</p>}
                               </td>
                               <td className="text-sm text-gray-600">{job.company || '—'}</td>
                               <td className="text-sm text-gray-500">{job.location || '—'}</td>
@@ -3659,7 +4073,7 @@ export default function DashboardPage() {
                         })}
                       </tbody>
                     </table>
-                  </div>
+                  </ScrollableTable>
                 )}
               </div>
             )}
@@ -3830,6 +4244,43 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Tenant funnel (admin/owner) */}
+                {isTenantAdminOrOwner && (
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                      <div>
+                        <h2 className="text-sm font-bold text-gray-800">Tenant Funnel</h2>
+                        <p className="text-xs text-gray-400 mt-0.5">Workspace-wide pipeline over the last {tenantFunnel?.period_days ?? 90} days</p>
+                      </div>
+                      {tenantFunnelLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+                    </div>
+                    <div className="p-5">
+                      {tenantFunnelLoading && !tenantFunnel ? (
+                        <div className="text-center py-6 text-gray-400 text-sm">Loading tenant funnel…</div>
+                      ) : tenantFunnel && Object.keys(tenantFunnel.funnel).length > 0 ? (
+                        <div className="space-y-3">
+                          {PIPELINE_STAGES.map(s => {
+                            const count = tenantFunnel.funnel[s.key] ?? 0
+                            const total = Object.values(tenantFunnel.funnel).reduce((a, b) => a + b, 0)
+                            const pct = total > 0 ? (count / total) * 100 : 0
+                            return (
+                              <div key={s.key} className="flex items-center gap-3">
+                                <span className="text-xs font-semibold text-gray-700 w-20">{s.label}</span>
+                                <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                  <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.max(pct, pct > 0 ? 4 : 0)}%` }} />
+                                </div>
+                                <span className="text-xs font-bold text-gray-700 w-8 text-right">{count}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-gray-400 text-sm">No tenant funnel data for this period</div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* ── Bottom Row: Top Skills + Activity Stats ── */}
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
@@ -4469,34 +4920,34 @@ export default function DashboardPage() {
                       ) : auditLogs.length === 0 ? (
                         <p className="text-xs text-gray-400 text-center py-6">No activity recorded yet.</p>
                       ) : (
-                        <div className="overflow-x-auto rounded-lg border border-gray-100">
-                          <table className="w-full text-xs">
+                        <ScrollableTable stickyX>
+                          <table className="ent-table w-full">
                             <thead>
-                              <tr className="bg-gray-50 border-b border-gray-100">
-                                <th className="text-left px-3 py-2 font-semibold text-gray-500 uppercase tracking-wide text-[10px]">Action</th>
-                                <th className="text-left px-3 py-2 font-semibold text-gray-500 uppercase tracking-wide text-[10px]">Resource</th>
-                                <th className="text-left px-3 py-2 font-semibold text-gray-500 uppercase tracking-wide text-[10px]">ID</th>
-                                <th className="text-left px-3 py-2 font-semibold text-gray-500 uppercase tracking-wide text-[10px]">Result</th>
-                                <th className="text-left px-3 py-2 font-semibold text-gray-500 uppercase tracking-wide text-[10px]">When</th>
+                              <tr>
+                                <th>Action</th>
+                                <th>Resource</th>
+                                <th>ID</th>
+                                <th>Result</th>
+                                <th>When</th>
                               </tr>
                             </thead>
                             <tbody>
                               {auditLogs.map(log => (
-                                <tr key={log.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
-                                  <td className="px-3 py-2 font-mono text-gray-700">{log.action}</td>
-                                  <td className="px-3 py-2 text-gray-500 capitalize">{log.resource_type}</td>
-                                  <td className="px-3 py-2 font-mono text-gray-400">{log.resource_id ? log.resource_id.slice(0, 12) + '…' : '—'}</td>
-                                  <td className="px-3 py-2">
+                                <tr key={log.id}>
+                                  <td className="font-mono">{log.action}</td>
+                                  <td className="capitalize">{log.resource_type}</td>
+                                  <td className="font-mono text-slate-500">{log.resource_id ? log.resource_id.slice(0, 12) + '…' : '—'}</td>
+                                  <td>
                                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${log.result === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
                                       {log.result}
                                     </span>
                                   </td>
-                                  <td className="px-3 py-2 text-gray-400 whitespace-nowrap">{fmtDate(log.created_at, true)}</td>
+                                  <td className="text-slate-500 whitespace-nowrap">{fmtDate(log.created_at, true)}</td>
                                 </tr>
                               ))}
                             </tbody>
                           </table>
-                        </div>
+                        </ScrollableTable>
                       )}
                     </div>
                   </div>
@@ -4522,6 +4973,41 @@ export default function DashboardPage() {
 
             {/* ── COMMUNICATION HUB ───────────────────────────────────────── */}
             {activeTab === 'comms' && <CommsTab />}
+
+            {/* ── SUBMISSIONS ─────────────────────────────────────────────── */}
+            {activeTab === 'submissions' && (
+              <SubmissionsTab onOpenCandidate={(shortId) => {
+                const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === shortId.toUpperCase())
+                if (c) setSelectedCandidate(c)
+                else { setSearchQ(shortId); setActiveTab('candidates') }
+              }} />
+            )}
+
+            {/* ── INTERVIEWS ────────────────────────────────────────────────── */}
+            {activeTab === 'interviews' && <InterviewsTab />}
+
+            {/* ── FOLLOW-UPS ────────────────────────────────────────────────── */}
+            {activeTab === 'followups' && <FollowUpsTab />}
+
+            {/* ── SELECTED / OFFERS ─────────────────────────────────────────── */}
+            {activeTab === 'selected' && (
+              <SelectedPipelineTab onOpenCandidate={(shortId) => {
+                const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === shortId.toUpperCase())
+                if (c) setSelectedCandidate(c)
+                else { setSearchQ(shortId); setActiveTab('candidates') }
+              }} />
+            )}
+
+            {activeTab === 'clients' && <ClientsTab />}
+            {activeTab === 'recruiters' && <RecruitersTab teamMembers={teamMembers} />}
+            {activeTab === 'documents' && <DocumentsRegistryTab />}
+            {activeTab === 'reports' && <ReportsTab />}
+            {activeTab === 'performance' && <MyPerformanceTab />}
+            {activeTab === 'coach' && <CoachTab />}
+            {activeTab === 'governance' && <GovernanceTab />}
+
+            {/* ── ESS LITE ──────────────────────────────────────────────────── */}
+            {activeTab === 'ess' && <ESSTab />}
 
           </div>
         </main>
@@ -4822,6 +5308,14 @@ export default function DashboardPage() {
                 )
               : []
           }
+          teamMembers={teamMembers.filter(m => m.invite_accepted)}
+          canChangeOwner={
+            !!teamMembers.find(m =>
+              m.invite_accepted &&
+              m.email.toLowerCase() === (session?.user?.email ?? '').toLowerCase() &&
+              (m.role === 'owner' || m.role === 'admin')
+            )
+          }
           onJumpToCandidate={(id) => {
             const nc = candidates.find(x => x.id === id)
             if (nc) setSelectedCandidate(nc)
@@ -4830,13 +5324,48 @@ export default function DashboardPage() {
           onClose={() => setSelectedCandidate(null)}
           onStageChange={moveStage}
           onJobChange={changeJob}
+          onOwnerChange={(id, userId, uploadedBy) => {
+            setCandidates(prev => prev.map(x =>
+              x.id === id ? { ...x, user_id: userId, uploaded_by: uploadedBy } : x
+            ))
+            setSelectedCandidate(prev =>
+              prev && prev.id === id ? { ...prev, user_id: userId, uploaded_by: uploadedBy } : prev
+            )
+          }}
           onRecordSaved={(id, profile) => {
-            setCandidates(prev => prev.map(x => (x.id === id ? { ...x, candidate_profile: profile } : x)))
-            setSelectedCandidate(prev => (prev?.id === id ? { ...prev, candidate_profile: profile } : prev))
+            applyCandidatePatch(id, { candidate_profile: profile })
           }}
           onPhoneSaved={(id, phone) => {
-            setCandidates(prev => prev.map(x => (x.id === id ? { ...x, candidate_phone: phone } : x)))
-            setSelectedCandidate(prev => (prev?.id === id ? { ...prev, candidate_phone: phone } : prev))
+            applyCandidatePatch(id, { candidate_phone: phone })
+          }}
+          onEdit={() => {
+            setEditCandidate(selectedCandidate)
+            setSelectedCandidate(null)
+          }}
+          onSubmissionDetails={() => {
+            setSubmissionCandidate(selectedCandidate)
+          }}
+        />
+      )}
+
+      {editCandidate && (
+        <EditCandidateModal
+          candidate={editCandidate}
+          jobs={jobs}
+          onClose={() => setEditCandidate(null)}
+          onSaved={(updated) => {
+            applyCandidatePatch(updated.id, updated as Partial<Candidate>)
+          }}
+        />
+      )}
+
+      {submissionCandidate && (
+        <SubmissionDetailsModal
+          candidate={submissionCandidate}
+          jobs={jobs}
+          onClose={() => setSubmissionCandidate(null)}
+          onSaved={(updated) => {
+            applyCandidatePatch(updated.id, updated as Partial<Candidate>)
           }}
         />
       )}
@@ -4890,15 +5419,17 @@ export default function DashboardPage() {
 
             <div className="space-y-3">
               {([
-                { key: 'candidate_name',  label: 'Full Name *',              placeholder: 'e.g. Priya Sharma' },
+                { key: 'candidate_name',  label: 'Full Name *',              placeholder: 'e.g. Ahmad bin Ali' },
                 { key: 'candidate_email', label: 'Email',                    placeholder: 'candidate@email.com' },
-                { key: 'candidate_phone', label: 'Phone',                    placeholder: '+91 98765 43210' },
+                { key: 'candidate_phone', label: 'Phone',                    placeholder: '+60 12-345 6789' },
+                { key: 'nric',            label: 'NRIC (Malaysian)',         placeholder: '901231-10-5678' },
                 { key: 'ai_skills',       label: 'Skills (comma-separated)', placeholder: 'React, Node.js, Python' },
               ] as const).map(({ key, label, placeholder }) => (
                 <div key={key}>
                   <label className="text-xs font-semibold text-slate-600 mb-1 block">{label}</label>
                   <input value={newCand[key]} onChange={e => { setNewCand(p => ({ ...p, [key]: e.target.value })); setCandDupWarning(null) }}
                     placeholder={placeholder}
+                    maxLength={key === 'nric' ? 14 : undefined}
                     className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15" />
                 </div>
               ))}
@@ -5689,10 +6220,13 @@ function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDra
         dragging ? 'opacity-40 border-indigo-400 scale-95 shadow-md' : 'border-gray-200 hover:border-indigo-300 hover:shadow-md'
       }`}>
       {emailIsDup && (
-        <span className="absolute bottom-1 left-1 z-[1] rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-amber-900" title="Duplicate email — another record exists in this workspace">
+        <span className="absolute top-1 left-1 z-[1] rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-amber-900" title="Duplicate email — another record exists in this workspace">
           Dup
         </span>
       )}
+      <div className="mb-1.5 pr-12">
+        <ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} />
+      </div>
       <button type="button" title="Dossier completeness — click card to open details"
         onClick={e => { e.stopPropagation(); onOpen(c) }}
         className={`absolute top-1.5 right-1.5 flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-bold border ${
@@ -5740,7 +6274,7 @@ function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDra
               <span key={s} className="text-[10px] bg-gray-100 text-gray-600 px-1 py-0.5 rounded">{s}</span>
             ))}
           </div>
-          <p className="text-[10px] text-gray-400 mt-1.5 font-mono">{c.short_id ?? c.id.slice(0,8)} · {fmtDate(c.created_at)}</p>
+          <p className="text-[10px] text-gray-400 mt-1.5 font-mono">{fmtDate(c.created_at)}</p>
         </div>
       )}
     </div>
@@ -5787,25 +6321,39 @@ function JobDetailDrawer({ job, candidates, jobs, onClose, onOpenCandidate, onSt
             <Briefcase className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-slate-900 leading-tight">{job.title}</h2>
-            <p className="text-sm text-slate-500 mt-0.5">{[job.company, job.location, job.type].filter(Boolean).join(' · ')}</p>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <ShortIdBadge id={job.short_id ?? job.id.slice(0, 8)} />
-              <select
-                value={job.status}
-                disabled={savingStatus}
-                onChange={e => handleStatusChange(e.target.value)}
-                className={`text-xs font-semibold px-2 py-0.5 rounded-full border appearance-none cursor-pointer focus:outline-none ${
-                  job.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' :
-                  job.status === 'closed' ? 'bg-red-50 text-red-700 border-red-200' :
-                  'bg-gray-100 text-gray-600 border-gray-200'
-                }`}
-                title="Change job status">
-                <option value="active">Active</option>
-                <option value="closed">Closed</option>
-                <option value="draft">Draft</option>
-              </select>
-              <span className="text-xs text-slate-400 font-mono">Posted {fmtDate(job.created_at)}</span>
+              <h2 className="text-lg font-bold text-slate-900 leading-tight">{job.title}</h2>
+            </div>
+            <p className="text-sm text-slate-500 mt-0.5">{[job.company, job.location, job.type].filter(Boolean).join(' · ')}</p>
+            <div className="field-grid mt-3">
+              <div className="field-grid-item">
+                <span className="field-label">Status</span>
+                <select
+                  value={job.status}
+                  disabled={savingStatus}
+                  onChange={e => handleStatusChange(e.target.value)}
+                  className={`text-xs font-semibold px-2 py-0.5 rounded-full border appearance-none cursor-pointer focus:outline-none ${
+                    job.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' :
+                    job.status === 'closed' ? 'bg-red-50 text-red-700 border-red-200' :
+                    'bg-gray-100 text-gray-600 border-gray-200'
+                  }`}
+                  title="Change job status">
+                  <option value="active">Active</option>
+                  <option value="closed">Closed</option>
+                  <option value="draft">Draft</option>
+                </select>
+              </div>
+              <div className="field-grid-item">
+                <span className="field-label">Posted</span>
+                <span className="field-value text-sm">{fmtDate(job.created_at)}</span>
+              </div>
+              {job.location && (
+                <div className="field-grid-item">
+                  <span className="field-label">Location</span>
+                  <span className="field-value text-sm">{job.location}</span>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -5853,23 +6401,27 @@ function JobDetailDrawer({ job, candidates, jobs, onClose, onOpenCandidate, onSt
               <p className="text-xs text-slate-400">Upload a CV on the AI Screen tab and select this job, or assign existing candidates via their profile.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <ScrollableTable>
+              <table className="ent-table w-full">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Candidate</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Stage</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Match</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Added</th>
-                    <th className="px-3 py-2"></th>
+                  <tr>
+                    <th>ID</th>
+                    <th>Candidate</th>
+                    <th>Stage</th>
+                    <th>Match</th>
+                    <th>Added</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {candidates.map((c, i) => (
                     <tr key={c.id}
                       onClick={() => onOpenCandidate(c)}
-                      className={`cursor-pointer transition-colors border-b border-slate-100 ${i % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'} hover:bg-indigo-50/40`}>
-                      <td className="px-4 py-3 min-w-[180px]">
+                      className={`cursor-pointer transition-colors ${i % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'} hover:bg-indigo-50/40`}>
+                      <td className="whitespace-nowrap">
+                        <ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} />
+                      </td>
+                      <td className="min-w-[180px]">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex-shrink-0 flex items-center justify-center text-xs font-bold text-white">
                             {c.candidate_name?.[0]?.toUpperCase() ?? '?'}
@@ -5881,7 +6433,7 @@ function JobDetailDrawer({ job, candidates, jobs, onClose, onOpenCandidate, onSt
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                      <td className="whitespace-nowrap" onClick={e => e.stopPropagation()}>
                         {assigningId === c.id
                           ? <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
                           : <select
@@ -5908,7 +6460,7 @@ function JobDetailDrawer({ job, candidates, jobs, onClose, onOpenCandidate, onSt
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollableTable>
           )}
         </div>
       </div>
@@ -5936,30 +6488,41 @@ const EMPTY_RECORD: Record<string, string> = {
   visa_type: '',
   visa_expiry: '',
   // ── Government / legal IDs
+  nric: '',
   india_pan: '',
   india_aadhaar_last4: '',
   passport_number: '',
   pf_number: '',
   id_document_type: '',
   id_document_reference: '',
+  // ── Commercial
+  hire_type: '',
+  client_name: '',
+  applying_for: '',
+  lifecycle_status: '',
   // ── Notes
   notes: '',
 }
 
-function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, onJumpToCandidate, onStageChange, onJobChange, onRecordSaved, onPhoneSaved }: {
+function CandidateDetailModal({ candidate: c, duplicateSiblings, teamMembers = [], canChangeOwner = false, jobs, onClose, onJumpToCandidate, onStageChange, onJobChange, onOwnerChange, onRecordSaved, onPhoneSaved, onEdit, onSubmissionDetails }: {
   candidate: Candidate
   /** Other resume rows in this workspace with the same email (tenant-scoped). */
   duplicateSiblings: Candidate[]
+  teamMembers?: { user_id: string; name: string | null; email: string; role: string }[]
+  canChangeOwner?: boolean
   jobs: Job[]
   onClose: () => void
   /** Switch modal to another candidate row in this workspace. */
   onJumpToCandidate?: (id: string) => void
   onStageChange: (id: string, stage: string) => void
   onJobChange: (id: string, jobId: string) => void
+  onOwnerChange?: (id: string, userId: string, uploadedBy: { name: string | null; email: string | null }) => void
   onRecordSaved: (id: string, profile: Record<string, string | null>) => void
   onPhoneSaved: (id: string, phone: string | null) => void
+  onEdit?: () => void
+  onSubmissionDetails?: () => void
 }) {
-  const [tab, setTab] = useState<'profile' | 'record' | 'ai' | 'resume'>('profile')
+  const [tab, setTab] = useState<'profile' | 'record' | 'ai' | 'resume' | 'documents' | 'timeline' | 'notes'>('profile')
   const [recordDraft, setRecordDraft] = useState(EMPTY_RECORD)
   const [recordSaving, setRecordSaving] = useState(false)
   const [recordMsg, setRecordMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -5994,12 +6557,17 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
       work_authorization: String(p.work_authorization ?? ''),
       visa_type: String(p.visa_type ?? ''),
       visa_expiry: String(p.visa_expiry ?? ''),
+      nric: String(p.nric ?? ''),
       india_pan: String(p.india_pan ?? ''),
       india_aadhaar_last4: String(p.india_aadhaar_last4 ?? ''),
       passport_number: String(p.passport_number ?? ''),
       pf_number: String(p.pf_number ?? ''),
       id_document_type: String(p.id_document_type ?? ''),
       id_document_reference: String(p.id_document_reference ?? ''),
+      hire_type: String(p.hire_type ?? ''),
+      client_name: String(p.client_name ?? ''),
+      applying_for: String(p.applying_for ?? ''),
+      lifecycle_status: String(p.lifecycle_status ?? ''),
       notes: String(p.notes ?? ''),
     })
     setRecordMsg(null)
@@ -6060,7 +6628,7 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
     const border = warn ? 'border-amber-400 ring-1 ring-amber-100' : 'border-slate-200'
     return (
       <div key={key}>
-        <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1 flex items-center gap-1">
+        <label className="field-label flex items-center gap-1">
           {label}
           {warn && <span className="text-amber-600 font-bold normal-case" title="Missing — recommended for a complete dossier">!</span>}
         </label>
@@ -6133,7 +6701,10 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
             {c.candidate_name?.[0]?.toUpperCase() ?? '?'}
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-xl font-bold text-slate-900">{c.candidate_name}</h2>
+            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+              <ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} />
+              <h2 className="text-xl font-bold text-slate-900">{c.candidate_name}</h2>
+            </div>
             <p className="text-sm text-slate-600 mt-0.5">{c.candidate_email}</p>
             {c.candidate_phone && <p className="text-sm text-slate-500">{c.candidate_phone}</p>}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -6144,7 +6715,6 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
                 : <MatchBadge category={c.match_category} score={c.ai_score} variant="light" />
               }
               <StagePill stage={c.pipeline_stage} variant="light" />
-              <ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} />
               {c.created_at && (
                 <span className="text-xs text-slate-500 font-mono">
                   Added {fmtDate(c.created_at)}
@@ -6152,6 +6722,56 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
                 </span>
               )}
             </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {onEdit && (
+                <button type="button" onClick={onEdit}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100">
+                  <Pencil className="w-3.5 h-3.5" /> Edit candidate
+                </button>
+              )}
+              {onSubmissionDetails && (
+                <button type="button" onClick={onSubmissionDetails}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50">
+                  Submission details
+                </button>
+              )}
+            </div>
+            {canChangeOwner && teamMembers.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Profile owner</label>
+                <select
+                  value={c.user_id ?? ''}
+                  onChange={async e => {
+                    const userId = e.target.value
+                    if (!userId || userId === c.user_id) return
+                    const member = teamMembers.find(m => m.user_id === userId)
+                    const res = await fetch(`/api/candidates/${c.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ user_id: userId }),
+                    })
+                    if (!res.ok) {
+                      const err = await res.json().catch(() => ({}))
+                      alert(err.error ?? 'Ownership change failed')
+                      return
+                    }
+                    onOwnerChange?.(c.id, userId, {
+                      name: member?.name ?? null,
+                      email: member?.email ?? null,
+                    })
+                  }}
+                  className="text-xs rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-700 focus:outline-none focus:border-indigo-500"
+                  title="Reassign within this workspace only — never across tenants"
+                >
+                  <option value="" disabled>Select workspace member…</option>
+                  {teamMembers.map(m => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {(m.name || m.email)} ({m.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
           <button onClick={onClose} className="flex-shrink-0 text-slate-400 hover:text-slate-700 transition-colors mt-1 rounded-lg p-1 hover:bg-slate-100">
             <X className="w-5 h-5" />
@@ -6192,23 +6812,12 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
         </div>
 
         {/* Tabs */}
-        <div className="flex flex-wrap border-b border-slate-200 gap-x-1 bg-white px-2">
-          {(['profile', 'record', ...(hasAiData ? ['ai'] as const : []), 'resume'] as const).map(t => {
-            const recordNeeds = [...warnRecordIds].some(id => (Object.keys(EMPTY_RECORD) as string[]).includes(id))
-            const tabWarn = t === 'record' && recordNeeds
-            return (
-            <button key={t} onClick={() => setTab(t)}
-              className={`relative px-5 py-3 text-sm font-medium transition-all ${
-                tab === t ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'
-              }`}>
-              {t === 'resume' ? 'Resume / CV' : t === 'ai' ? 'AI Screening' : t === 'record' ? 'ATS record' : 'Profile & Actions'}
-              {tabWarn && (
-                <span className="absolute top-2 right-1 w-2 h-2 rounded-full bg-amber-400 shadow shadow-amber-300/80" title="Missing recommended ATS fields" />
-              )}
-            </button>
-            )
-          })}
-        </div>
+        <Candidate360TabBar
+          tab={tab}
+          onTabChange={setTab}
+          hasAiData={hasAiData}
+          recordWarn={[...warnRecordIds].some(id => (Object.keys(EMPTY_RECORD) as string[]).includes(id))}
+        />
 
         {tab === 'profile' && (
           <div className="p-5 space-y-5 bg-white">
@@ -6227,9 +6836,14 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
                   { label: 'Total Experience', value: c.candidate_profile?.total_experience || null },
                   { label: 'Relevant Experience', value: c.candidate_profile?.relevant_experience || null },
                   { label: 'Nationality', value: c.candidate_profile?.nationality || null },
+                  { label: 'NRIC', value: c.candidate_profile?.nric || (String(c.candidate_profile?.id_document_type ?? '').toLowerCase().includes('nric') ? c.candidate_profile?.id_document_reference : null) || null },
                   { label: 'Visa Type', value: c.candidate_profile?.visa_type || null },
                   { label: 'Visa Validity', value: c.candidate_profile?.visa_expiry || null },
                   { label: 'Work Authorization', value: c.candidate_profile?.work_authorization || null },
+                  { label: 'Client', value: c.candidate_profile?.client_name || null },
+                  { label: 'Hire Type', value: c.candidate_profile?.hire_type || null },
+                  { label: 'Applying For', value: c.candidate_profile?.applying_for || null },
+                  { label: 'Lifecycle', value: c.candidate_profile?.lifecycle_status ? formatLifecycle(c.candidate_profile.lifecycle_status) : null },
                   { label: 'Current Salary', value: c.candidate_profile?.current_salary || null },
                   { label: 'Expected Salary', value: c.candidate_profile?.expected_salary || null },
                   { label: 'Notice Period', value: c.candidate_profile?.notice_period || null },
@@ -6389,12 +7003,17 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
             <div className="border-t border-slate-200 pt-4">
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Government / Legal IDs <span className="text-slate-300 font-normal normal-case">(workspace only — use masked values)</span></p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {recField('nric', 'NRIC (Malaysian)', '901231-10-5678', 'text', recWarn('nric'))}
+                {recField('passport_number', 'Passport Number', 'Masked or reference', 'text', false)}
                 {recField('india_pan', 'PAN Number (India)', 'e.g. ABCDE1234F', 'text', recWarn('india_pan'))}
                 {recField('india_aadhaar_last4', 'Aadhaar (last 4 / masked)', 'Prefer last 4 digits per policy', 'text', recWarn('india_aadhaar_last4'))}
-                {recField('passport_number', 'Passport Number', 'Masked or reference', 'text', false)}
                 {recField('pf_number', 'PF / EPF Number', 'e.g. MH/12345/6789', 'text', false)}
-                {recField('id_document_type', 'Other ID Type', 'NRIC, SSN last-4, Driver License…', 'text', recWarn('id_document_type'))}
-                {recField('id_document_reference', 'Other ID Reference', 'Masked or reference as per policy', 'text', recWarn('id_document_reference'))}
+                {recField('id_document_type', 'Other ID Type', 'SSN last-4, Driver License…', 'text', false)}
+                {recField('id_document_reference', 'Other ID Reference', 'Masked or reference as per policy', 'text', false)}
+                {recField('client_name', 'Client', '', 'text', false)}
+                {recField('hire_type', 'Hire Type', 'permanent / contract / …', 'text', false)}
+                {recField('applying_for', 'Applying For', '', 'text', false)}
+                {recField('lifecycle_status', 'Lifecycle Status', 'e.g. submitted', 'text', false)}
               </div>
             </div>
 
@@ -6502,6 +7121,18 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, jobs, onClose, 
               </div>
             )}
           </div>
+        )}
+
+        {(tab === 'documents' || tab === 'timeline' || tab === 'notes') && (
+          <Candidate360Panels
+            candidateId={c.id}
+            tab={tab}
+            notes={c.candidate_profile?.notes}
+            followUpNotes={c.candidate_profile?.follow_up_notes}
+            internalComments={c.candidate_profile?.internal_comments}
+            reviewerNotes={c.reviewer_notes}
+            onNotesSaved={(profile) => onRecordSaved(c.id, profile)}
+          />
         )}
       </div>
     </div>

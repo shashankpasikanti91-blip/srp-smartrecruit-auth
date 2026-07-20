@@ -58,9 +58,22 @@ export default async function globalSetup() {
 
   await page.locator('input[type="email"]').fill(email)
   await page.locator('input[type="password"]').fill(password)
-  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.locator('form button[type="submit"]').click()
 
-  await page.waitForURL(/\/dashboard/, { timeout: 45_000 })
+  try {
+    await page.waitForURL(/\/dashboard/, { timeout: 45_000, waitUntil: 'commit' })
+  } catch {
+    const invalid = await page.locator('text=Invalid email or password').isVisible().catch(() => false)
+    await browser.close()
+    if (invalid) {
+      fs.writeFileSync(authFile, JSON.stringify({ cookies: [], origins: [] }))
+      console.warn(
+        `[e2e global-setup] Login failed for ${email} — authenticated specs will redirect to login. Update .env.e2e.local`
+      )
+      return
+    }
+    throw new Error(`[e2e global-setup] Login did not reach /dashboard for ${email}. Current URL: ${page.url()}`)
+  }
 
   await context.storageState({ path: authFile })
   await browser.close()

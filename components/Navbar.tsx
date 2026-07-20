@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState, useRef, useEffect } from 'react'
 import {
   Menu, X, Zap, ChevronDown,
-  Search, Users, BarChart3, Calendar, FileText, Star,
+  Search, Users, BarChart3, FileText, Star,
   Bot, Layers, TrendingUp, MessageSquare,
   Building2, Info, Briefcase, Globe, ShieldCheck,
   BookOpen, Video, Newspaper, GraduationCap, HelpCircle, Mail,
@@ -15,21 +15,21 @@ import Image from 'next/image'
 // ── Mega-menu data ─────────────────────────────────────────────────────────
 
 const platformItems = [
-  { icon: <Search className="w-4 h-4" />, label: 'AI Resume Screening', desc: 'Rank candidates instantly with LLM scoring', href: '/#features' },
-  { icon: <Users className="w-4 h-4" />, label: 'Candidate Pipeline', desc: 'Visual Kanban board for every hiring stage', href: '/#features' },
-  { icon: <Bot className="w-4 h-4" />, label: 'AI Job Generator', desc: 'Generate JDs from a few bullet points', href: '/#features' },
-  { icon: <FileText className="w-4 h-4" />, label: 'Bulk Upload', desc: 'Process hundreds of resumes in minutes', href: '/#features' },
-  { icon: <Calendar className="w-4 h-4" />, label: 'Interview Scheduling', desc: 'Auto-schedule interviews with candidates', href: '/#features' },
-  { icon: <BarChart3 className="w-4 h-4" />, label: 'Analytics & Reports', desc: 'Pipeline health and recruiter KPIs', href: '/#features' },
-  { icon: <MessageSquare className="w-4 h-4" />, label: 'Candidate Outreach', desc: 'Email sequences and engagement tracking', href: '/#features' },
-  { icon: <ShieldCheck className="w-4 h-4" />, label: 'Bias Reduction', desc: 'Anonymize profiles for fairer screening', href: '/#features' },
+  { icon: <Search className="w-4 h-4" />, label: 'All Features', desc: 'Bulk screening, matching, and shortlists', href: '/features' },
+  { icon: <Layers className="w-4 h-4" />, label: 'Platform Overview', desc: 'Command center for agency hiring', href: '/platform' },
+  { icon: <Users className="w-4 h-4" />, label: 'Agency Pipeline', desc: 'Kanban board for every hiring stage', href: '/platform#pipeline-board' },
+  { icon: <Bot className="w-4 h-4" />, label: 'AI Fit Explanations', desc: 'Structured reasons recruiters can trust', href: '/features#matching' },
+  { icon: <FileText className="w-4 h-4" />, label: 'Bulk Upload', desc: 'Process large CV batches per job', href: '/features#bulk-screening' },
+  { icon: <BarChart3 className="w-4 h-4" />, label: 'Analytics & Reports', desc: 'Pipeline health and screening activity', href: '/platform#analytics' },
+  { icon: <MessageSquare className="w-4 h-4" />, label: 'Client Submission', desc: 'Package shortlists for client review', href: '/features#shortlist' },
+  { icon: <ShieldCheck className="w-4 h-4" />, label: 'Security & Trust', desc: 'Access controls and data practices', href: '/legal/security' },
 ]
 
 const agenticItems = [
-  { icon: <Bot className="w-4 h-4" />, label: 'EZ Agent', desc: 'Autonomous AI that sources, screens and schedules', href: '/#features' },
-  { icon: <Layers className="w-4 h-4" />, label: 'Smart Workflows', desc: 'No-code automation for your hiring pipeline', href: '/#features' },
-  { icon: <TrendingUp className="w-4 h-4" />, label: 'Market Insights', desc: 'Salary benchmarks and competitor intelligence', href: '/#features' },
-  { icon: <Star className="w-4 h-4" />, label: 'Performance Reports', desc: 'Real-time ROI and recruiter metrics', href: '/#features' },
+  { icon: <Bot className="w-4 h-4" />, label: 'AI Assist Layer', desc: 'Recommend and explain — recruiters decide', href: '/#agentic' },
+  { icon: <Layers className="w-4 h-4" />, label: 'Screening Workflows', desc: 'Source through submit with human review', href: '/#workflow' },
+  { icon: <TrendingUp className="w-4 h-4" />, label: 'Priority Queues', desc: 'Focus review on high-fit profiles', href: '/features#ranking' },
+  { icon: <Star className="w-4 h-4" />, label: 'Workspace Analytics', desc: 'Stage counts and recruiter activity', href: '/platform#analytics' },
 ]
 
 const companyItems = [
@@ -37,7 +37,7 @@ const companyItems = [
   { icon: <Briefcase className="w-4 h-4" />, label: 'Careers', desc: "Join our team — we're hiring", href: '/company/careers' },
   { icon: <Globe className="w-4 h-4" />, label: 'Partners', desc: 'Integration ecosystem and alliances', href: '/company/partners' },
   { icon: <Newspaper className="w-4 h-4" />, label: 'Newsroom', desc: 'Press releases and media kit', href: '/company/newsroom' },
-  { icon: <ShieldCheck className="w-4 h-4" />, label: 'Security & Compliance', desc: 'GDPR, SOC 2, data protection', href: '/legal/security' },
+  { icon: <ShieldCheck className="w-4 h-4" />, label: 'Security & Data Protection', desc: 'Access controls and audit practices', href: '/legal/security' },
 ]
 
 const resourceItems = [
@@ -45,7 +45,7 @@ const resourceItems = [
   { icon: <BookOpen className="w-4 h-4" />, label: 'eBooks & Guides', desc: 'In-depth recruiting playbooks', href: '/resources/ebooks' },
   { icon: <Newspaper className="w-4 h-4" />, label: 'Blog', desc: 'Tips, trends, and best practices', href: '/resources/blog' },
   { icon: <Video className="w-4 h-4" />, label: 'Videos', desc: 'Walkthroughs and webinar recordings', href: '/resources/videos' },
-  { icon: <Building2 className="w-4 h-4" />, label: 'Customer Stories', desc: 'How teams hire 3× faster with SRP', href: '/resources/customers' },
+  { icon: <Building2 className="w-4 h-4" />, label: 'Customer Stories', desc: 'How agencies use SRP Recruit AI', href: '/resources/customers' },
 ]
 
 const supportItems = [
@@ -183,7 +183,7 @@ export default function Navbar() {
             <NavItem label="Support" active={dropdown === 'support'} onClick={() => toggle('support')}>
               <DropMenu items={supportItems} />
             </NavItem>
-            <Link href="/#pricing" className="ml-2 text-sm font-medium text-gray-400 hover:text-white transition-colors px-3 py-2">
+            <Link href="/pricing" className="ml-2 text-sm font-medium text-gray-400 hover:text-white transition-colors px-3 py-2">
               Pricing
             </Link>
           </div>
@@ -259,7 +259,7 @@ export default function Navbar() {
               </div>
             ))}
             <div className="pt-4 pb-2 flex flex-col gap-2">
-              <Link href="/#pricing" onClick={() => setOpen(false)}
+              <Link href="/pricing" onClick={() => setOpen(false)}
                 className="py-2.5 text-sm text-gray-300 border-b border-white/5">
                 Pricing
               </Link>

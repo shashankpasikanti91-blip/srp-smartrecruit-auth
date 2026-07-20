@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import './marketing.css'
 import Providers from './providers'
 
 export const metadata: Metadata = {
-  title: 'SRP Recruit AI Labs — Smart Recruiting Platform',
+  title: 'SRP Recruit AI — Enterprise AI Recruitment Platform',
   description:
-    'Hire smarter with AI. SRP Recruit AI Labs automates candidate screening, job matching, and hiring workflows at scale.',
+    'SRP Recruit AI helps recruitment agencies screen resumes, match candidates to job requirements, explain fit, and manage hiring pipelines with human oversight.',
   keywords: ['AI recruiting', 'ATS', 'hiring automation', 'candidate screening', 'SRP Recruit AI Labs'],
   openGraph: {
     title: 'SRP Recruit AI Labs — Smart Recruiting Platform',

@@ -32,8 +32,7 @@ test.describe('Credentials login flow', () => {
     await page.fill('input[type="email"]', DEMO_EMAIL)
     await page.fill('input[type="password"]', DEMO_PASSWORD)
     await page.click('button[type="submit"]')
-    // Should redirect to dashboard
-    await page.waitForURL(/\/dashboard/, { timeout: 20_000 })
+    await page.waitForURL(/\/dashboard/, { timeout: 20_000, waitUntil: 'commit' })
     expect(page.url()).toMatch(/\/dashboard/)
   })
 
@@ -42,7 +41,7 @@ test.describe('Credentials login flow', () => {
     await page.fill('input[type="email"]', DEMO_EMAIL)
     await page.fill('input[type="password"]', DEMO_PASSWORD)
     await page.click('button[type="submit"]')
-    await page.waitForURL(/\/dashboard/, { timeout: 20_000 })
+    await page.waitForURL(/\/dashboard/, { timeout: 20_000, waitUntil: 'commit' })
     // Core dashboard elements
     await expect(page.locator('body')).not.toBeEmpty()
     // No error messages

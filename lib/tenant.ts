@@ -48,6 +48,10 @@ export interface TenantPermissions {
   integrations:   { read: boolean; update: boolean }
   billing:        { read: boolean; update: boolean }
   users:          { invite: boolean; manage: boolean }
+  analytics:      { self: boolean; tenant: boolean }
+  ess:            { access: boolean; admin: boolean }
+  reports:        { read: boolean }
+  governance:     { read: boolean }
 }
 
 export interface TenantRow {
@@ -131,7 +135,24 @@ export async function resolveTenant(req?: NextRequest): Promise<TenantContext | 
     tenantName: row.name,
     tenantPlan: row.plan,
     tenantRole: row.role as TenantContext['tenantRole'],
-    permissions: row.permissions ?? defaultOwnerPermissions(),
+    permissions: mergePermissions(row.permissions, row.role),
+  }
+}
+
+function mergePermissions(stored: unknown, role: string): TenantPermissions {
+  const base = ROLE_PRESET[role]?.() ?? defaultRecruiterPermissions()
+  if (!stored || typeof stored !== 'object') return base
+  const s = stored as Partial<TenantPermissions>
+  return {
+    ...base,
+    ...s,
+    jobs: { ...base.jobs, ...(s.jobs ?? {}) },
+    candidates: { ...base.candidates, ...(s.candidates ?? {}) },
+    pipeline: { ...base.pipeline, ...(s.pipeline ?? {}) },
+    analytics: { ...base.analytics, ...(s.analytics ?? {}) },
+    ess: { ...base.ess, ...(s.ess ?? {}) },
+    reports: { ...base.reports, ...(s.reports ?? {}) },
+    governance: { ...base.governance, ...(s.governance ?? {}) },
   }
 }
 
@@ -281,6 +302,10 @@ export function defaultOwnerPermissions(): TenantPermissions {
     integrations:   { read: true, update: true },
     billing:        { read: true, update: true },
     users:          { invite: true, manage: true },
+    analytics:      { self: true, tenant: true },
+    ess:            { access: true, admin: true },
+    reports:        { read: true },
+    governance:     { read: true },
   }
 }
 
@@ -296,6 +321,10 @@ export function defaultAdminPermissions(): TenantPermissions {
     integrations:   { read: true, update: false },
     billing:        { read: true, update: false },
     users:          { invite: true, manage: false },
+    analytics:      { self: true, tenant: true },
+    ess:            { access: true, admin: true },
+    reports:        { read: true },
+    governance:     { read: true },
   }
 }
 
@@ -311,6 +340,10 @@ export function defaultRecruiterPermissions(): TenantPermissions {
     integrations:   { read: false, update: false },
     billing:        { read: false, update: false },
     users:          { invite: false, manage: false },
+    analytics:      { self: true, tenant: false },
+    ess:            { access: true, admin: false },
+    reports:        { read: false },
+    governance:     { read: false },
   }
 }
 
@@ -326,6 +359,10 @@ export function defaultMemberPermissions(): TenantPermissions {
     integrations:   { read: false, update: false },
     billing:        { read: false, update: false },
     users:          { invite: false, manage: false },
+    analytics:      { self: false, tenant: false },
+    ess:            { access: true, admin: false },
+    reports:        { read: false },
+    governance:     { read: false },
   }
 }
 

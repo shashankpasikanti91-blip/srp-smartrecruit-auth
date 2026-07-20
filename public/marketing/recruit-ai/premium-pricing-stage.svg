@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" fill="none" role="img" aria-labelledby="t d">
+  <title id="t">Premium pricing stage</title>
+  <desc id="d">Illustration of agency pricing tiers with highlighted recommended plan</desc>
+  <rect width="800" height="400" fill="#020308"/>
+  <rect x="60" y="80" width="150" height="240" rx="14" fill="#0f1628" stroke="rgba(255,255,255,0.08)"/>
+  <rect x="230" y="80" width="150" height="240" rx="14" fill="#0f1628" stroke="rgba(255,255,255,0.08)"/>
+  <rect x="400" y="60" width="170" height="260" rx="14" fill="#0f1628" stroke="rgba(34,211,238,0.5)" stroke-width="2"/>
+  <rect x="410" y="50" width="150" height="20" rx="6" fill="rgba(34,211,238,0.2)"/>
+  <rect x="590" y="80" width="150" height="240" rx="14" fill="#0f1628" stroke="rgba(255,255,255,0.08)"/>
+</svg>

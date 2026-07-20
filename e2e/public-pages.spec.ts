@@ -19,14 +19,32 @@ test.describe('Public pages', () => {
     await expect(page.getByText('No invite token found.')).toBeVisible({ timeout: 15_000 })
   })
 
+  test('homepage renders premium hero', async ({ page }) => {
+    await page.goto('/')
+    await expect(
+      page.getByRole('heading', { name: /From hundreds of CVs to a shortlist recruiters can trust/i })
+    ).toBeVisible({ timeout: 15_000 })
+  })
+
   test('marketing / legal / support pages return 200', async ({ page }) => {
     const paths = [
+      '/',
+      '/features',
+      '/platform',
+      '/solutions',
+      '/pricing',
       '/company/about',
       '/company/careers',
       '/company/partners',
+      '/company/newsroom',
       '/legal/privacy',
+      '/legal/terms',
       '/legal/security',
+      '/legal/accessibility',
       '/support/contact',
+      '/support/help',
+      '/resources/blog',
+      '/resources/academy',
     ]
     for (const p of paths) {
       const res = await page.goto(p, { waitUntil: 'domcontentloaded', timeout: 30_000 })
