@@ -78,7 +78,8 @@ jobs:
             echo "=== [1/5] Pull latest code (main) ==="
             git fetch origin
             git checkout main
-            git pull --ff-only origin main
+            git reset --hard origin/main
+            git clean -fd -e uploads -e .env
 
             echo "=== [1b/5] Pre-deploy backup (DB + uploads) ==="
             if [ -x /usr/local/bin/srp-backup ]; then
