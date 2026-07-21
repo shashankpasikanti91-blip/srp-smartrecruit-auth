@@ -24,6 +24,8 @@ import { scheduleInterviewReminders }    from '@/lib/reminderEngine'
 import { writeTimeline }                 from '@/lib/timelineEngine'
 import { createNotification }            from '@/lib/notificationCenter'
 import { upsertWorkflowInstance }        from '@/lib/workflowEngine'
+import { resolveDateFilter, resolveMineScope } from '@/lib/opsList'
+import { sanitizeText } from '@/lib/validate'
 
 async function newInterviewId(tenantId: string): Promise<string> {
   return nextYearSeqId(pool, { tenantId, table: 'interviews', prefix: 'INT' })
@@ -38,12 +40,13 @@ export async function GET(req: NextRequest) {
   const url       = new URL(req.url)
   const jobId     = url.searchParams.get('job_id')
   const resumeId  = url.searchParams.get('resume_id')
-  const status    = url.searchParams.get('status')
-  const dateFrom  = url.searchParams.get('date_from')
-  const dateTo    = url.searchParams.get('date_to')
+  const status    = sanitizeText(url.searchParams.get('status'), 50) ?? ''
+  const q         = sanitizeText(url.searchParams.get('q'), 200) ?? ''
   const page      = Math.max(1, Number(url.searchParams.get('page') ?? 1))
-  const limit     = 25
+  const limit     = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') ?? 100)))
   const offset    = (page - 1) * limit
+  const dateRange = resolveDateFilter(url.searchParams)
+  const { mine, canToggle } = resolveMineScope(ctx, url.searchParams.get('mine'))
 
   const conditions: string[] = ['i.tenant_id = $1']
   const params: unknown[]    = [ctx.tenantId]
@@ -52,20 +55,57 @@ export async function GET(req: NextRequest) {
   if (jobId)    { conditions.push(`i.job_post_id = $${p++}`);  params.push(jobId) }
   if (resumeId) { conditions.push(`i.resume_id = $${p++}`);    params.push(resumeId) }
   if (status)   { conditions.push(`i.status = $${p++}`);        params.push(status) }
-  if (dateFrom) { conditions.push(`i.scheduled_at >= $${p++}`); params.push(dateFrom) }
-  if (dateTo)   { conditions.push(`i.scheduled_at <= $${p++}`); params.push(dateTo) }
+  if (q) {
+    conditions.push(`(
+      i.candidate_name ILIKE $${p} OR i.candidate_email ILIKE $${p}
+      OR i.short_id ILIKE $${p} OR COALESCE(r.short_id,'') ILIKE $${p}
+      OR COALESCE(r.candidate_phone,'') ILIKE $${p}
+      OR COALESCE(jp.title,'') ILIKE $${p}
+    )`)
+    params.push(`%${q}%`)
+    p++
+  }
+  if (mine) {
+    conditions.push(`(i.interviewer_id = $${p} OR r.user_id = $${p})`)
+    params.push(ctx.userId)
+    p++
+  }
+  if (dateRange) {
+    conditions.push(`i.scheduled_at::date >= $${p++}::date`)
+    params.push(dateRange.from)
+    conditions.push(`i.scheduled_at::date <= $${p++}::date`)
+    params.push(dateRange.to)
+  }
 
   const where = conditions.join(' AND ')
+  const fromSql = `
+     FROM interviews i
+     LEFT JOIN resumes r ON r.id = i.resume_id
+     LEFT JOIN job_posts jp ON jp.id = i.job_post_id
+     LEFT JOIN clients cl ON cl.id = jp.client_id
+     LEFT JOIN auth_users au ON au.id = i.interviewer_id`
 
   const { rows } = await pool.query(
     `SELECT
        i.*,
        jp.title AS job_title,
+       COALESCE(jp.company, cl.name) AS job_client_name,
        au.name AS interviewer_name,
-       au.email AS interviewer_email
-     FROM interviews i
-     LEFT JOIN job_posts jp ON jp.id = i.job_post_id
-     LEFT JOIN auth_users au ON au.id = i.interviewer_id
+       au.email AS interviewer_email,
+       r.short_id AS candidate_short_id,
+       r.candidate_phone,
+       COALESCE(r.candidate_email, i.candidate_email) AS resume_email,
+       COALESCE(
+         NULLIF(r.candidate_profile->>'years_experience',''),
+         NULLIF(r.candidate_profile->>'total_experience',''),
+         NULLIF(r.candidate_profile->>'experience_years','')
+       ) AS years_experience,
+       NULLIF(r.candidate_profile->>'current_salary','') AS current_salary,
+       COALESCE(
+         NULLIF(r.candidate_profile->>'expected_salary',''),
+         NULLIF(r.candidate_profile->>'salary_expectation','')
+       ) AS expected_salary
+     ${fromSql}
      WHERE ${where}
      ORDER BY i.scheduled_at ASC
      LIMIT $${p} OFFSET $${p + 1}`,
@@ -73,11 +113,64 @@ export async function GET(req: NextRequest) {
   )
 
   const { rows: countRows } = await pool.query(
-    `SELECT COUNT(*) AS total FROM interviews i WHERE ${where}`,
+    `SELECT COUNT(*) AS total ${fromSql} WHERE ${where}`,
     params
   )
 
-  return NextResponse.json({ interviews: rows, total: Number(countRows[0].total), page })
+  // Status summary with same scope filters except status
+  const sumConditions = ['i.tenant_id = $1']
+  const sumParams: unknown[] = [ctx.tenantId]
+  let sp = 2
+  if (jobId) { sumConditions.push(`i.job_post_id = $${sp++}`); sumParams.push(jobId) }
+  if (resumeId) { sumConditions.push(`i.resume_id = $${sp++}`); sumParams.push(resumeId) }
+  if (q) {
+    sumConditions.push(`(
+      i.candidate_name ILIKE $${sp} OR i.candidate_email ILIKE $${sp}
+      OR i.short_id ILIKE $${sp} OR COALESCE(r.short_id,'') ILIKE $${sp}
+      OR COALESCE(r.candidate_phone,'') ILIKE $${sp}
+      OR COALESCE(jp.title,'') ILIKE $${sp}
+    )`)
+    sumParams.push(`%${q}%`)
+    sp++
+  }
+  if (mine) {
+    sumConditions.push(`(i.interviewer_id = $${sp} OR r.user_id = $${sp})`)
+    sumParams.push(ctx.userId)
+    sp++
+  }
+  if (dateRange) {
+    sumConditions.push(`i.scheduled_at::date >= $${sp++}::date`)
+    sumParams.push(dateRange.from)
+    sumConditions.push(`i.scheduled_at::date <= $${sp++}::date`)
+    sumParams.push(dateRange.to)
+  }
+  const sumWhere = sumConditions.join(' AND ')
+  const { rows: statusRows } = await pool.query<{ status: string; c: string }>(
+    `SELECT i.status, COUNT(*)::text AS c
+     FROM interviews i
+     LEFT JOIN resumes r ON r.id = i.resume_id
+     LEFT JOIN job_posts jp ON jp.id = i.job_post_id
+     WHERE ${sumWhere}
+     GROUP BY i.status`,
+    sumParams,
+  )
+  const byStatus: Record<string, number> = {}
+  let all = 0
+  for (const row of statusRows) {
+    const n = parseInt(row.c, 10)
+    byStatus[row.status] = n
+    all += n
+  }
+
+  return NextResponse.json({
+    interviews: rows,
+    total: Number(countRows[0].total),
+    page,
+    limit,
+    mine,
+    can_toggle_mine: canToggle,
+    summary: { all, by_status: byStatus },
+  })
 }
 
 // ── POST — schedule interview ─────────────────────────────────────────────────

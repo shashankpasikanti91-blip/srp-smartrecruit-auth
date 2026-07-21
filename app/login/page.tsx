@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession, signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { Zap, Shield, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { BrandMark } from '@/components/ui/BrandMark'
 
 const trustBadges = ['SOC 2 Type II', 'GDPR Compliant', 'TLS 1.3 Encrypted']
 
@@ -88,11 +89,9 @@ function LoginContent() {
       {/* Nav */}
       <div className="relative z-10 p-6">
         <Link href="/" className="inline-flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-            <Zap className="w-4 h-4 text-white" />
-          </div>
+          <BrandMark size={32} />
           <span className="font-bold text-white text-base tracking-tight">
-            SRP <span className="gradient-text">Recruit AI Labs</span>
+            SRP <span className="gradient-text">SmartRecruit</span>
           </span>
         </Link>
       </div>

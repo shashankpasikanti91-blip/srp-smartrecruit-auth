@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { hybridParseResume, type HybridResumeParse } from '@/lib/hybridResumeParse'
 import { sanitizeText } from '@/lib/validate'
+import { extractTextFromUpload } from '@/lib/extractFileText'
 
 export const maxDuration = 90
 
@@ -124,20 +125,17 @@ export async function POST(req: NextRequest) {
     const file = form.get('file') as File | null
     improve = form.get('improve_with_ai') === '1' || form.get('improve_with_ai') === 'true'
     if (file) {
-      // Reuse parse pipeline via internal extract
-      const fd = new FormData()
-      fd.append('file', file)
-      const origin = req.nextUrl.origin
-      const cookie = req.headers.get('cookie') || ''
-      const parseRes = await fetch(`${origin}/api/parse`, {
-        method: 'POST',
-        headers: { cookie },
-        body: fd,
-      })
-      const parseData = await parseRes.json()
-      if (!parseRes.ok) return NextResponse.json(parseData, { status: parseRes.status })
-      text = parseData.text || ''
-      filename = parseData.filename || file.name
+      try {
+        const extracted = await extractTextFromUpload(file)
+        text = extracted.text
+        filename = extracted.filename
+      } catch (e: unknown) {
+        const err = e as { message?: string; status?: number }
+        return NextResponse.json(
+          { error: err.message || 'Failed to read resume file' },
+          { status: err.status ?? 422 },
+        )
+      }
     } else {
       text = String(form.get('text') || '')
     }
@@ -151,6 +149,9 @@ export async function POST(req: NextRequest) {
   if (!text || text.length < 20) {
     return NextResponse.json({ error: 'Resume text too short' }, { status: 400 })
   }
+
+  // Keep hybrid parse fast even when paste/upload is huge
+  text = text.slice(0, 40_000)
 
   let result = hybridParseResume(text, filename)
 

@@ -4,12 +4,17 @@ import './marketing.css'
 import Providers from './providers'
 
 export const metadata: Metadata = {
-  title: 'SRP Recruit AI — Enterprise AI Recruitment Platform',
+  title: 'SRP SmartRecruit — AI-powered Recruitment Operating System',
   description:
-    'SRP Recruit AI helps recruitment agencies screen resumes, match candidates to job requirements, explain fit, and manage hiring pipelines with human oversight.',
-  keywords: ['AI recruiting', 'ATS', 'hiring automation', 'candidate screening', 'SRP Recruit AI Labs'],
+    'SRP SmartRecruit helps recruitment agencies screen resumes, match candidates to job requirements, explain fit, and manage hiring pipelines with human oversight.',
+  keywords: ['AI recruiting', 'ATS', 'hiring automation', 'candidate screening', 'SRP SmartRecruit'],
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }, { url: '/favicon.png', sizes: '32x32', type: 'image/png' }],
+    apple: [{ url: '/apple-touch-icon.svg', type: 'image/svg+xml' }],
+  },
   openGraph: {
-    title: 'SRP Recruit AI Labs — Smart Recruiting Platform',
+    title: 'SRP SmartRecruit — AI-powered Recruitment OS',
     description: 'Hire smarter with AI.',
     type: 'website',
     url: 'https://recruit.srpailabs.com',

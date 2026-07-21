@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, TrendingUp } from 'lucide-react'
 import type { RecruiterKpi } from '@/lib/kpiEngine'
+import { FunnelDonut, PipelineBarChart } from '@/components/ui/KpiVisuals'
 
 const PERIODS = [
   { label: '7 days', days: 7 },
@@ -41,6 +42,14 @@ export function MyPerformanceTab() {
     { label: 'Active Offers', value: kpi.offers_active },
   ] : []
 
+  const funnelSlices = kpi ? [
+    { label: 'Candidates', value: kpi.candidates_added || 0, color: '#4f46e5' },
+    { label: 'Screened', value: kpi.candidates_screened || 0, color: '#7c3aed' },
+    { label: 'Submissions', value: kpi.submissions || 0, color: '#0284c7' },
+    { label: 'Interviews', value: kpi.interviews_scheduled || 0, color: '#d97706' },
+    { label: 'Offers', value: kpi.offers_active || 0, color: '#059669' },
+  ] : []
+
   return (
     <div>
       <div className="dash-section-head">
@@ -48,13 +57,13 @@ export function MyPerformanceTab() {
           <div className="dash-section-icon"><TrendingUp className="w-5 h-5 text-white" /></div>
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-slate-900">My Performance</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Personal recruitment KPIs</p>
+            <p className="text-sm text-slate-500 mt-0.5">Personal recruitment KPIs — Power BI style</p>
           </div>
         </div>
         <div className="flex gap-2">
           {PERIODS.map(p => (
             <button key={p.days} onClick={() => setDays(p.days)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${days === p.days ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${days === p.days ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}>
               {p.label}
             </button>
           ))}
@@ -65,26 +74,31 @@ export function MyPerformanceTab() {
         <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-3 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
             {cards.map(c => (
-              <div key={c.label} className={`rounded-xl border p-4 ${c.warn ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{c.label}</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">{c.value}</p>
+              <div key={c.label} className={`rounded-xl border p-4 shadow-sm ${c.warn ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+                <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-400">{c.label}</p>
+                <p className="text-2xl font-extrabold text-slate-900 mt-1 tabular-nums">{c.value}</p>
               </div>
             ))}
           </div>
-          {kpi && Object.keys(kpi.pipeline_by_stage).length > 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <p className="text-sm font-bold text-slate-900 mb-3">Pipeline breakdown ({kpi.period_days} day window)</p>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(kpi.pipeline_by_stage).map(([stage, count]) => (
-                  <span key={stage} className="text-xs capitalize px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200">
-                    {stage}: <strong>{count}</strong>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+
+          <div className="grid lg:grid-cols-2 gap-5 mb-6">
+            <FunnelDonut title={`Activity mix (${days}d)`} slices={funnelSlices} />
+            <PipelineBarChart
+              title={`Pipeline breakdown (${kpi?.period_days ?? days} day window)`}
+              data={kpi?.pipeline_by_stage ?? {}}
+            />
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
+            <p className="text-sm font-extrabold text-slate-900 mb-2">Recruiter tips</p>
+            <ul className="text-sm text-slate-600 space-y-1.5 list-disc pl-5 font-medium">
+              <li>Improve submit rate by screening before client submission.</li>
+              <li>Clear overdue follow-ups first — they block joining and offers.</li>
+              <li>Use AI Workspace for JD packs, boolean strings, and missing-document chase.</li>
+            </ul>
+          </div>
         </>
       )}
     </div>

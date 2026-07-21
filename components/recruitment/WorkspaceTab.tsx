@@ -9,6 +9,7 @@ import type { RecruiterKpi } from '@/lib/kpiEngine'
 import { AgentInboxPanel } from '@/components/recruitment/AgentInboxPanel'
 import { DailyBriefingPanel } from '@/components/recruitment/DailyBriefingPanel'
 import { VisualWorkflow } from '@/components/recruitment/VisualWorkflow'
+import { CardGridSkeleton, KpiStripSkeleton } from '@/components/ui/Skeletons'
 
 type FollowUpRow = { id: string; title?: string; due_at?: string; status?: string }
 type InterviewRow = {
@@ -147,12 +148,9 @@ export function WorkspaceTab({
 
   if (loading) {
     return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-16 rounded-2xl bg-slate-200/70" />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-24 rounded-2xl bg-slate-200/60" />)}
-        </div>
-        <div className="flex justify-center py-8"><Loader2 className="w-7 h-7 animate-spin text-[var(--color-primary)]" /></div>
+      <div className="space-y-4">
+        <KpiStripSkeleton count={8} />
+        <CardGridSkeleton count={3} />
       </div>
     )
   }
@@ -228,7 +226,7 @@ export function WorkspaceTab({
           const map: Record<string, string> = {
             requirement: 'jobs', job: 'jobs', candidates: 'candidates',
             submissions: 'submissions', interviews: 'interviews',
-            offers: 'selected', joining: 'selected', completed: 'pipeline',
+            offers: 'selected', joining: 'selected', completed: 'candidates',
           }
           onNavigate?.(map[stage] ?? 'workspace')
         }}
@@ -382,8 +380,8 @@ export function WorkspaceTab({
             <p className="ess-panel__title">Hiring Funnel</p>
             <p className="text-xs font-bold text-slate-500 mt-0.5">Pipeline conversion across stages</p>
           </div>
-          <button type="button" className="btn-ghost text-xs !py-1.5 !px-2.5 font-bold" onClick={() => onNavigate?.('pipeline')}>
-            Open pipeline
+          <button type="button" className="btn-ghost text-xs !py-1.5 !px-2.5 font-bold" onClick={() => onNavigate?.('candidates')}>
+            Open candidates
           </button>
         </div>
         <div className="p-4">

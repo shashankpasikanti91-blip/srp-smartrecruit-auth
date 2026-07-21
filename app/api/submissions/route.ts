@@ -5,6 +5,7 @@ import { isValidUUID, sanitizeText } from '@/lib/validate'
 import { logAudit } from '@/lib/audit'
 import { nextYearSeqId } from '@/lib/recruitmentOs'
 import { upsertWorkflowInstance } from '@/lib/workflowEngine'
+import { resolveDateFilter, resolveMineScope, stagesForFeedbackBucket, parseSubmissionFeedback } from '@/lib/opsList'
 
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, 'candidates.read')
@@ -12,23 +13,71 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const stage = sanitizeText(searchParams.get('stage'), 50) ?? ''
+  const feedbackBucket = sanitizeText(searchParams.get('feedback'), 40) ?? ''
   const client = sanitizeText(searchParams.get('client'), 200) ?? ''
+  const q = sanitizeText(searchParams.get('q'), 200) ?? ''
   const resumeId = searchParams.get('resume_id') ?? ''
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
-  const limit = Math.min(100, parseInt(searchParams.get('limit') ?? '50', 10))
+  const limit = Math.min(200, parseInt(searchParams.get('limit') ?? '50', 10))
   const offset = (page - 1) * limit
+  const dateRange = resolveDateFilter(searchParams)
+  const { mine, canToggle } = resolveMineScope(ctx, searchParams.get('mine'))
 
   const conditions = ['s.tenant_id = $1']
   const params: unknown[] = [ctx.tenantId]
   let idx = 2
-  if (stage) { conditions.push(`s.stage = $${idx}`); params.push(stage); idx++ }
-  if (client) { conditions.push(`s.client_name ILIKE $${idx}`); params.push(`%${client}%`); idx++ }
-  if (resumeId && isValidUUID(resumeId)) { conditions.push(`s.resume_id = $${idx}`); params.push(resumeId); idx++ }
+
+  if (stage) {
+    conditions.push(`s.stage = $${idx}`)
+    params.push(stage)
+    idx++
+  } else {
+    const stages = stagesForFeedbackBucket(feedbackBucket)
+    if (stages?.length) {
+      conditions.push(`s.stage = ANY($${idx}::text[])`)
+      params.push(stages)
+      idx++
+    }
+  }
+  if (client) {
+    conditions.push(`s.client_name ILIKE $${idx}`)
+    params.push(`%${client}%`)
+    idx++
+  }
+  if (q) {
+    conditions.push(`(
+      r.candidate_name ILIKE $${idx} OR r.candidate_email ILIKE $${idx}
+      OR r.short_id ILIKE $${idx} OR s.short_id ILIKE $${idx}
+      OR s.client_name ILIKE $${idx} OR COALESCE(s.applying_for,'') ILIKE $${idx}
+    )`)
+    params.push(`%${q}%`)
+    idx++
+  }
+  if (resumeId && isValidUUID(resumeId)) {
+    conditions.push(`s.resume_id = $${idx}`)
+    params.push(resumeId)
+    idx++
+  }
+  if (mine) {
+    conditions.push(`s.user_id = $${idx}`)
+    params.push(ctx.userId)
+    idx++
+  }
+  if (dateRange) {
+    conditions.push(`COALESCE(s.submission_date, s.updated_at)::date >= $${idx}::date`)
+    params.push(dateRange.from)
+    idx++
+    conditions.push(`COALESCE(s.submission_date, s.updated_at)::date <= $${idx}::date`)
+    params.push(dateRange.to)
+    idx++
+  }
 
   const where = conditions.join(' AND ')
   const { rows } = await pool.query(
     `SELECT s.*, r.candidate_name, r.candidate_email, r.short_id AS candidate_short_id,
-            jp.title AS job_title, u.name AS recruiter_name
+            jp.title AS job_title,
+            COALESCE(jp.company, s.client_name) AS client_project,
+            u.name AS recruiter_name
      FROM submissions s
      JOIN resumes r ON r.id = s.resume_id
      LEFT JOIN job_posts jp ON jp.id = s.job_post_id
@@ -36,19 +85,93 @@ export async function GET(req: NextRequest) {
      WHERE ${where}
      ORDER BY s.updated_at DESC
      LIMIT $${idx} OFFSET $${idx + 1}`,
-    [...params, limit, offset]
+    [...params, limit, offset],
   )
+
+  const submissions = rows.map((r: Record<string, unknown>) => {
+    const fb = parseSubmissionFeedback(r.feedback)
+    const decisionStages = ['rejected', 'rejected_by_candidate', 'selected', 'shortlisted', 'offer_declined', 'joined', 'waiting_feedback']
+    const stage = String(r.stage ?? '')
+    return {
+      ...r,
+      client_project: r.client_project || r.client_name,
+      feedback_detail: fb.detail,
+      feedback_recorded_by: fb.recorded_by,
+      feedback_date: fb.feedback_date
+        || (decisionStages.includes(stage) && r.updated_at ? r.updated_at : null),
+    }
+  })
 
   const count = await pool.query<{ total: string }>(
-    `SELECT COUNT(*)::text AS total FROM submissions s WHERE ${where}`,
-    params
+    `SELECT COUNT(*)::text AS total FROM submissions s JOIN resumes r ON r.id = s.resume_id WHERE ${where}`,
+    params,
   )
 
+  // Counts by feedback bucket (same mine/date/client/q filters, ignore stage/feedback bucket)
+  const countConditions = ['s.tenant_id = $1']
+  const countParams: unknown[] = [ctx.tenantId]
+  let cIdx = 2
+  if (client) {
+    countConditions.push(`s.client_name ILIKE $${cIdx}`)
+    countParams.push(`%${client}%`)
+    cIdx++
+  }
+  if (q) {
+    countConditions.push(`(
+      r.candidate_name ILIKE $${cIdx} OR r.candidate_email ILIKE $${cIdx}
+      OR r.short_id ILIKE $${cIdx} OR s.short_id ILIKE $${cIdx}
+      OR s.client_name ILIKE $${cIdx} OR COALESCE(s.applying_for,'') ILIKE $${cIdx}
+    )`)
+    countParams.push(`%${q}%`)
+    cIdx++
+  }
+  if (mine) {
+    countConditions.push(`s.user_id = $${cIdx}`)
+    countParams.push(ctx.userId)
+    cIdx++
+  }
+  if (dateRange) {
+    countConditions.push(`COALESCE(s.submission_date, s.updated_at)::date >= $${cIdx}::date`)
+    countParams.push(dateRange.from)
+    cIdx++
+    countConditions.push(`COALESCE(s.submission_date, s.updated_at)::date <= $${cIdx}::date`)
+    countParams.push(dateRange.to)
+    cIdx++
+  }
+  const countWhere = countConditions.join(' AND ')
+  const summaryRes = await pool.query<{ stage: string; c: string }>(
+    `SELECT s.stage, COUNT(*)::text AS c
+     FROM submissions s
+     JOIN resumes r ON r.id = s.resume_id
+     WHERE ${countWhere}
+     GROUP BY s.stage`,
+    countParams,
+  )
+  const byStage: Record<string, number> = {}
+  let allCount = 0
+  for (const row of summaryRes.rows) {
+    const n = parseInt(row.c, 10)
+    byStage[row.stage] = n
+    allCount += n
+  }
+  const bucketCount = (key: string) =>
+    (stagesForFeedbackBucket(key) ?? []).reduce((sum, st) => sum + (byStage[st] ?? 0), 0)
+
   return NextResponse.json({
-    submissions: rows,
+    submissions,
     total: parseInt(count.rows[0]?.total ?? '0', 10),
     page,
     limit,
+    mine,
+    can_toggle_mine: canToggle,
+    summary: {
+      all: allCount,
+      awaiting: bucketCount('awaiting'),
+      positive: bucketCount('positive'),
+      kiv: bucketCount('kiv'),
+      rejected: bucketCount('rejected'),
+      by_stage: byStage,
+    },
   })
 }
 
@@ -63,7 +186,7 @@ export async function POST(req: NextRequest) {
 
     const own = await pool.query(
       'SELECT id, short_id FROM resumes WHERE id = $1 AND tenant_id = $2',
-      [resume_id, ctx.tenantId]
+      [resume_id, ctx.tenantId],
     )
     if (!own.rows[0]) return NextResponse.json({ error: 'Candidate not found' }, { status: 404 })
 
@@ -89,7 +212,7 @@ export async function POST(req: NextRequest) {
         body.submission_date || null,
         sanitizeText(body.notes, 5000),
         JSON.stringify(body.feedback ?? {}),
-      ]
+      ],
     )
 
     logAudit({
@@ -105,7 +228,7 @@ export async function POST(req: NextRequest) {
       try {
         const job = await pool.query<{ internal_sla_days: number | null }>(
           'SELECT internal_sla_days FROM job_posts WHERE id = $1 AND tenant_id = $2',
-          [job_post_id, ctx.tenantId]
+          [job_post_id, ctx.tenantId],
         )
         if (job.rows[0]?.internal_sla_days != null) {
           slaDays = Number(job.rows[0].internal_sla_days) || 3

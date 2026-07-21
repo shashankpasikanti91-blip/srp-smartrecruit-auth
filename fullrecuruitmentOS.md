@@ -23,9 +23,10 @@ Branch paths (must work): client reject · candidate reject · no-show · offer 
 
 | Module | Status | Primary code |
 |--------|--------|--------------|
-| Submission (`SUB-YYYY-######`) | Shipped | `app/api/submissions/**`, `SubmissionsTab` |
-| Interview (`INT-…`) | Shipped | `app/api/interviews/**`, `InterviewsTab` |
-| Offer & Onboarding | Shipped | `app/api/offers/**`, `SelectedPipelineTab` |
+| Submission (`SUB-YYYY-######`) | Shipped | `app/api/submissions/**`, `SubmissionsTab` — Tekgen columns + export |
+| Interview (`INT-…`) | Shipped | `app/api/interviews/**`, `InterviewsTab` — 1st/2nd slots + export |
+| Offer & Onboarding | Shipped | `SelectedPipelineTab` Selected & Docs / HR & Offer + `DocsUploadPanel` |
+| Ops list chrome / clear IDs | Shipped | `OpsListChrome`, `EntityIdLink`, `docs/OPS_LISTS_TEKGEN.md` |
 | Multi-country checklists | Shipped | `lib/recruitmentOs.ts` `getDocumentChecklist`, HR Config |
 | Candidate 360° | Shipped | Candidate 360 tabs + timeline / audit / docs / AI fit |
 | Client 360° / Job 360° | Shipped | `Client360View`, `Job360View` |

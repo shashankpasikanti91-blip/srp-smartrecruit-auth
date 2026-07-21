@@ -1,10 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Calendar, Download, Loader2, Plus, RefreshCw, X } from 'lucide-react'
+import { Calendar, Loader2, Plus, X } from 'lucide-react'
 import { ScrollableTable } from '@/components/dashboard/ScrollableTable'
-import { exportCsv } from '@/lib/exportCsv'
-import { INTERVIEW_STATUSES } from '@/lib/recruitmentOs'
+import { OpsListChrome } from '@/components/recruitment/OpsListChrome'
+import { EntityIdLink } from '@/components/ui/EntityIdLink'
+import { INTERVIEW_STATUSES, labelFor } from '@/lib/recruitmentOs'
+import { presetToRange, type DatePreset } from '@/lib/datePresets'
+import { formatExpYears, formatIsoDate, formatIsoTime } from '@/lib/opsList'
 
 type Interview = {
   id: string
@@ -12,7 +15,10 @@ type Interview = {
   resume_id: string
   candidate_name: string
   candidate_email: string
+  candidate_short_id?: string | null
+  candidate_phone?: string | null
   job_title: string | null
+  job_client_name?: string | null
   scheduled_at: string
   duration_minutes: number
   format: string | null
@@ -21,14 +27,43 @@ type Interview = {
   interviewer_name: string | null
   round?: number
   rating?: number | null
+  feedback?: string | null
+  years_experience?: string | null
+  current_salary?: string | null
+  expected_salary?: string | null
 }
 
 type CandPick = { id: string; short_id: string; candidate_name: string; candidate_email: string }
 
-export function InterviewsTab() {
+const STATUS_PILLS = [
+  { id: '', label: 'All' },
+  { id: 'scheduled', label: 'Scheduled' },
+  { id: 'confirmed', label: 'Confirmed' },
+  { id: 'awaiting_feedback', label: 'Awaiting feedback' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'selected', label: 'Selected' },
+  { id: 'cancelled', label: 'Cancelled' },
+  { id: 'no_show', label: 'No show' },
+]
+
+export function InterviewsTab({
+  onOpenCandidate,
+  isManager = false,
+}: {
+  onOpenCandidate?: (shortId: string) => void
+  isManager?: boolean
+}) {
   const [rows, setRows] = useState<Interview[]>([])
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState('')
+  const [preset, setPreset] = useState<DatePreset | string>('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [search, setSearch] = useState('')
+  const [mine, setMine] = useState(!isManager)
+  const [canToggleMine, setCanToggleMine] = useState(isManager)
+  const [summaryAll, setSummaryAll] = useState(0)
+  const [byStatus, setByStatus] = useState<Record<string, number>>({})
   const [showSchedule, setShowSchedule] = useState(false)
   const [scheduling, setScheduling] = useState(false)
   const [candQ, setCandQ] = useState('')
@@ -43,24 +78,39 @@ export function InterviewsTab() {
     notes: '',
     round: '1',
   })
-  const [feedbackId, setFeedbackId] = useState<string | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState('')
   const [rating, setRating] = useState('3')
+
+  const buildParams = useCallback((forExport = false) => {
+    const params = new URLSearchParams()
+    if (status) params.set('status', status)
+    if (search.trim()) params.set('q', search.trim())
+    if (mine) params.set('mine', '1')
+    else if (isManager) params.set('mine', '0')
+    const range = dateFrom || dateTo ? { from: dateFrom, to: dateTo } : presetToRange(preset)
+    if (range?.from) params.set('date_from', range.from)
+    if (range?.to) params.set('date_to', range.to)
+    if (!forExport) params.set('limit', '100')
+    return params
+  }, [status, search, mine, isManager, dateFrom, dateTo, preset])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (status) params.set('status', status)
-      const res = await fetch(`/api/interviews?${params}`)
+      const res = await fetch(`/api/interviews?${buildParams()}`)
       const data = await res.json()
       setRows(data.interviews ?? [])
+      setSummaryAll(data.summary?.all ?? data.total ?? 0)
+      setByStatus(data.summary?.by_status ?? {})
+      if (typeof data.can_toggle_mine === 'boolean') setCanToggleMine(data.can_toggle_mine)
     } finally {
       setLoading(false)
     }
-  }, [status])
+  }, [buildParams])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { setMine(!isManager) }, [isManager])
 
   useEffect(() => {
     if (!showSchedule || candQ.length < 2) { setCandOpts([]); return }
@@ -120,37 +170,60 @@ export function InterviewsTab() {
     load()
   }
 
+  const openEdit = (iv: Interview) => {
+    setEditId(iv.id)
+    setFeedback(typeof iv.feedback === 'string' ? iv.feedback : '')
+    setRating(String(iv.rating ?? 3))
+  }
+
+  const exportWith = (format: 'csv' | 'xlsx') => {
+    const p = buildParams(true)
+    p.set('format', format)
+    window.location.href = `/api/interviews/export?${p}`
+  }
+
+  const pills = STATUS_PILLS.map(p => ({
+    id: p.id || 'all',
+    label: p.label,
+    count: p.id ? (byStatus[p.id] ?? 0) : summaryAll,
+  }))
+
   return (
     <div>
       <div className="dash-section-head">
         <div className="flex items-start gap-4">
           <div className="dash-section-icon"><Calendar className="w-5 h-5 text-white" /></div>
           <div>
-            <h1 className="page-title text-lg sm:text-xl">Interviews</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Schedule and track interview rounds</p>
+            <h1 className="page-title text-lg sm:text-xl">Interview Scheduling</h1>
+            <p className="text-sm text-slate-500 mt-0.5">{summaryAll} interviews in scope · Cand. ID + Interview ID</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setShowSchedule(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500">
-            <Plus className="w-4 h-4" /> Schedule
-          </button>
-          <button
-            type="button"
-            onClick={() => exportCsv(
-              `interviews-${status || 'all'}.csv`,
-              ['ID', 'Candidate', 'Email', 'Job', 'Scheduled', 'Duration', 'Format', 'Status', 'Interviewer'],
-              rows.map(r => [r.short_id, r.candidate_name, r.candidate_email, r.job_title, r.scheduled_at, r.duration_minutes, r.format, r.status, r.interviewer_name]),
-            )}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
-          >
-            <Download className="w-4 h-4" /> Export Excel
-          </button>
-          <button onClick={load} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50">
-            <RefreshCw className="w-4 h-4" /> Refresh
-          </button>
-        </div>
+        <button type="button" onClick={() => setShowSchedule(true)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500">
+          <Plus className="w-4 h-4" /> Schedule
+        </button>
       </div>
+
+      <OpsListChrome
+        scopeMine={mine}
+        showMineToggle={canToggleMine || isManager}
+        onToggleMine={setMine}
+        preset={preset}
+        onPreset={v => { setPreset(v); setDateFrom(''); setDateTo('') }}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateFrom={v => { setDateFrom(v); setPreset('') }}
+        onDateTo={v => { setDateTo(v); setPreset('') }}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search name, RES-, INT-, phone…"
+        pills={pills}
+        activePill={status || 'all'}
+        onPill={id => setStatus(id === 'all' ? '' : id)}
+        onExportCsv={() => exportWith('csv')}
+        onExportXlsx={() => exportWith('xlsx')}
+        onRefresh={load}
+      />
 
       {showSchedule && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowSchedule(false)}>
@@ -199,15 +272,6 @@ export function InterviewsTab() {
         </div>
       )}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 mb-4">
-        <select value={status} onChange={e => setStatus(e.target.value)} className="text-sm rounded-lg border border-slate-200 px-3 py-1.5">
-          <option value="">All statuses</option>
-          {['scheduled','confirmed','completed','cancelled','no_show'].map(s => (
-            <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
-          ))}
-        </select>
-      </div>
-
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-indigo-600" /></div>
       ) : (
@@ -215,59 +279,107 @@ export function InterviewsTab() {
           <table className="ent-table w-full">
             <thead>
               <tr>
-                <th>ID</th><th>Candidate</th><th>Job</th><th>When</th><th>Round</th><th>Format</th><th>Status</th><th>Interviewer</th><th>Link</th><th>Actions</th>
+                <th className="font-extrabold">Cand. ID</th>
+                <th className="font-extrabold">1st Date</th>
+                <th className="font-extrabold">1st Time</th>
+                <th className="font-extrabold">2nd Date</th>
+                <th className="font-extrabold">2nd Time</th>
+                <th className="font-extrabold">Name</th>
+                <th className="font-extrabold">Phone</th>
+                <th className="font-extrabold">Email</th>
+                <th className="font-extrabold">Client / Project</th>
+                <th className="font-extrabold">Position</th>
+                <th className="font-extrabold">Exp.</th>
+                <th className="font-extrabold">Current Sal.</th>
+                <th className="font-extrabold">Expected Sal.</th>
+                <th className="font-extrabold">Feedback</th>
+                <th className="font-extrabold">Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={10} className="text-center py-10 text-slate-400">No interviews scheduled</td></tr>
-              ) : rows.map((iv, i) => (
-                <tr key={iv.id} className={i % 2 ? 'bg-slate-50/70' : ''}>
-                  <td className="font-mono text-xs font-bold">{iv.short_id}</td>
-                  <td>
-                    <p className="font-medium text-sm">{iv.candidate_name}</p>
-                    <p className="text-xs text-slate-500">{iv.candidate_email}</p>
-                  </td>
-                  <td>{iv.job_title || '—'}</td>
-                  <td className="text-xs whitespace-nowrap">{new Date(iv.scheduled_at).toLocaleString()}</td>
-                  <td className="text-xs font-bold">{iv.round ?? 1}</td>
-                  <td className="capitalize text-sm">{iv.format || '—'}</td>
-                  <td>
-                    <select value={iv.status} onChange={e => patchInterview(iv.id, { status: e.target.value })}
-                      className="text-xs rounded-lg border border-slate-200 px-2 py-1 bg-white appearance-none max-w-[150px]">
-                      {INTERVIEW_STATUSES.map(s => (
-                        <option key={s.value} value={s.value}>{s.label}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="text-sm">{iv.interviewer_name || '—'}</td>
-                  <td>{iv.meet_link ? <a href={iv.meet_link} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline">Join</a> : '—'}</td>
-                  <td className="space-x-1 whitespace-nowrap">
-                    {iv.status !== 'cancelled' && (
-                      <button type="button" onClick={() => cancelInterview(iv.id)} className="text-xs text-red-600 hover:underline">Cancel</button>
-                    )}
-                    <button type="button" onClick={() => { setFeedbackId(iv.id); setFeedback('') }}
-                      className="text-xs text-indigo-600 hover:underline">Feedback</button>
-                  </td>
-                </tr>
-              ))}
+                <tr><td colSpan={15} className="text-center py-10 text-slate-400">No interviews in this filter</td></tr>
+              ) : rows.map((iv, i) => {
+                const round = Number(iv.round ?? 1)
+                const d = formatIsoDate(iv.scheduled_at) || '—'
+                const t = formatIsoTime(iv.scheduled_at) || '—'
+                const firstDate = round <= 1 ? d : '—'
+                const firstTime = round <= 1 ? t : '—'
+                const secondDate = round >= 2 ? d : '—'
+                const secondTime = round >= 2 ? t : '—'
+                const fbText = typeof iv.feedback === 'string' && iv.feedback
+                  ? iv.feedback
+                  : labelFor(INTERVIEW_STATUSES, iv.status)
+                return (
+                  <tr key={iv.id} className={i % 2 ? 'bg-slate-50/70' : ''}>
+                    <td>
+                      <EntityIdLink
+                        kind="candidate"
+                        id={iv.candidate_short_id}
+                        onClick={iv.candidate_short_id ? () => onOpenCandidate?.(iv.candidate_short_id!) : undefined}
+                      />
+                      <p className="text-[10px] font-mono text-slate-400 mt-0.5">
+                        <EntityIdLink kind="interview" id={iv.short_id} onClick={() => openEdit(iv)} />
+                      </p>
+                    </td>
+                    <td className="text-xs whitespace-nowrap">{firstDate}</td>
+                    <td className="text-xs whitespace-nowrap">{firstTime}</td>
+                    <td className="text-xs whitespace-nowrap">{secondDate}</td>
+                    <td className="text-xs whitespace-nowrap">{secondTime}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="text-left font-bold text-sm text-indigo-700 hover:underline"
+                        onClick={() => iv.candidate_short_id && onOpenCandidate?.(iv.candidate_short_id)}
+                      >
+                        {iv.candidate_name}
+                      </button>
+                    </td>
+                    <td className="text-xs whitespace-nowrap">{iv.candidate_phone || '—'}</td>
+                    <td className="text-xs max-w-[160px] truncate" title={iv.candidate_email || ''}>{iv.candidate_email || '—'}</td>
+                    <td className="text-sm max-w-[180px] truncate" title={iv.job_client_name || ''}>{iv.job_client_name || '—'}</td>
+                    <td className="text-sm max-w-[140px] truncate">{iv.job_title || '—'}</td>
+                    <td className="text-xs">{formatExpYears(iv.years_experience)}</td>
+                    <td className="text-xs">{iv.current_salary || '—'}</td>
+                    <td className="text-xs">{iv.expected_salary || '—'}</td>
+                    <td>
+                      <select
+                        value={iv.status}
+                        onChange={e => patchInterview(iv.id, { status: e.target.value })}
+                        className="text-xs rounded-lg border border-slate-200 px-2 py-1 bg-white appearance-none max-w-[130px] mb-1 block"
+                      >
+                        {INTERVIEW_STATUSES.map(s => (
+                          <option key={s.value} value={s.value}>{s.label}</option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-slate-500 truncate max-w-[140px]" title={fbText}>{fbText}</p>
+                    </td>
+                    <td className="space-x-1 whitespace-nowrap">
+                      <button type="button" onClick={() => openEdit(iv)} className="text-xs font-bold text-indigo-600 hover:underline">Edit</button>
+                      {iv.status !== 'cancelled' && (
+                        <button type="button" onClick={() => cancelInterview(iv.id)} className="text-xs text-red-600 hover:underline">Cancel</button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </ScrollableTable>
       )}
 
-      {feedbackId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setFeedbackId(null)}>
+      {editId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditId(null)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-3" onClick={e => e.stopPropagation()}>
-            <h2 className="font-bold text-slate-900">Interview feedback</h2>
+            <h2 className="font-bold text-slate-900">Interview edit / feedback</h2>
             <textarea value={feedback} onChange={e => setFeedback(e.target.value)} rows={4}
               className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" placeholder="Notes for the hiring team…" />
             <select value={rating} onChange={e => setRating(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm appearance-none">
               {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>Rating {n}/5</option>)}
             </select>
             <button type="button" onClick={async () => {
-              await patchInterview(feedbackId, { feedback, rating: Number(rating), status: 'completed' })
-              setFeedbackId(null)
+              await patchInterview(editId, { feedback, rating: Number(rating), status: 'completed' })
+              setEditId(null)
             }} className="w-full py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold">Save feedback</button>
           </div>
         </div>

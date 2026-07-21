@@ -226,7 +226,8 @@ export function HrConfigTab() {
         <div className="flex items-start gap-4">
           <div className="dash-section-icon"><Settings2 className="w-5 h-5 text-white" /></div>
           <div>
-            <h1 className="page-title text-xl">HR Admin Configuration</h1>
+            <h1 className="page-title text-xl">HRMS</h1>
+            <p className="desc-text mt-1 font-medium">HR admin configuration — templates, reminders, and country settings</p>
             <p className="desc-text mt-1 font-medium">Country, document, offer, email, WhatsApp, interview & reminder templates — no hardcoding.</p>
           </div>
         </div>

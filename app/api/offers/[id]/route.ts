@@ -10,6 +10,7 @@ import { logAudit } from '@/lib/audit'
 import { createNotification } from '@/lib/notificationCenter'
 import { upsertWorkflowInstance } from '@/lib/workflowEngine'
 import { runCollaborativeChain } from '@/lib/agentCollaboration'
+import { mergeHrOps } from '@/lib/opsList'
 
 export async function PATCH(
   req: NextRequest,
@@ -99,6 +100,57 @@ export async function PATCH(
   if (body.approval_status !== undefined) {
     sets.unshift(`approval_status = $${i++}`)
     vals.push(sanitizeText(body.approval_status, 40))
+  }
+  if (body.docs_status !== undefined) {
+    const ds = sanitizeText(body.docs_status, 40) ?? 'not_started'
+    // Persist as tagged remark so we don't need a migration; merge with existing remarks below
+    const prevRemarks = await pool.query<{ remarks: string | null }>(
+      'SELECT remarks FROM offer_cases WHERE id = $1 AND tenant_id = $2',
+      [id, ctx.tenantId],
+    )
+    const raw = prevRemarks.rows[0]?.remarks ?? ''
+    const cleaned = raw.replace(/\s*docs_status:\w+/g, '').trim()
+    const nextRemarks = `${cleaned}${cleaned ? ' ' : ''}docs_status:${ds}`.trim()
+    sets.unshift(`remarks = $${i++}`)
+    vals.push(nextRemarks)
+    // Map docs status to a sensible offer stage when still early
+    if (ds === 'collecting' && !body.status) {
+      sets.unshift(`status = $${i++}`)
+      vals.push('document_collection')
+    } else if (ds === 'with_hr' && !body.status) {
+      sets.unshift(`status = $${i++}`)
+      vals.push('document_verification')
+    } else if ((ds === 'clearance_done' || ds === 'onboarding') && !body.status) {
+      sets.unshift(`status = $${i++}`)
+      vals.push(ds === 'onboarding' ? 'onboarding' : 'offer_draft')
+    } else if (ds === 'not_started' && !body.status) {
+      sets.unshift(`status = $${i++}`)
+      vals.push('selected')
+    }
+  }
+
+  const hrPatchKeys = ['hr_discussion', 'budget_ok', 'offer_letter', 'joined_status', 'joined_date'] as const
+  const hasHrPatch = hrPatchKeys.some(k => body[k] !== undefined) || body.offer_letter_status !== undefined
+  if (hasHrPatch) {
+    const prev = await pool.query<{ salary_breakdown: unknown; status: string }>(
+      'SELECT salary_breakdown, status FROM offer_cases WHERE id = $1 AND tenant_id = $2',
+      [id, ctx.tenantId],
+    )
+    const patch: Record<string, unknown> = {}
+    if (body.hr_discussion !== undefined) patch.hr_discussion = sanitizeText(body.hr_discussion, 60)
+    if (body.budget_ok !== undefined) patch.budget_ok = Boolean(body.budget_ok)
+    if (body.offer_letter !== undefined || body.offer_letter_status !== undefined) {
+      patch.offer_letter = sanitizeText(body.offer_letter ?? body.offer_letter_status, 60)
+    }
+    if (body.joined_status !== undefined) patch.joined_status = sanitizeText(body.joined_status, 40)
+    if (body.joined_date !== undefined) patch.joined_date = body.joined_date || null
+    const next = mergeHrOps(prev.rows[0]?.salary_breakdown, patch)
+    sets.unshift(`salary_breakdown = $${i++}::jsonb`)
+    vals.push(JSON.stringify(next))
+    if (body.joined_status === 'joined' && !body.status) {
+      sets.unshift(`status = $${i++}`)
+      vals.push('joined')
+    }
   }
 
   vals.push(id, ctx.tenantId)

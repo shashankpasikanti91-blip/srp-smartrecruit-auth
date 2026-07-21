@@ -31,6 +31,7 @@ import { NewJobModal } from '@/components/recruitment/NewJobModal'
 import { AddCandidateFlow } from '@/components/recruitment/AddCandidateFlow'
 import { NotificationBell } from '@/components/dashboard/NotificationBell'
 import { GovernanceTab } from '@/components/governance/GovernanceTab'
+import { BrandMark, AppSplash } from '@/components/ui/BrandMark'
 import { formatLifecycle, HIRE_TYPES, HIRE_TYPE_LABELS, LIFECYCLE_STATUSES, LIFECYCLE_LABELS, VISA_TYPES, VISA_TYPE_LABELS } from '@/lib/candidateLifecycle'
 import {
   Briefcase, Users, Search, Plus, ChevronDown, LogOut,
@@ -639,21 +640,21 @@ function BooleanTab() {
   ]
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-6xl space-y-6">
       <div className="dash-section-head">
         <div className="flex items-start gap-4 min-w-0">
           <div className="dash-section-icon">
             <Search className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Boolean Search Generator</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Boolean Search Generator</h1>
             <p className="text-sm text-slate-500 mt-0.5">LinkedIn, Naukri, Indeed — strings for sourcing in this workspace</p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 space-y-4">
           <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm ring-1 ring-slate-950/[0.02]">
             <div className="flex gap-2 mb-4 flex-wrap">
               <button onClick={() => setMode('simple')}
@@ -852,7 +853,7 @@ function ImportTab() {
           Max 5 MB.
         </p>
         <div
-          className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${file ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/30'}`}
+          className={`srp-dropzone ${file ? 'is-ok' : ''}`}
           onClick={() => fileRef.current?.click()}
           onDragOver={e => e.preventDefault()}
           onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f?.name.endsWith('.csv')) setFile(f) }}>
@@ -1362,8 +1363,22 @@ export default function DashboardPage() {
   const router = useRouter()
 
   const [activeTab, setActiveTab] = useState<DashboardTab>('workspace')
+  const [settingsPanel, setSettingsPanel] = useState<'main' | 'integrations' | 'governance'>('main')
+  // Phase 3.2: collapse duplicate / hidden tabs into primary destinations
+  useEffect(() => {
+    if (activeTab === 'pipeline') setActiveTab('candidates')
+    else if (activeTab === 'analytics' || activeTab === 'performance') setActiveTab('reports')
+    else if (activeTab === 'integrations') {
+      setSettingsPanel('integrations')
+      setActiveTab('settings')
+    }
+    else if (activeTab === 'governance') {
+      setSettingsPanel('governance')
+      setActiveTab('settings')
+    }
+  }, [activeTab])
   const isWideTab = useMemo(
-    () => ['workspace', 'pipeline', 'candidates', 'jobs', 'screen', 'analytics', 'submissions', 'interviews', 'followups', 'selected', 'clients', 'reports', 'performance', 'recruiters', 'documents', 'coach', 'ess'].includes(activeTab),
+    () => ['workspace', 'candidates', 'jobs', 'screen', 'compose', 'jd', 'boolean', 'submissions', 'interviews', 'followups', 'selected', 'clients', 'reports', 'recruiters', 'documents', 'coach', 'comms', 'ess', 'hrconfig', 'settings', 'import'].includes(activeTab),
     [activeTab],
   )
   const [jobs, setJobs] = useState<Job[]>([])
@@ -2245,11 +2260,8 @@ export default function DashboardPage() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center gap-4">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/25 flex items-center justify-center">
-          <Zap className="w-5 h-5 text-white animate-pulse" />
-        </div>
-        <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        <AppSplash />
       </div>
     )
   }
@@ -2266,30 +2278,19 @@ export default function DashboardPage() {
 
   const sidebarNavItems: Array<{ tab: DashboardTab; icon: typeof TrendingUp; label: string; badge: string | null; section: 'recruitment' | 'ai' | 'ops' }> = [
     { tab: 'workspace', icon: TrendingUp, label: 'Dashboard', badge: agentPendingCount > 0 ? String(agentPendingCount) : null, section: 'recruitment' },
-    { tab: 'pipeline', icon: Layers, label: 'Pipeline', badge: null, section: 'recruitment' },
+    { tab: 'jobs', icon: Briefcase, label: 'Jobs', badge: null, section: 'recruitment' },
     { tab: 'candidates', icon: Users, label: 'Candidates', badge: null, section: 'recruitment' },
+    ...(canSeeClients ? [{ tab: 'clients' as const, icon: Building2, label: 'Clients', badge: null, section: 'recruitment' as const }] : []),
     { tab: 'submissions', icon: Send, label: 'Submissions', badge: null, section: 'recruitment' },
     { tab: 'interviews', icon: Calendar, label: 'Interviews', badge: null, section: 'recruitment' },
-    { tab: 'followups', icon: Bell, label: 'Follow-ups', badge: null, section: 'recruitment' },
     { tab: 'selected', icon: Award, label: 'Offer & Onboarding', badge: null, section: 'recruitment' },
-    ...(canSeeClients ? [{ tab: 'clients' as const, icon: Building2, label: 'Clients', badge: null, section: 'recruitment' as const }] : []),
     { tab: 'recruiters', icon: Users, label: 'Recruiters', badge: null, section: 'recruitment' },
     { tab: 'documents', icon: FileText, label: 'Documents', badge: null, section: 'recruitment' },
     ...(canSeeReports ? [{ tab: 'reports' as const, icon: Download, label: 'Reports', badge: null, section: 'recruitment' as const }] : []),
-    ...(canSeeReports ? [{ tab: 'hrconfig' as const, icon: Settings, label: 'HR Config', badge: null, section: 'ops' as const }] : []),
-    { tab: 'performance', icon: TrendingUp, label: 'My Performance', badge: null, section: 'recruitment' },
-    { tab: 'coach', icon: Sparkles, label: 'AI Workspace', badge: 'AI', section: 'ai' },
-    ...(canSeeGovernance ? [{ tab: 'governance' as const, icon: Shield, label: 'Governance', badge: null, section: 'ops' as const }] : []),
-    { tab: 'screen', icon: Brain, label: 'AI Screen', badge: 'AI', section: 'ai' },
-    { tab: 'compose', icon: Mail, label: 'Compose', badge: 'AI', section: 'ai' },
-    { tab: 'jobs', icon: Briefcase, label: 'Jobs', badge: null, section: 'recruitment' },
-    ...(canSeeAnalytics ? [{ tab: 'analytics' as const, icon: BarChart3, label: 'Analytics', badge: null, section: 'ops' as const }] : []),
-    { tab: 'jd', icon: FileText, label: 'JD Writer', badge: 'AI', section: 'ai' },
-    { tab: 'boolean', icon: Search, label: 'Boolean', badge: 'AI', section: 'ai' },
-    { tab: 'import', icon: Upload, label: 'Import', badge: null, section: 'ops' },
-    { tab: 'integrations', icon: Link2, label: 'Integrations', badge: null, section: 'ops' },
-    { tab: 'comms', icon: Send, label: 'Comms Hub', badge: null, section: 'ops' },
-    { tab: 'ess', icon: Building2, label: 'My ESS', badge: null, section: 'ops' },
+    { tab: 'comms', icon: Mail, label: 'Communications', badge: null, section: 'ops' },
+    { tab: 'coach', icon: Sparkles, label: 'AI Recruit Copilot', badge: 'AI', section: 'ai' },
+    ...(canSeeReports ? [{ tab: 'hrconfig' as const, icon: Shield, label: 'HRMS', badge: null, section: 'ops' as const }] : []),
+    { tab: 'ess', icon: Building2, label: 'ESS', badge: null, section: 'ops' },
     { tab: 'settings', icon: Settings, label: 'Settings', badge: null, section: 'ops' },
   ]
 
@@ -2349,11 +2350,9 @@ export default function DashboardPage() {
           ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           <div className="px-4 py-4 border-b border-[var(--sidebar-border)] flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] shadow-lg shadow-indigo-500/30 ring-1 ring-white/10">
-                <Zap className="w-4 h-4 text-white" />
-              </div>
+              <BrandMark size={32} className="flex-shrink-0 shadow-lg shadow-indigo-500/30" />
               <div className="min-w-0">
-                <p className="text-[13px] font-extrabold text-white leading-tight tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>SRP AI Labs</p>
+                <p className="text-[13px] font-extrabold text-white leading-tight tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>SRP SmartRecruit</p>
                 <p className="text-[10px] leading-tight mt-0.5 font-bold text-teal-300">Recruitment OS</p>
               </div>
             </div>
@@ -2498,30 +2497,12 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Stats strip — compact KPI row for 100% zoom */}
+          {/* Compact action bar — header KPI boxes removed per product request */}
           <div className="sticky top-0 z-10 border-b border-slate-200/90 bg-white/95 backdrop-blur-md shadow-sm shadow-slate-900/5">
-            <div className="dash-page-shell py-2 flex items-center gap-1.5 sm:gap-2 flex-wrap">
-            {([
-              { label: 'Active Jobs',  value: jobs.length,                                                           accent: 'text-indigo-700',  bg: 'bg-indigo-50',  border: 'border-indigo-200',  dot: 'bg-indigo-500' },
-              { label: 'Candidates',   value: totalCandidates,                                                        accent: 'text-slate-800',   bg: 'bg-slate-50',   border: 'border-slate-200',   dot: 'bg-slate-400' },
-              { label: 'Interviews',   value: interviewCount,                                                         accent: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200',   dot: 'bg-amber-500' },
-              { label: 'Shortlisted',  value: stageCounts['screening'] ?? 0,                                          accent: 'text-purple-700',  bg: 'bg-purple-50',  border: 'border-purple-200',  dot: 'bg-purple-500' },
-              { label: 'Offers Sent',  value: stageCounts['offer'] ?? 0,                                              accent: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500' },
-              { label: 'Hired',        value: hiredCount,                                                             accent: 'text-green-700',   bg: 'bg-green-50',   border: 'border-green-200',   dot: 'bg-green-500' },
-              { label: 'Hire Rate',    value: totalCandidates > 0 ? `${Math.round((hiredCount / totalCandidates) * 100)}%` : '—', accent: 'text-sky-700', bg: 'bg-sky-50', border: 'border-sky-200', dot: 'bg-sky-500' },
-            ] as const).map(({ label, value, accent, bg, border, dot }) => (
-              <div key={label} className={`flex flex-col items-start px-2.5 py-1.5 rounded-xl ${bg} border ${border} shadow-sm min-w-[4.75rem] ring-1 ring-slate-950/[0.02]`}>
-                <div className="flex items-center gap-1">
-                  <span className={`w-1.5 h-1.5 rounded-full ${dot} flex-shrink-0`} />
-                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-600 leading-none">{label}</span>
-                </div>
-                <span className={`text-base sm:text-lg font-extrabold ${accent} tabular-nums leading-tight mt-0.5`}>{value}</span>
-              </div>
-            ))}
-            <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+            <div className="dash-page-shell py-2 flex items-center justify-end gap-1.5 flex-wrap">
               <button
                 type="button"
-                className="lg:hidden p-2 rounded-lg border border-slate-200 bg-white text-slate-700"
+                className="lg:hidden p-2 rounded-lg border border-slate-200 bg-white text-slate-700 mr-auto"
                 onClick={() => setMobileNavOpen(true)}
                 aria-label="Open menu"
               >
@@ -2543,7 +2524,6 @@ export default function DashboardPage() {
                 <Plus className="w-3.5 h-3.5" /> New Job
               </button>
             </div>
-            </div>
           </div>
 
           {workspaceBanner && (
@@ -2564,146 +2544,14 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <div className={`dash-page-shell py-5 lg:py-6 pb-10${isWideTab ? ' dash-page-shell--wide' : ''}`}>
+          <div className={`dash-page-shell py-5 lg:py-6 pb-10 dash-tab-fade${isWideTab ? ' dash-page-shell--wide' : ''}`}>
 
             {/* ── MY WORKSPACE ─────────────────────────────────────────────── */}
             {activeTab === 'workspace' && (
               <WorkspaceTab onNavigate={(tab) => setActiveTab(tab as DashboardTab)} userName={user?.name} />
             )}
 
-            {/* ── PIPELINE ─────────────────────────────────────────────────── */}
-            {activeTab === 'pipeline' && (
-              <div>
-                {/* Pipeline Header */}
-                <div className="dash-section-head">
-                  <div className="flex items-start gap-4">
-                    <div className="dash-section-icon">
-                      <Layers className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Pipeline</h1>
-                      <p className="text-sm text-slate-500 mt-0.5">Drag and drop candidates across stages</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <select value={selectedJob} onChange={e => setSelectedJob(e.target.value)}
-                        className="appearance-none pl-3 pr-8 py-2.5 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 cursor-pointer focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 shadow-sm">
-                        <option value="">All Jobs</option>
-                        {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0,8)})</option>)}
-                      </select>
-                      <ChevronDown className="absolute right-2 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
-                    </div>
-                    <button onClick={loadData} className="p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 shadow-sm transition-colors" title="Refresh">
-                      <RefreshCw className="w-4 h-4 text-slate-500" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Pipeline stats bar */}
-                <div className="grid grid-cols-6 gap-2 mb-4">
-                  {PIPELINE_STAGES.map(stage => {
-                    const count = candidates.filter(c => c.pipeline_stage === stage.key).length
-                    const stageColors: Record<string, { bg: string; accent: string; text: string }> = {
-                      sourced:   { bg: '#F8FAFC', accent: '#64748B', text: '#475569' },
-                      applied:   { bg: '#F8FAFC', accent: '#3B82F6', text: '#334155' },
-                      screening: { bg: '#F8FAFC', accent: '#6366F1', text: '#334155' },
-                      interview: { bg: '#F8FAFC', accent: '#D97706', text: '#334155' },
-                      offer:     { bg: '#F8FAFC', accent: '#059669', text: '#334155' },
-                      hired:     { bg: '#F8FAFC', accent: '#16A34A', text: '#334155' },
-                    }
-                    const sc = stageColors[stage.key] ?? stageColors.sourced
-                    return (
-                      <button
-                        type="button"
-                        key={stage.key}
-                        title={`Open Candidates list — ${stage.label} stage`}
-                        onClick={() => {
-                          setFilterStage(stage.key)
-                          setActiveTab('candidates')
-                        }}
-                        className="rounded-xl p-2.5 border text-center shadow-sm ring-1 ring-slate-950/[0.02] cursor-pointer transition-all hover:shadow-md hover:ring-indigo-200/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-                        style={{ background: sc.bg, borderColor: sc.accent + '40' }}>
-                        <p className="text-lg font-bold tabular-nums" style={{ color: sc.accent }}>{count}</p>
-                        <p className="text-[11px] font-medium mt-0.5" style={{ color: sc.text }}>{stage.label}</p>
-                        <p className="text-[9px] text-slate-400 mt-0.5 font-medium">View list →</p>
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {loading ? (
-                  <div className="flex items-center justify-center h-40">
-                    <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                ) : (
-                  <div className="pipeline-board-scroll">
-                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 min-w-[720px]">
-                    {PIPELINE_STAGES.map(stage => {
-                      const stageCands = candidates.filter(c => c.pipeline_stage === stage.key)
-                      const isOver = dragOverStage === stage.key
-                      const colAccents: Record<string, { stripe: string; icon: string; border: string; badge: string; badgeText: string }> = {
-                        sourced:   { stripe: '#94A3B8', icon: '#64748B', border: '#E2E8F0', badge: '#F1F5F9', badgeText: '#475569' },
-                        applied:   { stripe: '#3B82F6', icon: '#2563EB', border: '#E2E8F0', badge: '#EFF6FF', badgeText: '#1D4ED8' },
-                        screening: { stripe: '#6366F1', icon: '#4F46E5', border: '#E2E8F0', badge: '#EEF2FF', badgeText: '#4338CA' },
-                        interview: { stripe: '#EA580C', icon: '#C2410C', border: '#E2E8F0', badge: '#FFF7ED', badgeText: '#9A3412' },
-                        offer:     { stripe: '#059669', icon: '#047857', border: '#E2E8F0', badge: '#ECFDF5', badgeText: '#065F46' },
-                        hired:     { stripe: '#16A34A', icon: '#15803D', border: '#E2E8F0', badge: '#F0FDF4', badgeText: '#166534' },
-                      }
-                      const ca = colAccents[stage.key] ?? colAccents.sourced
-                      return (
-                        <div key={stage.key} className="flex flex-col rounded-xl overflow-hidden shadow-sm bg-white"
-                          style={{ border: `1px solid ${ca.border}` }}
-                          onDragOver={e => { e.preventDefault(); setDragOverStage(stage.key) }}
-                          onDragLeave={() => setDragOverStage(null)}
-                          onDrop={e => {
-                            e.preventDefault()
-                            if (draggingId) moveStage(draggingId, stage.key)
-                            setDraggingId(null); setDragOverStage(null)
-                          }}>
-                          {/* Column header — neutral bar + accent stripe (less visual noise than full saturated headers) */}
-                          <div className="flex items-center justify-between px-3 py-2.5 bg-slate-100 border-b border-slate-200/90">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="w-1 self-stretch min-h-[1.25rem] rounded-full flex-shrink-0" style={{ background: ca.stripe }} aria-hidden />
-                              <stage.icon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: ca.icon }} />
-                              <span className="text-xs font-bold text-slate-700 tracking-wide truncate">{stage.label}</span>
-                            </div>
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full border border-slate-200 bg-white text-slate-600 tabular-nums">
-                              {stageCands.length}
-                            </span>
-                          </div>
-                          {/* Column body */}
-                          <div className={`pipeline-column-scroll p-2 space-y-2 min-h-[220px] transition-all ${
-                            isOver ? 'bg-blue-50' : 'bg-white'
-                          }`} style={isOver ? { borderTop: `2px solid ${ca.stripe}` } : {}}>
-                            {stageCands.length === 0
-                              ? <div className="flex flex-col items-center justify-center h-32 gap-2">
-                                  <div className="w-8 h-8 rounded-full flex items-center justify-center"
-                                    style={{ background: ca.badge }}>
-                                    <stage.icon className="w-4 h-4" style={{ color: ca.icon }} />
-                                  </div>
-                                  <p className={`text-center text-xs font-medium ${isOver ? 'text-blue-500' : 'text-gray-400'}`}>
-                                    {isOver ? 'Drop here' : 'Empty'}
-                                  </p>
-                                </div>
-                              : stageCands.map(c => (
-                                  <KanbanCard key={c.id} candidate={c} onMove={moveStage}
-                                    onOpen={setSelectedCandidate}
-                                    emailIsDup={duplicateEmailKeys.has((c.candidate_email ?? '').trim().toLowerCase())}
-                                    dragging={draggingId === c.id}
-                                    onDragStart={() => setDraggingId(c.id)}
-                                    onDragEnd={() => { setDraggingId(null); setDragOverStage(null) }} />
-                                ))
-                            }
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Pipeline Kanban removed — any 'pipeline' tab redirects to Candidates */}
 
             {/* ── CANDIDATES ───────────────────────────────────────────────── */}
             {activeTab === 'candidates' && (
@@ -2728,14 +2576,24 @@ export default function DashboardPage() {
                       </p>
                     </div>
                   </div>
-                  <button onClick={() => setShowNewCandidate(true)}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20">
-                    <Plus className="w-4 h-4" /> Add Candidate
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button onClick={() => setActiveTab('import')}
+                      className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 shadow-sm">
+                      <Upload className="w-4 h-4" /> Import
+                    </button>
+                    <button onClick={() => setShowNewCandidate(true)}
+                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20">
+                      <Plus className="w-4 h-4" /> Add Candidate
+                    </button>
+                  </div>
                 </div>
 
                 {/* ── Filter bar ── */}
                 <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm shadow-slate-900/5 mb-5 ring-1 ring-slate-950/[0.02]">
+                  <div className="filter-bar-label mb-3">
+                    <Filter className="w-3.5 h-3.5 text-indigo-600" aria-hidden />
+                    Filters
+                  </div>
                   <div className="flex items-center gap-3 flex-wrap">
                     {/* Search */}
                     <div className="relative flex-1 min-w-[200px]">
@@ -3175,6 +3033,9 @@ export default function DashboardPage() {
             {/* ── AI SCREEN ────────────────────────────────────────────────── */}
             {activeTab === 'screen' && (
               <div>
+              <button type="button" onClick={() => setActiveTab('coach')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← AI Recruit Copilot</button>
+              
+              <div>
                 <div className="dash-section-head">
                   <div className="flex items-start gap-4 min-w-0">
                     <div className="dash-section-icon">
@@ -3349,11 +3210,13 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
+              </div>
             )}
 
             {/* ── COMPOSE ──────────────────────────────────────────────────── */}
             {activeTab === 'compose' && (
               <div>
+                <button type="button" onClick={() => setActiveTab('coach')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← AI Recruit Copilot</button>
                 <div className="dash-section-head">
                   <div className="flex items-start gap-4 min-w-0">
                     <div className="dash-section-icon">
@@ -3789,9 +3652,9 @@ export default function DashboardPage() {
                                     className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap">
                                     <Sparkles className="w-3 h-3" /> {job.post_contents ? 'Posts' : 'JD'}
                                   </button>
-                                  <button onClick={() => { setSelectedJob(job.id); setActiveTab('pipeline') }}
+                                  <button onClick={() => { setSelectedJob(job.id); setFilterJob(job.id); setActiveTab('candidates') }}
                                     className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 font-medium whitespace-nowrap">
-                                    Pipeline <ArrowRight className="w-3 h-3" />
+                                    Candidates <ArrowRight className="w-3 h-3" />
                                   </button>
                                 </div>
                               </td>
@@ -4105,7 +3968,7 @@ export default function DashboardPage() {
             )}
 
             {/* ── SETTINGS ─────────────────────────────────────────────────── */}
-            {activeTab === 'settings' && (
+            {activeTab === 'settings' && settingsPanel === 'main' && (
               <div className="max-w-3xl">
                 <div className="dash-section-head">
                   <div className="flex items-start gap-4 min-w-0">
@@ -4115,6 +3978,22 @@ export default function DashboardPage() {
                     <div className="min-w-0">
                       <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Account Settings</h1>
                       <p className="text-sm text-slate-500 mt-0.5">Manage your profile, subscription and API access</p>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        <button type="button" onClick={() => setSettingsPanel('integrations')}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
+                          Integrations catalog
+                        </button>
+                        {canSeeGovernance && (
+                          <button type="button" onClick={() => setSettingsPanel('governance')}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
+                            Governance
+                          </button>
+                        )}
+                        <button type="button" onClick={() => setActiveTab('import')}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
+                          Import engine
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -4687,13 +4566,28 @@ export default function DashboardPage() {
             )}
 
             {/* ── JD INTELLIGENCE ─────────────────────────────────────────── */}
-            {activeTab === 'jd' && <JDTab />}
+            {activeTab === 'jd' && (
+              <div>
+                <button type="button" onClick={() => setActiveTab('coach')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← AI Recruit Copilot</button>
+                <JDTab />
+              </div>
+            )}
 
             {/* ── BOOLEAN SEARCH ──────────────────────────────────────────── */}
-            {activeTab === 'boolean' && <BooleanTab />}
+            {activeTab === 'boolean' && (
+              <div>
+                <button type="button" onClick={() => setActiveTab('coach')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← AI Recruit Copilot</button>
+                <BooleanTab />
+              </div>
+            )}
 
             {/* ── IMPORT ENGINE ───────────────────────────────────────────── */}
-            {activeTab === 'import' && <ImportTab />}
+            {activeTab === 'import' && (
+              <div>
+                <button type="button" onClick={() => setActiveTab('candidates')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← Candidates</button>
+                <ImportTab />
+              </div>
+            )}
 
             {/* ── INTEGRATION HUB ─────────────────────────────────────────── */}
             {activeTab === 'integrations' && <IntegrationsTab />}
@@ -4703,7 +4597,9 @@ export default function DashboardPage() {
 
             {/* ── SUBMISSIONS ─────────────────────────────────────────────── */}
             {activeTab === 'submissions' && (
-              <SubmissionsTab onOpenCandidate={(shortId) => {
+              <SubmissionsTab
+                isManager={isTenantAdminOrOwner}
+                onOpenCandidate={(shortId) => {
                 const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === shortId.toUpperCase())
                 if (c) setSelectedCandidate(c)
                 else { setSearchQ(shortId); setActiveTab('candidates') }
@@ -4711,14 +4607,25 @@ export default function DashboardPage() {
             )}
 
             {/* ── INTERVIEWS ────────────────────────────────────────────────── */}
-            {activeTab === 'interviews' && <InterviewsTab />}
+            {activeTab === 'interviews' && (
+              <InterviewsTab
+                isManager={isTenantAdminOrOwner}
+                onOpenCandidate={(shortId) => {
+                  const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === shortId.toUpperCase())
+                  if (c) setSelectedCandidate(c)
+                  else { setSearchQ(shortId); setActiveTab('candidates') }
+                }}
+              />
+            )}
 
             {/* ── FOLLOW-UPS ────────────────────────────────────────────────── */}
             {activeTab === 'followups' && <FollowUpsTab />}
 
             {/* ── SELECTED / OFFERS ─────────────────────────────────────────── */}
             {activeTab === 'selected' && (
-              <SelectedPipelineTab onOpenCandidate={(shortId) => {
+              <SelectedPipelineTab
+                isManager={isTenantAdminOrOwner}
+                onOpenCandidate={(shortId) => {
                 const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === shortId.toUpperCase())
                 if (c) setSelectedCandidate(c)
                 else { setSearchQ(shortId); setActiveTab('candidates') }
@@ -4728,11 +4635,24 @@ export default function DashboardPage() {
             {activeTab === 'clients' && <ClientsTab />}
             {activeTab === 'recruiters' && <RecruitersTab teamMembers={teamMembers} />}
             {activeTab === 'documents' && <DocumentsRegistryTab />}
-            {activeTab === 'reports' && <ReportsTab />}
+            {activeTab === 'reports' && <ReportsTab onNavigate={(tab) => setActiveTab(tab as DashboardTab)} />}
             {activeTab === 'hrconfig' && <HrConfigTab />}
             {activeTab === 'performance' && <MyPerformanceTab />}
             {activeTab === 'coach' && <AiRecruiterWorkspace onNavigate={(tab) => setActiveTab(tab as DashboardTab)} />}
+            {activeTab === 'settings' && settingsPanel === 'governance' && canSeeGovernance && (
+              <div>
+                <button type="button" onClick={() => setSettingsPanel('main')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← Back to Settings</button>
+                <GovernanceTab />
+              </div>
+            )}
+            {activeTab === 'settings' && settingsPanel === 'integrations' && (
+              <div>
+                <button type="button" onClick={() => setSettingsPanel('main')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← Back to Settings</button>
+                <IntegrationsTab />
+              </div>
+            )}
             {activeTab === 'governance' && <GovernanceTab />}
+            {activeTab === 'integrations' && <IntegrationsTab />}
 
             {/* ── ESS LITE ──────────────────────────────────────────────────── */}
             {activeTab === 'ess' && <ESSTab />}
@@ -5071,11 +4991,10 @@ function LightFileUploadZone({ label, accept, onText, disabled }: {
 
   return (
     <div
-      className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
-        dragging ? 'border-blue-400 bg-blue-50' :
-        parseError ? 'border-red-300 bg-red-50' :
-        fileName ? 'border-green-400 bg-green-50' :
-        'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50/40'
+      className={`srp-dropzone ${
+        dragging ? 'is-drag' :
+        parseError ? 'is-err' :
+        fileName ? 'is-ok' : ''
       } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
       onDragEnter={e => { e.preventDefault(); setDragging(true) }}
       onDragOver={e => { e.preventDefault(); setDragging(true) }}
@@ -5085,27 +5004,27 @@ function LightFileUploadZone({ label, accept, onText, disabled }: {
       <input ref={ref} type="file" accept={accept} className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) parseFile(f); if (ref.current) ref.current.value = '' }} />
       {parsing ? (
-        <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
-          <Loader2 className="w-4 h-4 animate-spin" /> Parsing file…
+        <div className="flex items-center justify-center gap-2 text-sm text-indigo-700 font-bold">
+          <Loader2 className="w-5 h-5 animate-spin" /> Parsing file…
         </div>
       ) : parseError ? (
-        <div>
-          <AlertCircle className="w-4 h-4 text-red-500 mx-auto mb-1" />
-          <p className="text-xs text-red-600">{parseError}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Click to try again</p>
-        </div>
+        <>
+          <div className="srp-dropzone-icon !bg-red-50 !text-red-600"><AlertCircle className="w-5 h-5" /></div>
+          <p className="srp-dropzone-title text-red-800">{parseError}</p>
+          <p className="srp-dropzone-sub">Click to try another PDF, DOCX, or TXT</p>
+        </>
       ) : fileName ? (
-        <div>
-          <CheckCircle className="w-4 h-4 text-green-600 mx-auto mb-1" />
-          <p className="text-xs text-green-700 font-medium">{fileName} — loaded</p>
-          <p className="text-xs text-gray-400 mt-0.5">Click to replace</p>
-        </div>
+        <>
+          <div className="srp-dropzone-icon !bg-emerald-50 !text-emerald-600"><CheckCircle className="w-5 h-5" /></div>
+          <p className="srp-dropzone-title">{fileName}</p>
+          <p className="srp-dropzone-sub">Parsed — click to replace file</p>
+        </>
       ) : (
-        <div>
-          <Upload className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-          <p className="text-xs text-gray-500">{label}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Click or drag & drop</p>
-        </div>
+        <>
+          <div className="srp-dropzone-icon"><Upload className="w-5 h-5" /></div>
+          <p className="srp-dropzone-title">{label}</p>
+          <p className="srp-dropzone-sub">PDF · DOCX · DOC · TXT — click or drag & drop</p>
+        </>
       )}
     </div>
   )
@@ -5150,8 +5069,8 @@ function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
   }
 
   return (
-    <div className={`relative border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
-      dragging ? 'border-indigo-500 bg-indigo-500/10' : parseError ? 'border-red-500/40 bg-red-500/5' : 'border-white/10 bg-white/[0.02] hover:border-white/20'
+    <div className={`srp-dropzone ${
+      dragging ? 'is-drag' : parseError ? 'is-err' : names.length > 0 ? 'is-ok' : ''
     } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
       onDragEnter={e => { e.preventDefault(); setDragging(true) }}
       onDragOver={e => { e.preventDefault(); setDragging(true) }}
@@ -5161,28 +5080,28 @@ function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
       <input ref={ref} type="file" accept={accept} multiple={multiple} className="hidden"
         onChange={e => { if (e.target.files?.length) parseFiles(e.target.files) }} />
       {parsing ? (
-        <div className="flex items-center justify-center gap-2 text-sm text-indigo-400">
-          <Loader2 className="w-4 h-4 animate-spin" /> Parsing…
+        <div className="flex items-center justify-center gap-2 text-sm text-indigo-700 font-bold">
+          <Loader2 className="w-5 h-5 animate-spin" /> Parsing…
         </div>
       ) : parseError ? (
-        <div>
-          <AlertCircle className="w-4 h-4 text-red-400 mx-auto mb-1" />
-          <p className="text-xs text-red-400">{parseError}</p>
-          <p className="text-xs text-gray-600 mt-0.5">Click to try again</p>
-        </div>
+        <>
+          <div className="srp-dropzone-icon !bg-red-50 !text-red-600"><AlertCircle className="w-5 h-5" /></div>
+          <p className="srp-dropzone-title text-red-800">{parseError}</p>
+          <p className="srp-dropzone-sub">Click to try again</p>
+        </>
       ) : names.length > 0 ? (
-        <div>
-          <CheckCircle className="w-4 h-4 text-green-400 mx-auto mb-1" />
-          <p className="text-xs text-green-400 font-medium">{names.length} file{names.length > 1 ? 's' : ''} loaded</p>
-          {names.slice(0, 3).map(n => <p key={n} className="text-xs text-gray-500 truncate">{n}</p>)}
-          {names.length > 3 && <p className="text-xs text-gray-600">+{names.length - 3} more</p>}
-        </div>
+        <>
+          <div className="srp-dropzone-icon !bg-emerald-50 !text-emerald-600"><CheckCircle className="w-5 h-5" /></div>
+          <p className="srp-dropzone-title">{names.length} file{names.length > 1 ? 's' : ''} loaded</p>
+          {names.slice(0, 3).map(n => <p key={n} className="srp-dropzone-sub truncate max-w-full">{n}</p>)}
+          {names.length > 3 && <p className="srp-dropzone-sub">+{names.length - 3} more</p>}
+        </>
       ) : (
-        <div>
-          <Upload className="w-5 h-5 text-gray-600 mx-auto mb-1" />
-          <p className="text-xs text-gray-500">{label}</p>
-          <p className="text-xs text-gray-700 mt-0.5">Click or drag & drop</p>
-        </div>
+        <>
+          <div className="srp-dropzone-icon"><Upload className="w-5 h-5" /></div>
+          <p className="srp-dropzone-title">{label}</p>
+          <p className="srp-dropzone-sub">Click or drag & drop — PDF · DOCX · TXT</p>
+        </>
       )}
     </div>
   )
@@ -5689,131 +5608,7 @@ function CandidateScreeningDetail({ data: r }: { data: ScreenResult }) {
   )
 }
 
-// ── KanbanCard ────────────────────────────────────────────────────────────────
-function KanbanCard({ candidate: c, onMove, onOpen, dragging, onDragStart, onDragEnd, emailIsDup }: {
-  candidate: Candidate; onMove: (id: string, stage: string) => void
-  onOpen: (c: Candidate) => void
-  dragging: boolean; onDragStart: () => void; onDragEnd: () => void
-  /** Same email exists on more than one resume row in this workspace (tenant-scoped). */
-  emailIsDup?: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const { dossierPercent, requiredMissing, recommendedMissing } = getCandidateDossierStatus(c)
-  const dossierTone = requiredMissing.length ? 'text-red-600' : recommendedMissing.length ? 'text-amber-600' : 'text-emerald-600'
-  const p = c.candidate_profile ?? {}
-  const currentRole = dossierStr(p.current_title) || dossierStr(p.current_role) || null
-  const currentCompany = dossierStr(p.current_company) || null
-  const location = dossierStr(p.current_location) || dossierStr(p.location) || null
-  const experience = dossierStr(p.total_experience) || dossierStr(p.experience) || null
-  const notice = dossierStr(p.notice_period) || null
-  const expectedSalary = dossierStr(p.salary_expectation) || dossierStr(p.expected_salary) || null
-  const currentSalary = dossierStr(p.current_salary) || null
-  const recruiter = c.uploaded_by?.name || c.uploaded_by?.email || null
-  const lastActivity = c.last_contacted_at || c.updated_at || c.created_at
-
-  return (
-    <div draggable
-      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart() }}
-      onDragEnd={onDragEnd}
-      className={`relative bg-white border rounded-xl p-2.5 cursor-grab active:cursor-grabbing transition-all select-none shadow-sm ${
-        dragging ? 'opacity-40 border-indigo-400 scale-95 shadow-md' : 'border-gray-200 hover:border-indigo-300 hover:shadow-md'
-      }`}>
-      {emailIsDup && (
-        <span className="absolute top-1 left-1 z-[1] rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-amber-900" title="Duplicate email — another record exists in this workspace">
-          Dup
-        </span>
-      )}
-      <div className="mb-1.5 pr-12">
-        <ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} />
-      </div>
-      <button type="button" title="Dossier completeness — click card to open details"
-        onClick={e => { e.stopPropagation(); onOpen(c) }}
-        className={`absolute top-1.5 right-1.5 flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-bold border ${
-          requiredMissing.length ? 'border-red-200 bg-red-50' : recommendedMissing.length ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'
-        } ${dossierTone}`}>
-        {dossierPercent}%
-        {(requiredMissing.length > 0 || recommendedMissing.length > 0) && (
-          <AlertCircle className="w-2.5 h-2.5" />
-        )}
-      </button>
-      <div className="flex items-start justify-between gap-1 pr-10">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-7 h-7 rounded-full bg-[var(--color-primary)] flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white">
-            {c.candidate_name?.[0] ?? '?'}
-          </div>
-          <div className="min-w-0 cursor-pointer" onClick={e => { e.stopPropagation(); onOpen(c) }}>
-            <p className="text-xs font-bold text-[var(--dash-heading)] truncate hover:text-[var(--color-primary)]">{c.candidate_name}</p>
-            {(currentRole || currentCompany) && (
-              <p className="text-[10px] font-medium text-[var(--dash-text-2)] truncate">
-                {[currentRole, currentCompany].filter(Boolean).join(' · ')}
-              </p>
-            )}
-            {!currentRole && !currentCompany && (
-              <p className="text-[10px] text-gray-500 truncate">{c.candidate_email}</p>
-            )}
-          </div>
-        </div>
-        <button onClick={() => setOpen(v => !v)} className="flex-shrink-0 text-gray-400 hover:text-gray-600">
-          <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
-        </button>
-      </div>
-
-      <div className="mt-1.5 flex flex-wrap gap-1 text-[9px] font-semibold text-[var(--dash-text-2)]">
-        {experience && <span className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">{experience}</span>}
-        {location && <span className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100 truncate max-w-[7rem]">{location}</span>}
-        {notice && <span className="px-1.5 py-0.5 rounded bg-slate-50 border border-slate-100">NP {notice}</span>}
-      </div>
-
-      <div className="mt-1.5 flex items-center justify-between gap-1">
-        <MatchBadge category={c.match_category} score={c.ai_score} />
-        <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400 capitalize">{c.pipeline_stage}</span>
-      </div>
-
-      {(expectedSalary || currentSalary || recruiter) && (
-        <div className="mt-1.5 space-y-0.5 text-[9px] font-medium text-[var(--dash-text-2)]">
-          {(expectedSalary || currentSalary) && (
-            <p className="truncate">
-              {currentSalary ? `Cur ${currentSalary}` : ''}
-              {currentSalary && expectedSalary ? ' · ' : ''}
-              {expectedSalary ? `Exp ${expectedSalary}` : ''}
-            </p>
-          )}
-          {recruiter && <p className="truncate">Recruiter: {recruiter}</p>}
-        </div>
-      )}
-
-      <div className="mt-2 flex flex-wrap gap-1" onClick={e => e.stopPropagation()}>
-        <button type="button" onClick={() => onOpen(c)} className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100">View</button>
-        <button type="button" onClick={() => setOpen(true)} className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-700 bg-white hover:bg-slate-50">Move</button>
-        <button type="button" onClick={() => onOpen(c)} className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-teal-200 text-teal-800 bg-teal-50 hover:bg-teal-100">Notes</button>
-      </div>
-
-      {open && (
-        <div className="mt-2 pt-2 border-t border-gray-100">
-          <p className="text-[10px] text-gray-500 mb-1 font-bold">Move stage:</p>
-          <div className="flex flex-wrap gap-1">
-            {PIPELINE_STAGES.filter(s => s.key !== c.pipeline_stage).map(s => {
-              const sl = STAGE_LIGHT[s.key] ?? STAGE_LIGHT.sourced
-              return (
-                <button key={s.key} onClick={() => onMove(c.id, s.key)}
-                  className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${sl.bg} ${sl.text} ${sl.border} hover:opacity-90`}>
-                  {s.label}
-                </button>
-              )
-            })}
-          </div>
-          {c.ai_summary && <p className="text-[10px] text-gray-600 mt-1.5 line-clamp-2">{c.ai_summary}</p>}
-          <div className="mt-1 flex flex-wrap gap-1">
-            {(c.ai_skills ?? []).slice(0, 4).map(s => (
-              <span key={s} className="text-[10px] bg-gray-100 text-gray-600 px-1 py-0.5 rounded font-medium">{s}</span>
-            ))}
-          </div>
-          <p className="text-[10px] text-gray-400 mt-1.5 font-mono">Last: {fmtDate(lastActivity)}</p>
-        </div>
-      )}
-    </div>
-  )
-}
+// KanbanCard removed in Phase 3.2 (Pipeline Kanban deleted)
 
 // ── JobDetailDrawer ───────────────────────────────────────────────────────────
 function JobDetailDrawer({ job, candidates, jobs, onClose, onOpenCandidate, onStageChange, onJobStatusChange, onOpenPosts }: {

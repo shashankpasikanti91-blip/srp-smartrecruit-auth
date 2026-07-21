@@ -47,6 +47,8 @@ const emptyForm = (): CandForm => ({
 })
 
 const inputCls = 'w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white'
+import { candidateFieldLabel } from '@/lib/candidateFieldLabels'
+
 const labelCls = 'text-xs font-extrabold text-slate-800 mb-1 flex items-center gap-2'
 
 function ConfBadge({ c }: { c?: Confidence }) {
@@ -136,18 +138,23 @@ export function AddCandidateFlow({
   const runParse = async (opts: { file?: File; text?: string; improve?: boolean }) => {
     setLoading(true)
     setError(null)
+    const ac = new AbortController()
+    // Fast hybrid path should finish in seconds; AI improve needs longer
+    const ms = opts.improve ? 90_000 : 45_000
+    const timer = setTimeout(() => ac.abort(), ms)
     try {
       let res: Response
       if (opts.file) {
         const fd = new FormData()
         fd.append('file', opts.file)
         if (opts.improve) fd.append('improve_with_ai', '1')
-        res = await fetch('/api/candidates/parse-profile', { method: 'POST', body: fd })
+        res = await fetch('/api/candidates/parse-profile', { method: 'POST', body: fd, signal: ac.signal })
       } else {
         res = await fetch('/api/candidates/parse-profile', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: opts.text, improve_with_ai: opts.improve }),
+          signal: ac.signal,
         })
       }
       const data = await res.json()
@@ -156,9 +163,15 @@ export function AddCandidateFlow({
       setWarnings(data.fields?.warnings ?? [])
       setReviewMsg(data.message ?? 'Fields extracted — review below.')
       setPath('review')
-    } catch {
-      setError('Network error')
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        setError('Parse timed out. Try a shorter PDF/DOCX, or paste resume text instead.')
+        return
+      }
+      const msg = e instanceof Error ? e.message : 'Network error'
+      setError(`Parse failed: ${msg}. Try PDF/DOCX/TXT or paste text instead.`)
     } finally {
+      clearTimeout(timer)
       setLoading(false)
     }
   }
@@ -273,17 +286,25 @@ export function AddCandidateFlow({
           )}
 
           {path === 'upload' && (
-            <div className="space-y-4 max-w-xl mx-auto">
+            <div className="space-y-4 max-w-2xl mx-auto w-full">
               <button type="button" onClick={() => setPath('chooser')} className="text-xs font-bold text-indigo-600 inline-flex items-center gap-1"><ArrowLeft className="w-3.5 h-3.5" /> Back</button>
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-emerald-300 rounded-2xl bg-emerald-50/30 py-14 cursor-pointer hover:bg-emerald-50">
+              <label className={`srp-dropzone ${loading ? 'is-drag' : ''} ${error ? 'is-err' : ''} ${file && !loading && !error ? 'is-ok' : ''}`}>
                 <input type="file" accept=".pdf,.doc,.docx,.txt" className="hidden"
                   onChange={e => {
                     const f = e.target.files?.[0]
                     if (f) { setFile(f); runParse({ file: f }) }
                   }} />
-                {loading ? <Loader2 className="w-8 h-8 animate-spin text-emerald-600" /> : <Upload className="w-8 h-8 text-emerald-600 mb-2" />}
-                <p className="text-sm font-extrabold text-slate-800 mt-2">{file ? file.name : 'Drop PDF / DOC / DOCX here'}</p>
-                <p className="text-xs font-medium text-slate-500 mt-1">Hybrid parser extracts fields — review before save</p>
+                {loading ? (
+                  <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                ) : (
+                  <div className="srp-dropzone-icon"><Upload className="w-5 h-5" /></div>
+                )}
+                <p className="srp-dropzone-title">{file ? file.name : 'Drop resume PDF / DOC / DOCX here'}</p>
+                <p className="srp-dropzone-sub">
+                  {loading
+                    ? 'Extracting name, email, phone, skills, experience…'
+                    : 'Hybrid parser extracts fields — you review before save'}
+                </p>
               </label>
             </div>
           )}
@@ -385,11 +406,11 @@ export function AddCandidateFlow({
                 <p className="text-xs font-extrabold uppercase tracking-widest text-slate-800">Identity & Personal</p>
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div>
-                    <label className={labelCls}>IC Number (Malaysian) <ConfBadge c={conf.nric} /></label>
+                    <label className={labelCls}>{candidateFieldLabel('nric')} <ConfBadge c={conf.nric} /></label>
                     <input className={inputCls} value={form.nric} onChange={e => setF('nric', e.target.value)} placeholder="901231-10-5678" />
                   </div>
                   <div>
-                    <label className={labelCls}>Passport No. <ConfBadge c={conf.passport_number} /></label>
+                    <label className={labelCls}>{candidateFieldLabel('passport_number')} <ConfBadge c={conf.passport_number} /></label>
                     <input className={inputCls} value={form.passport_number} onChange={e => setF('passport_number', e.target.value)} />
                   </div>
                   <div>

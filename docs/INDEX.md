@@ -6,7 +6,8 @@ Clean, structured docs for operators and developers. Prefer these over ad-hoc no
 |----------|---------|
 | [README.md](../README.md) | Product overview, local setup, env vars |
 | [OPERATIONS.md](./OPERATIONS.md) | Backups, tenant safety, deploy runbook, login preservation |
-| [PHASE_3_1_LIVE_UAT.md](./PHASE_3_1_LIVE_UAT.md) | Live UAT scenarios (MY/IN/SG + drop branches + AI + UI + perf + security) |
+| [PHASE_3_2_AUDIT.md](./PHASE_3_2_AUDIT.md) | Phase 3.2 enterprise audit (nav, reports, branding) |
+| [OPS_LISTS_TEKGEN.md](./OPS_LISTS_TEKGEN.md) | Tekgen-style ops tables: ID clarity, columns, docs upload, exports |
 | [CHANGELOG.md](./CHANGELOG.md) | What changed from RC1 → Phase 3.1 readiness |
 | [../PHASE2_AUDIT.md](../PHASE2_AUDIT.md) | Phase 2 / 2.5 / 3 capability audit |
 | [../VALIDATION_RC1.md](../VALIDATION_RC1.md) | RC1 go/no-go scorecard |

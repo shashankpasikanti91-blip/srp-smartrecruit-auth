@@ -69,11 +69,19 @@ html {
 }
 
 body {
-  font-family: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
+  /* Professional desktop stack: Calibri on Windows, clean fallbacks elsewhere */
+  font-family: Calibri, Candara, 'Segoe UI', 'Source Sans 3', 'Helvetica Neue', Arial, sans-serif;
   background-color: var(--dash-bg);
   color: var(--dash-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+h1, h2, h3, h4, .dash-page-title, .dash-section-head h1 {
+  font-family: Calibri, Candara, Georgia, 'Times New Roman', Times, serif;
+  letter-spacing: -0.01em;
 }
 
 /* Dashboard: subtle scale on wide screens only — stacks with html font-size for comfortable 100% zoom */
@@ -491,7 +499,13 @@ select.appearance-none:disabled {
 .modal-dark textarea,
 .modal-dark select { color-scheme: light; }
 
-/* ── Gradient text — SRP 4-color brand gradient ────── */
+/* Override decorative display fonts that fought Calibri */
+.dashboard-main,
+.dashboard-root,
+.ess-panel,
+button, input, select, textarea {
+  font-family: Calibri, Candara, 'Segoe UI', 'Source Sans 3', Arial, sans-serif;
+}
 .gradient-text {
   background: linear-gradient(135deg, #f655c1 0%, #995af2 40%, #427cf0 70%, #00d4ff 100%);
   -webkit-background-clip: text;
@@ -1115,13 +1129,89 @@ button.btn-primary {
 }
 .dashboard-main select,
 .form-input select,
-select.form-input {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%33475569' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  padding-right: 2rem;
+select.form-input,
+select.appearance-none,
+.dashboard-main select.appearance-none {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-color: #f8fafc !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.55rem center !important;
+  background-size: 12px !important;
+  padding-right: 1.85rem !important;
+  cursor: pointer;
 }
+
+/* Filter bar label with funnel icon */
+.filter-bar-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+}
+
+/* Professional upload dropzone */
+.srp-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 160px;
+  padding: 1.75rem 1.25rem;
+  border: 2px dashed #94a3b8;
+  border-radius: 1rem;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 8px 24px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  text-align: center;
+}
+.srp-dropzone:hover,
+.srp-dropzone.is-drag {
+  border-color: #4f46e5;
+  background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%);
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+}
+.srp-dropzone.is-ok {
+  border-color: #10b981;
+  background: linear-gradient(180deg, #ecfdf5 0%, #f8fafc 100%);
+}
+.srp-dropzone.is-err {
+  border-color: #f87171;
+  background: linear-gradient(180deg, #fef2f2 0%, #f8fafc 100%);
+}
+.srp-dropzone-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2ff;
+  color: #4f46e5;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
+}
+.srp-dropzone-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+.srp-dropzone-sub {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  max-width: 28rem;
+}
+
 .skeleton-block {
   background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
   background-size: 200% 100%;
@@ -1132,6 +1222,38 @@ select.form-input {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+@keyframes srp-brand-spin {
+  to { transform: rotate(360deg); }
+}
+.srp-brand-spin {
+  transform-origin: 32px 32px;
+  animation: srp-brand-spin 1.4s linear infinite;
+}
+.srp-splash {
+  animation: srp-splash-in 0.45s ease-out;
+}
+@keyframes srp-splash-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.srp-splash-glow {
+  background: radial-gradient(circle, rgba(59,91,219,0.35), transparent 70%);
+  animation: srp-glow-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes srp-glow-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.15); }
+}
+@media (prefers-color-scheme: dark) {
+  .srp-splash .text-slate-900 { color: #f8fafc; }
+}
+
+.dash-tab-fade {
+  animation: srp-splash-in 0.28s ease-out;
+}
+
 .pagination-bar {
   display: flex;
   align-items: center;

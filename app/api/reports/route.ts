@@ -256,6 +256,70 @@ async function buildReport(
     }
   }
 
+  if (type === 'jobs') {
+    try {
+      const { rows } = await pool.query<{
+        short_id: string; title: string; company: string; status: string; location: string; type: string; created_at: string
+      }>(
+        `SELECT short_id, title, company, status, location, type, created_at::text
+         FROM job_posts WHERE tenant_id = $1
+           AND ($2::int = 0 OR created_at >= NOW() - ($2 || ' days')::interval)
+         ORDER BY created_at DESC LIMIT 5000`,
+        [tenantId, days]
+      )
+      return {
+        filename: 'job-report',
+        headers: ['JOB-ID', 'Title', 'Company', 'Status', 'Location', 'Type', 'Created'],
+        rows: rows.map(r => [r.short_id, r.title, r.company, r.status, r.location ?? '', r.type ?? '', r.created_at]),
+      }
+    } catch {
+      return { filename: 'job-report', headers: ['JOB-ID', 'Title', 'Company', 'Status', 'Location', 'Type', 'Created'], rows: [] }
+    }
+  }
+
+  if (type === 'aging') {
+    try {
+      const { rows } = await pool.query<{ bucket: string; n: string }>(
+        `SELECT CASE
+           WHEN EXTRACT(DAY FROM NOW() - r.created_at) < 7 THEN '0-7d'
+           WHEN EXTRACT(DAY FROM NOW() - r.created_at) < 14 THEN '7-14d'
+           WHEN EXTRACT(DAY FROM NOW() - r.created_at) < 30 THEN '14-30d'
+           ELSE '30d+'
+         END AS bucket, COUNT(*)::text AS n
+         FROM resumes r
+         WHERE r.tenant_id = $1
+           AND COALESCE(r.pipeline_stage,'sourced') NOT IN ('hired','rejected')
+         GROUP BY 1 ORDER BY 1`,
+        [tenantId]
+      )
+      return {
+        filename: 'aging-analysis',
+        headers: ['Bucket', 'Candidates'],
+        rows: rows.map(r => [r.bucket, r.n]),
+      }
+    } catch {
+      return { filename: 'aging-analysis', headers: ['Bucket', 'Candidates'], rows: [] }
+    }
+  }
+
+  if (type === 'productivity') {
+    const kpi = await computeRecruiterKpi({ tenantId, userId, days })
+    return {
+      filename: 'recruiter-productivity',
+      headers: ['Metric', 'Value'],
+      rows: [
+        ['Candidates Added', String(kpi.candidates_added)],
+        ['AI Screened', String(kpi.candidates_screened)],
+        ['Submissions', String(kpi.submissions)],
+        ['Interviews Scheduled', String(kpi.interviews_scheduled)],
+        ['Interviews Completed', String(kpi.interviews_completed)],
+        ['Comms Sent', String(kpi.comms_sent)],
+        ['Follow-ups Overdue', String(kpi.follow_ups_overdue)],
+        ['Period Days', String(days)],
+      ],
+    }
+  }
+
   return { error: 'Invalid report type or forbidden', status: 400 }
 }
 

@@ -21,6 +21,7 @@ import { sendEmailFromTenant,
          getEmailConnections,
          disconnectEmailProvider }         from '@/lib/email-oauth'
 import { logAudit }                        from '@/lib/audit'
+import { insertCommLog }                   from '@/lib/commLog'
 
 export async function POST(req: NextRequest) {
   const ctx = await requireTenant(req)
@@ -33,6 +34,9 @@ export async function POST(req: NextRequest) {
     html:     string
     text?:    string
     replyTo?: string
+    resume_id?: string
+    job_post_id?: string
+    client_id?: string
   }
 
   try {
@@ -54,6 +58,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const plain = body.text || body.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+
   try {
     const result = await sendEmailFromTenant(ctx.tenantId, ctx.userId, {
       to:      body.to,
@@ -62,6 +68,20 @@ export async function POST(req: NextRequest) {
       html:    body.html,
       text:    body.text,
       replyTo: body.replyTo,
+    })
+
+    await insertCommLog({
+      userId: ctx.userId,
+      tenantId: ctx.tenantId,
+      channel: 'email',
+      to: toList.join(', '),
+      subject: body.subject,
+      body: plain,
+      status: 'sent',
+      deliveryStatus: 'sent',
+      resumeId: body.resume_id ?? null,
+      jobPostId: body.job_post_id ?? null,
+      clientId: body.client_id ?? null,
     })
 
     await logAudit({
@@ -81,6 +101,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, sent_via: result.sent_via, from: result.from })
   } catch (err: unknown) {
     console.error('[email/send]', err)
+    await insertCommLog({
+      userId: ctx.userId,
+      tenantId: ctx.tenantId,
+      channel: 'email',
+      to: toList.join(', '),
+      subject: body.subject,
+      body: plain,
+      status: 'failed',
+      deliveryStatus: 'failed',
+      errorMsg: err instanceof Error ? err.message : 'send failed',
+      resumeId: body.resume_id ?? null,
+      jobPostId: body.job_post_id ?? null,
+      clientId: body.client_id ?? null,
+    }).catch(() => null)
     return NextResponse.json({ error: 'Could not send email. Please try again.' }, { status: 502 })
   }
 }

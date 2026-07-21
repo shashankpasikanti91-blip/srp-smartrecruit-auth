@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { Zap, Eye, EyeOff, AlertCircle, CheckCircle2, Loader2, Shield, Users } from 'lucide-react'
+import { BrandMark } from '@/components/ui/BrandMark'
 
 type Strength = 'weak' | 'fair' | 'good' | 'strong'
 
@@ -113,11 +114,9 @@ function SignupForm() {
       {/* Nav */}
       <div className="relative z-10 p-6">
         <Link href="/" className="inline-flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-            <Zap className="w-4 h-4 text-white" />
-          </div>
+          <BrandMark size={32} />
           <span className="font-bold text-white text-base tracking-tight">
-            SRP <span className="gradient-text">Recruit AI Labs</span>
+            SRP <span className="gradient-text">SmartRecruit</span>
           </span>
         </Link>
       </div>
@@ -128,9 +127,7 @@ function SignupForm() {
           <div className="glass-card-dark rounded-2xl p-8 shadow-2xl border border-white/10">
 
             <div className="flex justify-center mb-5">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-                <Zap className="w-7 h-7 text-white" />
-              </div>
+              <BrandMark size={56} animated />
             </div>
 
             {/* Invite banner */}
@@ -155,7 +152,7 @@ function SignupForm() {
                 {inviteToken ? 'Complete registration' : 'Create account'}
               </h1>
               <p className="mt-1.5 text-sm text-gray-500">
-                {inviteToken ? 'Accept your team invite' : 'Join SRP Recruit AI Labs'}
+                {inviteToken ? 'Accept your team invite' : 'Join SRP SmartRecruit'}
               </p>
             </div>
 

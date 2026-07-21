@@ -27,7 +27,11 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
   const [templates, setTemplates] = useState<Record<string, unknown>[]>([])
   const [logs, setLogs] = useState<CommLog[]>([])
   const [loading, setLoading] = useState(false)
+  const [listError, setListError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [candOptions, setCandOptions] = useState<{ id: string; label: string; email?: string }[]>([])
+  const [jobOptions, setJobOptions] = useState<{ id: string; label: string }[]>([])
+  const [clientOptions, setClientOptions] = useState<{ id: string; label: string }[]>([])
 
   const [filterStatus, setFilterStatus] = useState('')
   const [filterResume, setFilterResume] = useState('')
@@ -89,9 +93,39 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
     setTemplates(tl.templates ?? [])
   }, [])
 
+  const loadEntityOptions = useCallback(async () => {
+    try {
+      const [cRes, jRes, clRes] = await Promise.all([
+        fetch('/api/candidates?limit=100'),
+        fetch('/api/jobs'),
+        fetch('/api/clients').catch(() => null),
+      ])
+      const cData = cRes.ok ? await cRes.json() : {}
+      const jData = jRes.ok ? await jRes.json() : {}
+      const clData = clRes && clRes.ok ? await clRes.json() : {}
+      const cands = Array.isArray(cData.candidates) ? cData.candidates : Array.isArray(cData) ? cData : []
+      const jobs = Array.isArray(jData.jobs) ? jData.jobs : Array.isArray(jData) ? jData : []
+      const clients = Array.isArray(clData.clients) ? clData.clients : Array.isArray(clData) ? clData : []
+      setCandOptions(cands.slice(0, 80).map((c: { id: string; short_id?: string; candidate_name?: string; candidate_email?: string }) => ({
+        id: c.id,
+        label: `${c.short_id ?? ''} ${c.candidate_name ?? 'Candidate'}`.trim(),
+        email: c.candidate_email,
+      })))
+      setJobOptions(jobs.slice(0, 80).map((j: { id: string; short_id?: string; title?: string }) => ({
+        id: j.id,
+        label: `${j.short_id ?? ''} ${j.title ?? 'Job'}`.trim(),
+      })))
+      setClientOptions(clients.slice(0, 80).map((c: { id: string; name?: string; company_name?: string }) => ({
+        id: c.id,
+        label: c.name || c.company_name || c.id.slice(0, 8),
+      })))
+    } catch { /* optional */ }
+  }, [])
+
   const loadInbox = useCallback(async () => {
     if (section !== 'email' && section !== 'whatsapp') return
     setLoading(true)
+    setListError(null)
     try {
       const q = new URLSearchParams({ type: 'logs', limit: '100' })
       q.set('channel', section)
@@ -103,14 +137,22 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
       if (filterTo) q.set('date_to', filterTo)
       const res = await fetch(`/api/comm?${q}`)
       const data = await res.json()
+      if (!res.ok) {
+        setListError(data.error ?? `Failed to load messages (${res.status})`)
+        setLogs([])
+        return
+      }
       setLogs(data.logs ?? [])
       if (!selectedId && data.logs?.[0]?.id) setSelectedId(data.logs[0].id)
+    } catch (e) {
+      setListError(e instanceof Error ? e.message : 'Network error loading messages')
+      setLogs([])
     } finally {
       setLoading(false)
     }
   }, [section, filterStatus, filterResume, filterJob, filterClient, filterFrom, filterTo, selectedId])
 
-  useEffect(() => { loadMeta() }, [loadMeta])
+  useEffect(() => { loadMeta(); loadEntityOptions() }, [loadMeta, loadEntityOptions])
   useEffect(() => { loadInbox() }, [loadInbox])
 
   const selected = useMemo(() => logs.find(l => l.id === selectedId) ?? null, [logs, selectedId])
@@ -176,8 +218,22 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
     setSending(false)
     setSendResult(res.ok ? '✓ Message sent!' : `Error: ${data.error}`)
     if (res.ok) {
-      if (section === 'email' || section === 'whatsapp') loadInbox()
-      else loadMeta()
+      setTo('')
+      setSubject('')
+      setMessage('')
+      const nextSection = channel === 'whatsapp' || channel === 'telegram' ? 'whatsapp' : 'email'
+      setSection(nextSection)
+      // Refresh list for the channel we just used (section state may not have flushed yet)
+      try {
+        const q = new URLSearchParams({ type: 'logs', limit: '100', channel: nextSection })
+        const listRes = await fetch(`/api/comm?${q}`)
+        const listData = await listRes.json()
+        if (listRes.ok) {
+          setLogs(listData.logs ?? [])
+          if (listData.logs?.[0]?.id) setSelectedId(String(listData.logs[0].id))
+        }
+      } catch { /* ignore */ }
+      await loadMeta()
     }
   }
 
@@ -209,10 +265,8 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
             <Send className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
-              Communication Hub
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">Email & WhatsApp inboxes, templates, delivery pipeline, and providers</p>
+            <h1 className="page-title text-xl">Communications</h1>
+            <p className="text-sm text-slate-500 mt-0.5 font-medium">Outbound email & WhatsApp log, templates, delivery status, and providers</p>
           </div>
         </div>
       </div>
@@ -266,6 +320,13 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
             <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} className="px-3 py-2 rounded-lg border border-gray-300 text-sm" />
           </div>
 
+          {listError && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-800">
+              {listError}
+              <button type="button" onClick={loadInbox} className="ml-3 underline font-extrabold">Retry</button>
+            </div>
+          )}
+
           {loading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-indigo-500" /></div>
           ) : (
@@ -273,13 +334,28 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
               <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col">
                 <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                   <h2 className="text-sm font-extrabold text-slate-800">{inboxTitle}</h2>
-                  <button type="button" onClick={loadInbox} className="text-xs text-indigo-600 inline-flex items-center gap-1">
+                  <button type="button" onClick={loadInbox} className="text-xs text-indigo-600 inline-flex items-center gap-1 font-bold">
                     <RefreshCw className="w-3 h-3" /> Refresh
                   </button>
                 </div>
                 <div className="divide-y divide-slate-100 overflow-y-auto max-h-[520px]">
                   {logs.length === 0 ? (
-                    <p className="text-sm text-slate-400 text-center py-10">No messages yet</p>
+                    <div className="px-5 py-10 text-center space-y-3">
+                      <p className="text-sm font-extrabold text-slate-800">
+                        {listError ? 'Could not load messages' : providers.length === 0 ? 'No provider configured' : (filterStatus || filterResume || filterJob || filterClient) ? 'No messages match filters' : 'No messages sent yet'}
+                      </p>
+                      <p className="text-xs font-medium text-slate-500 max-w-xs mx-auto">
+                        {providers.length === 0
+                          ? 'Configure SMTP, SendGrid, or WhatsApp under Providers, then send your first message.'
+                          : 'Outbound messages appear here after you send from this hub (or Candidate 360).'}
+                      </p>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {providers.length === 0 && (
+                          <button type="button" onClick={() => setSection('providers')} className="px-3 py-1.5 rounded-lg text-xs font-extrabold bg-indigo-600 text-white">Configure provider</button>
+                        )}
+                        <button type="button" onClick={() => setSection('send')} className="px-3 py-1.5 rounded-lg text-xs font-extrabold border border-indigo-200 text-indigo-800 bg-indigo-50">Send message</button>
+                      </div>
+                    </div>
                   ) : logs.map(log => (
                     <button
                       key={String(log.id)}
@@ -404,9 +480,32 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
             <textarea value={message} onChange={e => setMessage(e.target.value)} rows={5} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm resize-none" />
           </div>
           <div className="grid sm:grid-cols-3 gap-2">
-            <input value={linkResume} onChange={e => setLinkResume(e.target.value)} placeholder="Candidate UUID" className="px-3 py-2 rounded-lg border border-gray-300 text-sm" />
-            <input value={linkJob} onChange={e => setLinkJob(e.target.value)} placeholder="Job UUID" className="px-3 py-2 rounded-lg border border-gray-300 text-sm" />
-            <input value={linkClient} onChange={e => setLinkClient(e.target.value)} placeholder="Client UUID" className="px-3 py-2 rounded-lg border border-gray-300 text-sm" />
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Candidate</label>
+              <select value={linkResume} onChange={e => {
+                const id = e.target.value
+                setLinkResume(id)
+                const c = candOptions.find(x => x.id === id)
+                if (c?.email && !to) setTo(c.email)
+              }} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm">
+                <option value="">— Optional —</option>
+                {candOptions.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Job</label>
+              <select value={linkJob} onChange={e => setLinkJob(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm">
+                <option value="">— Optional —</option>
+                {jobOptions.map(j => <option key={j.id} value={j.id}>{j.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Client</label>
+              <select value={linkClient} onChange={e => setLinkClient(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm">
+                <option value="">— Optional —</option>
+                {clientOptions.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            </div>
           </div>
           {sendResult && (
             <div className={`p-2 rounded-lg text-xs ${sendResult.startsWith('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>

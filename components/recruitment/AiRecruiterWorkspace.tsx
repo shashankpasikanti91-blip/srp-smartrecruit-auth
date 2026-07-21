@@ -124,7 +124,7 @@ export function AiRecruiterWorkspace({ onNavigate }: { onNavigate?: (tab: string
           id: newId(),
           role: 'assistant',
           at: Date.now(),
-          content: 'Welcome to AI Recruiter Workspace.\n\nAsk about pipeline priorities, candidate comparison, JD writing, or messaging — grounded on your tenant data.',
+          content: 'Welcome to AI Recruit Copilot.\n\nAsk about pipeline priorities, candidate comparison, JD writing, or messaging — grounded on your tenant data.\n\nUse the mode chips above for AI Screen, Compose, JD Writer, and Boolean search.',
         }],
       }
       sessions = [welcome]
@@ -309,11 +309,36 @@ export function AiRecruiterWorkspace({ onNavigate }: { onNavigate?: (tab: string
         <div className="flex items-start gap-4">
           <div className="dash-section-icon"><Sparkles className="w-5 h-5 text-white" /></div>
           <div>
-            <h1 className="page-title text-xl">AI Recruiter Workspace</h1>
-            <p className="desc-text mt-1">Three-column copilot with context, sessions, and actionable insights.</p>
+            <h1 className="page-title text-xl">AI Recruit Copilot</h1>
+            <p className="desc-text mt-1">Chat, screen, compose, JD, and boolean tools in one place.</p>
           </div>
         </div>
       </div>
+
+      {onNavigate && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {([
+            { id: 'coach', label: 'Chat' },
+            { id: 'screen', label: 'AI Screen' },
+            { id: 'compose', label: 'Compose' },
+            { id: 'jd', label: 'JD Writer' },
+            { id: 'boolean', label: 'Boolean' },
+          ] as const).map(m => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => onNavigate(m.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold border transition-colors ${
+                m.id === 'coach'
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[14rem_1fr_18rem] gap-0 rounded-2xl border border-slate-200 bg-white overflow-hidden min-h-[560px] shadow-sm">
         {/* Left sidebar */}
