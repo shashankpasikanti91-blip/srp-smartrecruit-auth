@@ -170,8 +170,8 @@ Live LinkedIn/SMS providers · Vector embeddings · Full BPMN · Auto-send of ag
 
 
 ### What was enhanced
-- **New Job** → TekGen-style `NewJobModal`: client required, paste/upload JD, **Parse with AI** / **Use text without AI**, delivery & timeline, priority, SLA, skills chips, headcount, currency MYR, assignment checkbox
-- **Add Candidate** → TekGen-style `AddCandidateFlow`: 3 paths (Upload parse / Paste parse / Manual), hybrid parser + confidence HIGH/MEDIUM badges, review banner, Improve with AI, Save draft / Save reviewed
+- **New Job** → `NewJobModal`: client required, paste/upload JD, **Parse with AI** / **Use text without AI**, delivery & timeline, priority, SLA, skills chips, headcount, currency MYR, assignment checkbox
+- **Add Candidate** → `AddCandidateFlow`: 3 paths (Upload parse / Paste parse / Manual), hybrid parser + confidence HIGH/MEDIUM badges, review banner, Improve with AI, Save draft / Save reviewed
 - APIs: `/api/jobs/parse`, `/api/candidates/parse-profile`
 - Migration `v24_job_candidate_parse` for job enrichment columns
 - `createJobPost` now persists department, experience, client, priority, SLA, raw JD, skills

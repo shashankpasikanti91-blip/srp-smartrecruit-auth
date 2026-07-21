@@ -1,4 +1,4 @@
-# Ops Lists — Tekgen-style tables (Phase 3.2+)
+# Ops Lists — SRP SmartRecruit (Phase 3.2+)
 
 Clear entity IDs + dense ops tables for **Submissions**, **Interviews**, and **Offer & Onboarding**.
 
@@ -13,7 +13,7 @@ Clear entity IDs + dense ops tables for **Submissions**, **Interviews**, and **O
 
 Shared UI: `components/ui/EntityIdLink.tsx`, `components/recruitment/OpsListChrome.tsx`, `lib/datePresets.ts`, `lib/opsList.ts`.
 
-## Column maps (match Tekgen)
+## Column maps
 
 ### Submissions
 Cand. ID · Name · Client / Project · Position · Recruiter · Submitted · Feedback date · Feedback status · Detail · Recorded by · Actions

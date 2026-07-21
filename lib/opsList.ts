@@ -59,7 +59,7 @@ export async function xlsxDownload(
   })
 }
 
-/** Tekgen-style feedback buckets mapped from submission stages */
+/** Feedback buckets mapped from submission stages */
 export const SUBMISSION_FEEDBACK_BUCKETS: Record<string, string[]> = {
   awaiting: [
     'draft', 'submitted', 'client_review', 'interview', 'interview_completed', 'waiting_feedback',
@@ -78,7 +78,7 @@ export function stagesForFeedbackBucket(bucket: string): string[] | null {
   return SUBMISSION_FEEDBACK_BUCKETS[bucket] ?? null
 }
 
-/** Derive Tekgen-style docs status from offer stage + slot completion. */
+/** Derive docs status from offer stage + slot completion. */
 export function deriveDocsStatus(
   status: string,
   filled: number,

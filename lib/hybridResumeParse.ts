@@ -1,5 +1,5 @@
 /**
- * Hybrid resume field extraction with confidence scores (TekGen-style).
+ * Hybrid resume field extraction with confidence scores.
  * Rule-based first; AI can improve later via /api/candidates/parse-profile.
  */
 

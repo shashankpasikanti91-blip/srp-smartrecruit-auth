@@ -72,7 +72,7 @@ async function callAI(system: string, user: string): Promise<string> {
   return data.choices?.[0]?.message?.content ?? '{}'
 }
 
-/** POST /api/jobs/parse — Parse JD text into job form fields (TekGen-style). */
+/** POST /api/jobs/parse — Parse JD text into job form fields. */
 export async function POST(req: NextRequest) {
   const ctx = await requireTenant(req, 'jobs.create')
   if (ctx instanceof NextResponse) return ctx

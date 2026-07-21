@@ -1,4 +1,4 @@
-/** Shared date range presets for Tekgen-style ops lists. */
+/** Shared date range presets for SRP ops lists. */
 
 export type DatePreset =
   | ''

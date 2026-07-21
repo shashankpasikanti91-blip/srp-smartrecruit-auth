@@ -73,7 +73,7 @@ Every critical stage now writes OS events where missing before:
 
 ---
 
-## 8. Phase 3.2+ Ops Lists (Tekgen columns)
+## 8. Phase 3.2+ Ops Lists
 
 | Area | Detail |
 |------|--------|
@@ -83,7 +83,7 @@ Every critical stage now writes OS events where missing before:
 | Interviews | 1st/2nd date-time split; exp + salaries from profile; server export |
 | Selected & Docs | Docs status, slots %, **Docs upload panel** → candidate documents API |
 | HR & Offer | HR discussion, Budget OK, Offer letter, Joined status/date |
-| Docs | `docs/OPS_LISTS_TEKGEN.md`, INDEX updated |
+| Docs | `docs/OPS_LISTS.md`, INDEX updated |
 
 ---
 

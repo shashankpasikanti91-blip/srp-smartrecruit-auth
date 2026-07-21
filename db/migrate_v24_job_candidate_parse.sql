@@ -1,4 +1,4 @@
--- v24: Job create / parse enrichment (TekGen-parity fields)
+-- v24: Job create / parse enrichment fields
 
 ALTER TABLE public.job_posts
   ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES public.clients(id) ON DELETE SET NULL,

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { gotoDashboard, openTab, expectTabHeading } from '../helpers/dashboard'
 
-test.describe('Ops lists — Tekgen columns & actions', () => {
+test.describe('Ops lists — columns & actions', () => {
   test.beforeEach(async ({ page }) => {
     await gotoDashboard(page)
   })
