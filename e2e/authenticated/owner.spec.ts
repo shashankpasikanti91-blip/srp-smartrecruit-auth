@@ -9,7 +9,9 @@ test.describe('Owner panel', () => {
     if (url.includes('/owner')) {
       await expect(page.getByText(/Owner Dashboard|Overview/i).first()).toBeVisible({ timeout: 15_000 })
     } else if (url.includes('/dashboard')) {
-      await expect(page.getByRole('navigation').getByRole('button', { name: 'Pipeline' })).toBeVisible({
+      // Non-owner correctly redirected — check the sidebar is visible
+      const nav = page.locator('aside').locator('nav').first()
+      await expect(nav.getByRole('button', { name: /Candidates|Jobs|Dashboard/i }).first()).toBeVisible({
         timeout: 15_000,
       })
     }

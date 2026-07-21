@@ -1,34 +1,47 @@
 import { test, expect } from '@playwright/test'
 import { gotoDashboard, openTab } from '../helpers/dashboard'
 
-test.describe('AI Screening', () => {
-  test.beforeEach(async ({ page }) => {
-    await gotoDashboard(page)
-    await openTab(page, 'AI Screen')
-    await expect(page.getByRole('heading', { name: 'AI Screening', level: 1 })).toBeVisible({ timeout: 15_000 })
-  })
+/**
+ * AI Screening lives inside the "AI Recruit Copilot" sidebar tab.
+ * Navigate there, then click the "AI Screen" mode chip to enter the screener.
+ */
+async function openAiScreen(page: Parameters<typeof openTab>[0]) {
+  await gotoDashboard(page)
+  await openTab(page, 'AI Recruit Copilot')
+  // Wait for the copilot workspace to render
+  await expect(page.getByRole('heading', { name: 'AI Recruit Copilot', level: 1 })).toBeVisible({ timeout: 15_000 })
+  // Click the AI Screen chip to switch into screening mode
+  await page.getByRole('button', { name: 'AI Screen', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'AI Screening', level: 1 })).toBeVisible({ timeout: 15_000 })
+}
 
+test.describe('AI Screening', () => {
   test('shows mode switcher buttons', async ({ page }) => {
+    await openAiScreen(page)
     await expect(page.getByRole('button', { name: 'Single CV' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Bulk CVs' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'From Candidates' })).toBeVisible()
   })
 
   test('JD textarea is present in single mode', async ({ page }) => {
+    await openAiScreen(page)
     await expect(page.getByPlaceholder(/Paste the full job description/i)).toBeVisible()
   })
 
   test('bulk mode shows upload zone', async ({ page }) => {
+    await openAiScreen(page)
     await page.getByRole('button', { name: 'Bulk CVs' }).click()
     await expect(page.getByText(/Upload multiple CVs/i)).toBeVisible({ timeout: 10_000 })
   })
 
   test('from candidates mode shows picker', async ({ page }) => {
+    await openAiScreen(page)
     await page.getByRole('button', { name: 'From Candidates' }).click()
     await expect(page.getByText(/already screened|Select Candidates|token/i).first()).toBeVisible({ timeout: 10_000 })
   })
 
   test('from candidates search filters by RES- ID', async ({ page }) => {
+    await openAiScreen(page)
     await page.getByRole('button', { name: 'From Candidates' }).click()
 
     const pickerRows = page.locator('label').filter({ has: page.locator('input[type="checkbox"]') })
@@ -46,6 +59,7 @@ test.describe('AI Screening', () => {
   })
 
   test('skip already screened toggle changes visible picker count', async ({ page }) => {
+    await openAiScreen(page)
     await page.getByRole('button', { name: 'From Candidates' }).click()
 
     const checkbox = page.getByRole('checkbox', { name: /Skip already screened/i })
