@@ -11,7 +11,8 @@ const OWNER_EMAIL        = process.env.OWNER_EMAIL ?? 'pasikantishashank24@gmail
 const SMTP_HOST          = process.env.SMTP_HOST ?? 'smtp.gmail.com'
 const SMTP_PORT          = parseInt(process.env.SMTP_PORT ?? '587')
 const SMTP_USER          = process.env.SMTP_USER ?? ''
-const SMTP_PASS          = process.env.SMTP_PASS ?? ''
+/** Gmail App Passwords are often pasted with spaces — strip before auth. */
+const SMTP_PASS          = (process.env.SMTP_PASS ?? process.env.SMTP_Pass ?? '').replace(/\s+/g, '')
 
 // ─── Telegram ─────────────────────────────────────────────────────────────────
 
