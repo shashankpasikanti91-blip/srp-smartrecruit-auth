@@ -4,7 +4,7 @@ import { getUserSubscription } from './db'
 export const PLAN_LIMITS = {
   free: {
     job_posts: 5,
-    ai_screens_per_month: 20,
+    ai_screens_per_month: 100,
     label: 'Free',
   },
   pro: {

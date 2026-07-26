@@ -12,7 +12,7 @@
   /* ── Sidebar — dark navy + primary blue active ─────────── */
   --sidebar-bg:          #0b1f3a;
   --sidebar-hover:       rgba(255, 255, 255, 0.08);
-  --sidebar-active:      #3652c7;
+  --sidebar-active:      #2563EB;
   --sidebar-active-text: #FFFFFF;
   --sidebar-text:        #f1f5f9;
   --sidebar-muted:       #94a3b8;
@@ -21,39 +21,40 @@
 
   /* ── Brand accents ───────────────────────────────────── */
   --srp-pink:     #f655c1;
-  --srp-purple:   #995af2;
-  --srp-blue:     #3b5bdb;
+  --srp-purple:   #6366F1;
+  --srp-blue:     #2563EB;
   --srp-cyan:     #14b8a6;
 
-  /* ── Dashboard canvas ────────────────────────────────── */
-  --dash-bg:             #f8fafc;
-  --dash-surface:        #ffffff;
-  --dash-border:         #e2e8f0;
-  --dash-text:           #1e293b;
-  --dash-text-2:         #64748b;
-  --dash-text-3:         #94a3b8;
-  --dash-ring:           rgba(17, 24, 39, 0.05);
-  --dash-heading:        #1e293b;
-  --dash-subheading:     #64748b;
+  /* ── Dashboard canvas (premium SaaS) ─────────────────── */
+  --dash-bg:             #F8FAFC;
+  --dash-surface:        #FFFFFF;
+  --dash-border:         #E5E7EB;
+  --dash-text:           #111827;
+  --dash-text-2:         #6B7280;
+  --dash-text-3:         #9CA3AF;
+  --dash-ring:           rgba(37, 99, 235, 0.08);
+  --dash-heading:        #111827;
+  --dash-subheading:     #6B7280;
+  --radius-card:         16px;
 
   /* ── Semantic / CTA ──────────────────────────────────── */
-  --color-primary:       #3b5bdb;
-  --color-primary-hover: #2f4bc4;
-  --color-secondary:     #14b8a6;
-  --color-secondary-hover: #0d9488;
-  --color-success:       #22c55e;
-  --color-warning:       #f59e0b;
-  --color-danger:        #ef4444;
+  --color-primary:       #2563EB;
+  --color-primary-hover: #1D4ED8;
+  --color-secondary:     #6366F1;
+  --color-secondary-hover: #4F46E5;
+  --color-success:       #10B981;
+  --color-warning:       #F59E0B;
+  --color-danger:        #EF4444;
   --color-purple:        #7c3aed;
-  --color-indigo:        #3b5bdb;
-  --color-cta:           #3b5bdb;
-  --color-cta-hover:     #2f4bc4;
+  --color-indigo:        #6366F1;
+  --color-cta:           #2563EB;
+  --color-cta-hover:     #1D4ED8;
 
   /* ── Shadows (soft — reduce eye strain on bright screens) ─ */
-  --shadow-card:   0 1px 2px rgba(17,24,39,0.03), 0 2px 8px rgba(17,24,39,0.04);
-  --shadow-hover:  0 4px 14px rgba(17,24,39,0.06), 0 1px 4px rgba(17,24,39,0.03);
-  --shadow-modal:  0 16px 48px rgba(17,24,39,0.12);
-  --shadow-cta:    0 2px 8px rgba(59, 91, 219, 0.18);
+  --shadow-card:   0 1px 2px rgba(17,24,39,0.04), 0 4px 12px rgba(17,24,39,0.04);
+  --shadow-hover:  0 6px 20px rgba(17,24,39,0.08), 0 2px 6px rgba(17,24,39,0.04);
+  --shadow-modal:  0 16px 48px rgba(17,24,39,0.14);
+  --shadow-cta:    0 4px 14px rgba(37, 99, 235, 0.28);
 }
 
 * {
@@ -69,19 +70,20 @@ html {
 }
 
 body {
-  /* Professional desktop stack: Calibri on Windows, clean fallbacks elsewhere */
-  font-family: Calibri, Candara, 'Segoe UI', 'Source Sans 3', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   background-color: var(--dash-bg);
   color: var(--dash-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-size: 0.95rem;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
-h1, h2, h3, h4, .dash-page-title, .dash-section-head h1 {
-  font-family: Calibri, Candara, Georgia, 'Times New Roman', Times, serif;
-  letter-spacing: -0.01em;
+h1, h2, h3, h4, .dash-page-title, .dash-section-head h1, .page-title {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  letter-spacing: -0.02em;
+  color: var(--dash-heading);
+  font-weight: 800;
 }
 
 /* Dashboard: subtle scale on wide screens only — stacks with html font-size for comfortable 100% zoom */

@@ -41,10 +41,18 @@ type CoachContext = {
 }
 
 const DEFAULT_TEMPLATES = [
-  { id: 'jd', label: 'Generate JD', prompt: 'Generate a full job description pack for my top open role.' },
-  { id: 'boolean', label: 'Boolean search', prompt: 'Create boolean search strings for my open roles.' },
+  { id: 'jd', label: 'Generate JD', prompt: 'Generate a full job description pack for my top open role including responsibilities, requirements, and nice-to-haves.' },
+  { id: 'boolean', label: 'Boolean search', prompt: 'Create Boolean search strings for LinkedIn, Naukri, and Indeed for my open roles.' },
+  { id: 'linkedin', label: 'LinkedIn search', prompt: 'Write an advanced LinkedIn Recruiter search string and filters for my priority role.' },
+  { id: 'email', label: 'Email template', prompt: 'Draft a professional candidate outreach email and a client submission email for my open role.' },
+  { id: 'whatsapp', label: 'WhatsApp template', prompt: 'Draft a WhatsApp follow-up for a candidate awaiting client feedback.' },
+  { id: 'interview', label: 'Interview questions', prompt: 'Generate a structured interview kit with screening, technical, and culture questions for my priority role.' },
+  { id: 'summary', label: 'Candidate summary', prompt: 'Summarize the top candidate in my pipeline with strengths, risks, and hire recommendation.' },
+  { id: 'offer', label: 'Offer letter', prompt: 'Draft an offer letter outline with compensation, start date placeholders, and next steps.' },
+  { id: 'salary', label: 'Salary negotiation', prompt: 'Give salary negotiation talking points for a candidate counter-offer on my open role.' },
+  { id: 'proposal', label: 'Client proposal', prompt: 'Write a short client proposal for filling this role including SLA and sourcing plan.' },
+  { id: 'sourcing', label: 'Sourcing strategy', prompt: 'Create a 7-day sourcing strategy with channels, Boolean queries, and outreach cadence.' },
   { id: 'compare', label: 'Compare candidates', prompt: 'Compare top two candidates for my priority role with strengths, risks, and recommendation.' },
-  { id: 'followup', label: 'WhatsApp follow-up', prompt: 'Draft a WhatsApp follow-up for a candidate awaiting client feedback.' },
 ]
 
 function newId() {

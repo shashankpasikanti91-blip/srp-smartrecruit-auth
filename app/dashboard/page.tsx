@@ -1377,6 +1377,12 @@ export default function DashboardPage() {
       setActiveTab('settings')
     }
   }, [activeTab])
+
+  const mainScrollRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    mainScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [activeTab])
+
   const isWideTab = useMemo(
     () => ['workspace', 'candidates', 'jobs', 'screen', 'compose', 'jd', 'boolean', 'submissions', 'interviews', 'followups', 'selected', 'clients', 'reports', 'recruiters', 'documents', 'coach', 'comms', 'ess', 'hrconfig', 'settings', 'import'].includes(activeTab),
     [activeTab],
@@ -1462,8 +1468,9 @@ export default function DashboardPage() {
   const [screenSingleFile, setScreenSingleFile] = useState<File | null>(null)
   const [screenJobId, setScreenJobId] = useState('')
   const [screening, setScreening] = useState(false)
-  const [screenResults, setScreenResults] = useState<ScreenResult[]>([])
+  const [screenProgress, setScreenProgress] = useState('')
   const [screenError, setScreenError] = useState('')
+  const [screenResults, setScreenResults] = useState<ScreenResult[]>([])
   // "Screen from Candidates" mode
   const [selectedCandIds, setSelectedCandIds] = useState<string[]>([])
   const [skipAlreadyScreened, setSkipAlreadyScreened] = useState(true)
@@ -2049,13 +2056,15 @@ export default function DashboardPage() {
   }
 
   const runScreening = async () => {
-    setScreening(true); setScreenError(''); setScreenResults([])
+    setScreening(true); setScreenError(''); setScreenResults([]); setScreenProgress('Preparing resumes…')
     try {
       let resumes: Array<{ text: string; filename: string; id?: string }>
       if (screenMode === 'single') {
         resumes = [{ text: resumeText, filename: screenSingleFile?.name ?? 'pasted_resume' }]
+        setScreenProgress('Running AI screening on 1 resume…')
       } else if (screenMode === 'bulk') {
         resumes = bulkTexts
+        setScreenProgress(`Queueing ${bulkTexts.length} resume${bulkTexts.length === 1 ? '' : 's'} for AI screening…`)
       } else {
         // existing mode: pull raw_text from already-loaded candidates
         const toScreen = candidates.filter(c =>
@@ -2069,12 +2078,15 @@ export default function DashboardPage() {
         if (!resumes.length) {
           setScreenError('No candidates selected or selected candidates have no stored CV text.')
           setScreening(false)
+          setScreenProgress('')
           return
         }
+        setScreenProgress(`Re-screening ${resumes.length} candidate${resumes.length === 1 ? '' : 's'}…`)
       }
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 150000) // 150s timeout
       try {
+        setScreenProgress(prev => `${prev.replace(/\.\.\.$/, '')} — calling AI auditor…`)
         const res = await fetch('/api/screen', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2098,6 +2110,7 @@ export default function DashboardPage() {
         if (!res.ok) { setScreenError(data.error ?? `Server error (${res.status}). Please try again.`); return }
         const results = data.results ?? []
         setScreenResults(results)
+        setScreenProgress(results.length ? `Completed — ${results.length} result${results.length === 1 ? '' : 's'} saved` : '')
         if (results.length > 0) {
           const attachJobs: Promise<unknown>[] = []
           if (screenMode === 'single') {
@@ -2154,6 +2167,7 @@ export default function DashboardPage() {
       }
     } finally {
       setScreening(false)
+      setTimeout(() => setScreenProgress(''), 2500)
     }
   }
 
@@ -2436,7 +2450,7 @@ export default function DashboardPage() {
         </aside>
 
         {/* ── Main ─────────────────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto dashboard-main min-h-0 bg-[var(--dash-bg)]">
+        <main ref={mainScrollRef} className="flex-1 overflow-y-auto dashboard-main min-h-0 bg-[var(--dash-bg)]">
           {/* Subscription expiry alert banner */}
           {subAlert && !subAlertDismissed && (
             <div className={`border-b ${
@@ -3188,9 +3202,19 @@ export default function DashboardPage() {
                 </div>
 
                 {screenError && (
-                  <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm mb-4">
+                  <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm mb-4 font-medium">
                     <AlertCircle className="w-4 h-4 flex-shrink-0" /> {screenError}
-                    {screenError.includes('OPENAI_API_KEY') && <span className="ml-1 text-gray-500">— add <code className="text-red-300">OPENAI_API_KEY</code> to your .env file</span>}
+                    {screenError.includes('OPENAI_API_KEY') && <span className="ml-1 text-slate-600">— contact your admin to configure OpenAI on the server</span>}
+                  </div>
+                )}
+
+                {screening && screenProgress && (
+                  <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 flex items-center gap-3">
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-blue-900">AI Screening in progress</p>
+                      <p className="text-xs text-blue-700 mt-0.5 truncate">{screenProgress}</p>
+                    </div>
                   </div>
                 )}
 

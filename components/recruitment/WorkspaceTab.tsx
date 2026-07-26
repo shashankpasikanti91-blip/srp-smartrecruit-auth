@@ -10,6 +10,7 @@ import { AgentInboxPanel } from '@/components/recruitment/AgentInboxPanel'
 import { DailyBriefingPanel } from '@/components/recruitment/DailyBriefingPanel'
 import { VisualWorkflow } from '@/components/recruitment/VisualWorkflow'
 import { CardGridSkeleton, KpiStripSkeleton } from '@/components/ui/Skeletons'
+import { HiringFunnelChart, TrendAreaChart, CHART_COLORS } from '@/components/analytics/HiringCharts'
 
 type FollowUpRow = { id: string; title?: string; due_at?: string; status?: string }
 type InterviewRow = {
@@ -43,25 +44,13 @@ type Insights = {
 
 const FUNNEL_STAGES = ['sourced', 'applied', 'screening', 'interview', 'offer', 'hired'] as const
 
-function MiniBars({ data, color }: { data: { d: string; n: number }[]; color: string }) {
-  if (!data.length) {
-    return <p className="text-xs font-medium text-slate-400 py-6 text-center">No trend data yet</p>
-  }
-  const max = Math.max(...data.map(d => d.n), 1)
-  const last = data.slice(-14)
-  return (
-    <div className="flex items-end gap-1 h-24 px-1">
-      {last.map(d => (
-        <div key={d.d} className="flex-1 flex flex-col items-center gap-1 group relative">
-          <div
-            className="w-full rounded-t-md transition-all hover:opacity-90"
-            style={{ height: `${Math.max(8, (d.n / max) * 100)}%`, background: color }}
-            title={`${d.d}: ${d.n}`}
-          />
-        </div>
-      ))}
-    </div>
-  )
+const FUNNEL_LABELS: Record<(typeof FUNNEL_STAGES)[number], string> = {
+  sourced: 'Sourced',
+  applied: 'Applied',
+  screening: 'Screening',
+  interview: 'Interview',
+  offer: 'Offer',
+  hired: 'Hired',
 }
 
 export function WorkspaceTab({
@@ -122,6 +111,12 @@ export function WorkspaceTab({
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    // Auto-load AI insights once workspace data is ready (non-blocking)
+    void loadCoach()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const loadCoach = async () => {
     setCoachLoading(true)
@@ -201,11 +196,27 @@ export function WorkspaceTab({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
         {kpis.map(c => (
-          <div key={c.label} className={`kpi-card kpi-card--gradient ${c.tone} ${c.warn ? 'ring-2 ring-amber-300' : ''}`}>
+          <button
+            key={c.label}
+            type="button"
+            onClick={() => {
+              const map: Record<string, string> = {
+                'Open Jobs': 'jobs',
+                'Active Candidates': 'candidates',
+                Submissions: 'submissions',
+                Interviews: 'interviews',
+                Offers: 'selected',
+                'Pending Documents': 'documents',
+                'Follow-ups overdue': 'followups',
+              }
+              onNavigate?.(map[c.label] ?? 'workspace')
+            }}
+            className={`kpi-card kpi-card--gradient ${c.tone} ${c.warn ? 'ring-2 ring-amber-300' : ''} text-left transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+          >
             <p className="kpi-card__label">{c.label}</p>
             <p className="kpi-card__value">{c.value}</p>
             <p className="kpi-card__sub">{c.sub}</p>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -358,19 +369,19 @@ export function WorkspaceTab({
           <div className="ess-panel__head">
             <p className="ess-panel__title flex items-center gap-2"><BarChart3 className="w-4 h-4 text-indigo-600" /> Submission Trend</p>
           </div>
-          <div className="p-3"><MiniBars data={insights?.submission_trend ?? []} color="#818cf8" /></div>
+          <div className="p-3"><TrendAreaChart data={insights?.submission_trend ?? []} color={CHART_COLORS.secondary} /></div>
         </div>
         <div className="ess-panel">
           <div className="ess-panel__head">
             <p className="ess-panel__title flex items-center gap-2"><Calendar className="w-4 h-4 text-teal-600" /> Interview Trend</p>
           </div>
-          <div className="p-3"><MiniBars data={insights?.interview_trend ?? []} color="#5eead4" /></div>
+          <div className="p-3"><TrendAreaChart data={insights?.interview_trend ?? []} color={CHART_COLORS.success} /></div>
         </div>
         <div className="ess-panel">
           <div className="ess-panel__head">
             <p className="ess-panel__title flex items-center gap-2"><Award className="w-4 h-4 text-amber-600" /> Offer Trend</p>
           </div>
-          <div className="p-3"><MiniBars data={insights?.offer_trend ?? []} color="#fbbf24" /></div>
+          <div className="p-3"><TrendAreaChart data={insights?.offer_trend ?? []} color={CHART_COLORS.warning} /></div>
         </div>
       </div>
 
@@ -378,21 +389,21 @@ export function WorkspaceTab({
         <div className="ess-panel__head">
           <div>
             <p className="ess-panel__title">Hiring Funnel</p>
-            <p className="text-xs font-bold text-slate-500 mt-0.5">Pipeline conversion across stages</p>
+            <p className="text-xs font-bold text-slate-500 mt-0.5">Pipeline conversion across stages · live tenant data</p>
           </div>
           <button type="button" className="btn-ghost text-xs !py-1.5 !px-2.5 font-bold" onClick={() => onNavigate?.('candidates')}>
             Open candidates
           </button>
         </div>
         <div className="p-4">
-          <div className="funnel-track">
-            {FUNNEL_STAGES.map(stage => (
-              <div key={stage} className="funnel-stage">
-                <div className="funnel-stage__count">{pipeline[stage] ?? 0}</div>
-                <div className="funnel-stage__label font-bold">{stage}</div>
-              </div>
-            ))}
-          </div>
+          <HiringFunnelChart
+            stages={FUNNEL_STAGES.map(stage => ({
+              key: stage,
+              label: FUNNEL_LABELS[stage],
+              count: pipeline[stage] ?? 0,
+            }))}
+            onStageClick={() => onNavigate?.('candidates')}
+          />
         </div>
       </div>
 
