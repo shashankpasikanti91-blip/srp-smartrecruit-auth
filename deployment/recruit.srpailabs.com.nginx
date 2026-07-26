@@ -1,8 +1,9 @@
 # SRP SmartRecruit - recruit.srpailabs.com
-# Next.js (SmartRecruit) on :3010, FastAPI AI backend on :8009
+# Next.js (SmartRecruit) on :3010 is the primary app.
+# Legacy FastAPI ATS on :8009 is only used for a few optional legacy paths.
 
-limit_req_zone $binary_remote_addr zone=ats_api:10m rate=10r/s;
-limit_req_zone $binary_remote_addr zone=ats_auth:10m rate=3r/s;
+limit_req_zone $binary_remote_addr zone=ats_api:10m rate=30r/s;
+limit_req_zone $binary_remote_addr zone=ats_auth:10m rate=5r/s;
 
 server {
     listen 80;
@@ -27,10 +28,9 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
     add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
-    client_max_body_size 15M;
+    client_max_body_size 25M;
 
     # ── NextAuth + Next.js auth routes --> Next.js :3010
-    # MUST appear before the general /api/auth/ block (regex beats prefix in nginx)
     location ~ ^/api/auth/(providers|session|csrf|callback|signin|signout|error|forgot-password|reset-password|signup)(/.*)?$ {
         proxy_pass http://127.0.0.1:3010;
         proxy_http_version 1.1;
@@ -41,34 +41,8 @@ server {
         proxy_read_timeout 30s;
     }
 
-    # ── Next.js API routes — all routes served by the Next.js app on :3010 ──
-    # Must appear BEFORE the general /api/ and /api/auth/ catch-all blocks.
-    location ~ ^/api/(screen|parse|jobs|candidates|compose|notify|seed-demo|admin|resumes|health|profile|jd|boolean-search|import|integrations|comm|audit|webhooks|tenant|accept-invite|calendar|email|interviews|oauth|portal-credentials|portal-search)(/.*)?$ {
-        proxy_pass http://127.0.0.1:3010;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 180s;
-        proxy_connect_timeout 15s;
-        client_max_body_size 15M;
-    }
-
-    # ── FastAPI auth endpoints (login, register, verify-otp, forgot-password) ──
-    location /api/auth/ {
-        limit_req zone=ats_auth burst=5 nodelay;
-        limit_req_status 429;
-        proxy_pass http://127.0.0.1:8009;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # ── FastAPI Backend (ATS API) ──
-    location /api/ {
+    # Optional: keep a narrow legacy FastAPI escape hatch (old ATS only)
+    location ~ ^/api/(legacy-ats)(/.*)?$ {
         limit_req zone=ats_api burst=20 nodelay;
         proxy_pass http://127.0.0.1:8009;
         proxy_http_version 1.1;
@@ -77,21 +51,35 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 120s;
-        proxy_connect_timeout 10s;
+    }
+
+    # ── ALL other /api/* --> Next.js SmartRecruit (:3010)
+    # This fixes AI Assistant (/api/coach), insights, analytics, offers, ESS, etc.
+    location /api/ {
+        limit_req zone=ats_api burst=40 nodelay;
+        proxy_pass http://127.0.0.1:3010;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 180s;
+        proxy_connect_timeout 15s;
+        client_max_body_size 25M;
     }
 
     location /health {
-        proxy_pass http://127.0.0.1:8009;
+        proxy_pass http://127.0.0.1:3010/api/health;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
 
-    # /app used to serve the old Jinja2 dashboard — redirect to the Next.js app instead
     location = /app {
         return 301 /dashboard;
     }
 
+    # Legacy FastAPI static only (if still used by old assets)
     location /static/ {
         proxy_pass http://127.0.0.1:8009;
         proxy_http_version 1.1;
@@ -100,14 +88,12 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
-    # ── Next.js static assets ──
     location /_next/static/ {
         proxy_pass http://127.0.0.1:3010;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
 
-    # ── Next.js pages (login, signup, dashboard, etc.) ──
     location / {
         proxy_pass http://127.0.0.1:3010;
         proxy_http_version 1.1;
@@ -122,7 +108,6 @@ server {
         proxy_connect_timeout 15s;
     }
 
-    # ── Block hidden files ──
     location ~ /\. {
         deny all;
     }
