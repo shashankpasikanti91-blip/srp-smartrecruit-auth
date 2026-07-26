@@ -93,6 +93,24 @@ h1, h2, h3, h4, .dash-page-title, .dash-section-head h1, .page-title {
   }
 }
 
+/* Mobile: prevent clipped AI tabs / sticky bottom CTA space */
+@media (max-width: 1023px) {
+  .dashboard-main {
+    padding-bottom: 5rem;
+  }
+  .dash-section-head {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .kpi-card__value {
+    font-size: 1.35rem;
+  }
+}
+
 /* ── Custom scrollbar ─────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: #F1F5F9; }
