@@ -56,10 +56,14 @@ export async function sendEmail(opts: {
   subject: string
   html: string
   to?: string
-}): Promise<void> {
+  /** When true, throw on SMTP failure instead of swallowing (password reset, critical mail). */
+  required?: boolean
+}): Promise<{ ok: boolean; error?: string }> {
   if (!SMTP_USER || !SMTP_PASS) {
-    console.warn('[notify] SMTP not configured — skipping email')
-    return
+    const error = 'SMTP not configured (SMTP_USER / SMTP_PASS missing)'
+    console.warn('[notify]', error)
+    if (opts.required) throw new Error(error)
+    return { ok: false, error }
   }
   try {
     const transport = getTransport()
@@ -69,8 +73,12 @@ export async function sendEmail(opts: {
       subject: opts.subject,
       html: opts.html,
     })
+    return { ok: true }
   } catch (err) {
+    const error = err instanceof Error ? err.message : String(err)
     console.error('[notify] Email send failed:', err)
+    if (opts.required) throw new Error(`Email delivery failed: ${error}`)
+    return { ok: false, error }
   }
 }
 

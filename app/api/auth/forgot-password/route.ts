@@ -54,16 +54,37 @@ export async function POST(req: NextRequest) {
     const baseUrl = process.env.NEXTAUTH_URL ?? 'https://recruit.srpailabs.com'
     const resetUrl = `${baseUrl}/reset-password?token=${rawToken}`
 
-    // Send email
-    await sendEmail({
+    // Send email — required so UI does not pretend success when SMTP is broken
+    const sent = await sendEmail({
       to: user.email,
       subject: 'Reset Your Password — SRP SmartRecruit',
       html: buildResetEmail(user.name ?? 'there', resetUrl),
+      required: true,
     })
+    if (!sent.ok) {
+      console.error('[forgot-password] SMTP failed for', user.email, sent.error)
+      return NextResponse.json(
+        {
+          error:
+            'We could not send the reset email right now. Please try again later or contact your workspace admin.',
+        },
+        { status: 503 },
+      )
+    }
 
     return NextResponse.json(successMsg)
   } catch (err) {
     console.error('[forgot-password] Error:', err)
+    const msg = err instanceof Error ? err.message : ''
+    if (msg.includes('SMTP') || msg.includes('Email delivery failed')) {
+      return NextResponse.json(
+        {
+          error:
+            'We could not send the reset email right now. Please try again later or contact your workspace admin.',
+        },
+        { status: 503 },
+      )
+    }
     return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
   }
 }
