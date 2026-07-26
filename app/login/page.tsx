@@ -127,7 +127,7 @@ function LoginContent() {
           </div>
 
           <h1
-            className="mt-8 lg:mt-12 text-3xl sm:text-4xl font-extrabold leading-tight tracking-tight"
+            className="mt-8 lg:mt-12 text-3xl sm:text-4xl font-extrabold leading-tight tracking-tight text-white"
             style={{ fontFamily: "'Plus Jakarta Sans', Inter, sans-serif" }}
           >
             AI-powered Recruitment Operating System

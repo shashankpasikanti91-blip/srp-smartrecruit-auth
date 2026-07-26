@@ -82,8 +82,16 @@ body {
 h1, h2, h3, h4, .dash-page-title, .dash-section-head h1, .page-title {
   font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
   letter-spacing: -0.02em;
-  color: var(--dash-heading);
   font-weight: 800;
+}
+
+.dashboard-root h1,
+.dashboard-root h2,
+.dashboard-root h3,
+.dashboard-root h4,
+.dashboard-root .dash-page-title,
+.dashboard-root .page-title {
+  color: var(--dash-heading);
 }
 
 /* Dashboard: subtle scale on wide screens only — stacks with html font-size for comfortable 100% zoom */
