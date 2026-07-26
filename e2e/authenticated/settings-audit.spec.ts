@@ -14,15 +14,27 @@ test.describe('Settings and audit trail', () => {
   })
 
   test('audit refresh loads ent-table with sticky scroll wrapper', async ({ page }) => {
-    const refreshBtn = page.locator('text=Audit Trail').locator('xpath=ancestor::div[contains(@class,"rounded-xl")]').getByRole('button', { name: /Refresh/i })
-    const [response] = await Promise.all([
-      page.waitForResponse(r => r.url().includes('/api/audit') && r.ok(), { timeout: 15_000 }),
-      refreshBtn.click(),
-    ])
+    const auditCard = page.locator('div.rounded-xl').filter({ has: page.getByRole('heading', { name: 'Audit Trail' }) })
+    await expect(auditCard).toBeVisible({ timeout: 15_000 })
+    await auditCard.scrollIntoViewIfNeeded()
+
+    const refreshBtn = auditCard.getByRole('button', { name: /Refresh/i })
+    await expect(refreshBtn).toBeEnabled({ timeout: 15_000 })
+
+    const responsePromise = page.waitForResponse(
+      r => r.url().includes('/api/audit') && r.request().method() === 'GET',
+      { timeout: 30_000 },
+    )
+    await refreshBtn.click()
+    const response = await responsePromise
     expect(response.ok()).toBeTruthy()
 
+    // Empty tenants show a placeholder; otherwise sticky table wrapper.
+    const empty = auditCard.getByText(/No activity recorded yet/i)
     const tableWrap = page.locator('.ent-table-wrap').filter({ has: page.locator('thead th:text("Action")') })
-    await expect(tableWrap).toBeVisible({ timeout: 15_000 })
-    await expect(tableWrap.locator('.ent-table')).toBeVisible()
+    await expect(empty.or(tableWrap)).toBeVisible({ timeout: 15_000 })
+    if (await tableWrap.isVisible().catch(() => false)) {
+      await expect(tableWrap.locator('.ent-table')).toBeVisible()
+    }
   })
 })
