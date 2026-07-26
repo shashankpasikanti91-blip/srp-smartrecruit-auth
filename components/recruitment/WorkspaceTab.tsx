@@ -188,12 +188,12 @@ export function WorkspaceTab({
     <div className="space-y-5">
       <div className="dash-section-head !border-0 !pb-0 !mb-2">
         <div className="flex items-start gap-4">
-          <div className="dash-section-icon"><TrendingUp className="w-5 h-5 text-white" /></div>
+          <div className="dash-section-icon"><TrendingUp className="w-5 h-5" /></div>
           <div>
             <h1 className="page-title text-xl sm:text-2xl">Dashboard</h1>
             <p className="desc-text mt-1">Welcome back, {greetName}. {dateLabel}</p>
-            <p className="text-sm font-bold text-[var(--dash-text)] mt-1">
-              Recruitment OS command center — Power BI style insights
+            <p className="text-sm font-medium text-slate-500 mt-1">
+              Your recruitment command center — KPIs, queues, and AI briefing
             </p>
           </div>
         </div>
@@ -358,19 +358,19 @@ export function WorkspaceTab({
           <div className="ess-panel__head">
             <p className="ess-panel__title flex items-center gap-2"><BarChart3 className="w-4 h-4 text-indigo-600" /> Submission Trend</p>
           </div>
-          <div className="p-3"><MiniBars data={insights?.submission_trend ?? []} color="linear-gradient(180deg,#6366f1,#818cf8)" /></div>
+          <div className="p-3"><MiniBars data={insights?.submission_trend ?? []} color="#818cf8" /></div>
         </div>
         <div className="ess-panel">
           <div className="ess-panel__head">
             <p className="ess-panel__title flex items-center gap-2"><Calendar className="w-4 h-4 text-teal-600" /> Interview Trend</p>
           </div>
-          <div className="p-3"><MiniBars data={insights?.interview_trend ?? []} color="linear-gradient(180deg,#0d9488,#2dd4bf)" /></div>
+          <div className="p-3"><MiniBars data={insights?.interview_trend ?? []} color="#5eead4" /></div>
         </div>
         <div className="ess-panel">
           <div className="ess-panel__head">
             <p className="ess-panel__title flex items-center gap-2"><Award className="w-4 h-4 text-amber-600" /> Offer Trend</p>
           </div>
-          <div className="p-3"><MiniBars data={insights?.offer_trend ?? []} color="linear-gradient(180deg,#d97706,#fbbf24)" /></div>
+          <div className="p-3"><MiniBars data={insights?.offer_trend ?? []} color="#fbbf24" /></div>
         </div>
       </div>
 
@@ -504,24 +504,24 @@ export function WorkspaceTab({
       <div className="grid lg:grid-cols-2 gap-4">
         <AgentInboxPanel onNavigate={(tab) => onNavigate?.(tab)} />
 
-        <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-600 via-indigo-500 to-teal-500 p-5 shadow-lg text-white">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm text-slate-800">
           <div className="flex items-center justify-between mb-3 gap-2">
-            <p className="text-sm font-extrabold flex items-center gap-2">
-              <Sparkles className="w-4 h-4" /> AI Insights
+            <p className="text-sm font-extrabold flex items-center gap-2 text-slate-800">
+              <Sparkles className="w-4 h-4 text-indigo-600" /> AI Insights
             </p>
             <div className="flex gap-2">
-              <button type="button" onClick={() => onNavigate?.('coach')} className="text-xs font-extrabold px-2.5 py-1.5 rounded-lg bg-white/20 hover:bg-white/30">
+              <button type="button" onClick={() => onNavigate?.('coach')} className="text-xs font-extrabold px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100">
                 Open AI
               </button>
-              <button type="button" onClick={loadCoach} disabled={coachLoading} className="text-xs font-extrabold px-3 py-1.5 rounded-lg bg-white text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">
+              <button type="button" onClick={loadCoach} disabled={coachLoading} className="text-xs font-extrabold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50">
                 {coachLoading ? 'Thinking…' : 'Refresh'}
               </button>
             </div>
           </div>
           {coach ? (
-            <div className="text-sm whitespace-pre-line leading-relaxed font-medium opacity-95">{coach}</div>
+            <div className="text-sm whitespace-pre-line leading-relaxed font-medium text-slate-700">{coach}</div>
           ) : (
-            <p className="text-sm font-medium opacity-90">
+            <p className="text-sm font-medium text-slate-500">
               Senior Recruitment Director insights grounded in your tenant KPIs, funnel, and hiring velocity.
             </p>
           )}

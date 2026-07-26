@@ -2287,8 +2287,13 @@ export default function DashboardPage() {
     { tab: 'recruiters', icon: Users, label: 'Recruiters', badge: null, section: 'recruitment' },
     { tab: 'documents', icon: FileText, label: 'Documents', badge: null, section: 'recruitment' },
     ...(canSeeReports ? [{ tab: 'reports' as const, icon: Download, label: 'Reports', badge: null, section: 'recruitment' as const }] : []),
+    /* AI Tools — first-class sidebar entries (not buried under a single hub) */
+    { tab: 'screen', icon: Brain, label: 'AI Screening', badge: 'AI', section: 'ai' },
+    { tab: 'coach', icon: Sparkles, label: 'AI Assistant', badge: null, section: 'ai' },
+    { tab: 'compose', icon: Mail, label: 'AI Compose', badge: null, section: 'ai' },
+    { tab: 'jd', icon: FileText, label: 'JD Writer', badge: null, section: 'ai' },
+    { tab: 'boolean', icon: Search, label: 'Boolean Search', badge: null, section: 'ai' },
     { tab: 'comms', icon: Mail, label: 'Communications', badge: null, section: 'ops' },
-    { tab: 'coach', icon: Sparkles, label: 'AI Recruit Copilot', badge: 'AI', section: 'ai' },
     ...(canSeeReports ? [{ tab: 'hrconfig' as const, icon: Shield, label: 'HRMS', badge: null, section: 'ops' as const }] : []),
     { tab: 'ess', icon: Building2, label: 'ESS', badge: null, section: 'ops' },
     { tab: 'settings', icon: Settings, label: 'Settings', badge: null, section: 'ops' },
@@ -2345,12 +2350,12 @@ export default function DashboardPage() {
         )}
 
         {/* ── Sidebar — dark navy + primary blue active ───────────────────── */}
-        <aside className={`w-56 flex-shrink-0 flex flex-col bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] shadow-xl dash-sidebar z-50
+        <aside className={`w-56 flex-shrink-0 flex flex-col bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] shadow-md dash-sidebar z-50
           fixed lg:static inset-y-0 left-0 transform transition-transform duration-200
           ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           <div className="px-4 py-4 border-b border-[var(--sidebar-border)] flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
-              <BrandMark size={32} className="flex-shrink-0 shadow-lg shadow-indigo-500/30" />
+              <BrandMark size={32} className="flex-shrink-0" />
               <div className="min-w-0">
                 <p className="text-[13px] font-extrabold text-white leading-tight tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>SRP SmartRecruit</p>
                 <p className="text-[10px] leading-tight mt-0.5 font-bold text-teal-300">Recruitment OS</p>
@@ -2384,10 +2389,10 @@ export default function DashboardPage() {
                 <div key={section} className={section === 'recruitment' ? '' : 'mt-3 pt-2 border-t border-white/10'}>
                   <p className="px-2.5 mb-1.5 text-[9px] font-extrabold uppercase tracking-widest text-slate-400">{sectionLabel}</p>
                   {items.map(({ tab, icon: Icon, label, badge }) => (
-                    <button key={tab} onClick={() => { setActiveTab(tab); setMobileNavOpen(false) }}
+                    <button key={`${section}-${tab}-${label}`} onClick={() => { setActiveTab(tab); setMobileNavOpen(false) }}
                       className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-semibold transition-all duration-150 ${
                         activeTab === tab
-                          ? 'bg-[var(--sidebar-active)] text-white shadow-lg shadow-indigo-500/25'
+                          ? 'bg-[var(--sidebar-active)] text-white shadow-sm'
                           : 'text-slate-300 hover:text-white hover:bg-white/10'
                       }`}>
                       <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${activeTab === tab ? 'text-white' : 'text-slate-400'}`} />
@@ -2431,7 +2436,7 @@ export default function DashboardPage() {
         </aside>
 
         {/* ── Main ─────────────────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto dashboard-main min-h-0 bg-gradient-to-b from-slate-100 via-slate-50 to-white">
+        <main className="flex-1 overflow-y-auto dashboard-main min-h-0 bg-[var(--dash-bg)]">
           {/* Subscription expiry alert banner */}
           {subAlert && !subAlertDismissed && (
             <div className={`border-b ${
@@ -2520,7 +2525,7 @@ export default function DashboardPage() {
                 <Plus className="w-3.5 h-3.5" /> Add Candidate
               </button>
               <button onClick={() => setShowNewJob(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12px] font-bold text-white transition-all bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] hover:brightness-105 shadow-lg shadow-indigo-500/25">
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12px] font-bold text-white transition-all bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] shadow-sm">
                 <Plus className="w-3.5 h-3.5" /> New Job
               </button>
             </div>
@@ -3033,7 +3038,7 @@ export default function DashboardPage() {
             {/* ── AI SCREEN ────────────────────────────────────────────────── */}
             {activeTab === 'screen' && (
               <div>
-              <button type="button" onClick={() => setActiveTab('coach')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← AI Recruit Copilot</button>
+              <button type="button" onClick={() => setActiveTab('coach')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← AI Assistant</button>
               
               <div>
                 <div className="dash-section-head">
@@ -3216,7 +3221,7 @@ export default function DashboardPage() {
             {/* ── COMPOSE ──────────────────────────────────────────────────── */}
             {activeTab === 'compose' && (
               <div>
-                <button type="button" onClick={() => setActiveTab('coach')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← AI Recruit Copilot</button>
+                <button type="button" onClick={() => setActiveTab('coach')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← AI Assistant</button>
                 <div className="dash-section-head">
                   <div className="flex items-start gap-4 min-w-0">
                     <div className="dash-section-icon">
@@ -4568,7 +4573,7 @@ export default function DashboardPage() {
             {/* ── JD INTELLIGENCE ─────────────────────────────────────────── */}
             {activeTab === 'jd' && (
               <div>
-                <button type="button" onClick={() => setActiveTab('coach')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← AI Recruit Copilot</button>
+                <button type="button" onClick={() => setActiveTab('coach')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← AI Assistant</button>
                 <JDTab />
               </div>
             )}
@@ -4576,7 +4581,7 @@ export default function DashboardPage() {
             {/* ── BOOLEAN SEARCH ──────────────────────────────────────────── */}
             {activeTab === 'boolean' && (
               <div>
-                <button type="button" onClick={() => setActiveTab('coach')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← AI Recruit Copilot</button>
+                <button type="button" onClick={() => setActiveTab('coach')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← AI Assistant</button>
                 <BooleanTab />
               </div>
             )}

@@ -2,16 +2,11 @@ import { test, expect } from '@playwright/test'
 import { gotoDashboard, openTab } from '../helpers/dashboard'
 
 /**
- * AI Screening lives inside the "AI Recruit Copilot" sidebar tab.
- * Navigate there, then click the "AI Screen" mode chip to enter the screener.
+ * AI Screening is a first-class sidebar item under AI Tools.
  */
 async function openAiScreen(page: Parameters<typeof openTab>[0]) {
   await gotoDashboard(page)
-  await openTab(page, 'AI Recruit Copilot')
-  // Wait for the copilot workspace to render
-  await expect(page.getByRole('heading', { name: 'AI Recruit Copilot', level: 1 })).toBeVisible({ timeout: 15_000 })
-  // Click the AI Screen chip to switch into screening mode
-  await page.getByRole('button', { name: 'AI Screen', exact: true }).click()
+  await openTab(page, 'AI Screening')
   await expect(page.getByRole('heading', { name: 'AI Screening', level: 1 })).toBeVisible({ timeout: 15_000 })
 }
 

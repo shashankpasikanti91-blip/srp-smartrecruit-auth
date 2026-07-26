@@ -124,7 +124,7 @@ export function AiRecruiterWorkspace({ onNavigate }: { onNavigate?: (tab: string
           id: newId(),
           role: 'assistant',
           at: Date.now(),
-          content: 'Welcome to AI Recruit Copilot.\n\nAsk about pipeline priorities, candidate comparison, JD writing, or messaging — grounded on your tenant data.\n\nUse the mode chips above for AI Screen, Compose, JD Writer, and Boolean search.',
+          content: 'Welcome to AI Assistant.\n\nAsk about pipeline priorities, candidate comparison, JD writing, or messaging — grounded on your tenant data.\n\nUse the mode chips above for AI Screen, Compose, JD Writer, and Boolean search.',
         }],
       }
       sessions = [welcome]
@@ -309,7 +309,7 @@ export function AiRecruiterWorkspace({ onNavigate }: { onNavigate?: (tab: string
         <div className="flex items-start gap-4">
           <div className="dash-section-icon"><Sparkles className="w-5 h-5 text-white" /></div>
           <div>
-            <h1 className="page-title text-xl">AI Recruit Copilot</h1>
+            <h1 className="page-title text-xl">AI Assistant</h1>
             <p className="desc-text mt-1">Chat, screen, compose, JD, and boolean tools in one place.</p>
           </div>
         </div>
