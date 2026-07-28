@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server'
-import { pool } from '@/lib/db'
-import { getAIStatus } from '@/lib/aiClient'
+import { collectPlatformHealth } from '@/lib/platformHealth'
 
 export async function GET() {
-  let db: { ok: boolean; error?: string } = { ok: false }
-  try {
-    await pool.query('SELECT 1')
-    db = { ok: true }
-  } catch (e) {
-    db = { ok: false, error: 'DB unavailable' }
-  }
-  return NextResponse.json({ ok: true, ts: Date.now(), db, ai: getAIStatus() })
+  const health = await collectPlatformHealth()
+  // Public payload: structured probes only — no secrets or raw errors.
+  return NextResponse.json({
+    ok: health.ok,
+    ts: health.ts,
+    responseMs: health.responseMs,
+    application: health.application,
+    database: health.database,
+    db: health.database, // backward-compatible alias
+    ai: health.ai,
+    storage: health.storage,
+    email: health.email,
+    queues: health.queues,
+  })
 }

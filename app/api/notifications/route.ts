@@ -5,6 +5,8 @@ import {
   unreadCount,
   markNotificationsRead,
   createNotification,
+  archiveNotifications,
+  deleteNotifications,
 } from '@/lib/notificationCenter'
 import { sanitizeText } from '@/lib/validate'
 
@@ -20,10 +22,12 @@ export async function GET(req: NextRequest) {
   }
 
   const unreadOnly = req.nextUrl.searchParams.get('unread') === '1'
+  const archived = req.nextUrl.searchParams.get('archived') === '1'
   const notifications = await listNotifications({
     userId: ctx.userId,
     tenantId: ctx.tenantId,
     unreadOnly,
+    archived,
     limit: 50,
   })
   const unread = await unreadCount(ctx.userId, ctx.tenantId)
@@ -46,6 +50,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  if (action === 'archive') {
+    const ids = Array.isArray(body.ids) ? body.ids : []
+    await archiveNotifications({ userId: ctx.userId, tenantId: ctx.tenantId, ids })
+    return NextResponse.json({ ok: true })
+  }
+
+  if (action === 'delete') {
+    const ids = Array.isArray(body.ids) ? body.ids : []
+    await deleteNotifications({ userId: ctx.userId, tenantId: ctx.tenantId, ids })
+    return NextResponse.json({ ok: true })
+  }
+
   if (action === 'create') {
     // Only self — prevents cross-user notification spam
     const title = sanitizeText(body.title, 300)
@@ -56,6 +72,7 @@ export async function POST(req: NextRequest) {
       category: sanitizeText(body.category, 40) ?? 'system',
       title,
       body: sanitizeText(body.body, 2000) ?? undefined,
+      link: sanitizeText(body.link, 400) ?? undefined,
       entityType: sanitizeText(body.entity_type, 40) ?? undefined,
       entityId: sanitizeText(body.entity_id, 80) ?? undefined,
       resumeId: body.resume_id ?? undefined,

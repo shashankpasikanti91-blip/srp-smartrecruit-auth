@@ -12,6 +12,7 @@ import { createNotification } from '@/lib/notificationCenter'
 import { upsertWorkflowInstance } from '@/lib/workflowEngine'
 import { resolveDateFilter, resolveMineScope, deriveDocsStatus, parseHrOps } from '@/lib/opsList'
 import { DOCUMENT_SLOTS } from '@/lib/documentStorage'
+import { advanceFromDomain, offerStatusToLifecycle } from '@/lib/lifecycle'
 
 const HR_SLOTS = [...DOCUMENT_SLOTS]
 
@@ -381,6 +382,17 @@ export async function POST(req: NextRequest) {
     approvalStatus: approvalStatus ?? 'none',
     actorUserId: ctx.userId,
     actorEmail: ctx.userEmail,
+  })
+
+  await advanceFromDomain({
+    tenantId: ctx.tenantId,
+    resumeId: resume_id,
+    toStage: offerStatusToLifecycle(rows[0].status),
+    relatedEntityType: 'offer',
+    relatedEntityId: rows[0].id,
+    actorUserId: ctx.userId,
+    actorEmail: ctx.userEmail,
+    reason: `offer_created:${rows[0].status}`,
   })
 
   return NextResponse.json({ offer: rows[0] }, { status: 201 })

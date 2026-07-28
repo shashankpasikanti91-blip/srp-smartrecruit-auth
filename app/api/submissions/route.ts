@@ -6,6 +6,7 @@ import { logAudit } from '@/lib/audit'
 import { nextYearSeqId } from '@/lib/recruitmentOs'
 import { upsertWorkflowInstance } from '@/lib/workflowEngine'
 import { resolveDateFilter, resolveMineScope, stagesForFeedbackBucket, parseSubmissionFeedback } from '@/lib/opsList'
+import { advanceFromDomain, submissionStageToLifecycle } from '@/lib/lifecycle'
 
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, 'candidates.read')
@@ -195,6 +196,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid job_post_id' }, { status: 400 })
     }
 
+    // One open submission per (tenant, candidate, job) unless force_resubmit
+    const stageIn = sanitizeText(body.stage, 50) ?? 'draft'
+    if (job_post_id && stageIn !== 'draft' && !body.force_resubmit) {
+      const dup = await pool.query(
+        `SELECT id, short_id, stage FROM submissions
+         WHERE tenant_id = $1 AND resume_id = $2 AND job_post_id = $3
+           AND stage NOT IN ('rejected','rejected_by_candidate','submission_withdrawn','position_closed','duplicate','joined')
+         LIMIT 1`,
+        [ctx.tenantId, resume_id, job_post_id],
+      )
+      if (dup.rows[0]) {
+        return NextResponse.json({
+          error: 'Open submission already exists for this candidate and job',
+          existing_submission_id: dup.rows[0].id,
+          existing_short_id: dup.rows[0].short_id,
+          existing_stage: dup.rows[0].stage,
+        }, { status: 409 })
+      }
+    }
+
     const { rows } = await pool.query(
       `INSERT INTO submissions
          (tenant_id, resume_id, job_post_id, user_id, short_id, client_name, applying_for,
@@ -207,7 +228,7 @@ export async function POST(req: NextRequest) {
         sanitizeText(body.client_name, 200),
         sanitizeText(body.applying_for, 200),
         sanitizeText(body.hire_type, 40),
-        sanitizeText(body.stage, 50) ?? 'draft',
+        stageIn,
         sanitizeText(body.lifecycle_status, 60),
         body.submission_date || null,
         sanitizeText(body.notes, 5000),
@@ -221,6 +242,20 @@ export async function POST(req: NextRequest) {
       resourceId: own.rows[0].short_id,
       details: { submission_id: rows[0].id, stage: rows[0].stage },
       tenantId: ctx.tenantId,
+      resumeId: resume_id,
+    })
+
+    const lifeStage = submissionStageToLifecycle(rows[0].stage)
+    await advanceFromDomain({
+      tenantId: ctx.tenantId,
+      resumeId: resume_id,
+      toStage: lifeStage,
+      jobPostId: job_post_id,
+      relatedEntityType: 'submission',
+      relatedEntityId: rows[0].id,
+      actorUserId: ctx.userId,
+      actorEmail: ctx.userEmail,
+      reason: `submission_created:${rows[0].stage}`,
     })
 
     let slaDays = 3

@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Briefcase, Check, Copy, FileText, Loader2, Sparkles, TrendingUp, X } from 'lucide-react'
 import { AiFitScoreCard } from '@/components/recruitment/AiFitScoreCard'
+import { InternalMatchesTab } from '@/components/jobs/InternalMatchesTab'
+import { EntityNotesTimeline } from '@/components/ui/EntityNotesTimeline'
+import { OwnershipPanel } from '@/components/ownership/OwnershipPanel'
 import type { AiFitScores } from '@/lib/aiFitScore'
 import {
   JOB_POST_PLATFORMS,
@@ -16,9 +19,11 @@ const TABS = [
   'posts',
   'pipeline',
   'ranking',
+  'internal_matches',
   'submissions',
   'interviews',
   'offers',
+  'notes',
   'similar_jobs',
   'market',
   'timeline',
@@ -32,9 +37,11 @@ const TAB_LABELS: Record<Job360Tab, string> = {
   posts: 'Posts',
   pipeline: 'Pipeline',
   ranking: 'Ranking',
+  internal_matches: 'Internal Matches',
   submissions: 'Submissions',
   interviews: 'Interviews',
   offers: 'Offers',
+  notes: 'Notes',
   similar_jobs: 'Similar Jobs',
   market: 'Market',
   timeline: 'Timeline',
@@ -191,6 +198,7 @@ export function Job360View({
   onClose,
   onOpenCandidate,
   onNavigate,
+  variant = 'drawer',
 }: {
   jobId: string
   onClose: () => void
@@ -198,6 +206,8 @@ export function Job360View({
   onNavigate?: (tab: string) => void
   /** @deprecated Posts are generated inside the Posts tab now */
   onGeneratePosts?: (job: Job360Job) => void
+  /** Full page vs slide-over drawer */
+  variant?: 'drawer' | 'page'
 }) {
   const [tab, setTab] = useState<Job360Tab>('overview')
   const [data, setData] = useState<Job360Data | null>(null)
@@ -343,6 +353,7 @@ export function Job360View({
           type: job.type,
           description: job.description || rawText.slice(0, 6000),
           requirements: job.requirements,
+          raw_jd_text: job.raw_jd_text || rawText || undefined,
           custom_prompt: customPrompt,
           platforms: selectedPlatforms,
         }),
@@ -384,15 +395,43 @@ export function Job360View({
 
   const openPostsTab = () => setTab('posts')
 
+  const actionCards = [
+    { key: 'posts', label: 'Generate Job Post', desc: 'LinkedIn, Indeed, Long/Medium/Short', color: 'bg-blue-600 hover:bg-blue-500', tab: 'posts' as Job360Tab, tool: null as string | null },
+    { key: 'boolean', label: 'Boolean Search', desc: 'Strings from this JD', color: 'bg-emerald-600 hover:bg-emerald-500', tab: null, tool: 'boolean' },
+    { key: 'screen', label: 'AI Screening', desc: 'Screen CVs with this JD', color: 'bg-violet-600 hover:bg-violet-500', tab: null, tool: 'screen' },
+    { key: 'internal', label: 'Internal Match', desc: 'Best talent pool fits', color: 'bg-teal-600 hover:bg-teal-500', tab: 'internal_matches' as Job360Tab, tool: null },
+    { key: 'pipeline', label: 'Candidate Pipeline', desc: 'Lifecycle by stage', color: 'bg-orange-600 hover:bg-orange-500', tab: 'pipeline' as Job360Tab, tool: null },
+    { key: 'ranking', label: 'Analytics / Ranking', desc: 'Fit scores & ranks', color: 'bg-amber-600 hover:bg-amber-500', tab: 'ranking' as Job360Tab, tool: null },
+    { key: 'interviews', label: 'Interview Status', desc: 'Rounds for this job', color: 'bg-rose-600 hover:bg-rose-500', tab: 'interviews' as Job360Tab, tool: null },
+  ]
+
+  const shellClass = variant === 'page'
+    ? 'min-h-screen bg-slate-100'
+    : 'drawer-overlay'
+  const panelClass = variant === 'page'
+    ? 'max-w-6xl mx-auto px-4 py-6'
+    : 'drawer-panel'
+  const panelStyle = variant === 'page' ? undefined : { maxWidth: 860 }
+
   return (
-    <div className="drawer-overlay" style={{ zIndex: 60 }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="drawer-panel" style={{ maxWidth: 860 }}>
-        <div className="drawer-header">
+    <div
+      className={shellClass}
+      style={variant === 'drawer' ? { zIndex: 60 } : undefined}
+      onClick={variant === 'drawer' ? (e => { if (e.target === e.currentTarget) onClose() }) : undefined}
+    >
+      <div className={panelClass} style={panelStyle}>
+        <div className={variant === 'page' ? 'rounded-2xl bg-white border border-slate-200 shadow-sm mb-4' : ''}>
+        <div className={variant === 'page' ? 'px-5 py-4 border-b border-slate-200' : 'drawer-header'}>
           <div className="flex items-start gap-3 min-w-0">
             <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0">
               <Briefcase className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0">
+              {variant === 'page' && (
+                <button type="button" onClick={onClose} className="text-xs font-bold text-indigo-700 hover:underline mb-1">
+                  ← Back to Jobs
+                </button>
+              )}
               <h2 className="text-lg font-extrabold text-slate-900 truncate page-title">{job?.title ?? 'Job 360°'}</h2>
               <p className="text-xs font-semibold text-slate-500 mt-0.5">
                 {[job?.company || job?.client_name, job?.location, job?.status].filter(Boolean).join(' · ')}
@@ -408,11 +447,32 @@ export function Job360View({
             >
               <Sparkles className="w-3.5 h-3.5" /> Generate Posts
             </button>
-            <button type="button" onClick={onClose} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
-              <X className="w-5 h-5" />
-            </button>
+            {variant === 'drawer' && (
+              <button type="button" onClick={onClose} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
+
+        {variant === 'page' && (
+          <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2.5 border-b border-slate-100">
+            {actionCards.map(card => (
+              <button
+                key={card.key}
+                type="button"
+                onClick={() => {
+                  if (card.tab) setTab(card.tab)
+                  else if (card.tool && onNavigate) onNavigate(card.tool)
+                }}
+                className={`text-left rounded-xl ${card.color} text-white px-3 py-3 shadow-sm transition-colors`}
+              >
+                <p className="text-xs font-extrabold leading-tight">{card.label}</p>
+                <p className="text-[10px] font-medium opacity-90 mt-1 leading-snug">{card.desc}</p>
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="flex flex-wrap border-b border-slate-200 gap-x-0.5 bg-white px-1 sticky top-0 z-10">
           {TABS.map(t => (
@@ -429,8 +489,9 @@ export function Job360View({
             </button>
           ))}
         </div>
+        </div>
 
-        <div className="drawer-body">
+        <div className={variant === 'page' ? 'rounded-2xl bg-white border border-slate-200 shadow-sm p-5' : 'drawer-body'}>
           {loading ? (
             <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-indigo-600" /></div>
           ) : (
@@ -524,6 +585,8 @@ export function Job360View({
                   <Section title="Key Skills">
                     <SkillChips skills={keySkills} />
                   </Section>
+
+                  <OwnershipPanel entityType="job" entityId={jobId} compact />
 
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-2">
                     <div className="flex items-center justify-between gap-2">
@@ -750,6 +813,17 @@ export function Job360View({
               {tab === 'submissions' && <EntityList items={data?.submissions} onOpenCandidate={onOpenCandidate} />}
               {tab === 'interviews' && <EntityList items={data?.interviews} onOpenCandidate={onOpenCandidate} />}
               {tab === 'offers' && <EntityList items={data?.offers} onOpenCandidate={onOpenCandidate} />}
+              {tab === 'internal_matches' && (
+                <InternalMatchesTab jobId={jobId} onOpenCandidate={onOpenCandidate} />
+              )}
+              {tab === 'notes' && (
+                <EntityNotesTimeline
+                  entityType="job"
+                  entityId={jobId}
+                  title="Job notes"
+                  subtitle="Team notes for this requisition — pinned, private, and searchable."
+                />
+              )}
               {tab === 'similar_jobs' && <EntityList items={data?.similar_jobs} labelKey="title" />}
               {tab === 'market' && (
                 <div className="space-y-4">

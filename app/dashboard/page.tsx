@@ -32,6 +32,7 @@ import { AddCandidateFlow } from '@/components/recruitment/AddCandidateFlow'
 import { DeleteActionButton } from '@/components/recruitment/DeleteActionButton'
 import { DeleteApprovalsPanel } from '@/components/recruitment/DeleteApprovalsPanel'
 import { NotificationBell } from '@/components/dashboard/NotificationBell'
+import { GlobalSearchPalette } from '@/components/dashboard/GlobalSearchPalette'
 import { GovernanceTab } from '@/components/governance/GovernanceTab'
 import { BrandMark, AppSplash } from '@/components/ui/BrandMark'
 import {
@@ -163,28 +164,41 @@ interface ScreenResult {
   db_id?: string; short_id?: string
   candidate_id?: string
   screened_at?: string
+  /** Bulk upload filename — used to reattach original file after screening */
+  filename?: string
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const PIPELINE_STAGES = [
-  { key: 'sourced',    label: 'Sourced',    color: 'bg-slate-700',      text: 'text-slate-300',   bar: 'bg-slate-400',      icon: Inbox },
-  { key: 'applied',   label: 'Applied',    color: 'bg-blue-900/60',    text: 'text-blue-300',    bar: 'bg-blue-500',       icon: Briefcase },
-  { key: 'screening', label: 'Screening',  color: 'bg-purple-900/60',  text: 'text-purple-300',  bar: 'bg-purple-500',     icon: Target },
-  { key: 'interview', label: 'Interview',  color: 'bg-amber-900/60',   text: 'text-amber-300',   bar: 'bg-amber-500',      icon: Clock },
-  { key: 'offer',     label: 'Offer',      color: 'bg-emerald-900/60', text: 'text-emerald-300', bar: 'bg-emerald-500',    icon: CheckCircle },
-  { key: 'hired',     label: 'Hired',      color: 'bg-green-900/60',   text: 'text-green-300',   bar: 'bg-green-500',      icon: Star },
-  { key: 'rejected',  label: 'Rejected',   color: 'bg-red-900/60',     text: 'text-red-300',     bar: 'bg-red-500',        icon: X },
+  { key: 'sourced',       label: 'Sourced',        color: 'bg-slate-700',      text: 'text-slate-300',   bar: 'bg-slate-400',      icon: Inbox },
+  { key: 'applied',       label: 'Applied',        color: 'bg-blue-900/60',    text: 'text-blue-300',    bar: 'bg-blue-500',       icon: Briefcase },
+  { key: 'screening',     label: 'Screening',      color: 'bg-purple-900/60',  text: 'text-purple-300',  bar: 'bg-purple-500',     icon: Target },
+  { key: 'submitted',     label: 'Submitted',      color: 'bg-indigo-900/60',  text: 'text-indigo-300',  bar: 'bg-indigo-500',     icon: Briefcase },
+  { key: 'interview',     label: 'Interview',      color: 'bg-amber-900/60',   text: 'text-amber-300',   bar: 'bg-amber-500',      icon: Clock },
+  { key: 'offer',         label: 'Offer',          color: 'bg-emerald-900/60', text: 'text-emerald-300', bar: 'bg-emerald-500',    icon: CheckCircle },
+  { key: 'hr_onboarding', label: 'HR / Onboarding', color: 'bg-cyan-900/60',   text: 'text-cyan-300',    bar: 'bg-cyan-500',       icon: CheckCircle },
+  { key: 'joined',        label: 'Joined',         color: 'bg-green-900/60',   text: 'text-green-300',   bar: 'bg-green-500',      icon: Star },
+  { key: 'employee',      label: 'Employee',       color: 'bg-teal-900/60',    text: 'text-teal-300',    bar: 'bg-teal-500',       icon: Star },
+  { key: 'on_hold',       label: 'On Hold',        color: 'bg-orange-900/60',  text: 'text-orange-300',  bar: 'bg-orange-500',     icon: Clock },
+  { key: 'rejected',      label: 'Rejected',       color: 'bg-red-900/60',     text: 'text-red-300',     bar: 'bg-red-500',        icon: X },
+  { key: 'withdrawn',     label: 'Withdrawn',      color: 'bg-rose-900/60',    text: 'text-rose-300',    bar: 'bg-rose-500',       icon: X },
 ]
 
 // Light variants for white-bg contexts (candidates table, job rows etc.)
 const STAGE_LIGHT: Record<string, { bg: string; text: string; border: string }> = {
-  sourced:   { bg: 'bg-slate-100',  text: 'text-slate-600',   border: 'border-slate-200' },
-  applied:   { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
-  screening: { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200' },
-  interview: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
-  offer:     { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-  hired:     { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' },
-  rejected:  { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200' },
+  sourced:       { bg: 'bg-slate-100',  text: 'text-slate-600',   border: 'border-slate-200' },
+  applied:       { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
+  screening:     { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200' },
+  submitted:     { bg: 'bg-indigo-50',  text: 'text-indigo-700',  border: 'border-indigo-200' },
+  interview:     { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
+  offer:         { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  hr_onboarding: { bg: 'bg-cyan-50',    text: 'text-cyan-700',    border: 'border-cyan-200' },
+  joined:        { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' },
+  hired:         { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' }, // legacy alias
+  employee:      { bg: 'bg-teal-50',    text: 'text-teal-700',    border: 'border-teal-200' },
+  on_hold:       { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-200' },
+  rejected:      { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200' },
+  withdrawn:     { bg: 'bg-rose-50',    text: 'text-rose-700',    border: 'border-rose-200' },
 }
 
 const MATCH_CONFIG = {
@@ -1577,12 +1591,38 @@ export default function DashboardPage() {
   /** Original file from last single-mode upload (used to persist PDF after AI screen saves a row). */
   const [screenSingleFile, setScreenSingleFile] = useState<File | null>(null)
   const [screenJobId, setScreenJobId] = useState('')
+  const [screenJobMeta, setScreenJobMeta] = useState<{ title?: string; client?: string | null; loading?: boolean } | null>(null)
   const [screening, setScreening] = useState(false)
   const [screenProgress, setScreenProgress] = useState('')
   const [screenError, setScreenError] = useState('')
   const [screenResults, setScreenResults] = useState<ScreenResult[]>([])
   // "Screen from Candidates" mode
   const [selectedCandIds, setSelectedCandIds] = useState<string[]>([])
+
+  // Deep-link: ?tab=screen&job_post_id=… from Job Hub action cards
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const tab = params.get('tab') as DashboardTab | null
+    const jobId = params.get('job_post_id')
+    if (tab && ['screen', 'boolean', 'compose', 'jd', 'coach', 'jobs', 'candidates', 'submissions', 'interviews', 'selected'].includes(tab)) {
+      setActiveTab(tab)
+    }
+    if (jobId && (!tab || tab === 'screen')) {
+      setScreenJobId(jobId)
+      if (!tab) setActiveTab('screen')
+      void (async () => {
+        try {
+          const res = await fetch(`/api/jobs/${jobId}/screening-context`)
+          const data = await res.json()
+          if (res.ok && data.jd_text) {
+            setJdText(data.jd_text)
+            setScreenJobMeta({ title: data.title, client: data.client, loading: false })
+          }
+        } catch { /* ignore */ }
+      })()
+    }
+  }, [])
   const [skipAlreadyScreened, setSkipAlreadyScreened] = useState(true)
   const [existingCandSearch, setExistingCandSearch] = useState('')
 
@@ -2234,8 +2274,50 @@ export default function DashboardPage() {
         }
         setScreenProgress(`Re-screening ${resumes.length} candidate${resumes.length === 1 ? '' : 's'}…`)
       }
+
+      // Large bulk → async queue (P5) to avoid gateway timeouts
+      if (screenMode === 'bulk' && resumes.length > 15) {
+        const queueRes = await fetch('/api/bulk-jobs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jd_text: jdText || undefined,
+            job_post_id: screenJobId || undefined,
+            resumes,
+          }),
+        })
+        const queueData = await queueRes.json()
+        if (!queueRes.ok) {
+          setScreenError(queueData.error || 'Could not queue bulk screening')
+          return
+        }
+        const bulkId = queueData.bulk_job_id as string
+        setScreenProgress(`Queued ${resumes.length} CVs — processing in background…`)
+        // Poll progress
+        for (let tick = 0; tick < 120; tick++) {
+          await new Promise(r => setTimeout(r, 3000))
+          const st = await fetch(`/api/bulk-jobs?id=${bulkId}`)
+          const stData = await st.json()
+          const job = stData.job
+          if (!job) break
+          setScreenProgress(
+            `Bulk ${job.status}: ${job.completed}/${job.total} done · ${job.failed} failed · ${job.skipped} skipped`,
+          )
+          if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+            setScreenError(job.failed > 0 ? `${job.failed} item(s) failed — retry from bulk job ${bulkId}` : '')
+            await loadData()
+            break
+          }
+        }
+        return
+      }
+
       const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 150000) // 150s timeout
+      const timeoutMs = Math.min(
+        300000,
+        Math.max(180000, Math.ceil(resumes.length / 5) * 90000),
+      )
+      const timer = setTimeout(() => controller.abort(), timeoutMs)
       try {
         setScreenProgress(prev => `${prev.replace(/\.\.\.$/, '')} — calling AI auditor…`)
         const res = await fetch('/api/screen', {
@@ -2260,12 +2342,21 @@ export default function DashboardPage() {
         }
         if (!res.ok) { setScreenError(data.error ?? `Server error (${res.status}). Please try again.`); return }
         const results = data.results ?? []
-        setScreenResults(results)
-        setScreenProgress(results.length ? `Completed — ${results.length} result${results.length === 1 ? '' : 's'} saved` : '')
-        if (results.length > 0) {
+        const failed = results.filter(r => r && typeof r === 'object' && 'error' in r && r.error)
+        const successResults = results.filter(r => !(r && typeof r === 'object' && 'error' in r && r.error))
+        setScreenResults(successResults)
+        if (failed.length > 0 && successResults.length > 0) {
+          setScreenError(`${failed.length} resume(s) could not be screened. Showing ${successResults.length} successful result(s).`)
+        } else if (failed.length > 0 && successResults.length === 0) {
+          setScreenError('No resumes could be screened. Please try again with fewer files or check your AI configuration.')
+          setScreenProgress('')
+          return
+        }
+        setScreenProgress(successResults.length ? `Completed — ${successResults.length} result${successResults.length === 1 ? '' : 's'} saved` : '')
+        if (successResults.length > 0) {
           const attachJobs: Promise<unknown>[] = []
           if (screenMode === 'single') {
-            const id = results[0]?.db_id
+            const id = successResults[0]?.db_id
             if (id && screenSingleFile) {
               const fd = new FormData()
               fd.append('file', screenSingleFile)
@@ -2276,9 +2367,9 @@ export default function DashboardPage() {
               )
             }
           } else if (screenMode === 'bulk') {
-            for (let i = 0; i < results.length; i++) {
-              const id = results[i]?.db_id
-              const file = bulkTexts[i]?.file
+            for (const result of successResults) {
+              const id = result?.db_id
+              const file = bulkTexts.find(b => b.filename === result.filename)?.file
               if (!id || !file) continue
               const fd = new FormData()
               fd.append('file', file)
@@ -2296,7 +2387,7 @@ export default function DashboardPage() {
           }
           setScreenSingleFile(null)
           await loadData()
-          const n = results.length
+          const n = successResults.length
           setWorkspaceBanner(
             n === 1
               ? 'AI screening complete — candidate saved to your workspace.'
@@ -2391,6 +2482,7 @@ export default function DashboardPage() {
           type: job.type,
           description: job.description,
           requirements: job.requirements,
+          raw_jd_text: (job as Job & { raw_jd_text?: string }).raw_jd_text,
           custom_prompt: genCustomPrompt,
           platforms,
         }),
@@ -2448,6 +2540,7 @@ export default function DashboardPage() {
   const canSeeReports = isTenantAdminOrOwner
   const canSeeGovernance = isTenantAdminOrOwner
   const canSeeClients = isTenantAdminOrOwner || tenantRole === 'recruiter'
+  const canSeeRecruiters = isTenantAdminOrOwner // Owner / Tenant Admin (+ manager when role exists)
 
   const sidebarNavItems: Array<{ tab: DashboardTab; icon: typeof TrendingUp; label: string; badge: string | null; section: 'recruitment' | 'ai' | 'ops' }> = [
     { tab: 'workspace', icon: TrendingUp, label: 'Dashboard', badge: agentPendingCount > 0 ? String(agentPendingCount) : null, section: 'recruitment' },
@@ -2458,19 +2551,16 @@ export default function DashboardPage() {
     { tab: 'interviews', icon: Calendar, label: 'Interviews', badge: null, section: 'recruitment' },
     { tab: 'followups', icon: Clock, label: 'Follow-ups', badge: null, section: 'recruitment' },
     { tab: 'selected', icon: Award, label: 'Offer & Onboarding', badge: null, section: 'recruitment' },
-    { tab: 'recruiters', icon: Users, label: 'Recruiters', badge: null, section: 'recruitment' },
+    ...(canSeeRecruiters ? [{ tab: 'recruiters' as const, icon: Users, label: 'Recruiters', badge: null, section: 'recruitment' as const }] : []),
     { tab: 'documents', icon: FileText, label: 'Documents', badge: null, section: 'recruitment' },
     ...(canSeeReports ? [{ tab: 'reports' as const, icon: Download, label: 'Reports', badge: null, section: 'recruitment' as const }] : []),
     { tab: 'performance', icon: Target, label: 'My Performance', badge: null, section: 'recruitment' },
-    /* AI Tools — first-class sidebar entries (not buried under a single hub) */
-    { tab: 'screen', icon: Brain, label: 'AI Screening', badge: 'AI', section: 'ai' },
-    { tab: 'coach', icon: Sparkles, label: 'AI Assistant', badge: null, section: 'ai' },
-    { tab: 'compose', icon: Mail, label: 'AI Compose', badge: null, section: 'ai' },
-    { tab: 'jd', icon: FileText, label: 'JD Writer', badge: null, section: 'ai' },
-    { tab: 'boolean', icon: Search, label: 'Boolean Search', badge: null, section: 'ai' },
+    /* P6: single AI Hub entry — tools open inside coach workspace / tabs */
+    { tab: 'coach', icon: Sparkles, label: 'AI Hub', badge: 'AI', section: 'ai' },
     { tab: 'comms', icon: Mail, label: 'Communications', badge: null, section: 'ops' },
     ...(canSeeReports ? [{ tab: 'hrconfig' as const, icon: Shield, label: 'HRMS', badge: null, section: 'ops' as const }] : []),
     { tab: 'ess', icon: Building2, label: 'ESS', badge: null, section: 'ops' },
+    ...(canSeeGovernance ? [{ tab: 'governance' as const, icon: Shield, label: 'Governance', badge: null, section: 'ops' as const }] : []),
     { tab: 'settings', icon: Settings, label: 'Settings', badge: null, section: 'ops' },
   ]
 
@@ -2559,7 +2649,7 @@ export default function DashboardPage() {
             {(['recruitment', 'ai', 'ops'] as const).map(section => {
               const items = sidebarNavItems.filter(i => i.section === section)
               if (items.length === 0) return null
-              const sectionLabel = section === 'recruitment' ? 'Recruitment' : section === 'ai' ? 'AI Tools' : 'Operations'
+              const sectionLabel = section === 'recruitment' ? 'Recruitment' : section === 'ai' ? 'AI' : 'Operations'
               return (
                 <div key={section} className={section === 'recruitment' ? '' : 'mt-3 pt-2 border-t border-white/10'}>
                   <p className="px-2.5 mb-1.5 text-[9px] font-extrabold uppercase tracking-widest text-slate-400">{sectionLabel}</p>
@@ -2683,12 +2773,13 @@ export default function DashboardPage() {
             <div className="dash-page-shell py-2 flex items-center justify-end gap-1.5 flex-wrap">
               <button
                 type="button"
-                className="lg:hidden p-2 rounded-lg border border-slate-200 bg-white text-slate-700 mr-auto"
+                className="lg:hidden p-2 rounded-lg border border-slate-200 bg-white text-slate-700"
                 onClick={() => setMobileNavOpen(true)}
                 aria-label="Open menu"
               >
                 <Layers className="w-4 h-4" />
               </button>
+              <GlobalSearchPalette />
               <a
                 href="/m"
                 className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold border border-teal-200 text-teal-800 bg-teal-50 hover:bg-teal-100"
@@ -2729,7 +2820,12 @@ export default function DashboardPage() {
 
             {/* ── MY WORKSPACE ─────────────────────────────────────────────── */}
             {activeTab === 'workspace' && (
-              <WorkspaceTab onNavigate={(tab) => setActiveTab(tab as DashboardTab)} userName={user?.name} />
+              <WorkspaceTab
+                onNavigate={(tab) => setActiveTab(tab as DashboardTab)}
+                userName={user?.name}
+                role={tenantRole}
+                isManager={isTenantAdminOrOwner || tenantRole === 'manager' || tenantRole === 'recruitment_head'}
+              />
             )}
 
             {/* Pipeline Kanban removed — any 'pipeline' tab redirects to Candidates */}
@@ -3068,7 +3164,7 @@ export default function DashboardPage() {
                           const nric = p.nric || (String(p.id_document_type ?? '').toLowerCase().includes('nric') ? p.id_document_reference : null)
                           const parsed = !!(c.raw_text && c.raw_text.trim().length > 20)
                           return (
-                          <tr key={c.id} onClick={() => setSelectedCandidate(c)} className={`cursor-pointer transition-colors ${i % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'} hover:bg-indigo-50/40`}>
+                          <tr key={c.id} onClick={() => router.push(`/dashboard/candidates/${c.id}`)} className={`cursor-pointer transition-colors ${i % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'} hover:bg-indigo-50/40`}>
                             <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
                               <input
                                 type="checkbox"
@@ -3105,7 +3201,7 @@ export default function DashboardPage() {
                             {showCandCol('screened_job') && (
                             <td className="min-w-[110px] max-w-[150px]" onClick={e => e.stopPropagation()}>
                               {c.job_posts ? (
-                                <button onClick={() => { const j = jobs.find(jb => jb.id === c.job_posts?.id); if (j) setSelectedJobView(j) }}
+                                <button onClick={() => { if (c.job_posts?.id) router.push(`/dashboard/jobs/${c.job_posts.id}`) }}
                                   className="text-left text-[12px] font-medium text-indigo-700 hover:underline truncate block max-w-[140px]">{c.job_posts.title}</button>
                               ) : <span className="text-xs text-gray-400">—</span>}
                             </td>
@@ -3158,7 +3254,7 @@ export default function DashboardPage() {
                               <div className="flex items-center gap-1">
                                 <button type="button" onClick={() => setSubmissionCandidate(c)}
                                   className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[10px] font-semibold text-slate-700 hover:bg-slate-100">Details</button>
-                                <button type="button" onClick={() => setSelectedCandidate(c)}
+                                <button type="button" onClick={() => router.push(`/dashboard/candidates/${c.id}`)}
                                   className="px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-100">View</button>
                                 <button type="button" onClick={() => setEditCandidate(c)}
                                   className="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-100">Edit</button>
@@ -3169,7 +3265,7 @@ export default function DashboardPage() {
                               </div>
                               {actionsMenuId === c.id && (
                                 <div className="absolute right-2 top-9 z-20 w-48 rounded-xl border border-slate-200 bg-white shadow-lg py-1 text-xs">
-                                  <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50" onClick={() => { setSelectedCandidate(c); setActionsMenuId(null) }}>View candidate</button>
+                                  <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50" onClick={() => { router.push(`/dashboard/candidates/${c.id}`); setActionsMenuId(null) }}>View candidate</button>
                                   <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50" onClick={() => { setEditCandidate(c); setActionsMenuId(null) }}>Edit candidate</button>
                                   <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50" onClick={() => { setSubmissionCandidate(c); setActionsMenuId(null) }}>Submission details</button>
                                   <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50" onClick={() => { setActiveTab('screen'); setScreenMode('existing'); setSelectedCandIds([c.id]); setActionsMenuId(null) }}>AI analysis</button>
@@ -3288,7 +3384,17 @@ export default function DashboardPage() {
                           className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-400 resize-none" />
                         <p className="text-xs font-semibold text-gray-600">Or upload resume file:</p>
                         <FileUploadZone label="Upload Resume (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
-                          onTexts={([t]) => { setResumeText(t.text); setScreenSingleFile(t.file ?? null) }} disabled={screening} />
+                          onTexts={(ts) => {
+                            if (ts.length > 1) {
+                              setScreenMode('bulk')
+                              setBulkTexts(ts)
+                              setResumeText('')
+                              setScreenSingleFile(null)
+                              return
+                            }
+                            setResumeText(ts[0]?.text ?? '')
+                            setScreenSingleFile(ts[0]?.file ?? null)
+                          }} disabled={screening} />
                       </>
                     ) : screenMode === 'bulk' ? (
                       <FileUploadZone label="Upload multiple CVs (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple
@@ -3376,12 +3482,50 @@ export default function DashboardPage() {
                       })()
                     )}
                     <div>
-                      <label className="text-xs font-semibold text-gray-700 mb-1 block">Link to Job (optional)</label>
-                      <select value={screenJobId} onChange={e => setScreenJobId(e.target.value)}
+                      <label className="text-xs font-semibold text-gray-700 mb-1 block">Select Job (loads full JD automatically)</label>
+                      <select
+                        value={screenJobId}
+                        onChange={async e => {
+                          const id = e.target.value
+                          setScreenJobId(id)
+                          if (!id) {
+                            setScreenJobMeta(null)
+                            return
+                          }
+                          setScreenJobMeta({ loading: true })
+                          try {
+                            const res = await fetch(`/api/jobs/${id}/screening-context`)
+                            const data = await res.json()
+                            if (!res.ok) {
+                              setScreenError(data.error || 'Could not load job JD')
+                              setScreenJobMeta(null)
+                              return
+                            }
+                            setJdText(data.jd_text || '')
+                            setScreenJobMeta({
+                              title: data.title,
+                              client: data.client,
+                              loading: false,
+                            })
+                            setScreenError('')
+                          } catch {
+                            setScreenError('Failed to load job JD')
+                            setScreenJobMeta(null)
+                          }
+                        }}
                         className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-blue-400">
-                        <option value="">— No job —</option>
+                        <option value="">— Select a job to auto-load JD —</option>
                         {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0,8)})</option>)}
                       </select>
+                      {screenJobMeta?.loading && (
+                        <p className="text-xs text-blue-600 mt-1 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Loading complete JD…</p>
+                      )}
+                      {screenJobId && screenJobMeta && !screenJobMeta.loading && (
+                        <p className="text-xs text-emerald-700 mt-1 font-medium">
+                          JD loaded from job{screenJobMeta.title ? `: ${screenJobMeta.title}` : ''}
+                          {screenJobMeta.client ? ` · ${screenJobMeta.client}` : ''}. Manual paste is optional override only.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3404,7 +3548,7 @@ export default function DashboardPage() {
                 )}
 
                 <button onClick={runScreening}
-                  disabled={screening || !jdText || (screenMode === 'single' ? !resumeText : screenMode === 'bulk' ? bulkTexts.length === 0 : selectedCandIds.length === 0)}
+                  disabled={screening || (!jdText && !screenJobId) || (screenMode === 'single' ? !resumeText : screenMode === 'bulk' ? bulkTexts.length === 0 : selectedCandIds.length === 0)}
                   className="mb-6 flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 font-semibold text-sm text-white shadow-md shadow-indigo-900/20 transition-all disabled:opacity-50 disabled:pointer-events-none">
                   {screening ? <><Loader2 className="w-4 h-4 animate-spin" /> Screening…</> : <><Sparkles className="w-4 h-4" /> {screenMode === 'existing' ? `Screen ${selectedCandIds.length} Candidate${selectedCandIds.length !== 1 ? 's' : ''} (0 token waste)` : 'Run AI Screening'}</>}
                 </button>
@@ -3827,7 +3971,7 @@ export default function DashboardPage() {
                           const jobCands = candidates.filter(c => c.job_posts?.id === job.id)
                           const stageSummary = PIPELINE_STAGES.slice(1).map(s => ({ ...s, count: jobCands.filter(c => c.pipeline_stage === s.key).length }))
                           return (
-                            <tr key={job.id} onClick={() => setSelectedJobView(job)} className="cursor-pointer hover:bg-indigo-50/30 transition-colors">
+                            <tr key={job.id} onClick={() => router.push(`/dashboard/jobs/${job.id}`)} className="cursor-pointer hover:bg-indigo-50/30 transition-colors">
                               <td><ShortIdBadge id={job.short_id ?? job.id.slice(0, 8)} /></td>
                               <td>
                                 <p className="font-semibold text-gray-900 text-sm">{job.title}</p>
@@ -3836,7 +3980,7 @@ export default function DashboardPage() {
                               <td className="text-sm text-gray-500">{job.location || '—'}</td>
                               <td className="text-sm text-gray-500 capitalize">{job.type || '—'}</td>
                               <td className="text-center" onClick={e => e.stopPropagation()}>
-                                <button onClick={() => setSelectedJobView(job)}
+                                <button onClick={() => router.push(`/dashboard/jobs/${job.id}`)}
                                   className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-700 hover:text-indigo-900">
                                   <Users className="w-3.5 h-3.5" />
                                   {jobCands.length}
@@ -3858,7 +4002,7 @@ export default function DashboardPage() {
                               <td className="text-xs text-gray-400 whitespace-nowrap">{job.updated_at && job.updated_at !== job.created_at ? fmtDate(job.updated_at) : '—'}</td>
                               <td>
                                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                                  <button onClick={() => setSelectedJobView(job)}
+                                  <button onClick={() => router.push(`/dashboard/jobs/${job.id}`)}
                                     className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-200">
                                     <Users className="w-3 h-3" /> Candidates
                                   </button>
@@ -4841,8 +4985,8 @@ export default function DashboardPage() {
               <SubmissionsTab
                 isManager={isTenantAdminOrOwner}
                 onOpenCandidate={(shortId) => {
-                const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === shortId.toUpperCase())
-                if (c) setSelectedCandidate(c)
+                const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === shortId.toUpperCase() || x.id === shortId)
+                if (c) router.push(`/dashboard/candidates/${c.id}`)
                 else { setSearchQ(shortId); setActiveTab('candidates') }
               }} />
             )}
@@ -4852,8 +4996,8 @@ export default function DashboardPage() {
               <InterviewsTab
                 isManager={isTenantAdminOrOwner}
                 onOpenCandidate={(shortId) => {
-                  const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === shortId.toUpperCase())
-                  if (c) setSelectedCandidate(c)
+                  const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === shortId.toUpperCase() || x.id === shortId)
+                  if (c) router.push(`/dashboard/candidates/${c.id}`)
                   else { setSearchQ(shortId); setActiveTab('candidates') }
                 }}
               />
@@ -4867,8 +5011,8 @@ export default function DashboardPage() {
               <SelectedPipelineTab
                 isManager={isTenantAdminOrOwner}
                 onOpenCandidate={(shortId) => {
-                const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === shortId.toUpperCase())
-                if (c) setSelectedCandidate(c)
+                const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === shortId.toUpperCase() || x.id === shortId)
+                if (c) router.push(`/dashboard/candidates/${c.id}`)
                 else { setSearchQ(shortId); setActiveTab('candidates') }
               }} />
             )}
@@ -4879,7 +5023,11 @@ export default function DashboardPage() {
                 canRequestDelete={tenantRole !== 'viewer'}
               />
             )}
-            {activeTab === 'recruiters' && <RecruitersTab teamMembers={teamMembers} />}
+            {activeTab === 'recruiters' && (
+              canSeeRecruiters
+                ? <RecruitersTab teamMembers={teamMembers} />
+                : <div className="dash-page-shell py-16 text-center text-slate-600 font-semibold">Access denied — Recruiters module is for managers and admins only.</div>
+            )}
             {activeTab === 'documents' && <DocumentsRegistryTab />}
             {activeTab === 'reports' && <ReportsTab onNavigate={(tab) => setActiveTab(tab as DashboardTab)} />}
             {activeTab === 'hrconfig' && <HrConfigTab />}
@@ -5073,8 +5221,7 @@ export default function DashboardPage() {
           jobId={selectedJobView.id}
           onClose={() => setSelectedJobView(null)}
           onOpenCandidate={(id) => {
-            const c = candidates.find(x => x.id === id)
-            if (c) setSelectedCandidate(c)
+            router.push(`/dashboard/candidates/${id}`)
           }}
           onNavigate={(tab) => setActiveTab(tab as DashboardTab)}
         />
@@ -5158,6 +5305,7 @@ export default function DashboardPage() {
         open={showNewCandidate}
         onClose={() => { setShowNewCandidate(false); setCandDupWarning(null) }}
         jobs={jobs.map(j => ({ id: j.id, title: j.title, short_id: j.short_id }))}
+        onViewCandidate={(id) => router.push(`/dashboard/candidates/${id}`)}
         onCreated={(name) => {
           loadData()
           setWorkspaceBanner(`Candidate saved to your workspace: ${name}`)
@@ -5323,9 +5471,12 @@ function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
 
   const parseFiles = async (files: FileList) => {
     setParsing(true); setParseError(''); setNames([])
+    const fileArray = multiple
+      ? Array.from(files)
+      : (files.length > 1 ? Array.from(files) : Array.from(files).slice(0, 1))
     const results: Array<{ text: string; filename: string; file?: File }> = []
     let lastError = ''
-    for (const file of Array.from(files)) {
+    for (const file of fileArray) {
       const fd = new FormData(); fd.append('file', file)
       try {
         const res = await fetch('/api/parse', { method: 'POST', body: fd })
@@ -6135,22 +6286,22 @@ function AiFitScoreInline({ resumeId }: { resumeId: string }) {
 function ResumeFilePanel({ candidate: c }: { candidate: Candidate }) {
   const path = c.resume_original_path ?? null
   const isPdf = !!path && path.toLowerCase().endsWith('.pdf')
-  const [fileState, setFileState] = useState<'checking' | 'ok' | 'missing' | 'none'>(
-    path ? 'checking' : 'none',
-  )
+  const [probe, setProbe] = useState<'idle' | 'ok' | 'missing'>('idle')
 
   useEffect(() => {
-    if (!path) { setFileState('none'); return }
+    if (!path) return
     let cancelled = false
-    setFileState('checking')
     fetch(`/api/candidates/${c.id}/resume-file`, { method: 'HEAD' })
       .then(res => {
         if (cancelled) return
-        setFileState(res.ok ? 'ok' : 'missing')
+        setProbe(res.ok ? 'ok' : 'missing')
       })
-      .catch(() => { if (!cancelled) setFileState('missing') })
+      .catch(() => { if (!cancelled) setProbe('missing') })
     return () => { cancelled = true }
   }, [c.id, path])
+
+  const fileState: 'checking' | 'ok' | 'missing' | 'none' =
+    !path ? 'none' : probe === 'idle' ? 'checking' : probe
 
   return (
     <div className="p-5 sm:p-6 space-y-4 bg-slate-50/40">
@@ -6441,6 +6592,12 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, teamMembers = [
             <div className="flex items-center gap-2 flex-wrap mb-0.5">
               <ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} />
               <h2 className="text-xl font-bold text-slate-900">{c.candidate_name}</h2>
+              <a
+                href={`/dashboard/candidates/${c.id}`}
+                className="text-[10px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full bg-indigo-600 text-white hover:bg-indigo-500"
+              >
+                Open full page
+              </a>
             </div>
             <p className="text-sm text-slate-600 mt-0.5">{c.candidate_email}</p>
             {c.candidate_phone && <p className="text-sm text-slate-500">{c.candidate_phone}</p>}

@@ -1,15 +1,23 @@
 /** Shared platform definitions + copy prompts for multi-channel JD posts.
- * Recruiter style: short, professional, practical — not long marketing copy.
+ * Version: 2026-07-28 — Restore recruiter-quality Long/Medium/Short (P4).
+ * Spec: docs/master/03-ai/GeneratePost.md + Prompt-Standards.md
  */
 
 export const JOB_POST_PLATFORMS = [
   'linkedin',
-  'whatsapp',
-  'email',
-  'twitter',
+  'jobstreet',
   'indeed',
+  'naukri',
+  'career_page',
+  'referral',
+  'email',
+  'whatsapp',
+  'twitter',
   'telegram',
   'facebook',
+  'long',
+  'medium',
+  'short',
 ] as const
 
 export type JobPostPlatform = (typeof JOB_POST_PLATFORMS)[number]
@@ -18,161 +26,96 @@ export const JOB_POST_PLATFORM_META: Record<
   JobPostPlatform,
   { label: string; hint: string }
 > = {
-  linkedin: {
-    label: 'LinkedIn',
-    hint: 'Professional post — role, skills, location, hashtags',
-  },
-  whatsapp: {
-    label: 'WhatsApp',
-    hint: 'Short group hiring note — role, skills, location, CTA',
-  },
-  email: {
-    label: 'Email',
-    hint: 'Subject + brief role + requirements + apply CTA',
-  },
-  twitter: {
-    label: 'Twitter/X',
-    hint: 'Punchy ≤280 chars with hashtags',
-  },
-  indeed: {
-    label: 'Indeed',
-    hint: 'Clean ATS text — about, responsibilities, requirements',
-  },
-  telegram: {
-    label: 'Telegram',
-    hint: 'Compact channel hiring note',
-  },
-  facebook: {
-    label: 'Facebook',
-    hint: 'Warm short post with role + skills',
-  },
+  linkedin: { label: 'LinkedIn', hint: 'Professional structured post with bullets & hashtags' },
+  jobstreet: { label: 'JobStreet', hint: 'Clear ATS-friendly posting' },
+  indeed: { label: 'Indeed', hint: 'About role, responsibilities, requirements' },
+  naukri: { label: 'Naukri', hint: 'India job-board style with key skills' },
+  career_page: { label: 'Company Career Page', hint: 'Full employer branding post' },
+  referral: { label: 'Referral Version', hint: 'Peer-to-peer shareable note' },
+  email: { label: 'Email', hint: 'Subject + body for outreach' },
+  whatsapp: { label: 'WhatsApp', hint: 'Compact group hiring note' },
+  twitter: { label: 'Twitter/X', hint: 'Punchy ≤280 chars' },
+  telegram: { label: 'Telegram', hint: 'Channel hiring note' },
+  facebook: { label: 'Facebook', hint: 'Warm social post' },
+  long: { label: 'Long Version', hint: '250–400 words, full sections' },
+  medium: { label: 'Medium Version', hint: '120–200 words condensed' },
+  short: { label: 'Short Version', hint: '60–100 word teaser' },
 }
 
 const PLATFORM_PROMPTS: Record<JobPostPlatform, string> = {
-  linkedin: `LINKEDIN — professional recruiter style (keep under 180 words):
-We're hiring: [Job Title] | [Permanent/Contract] | [Location]
+  linkedin: `LINKEDIN — professional recruiter post (200–350 words):
+Include: hook, about the role, key responsibilities (bullets), must-have requirements, nice-to-haves if known, location/type, CTA, 4–6 hashtags.
+Preserve skills, experience, location, and benefits from the JD. Do not invent fake perks.`,
 
-About the role:
-[2 short sentences]
+  jobstreet: `JOBSTREET — clean job-board post:
+Sections: Job Overview, Responsibilities, Requirements, Skills, Employment Type & Location, How to Apply.
+Use the full JD — do not drop must-have skills or experience.`,
 
-Key skills: [Skill1], [Skill2], [Skill3], [Skill4]
+  indeed: `INDEED — ATS-friendly plain text:
+About the Role, What you'll do, What you'll bring, Preferred, Location & type, Apply CTA.
+Keep important JD facts.`,
 
-Requirements:
-• [1–2 must-haves]
+  naukri: `NAUKRI — India board style:
+Role summary, Key Skills (comma list), Experience, Location, Responsibilities (bullets), Requirements.
+Preserve all critical JD skills.`,
 
-Interested? Share your CV or message us.
+  career_page: `COMPANY CAREER PAGE — long-form employer post (Long quality):
+Intro, Role mission, Responsibilities, Requirements, What we offer (only if in JD), Location/type, Apply.
+Never invent benefits not in the source JD.`,
 
-#[Hashtag1] #[Hashtag2] #[Hashtag3] #[Hashtag4]
+  referral: `REFERRAL — peer tone (Medium length):
+"We're hiring [role]…" — key skills, location, who should apply, ask to forward CV.
+Warm but professional.`,
 
-No fluff. No long company culture paragraphs.`,
+  email: `EMAIL — Subject line on first line "Subject: …" then blank line then body.
+Include role, must-haves, location, clear apply CTA. Medium length.`,
 
-  whatsapp: `WHATSAPP — short professional group message (60–100 words):
-Hiring: [Job Title]
-Type: [Permanent / Contract]
-Location: [Location]
-Experience: [years if known]
+  whatsapp: `WHATSAPP — 60–120 words:
+Hiring: title, type, location, key skills (pipe-separated), 1 requirement line, DM CV CTA.`,
 
-Key skills: [Skill1] | [Skill2] | [Skill3] | [Skill4]
+  twitter: `TWITTER/X — ≤280 characters, role + location + 2–3 skills + CTA + hashtags.`,
 
-Requirements: [1 short line]
+  telegram: `TELEGRAM — compact channel note with title, skills, location, CTA.`,
 
-DM CV if interested.
+  facebook: `FACEBOOK — warm short post with role, skills, location, invite to comment/DM.`,
 
-Plain text. Minimal emoji (max 1–2). Easy to forward in recruiter groups.`,
+  long: `LONG VERSION — 250–400 words structured:
+About the Role, Responsibilities (bullets), Requirements, Skills, Location & Employment Type, CTA.
+Preserve ALL important JD information. Never collapse to one line.`,
 
-  email: `EMAIL — professional and brief (120–180 words):
-Subject: Opening — [Job Title] ([Location])
+  medium: `MEDIUM VERSION — 120–200 words:
+Condensed but complete: role, top responsibilities, must-haves, location, CTA.`,
 
-Hi,
-
-We are hiring a [Job Title] ([Permanent/Contract]) based in [Location].
-
-About the role:
-[2–3 sentences]
-
-Key skills: [list]
-Requirements: [3–5 short bullets]
-Budget: [only if known]
-
-Please reply with your updated CV if interested.
-
-Best regards,
-Talent Acquisition
-
-No marketing fluff.`,
-
-  twitter: `TWITTER/X — max 280 characters:
-Hiring [Job Title] | [Location] | [Permanent/Contract]. Skills: [2–3]. DM CV. #[Hashtag1] #[Hashtag2]`,
-
-  indeed: `INDEED — ATS-friendly, NO emojis, short sections:
-Job Title: [Title]
-Location: [Location]
-Employment Type: [Permanent/Contract/Full-time]
-
-ABOUT THE ROLE
-[2–3 sentences]
-
-KEY RESPONSIBILITIES
-- [4–6 bullets]
-
-REQUIREMENTS
-- [4–6 bullets]
-
-KEY SKILLS
-- [skills]
-
-BUDGET
-[only if provided]
-
-To apply, submit your resume.`,
-
-  telegram: `TELEGRAM — compact professional note (80–120 words):
-*[Job Title]* — [Permanent/Contract]
-Location: [Location]
-
-About: [1–2 sentences]
-Skills: [Skill1], [Skill2], [Skill3]
-Requirements: [1 short line]
-
-DM CV to apply.`,
-
-  facebook: `FACEBOOK — warm but professional (100–140 words):
-We're hiring: [Job Title] ([Permanent/Contract]) — [Location]
-
-About the role: [2 sentences]
-
-Key skills: [Skill1], [Skill2], [Skill3]
-Requirements: [2–3 short points]
-
-Comment or message us with your CV.
-
-#[Hashtag1] #[Hashtag2] #[Hashtag3]`,
+  short: `SHORT VERSION — 60–100 words teaser:
+Role, 3–5 skills, location, CTA. Still informative — not a single empty hiring line.`,
 }
 
-export function normalizePlatforms(input?: unknown): JobPostPlatform[] {
-  if (!Array.isArray(input) || input.length === 0) {
-    return [...JOB_POST_PLATFORMS]
-  }
-  const selected = input
-    .map(v => String(v).toLowerCase().trim())
-    .filter((v): v is JobPostPlatform =>
-      (JOB_POST_PLATFORMS as readonly string[]).includes(v)
+export function normalizePlatforms(input?: string[] | null): JobPostPlatform[] {
+  const selected = (input ?? [])
+    .map(p => p.toLowerCase().trim())
+    .filter((p): p is JobPostPlatform =>
+      (JOB_POST_PLATFORMS as readonly string[]).includes(p),
     )
-  return selected.length > 0 ? selected : [...JOB_POST_PLATFORMS]
+  return selected.length > 0
+    ? selected
+    : ['linkedin', 'indeed', 'naukri', 'whatsapp', 'email', 'long', 'medium', 'short']
 }
 
 export function buildJobPostSystemPrompt(platforms: JobPostPlatform[]): string {
   const sections = platforms.map(p => PLATFORM_PROMPTS[p]).join('\n\n')
   const keys = platforms.join(', ')
-  return `You are a staffing-agency recruitment copywriter.
-Write SHORT, professional channel posts for recruiters — not long marketing essays.
+  return `You are a senior staffing-agency recruitment copywriter for SRP Smart Recruit.
+Write professional recruiter-quality channel posts from the ORIGINAL job description.
 
-Focus only on: About the Role, Responsibilities (brief), Requirements, Key Skills, Budget (if known), Location, Permanent vs Contract.
-
-Each platform has a DIFFERENT style — follow each section. Do not copy the same text across platforms.
+RULES:
+1. Never drop important JD information (skills, years, location, employment type, visa notes, salary if present).
+2. Do NOT write empty one-line posts when the JD is rich — especially for Long / LinkedIn / Career / Indeed / Naukri.
+3. Each platform/variant has a DIFFERENT style — follow each section.
+4. Do not invent fake company culture or benefits missing from the JD.
+5. Use \\n for line breaks inside JSON string values.
 
 ${sections}
 
 Return ONLY valid JSON with exactly these keys: ${keys}.
-No markdown fences. No extra text outside the JSON object. Use \\n for line breaks inside the JSON string values.`
+No markdown fences. No extra text outside the JSON object.`
 }

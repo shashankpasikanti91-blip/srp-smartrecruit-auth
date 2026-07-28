@@ -3,6 +3,8 @@ import { pool } from './db'
 export type NotificationCategory =
   | 'interview' | 'joining' | 'offer' | 'reminder' | 'approval'
   | 'documents' | 'visa' | 'attendance' | 'email' | 'whatsapp' | 'general'
+  | 'ownership' | 'assignment' | 'bulk' | 'ai' | 'job' | 'mention' | 'task'
+  | 'leave' | 'system'
 
 export async function createNotification(opts: {
   tenantId: string
@@ -41,6 +43,7 @@ export async function listNotifications(opts: {
   userId: string
   tenantId: string
   unreadOnly?: boolean
+  archived?: boolean
   limit?: number
 }) {
   const limit = Math.min(100, opts.limit ?? 30)
@@ -48,14 +51,28 @@ export async function listNotifications(opts: {
     const { rows } = await pool.query(
       `SELECT * FROM notifications
        WHERE user_id = $1 AND tenant_id = $2
+         AND COALESCE(is_archived, FALSE) = $3
          ${opts.unreadOnly ? 'AND is_read = false' : ''}
        ORDER BY created_at DESC
-       LIMIT $3`,
-      [opts.userId, opts.tenantId, limit]
+       LIMIT $4`,
+      [opts.userId, opts.tenantId, Boolean(opts.archived), limit]
     )
     return rows
   } catch {
-    return []
+    // Fallback before migrate_v32 (no is_archived)
+    try {
+      const { rows } = await pool.query(
+        `SELECT * FROM notifications
+         WHERE user_id = $1 AND tenant_id = $2
+           ${opts.unreadOnly ? 'AND is_read = false' : ''}
+         ORDER BY created_at DESC
+         LIMIT $3`,
+        [opts.userId, opts.tenantId, limit]
+      )
+      return rows
+    } catch {
+      return []
+    }
   }
 }
 
@@ -63,12 +80,22 @@ export async function unreadCount(userId: string, tenantId: string): Promise<num
   try {
     const { rows } = await pool.query(
       `SELECT COUNT(*)::int AS cnt FROM notifications
-       WHERE user_id = $1 AND tenant_id = $2 AND is_read = false`,
+       WHERE user_id = $1 AND tenant_id = $2 AND is_read = false
+         AND COALESCE(is_archived, FALSE) = FALSE`,
       [userId, tenantId]
     )
     return rows[0]?.cnt ?? 0
   } catch {
-    return 0
+    try {
+      const { rows } = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM notifications
+         WHERE user_id = $1 AND tenant_id = $2 AND is_read = false`,
+        [userId, tenantId]
+      )
+      return rows[0]?.cnt ?? 0
+    } catch {
+      return 0
+    }
   }
 }
 
@@ -91,6 +118,40 @@ export async function markNotificationsRead(opts: {
         [opts.userId, opts.tenantId]
       )
     }
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function archiveNotifications(opts: {
+  userId: string
+  tenantId: string
+  ids: string[]
+}): Promise<void> {
+  if (!opts.ids.length) return
+  try {
+    await pool.query(
+      `UPDATE notifications SET is_archived = TRUE, is_read = TRUE
+       WHERE user_id = $1 AND tenant_id = $2 AND id = ANY($3::uuid[])`,
+      [opts.userId, opts.tenantId, opts.ids]
+    )
+  } catch {
+    /* migrate_v32 may be pending */
+  }
+}
+
+export async function deleteNotifications(opts: {
+  userId: string
+  tenantId: string
+  ids: string[]
+}): Promise<void> {
+  if (!opts.ids.length) return
+  try {
+    await pool.query(
+      `DELETE FROM notifications
+       WHERE user_id = $1 AND tenant_id = $2 AND id = ANY($3::uuid[])`,
+      [opts.userId, opts.tenantId, opts.ids]
+    )
   } catch {
     /* ignore */
   }

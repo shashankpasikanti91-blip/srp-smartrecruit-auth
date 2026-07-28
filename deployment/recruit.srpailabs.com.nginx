@@ -1,6 +1,9 @@
 # SRP SmartRecruit - recruit.srpailabs.com
-# Next.js (SmartRecruit) on :3010 is the primary app.
-# Legacy FastAPI ATS on :8009 is only used for a few optional legacy paths.
+# ★ PRODUCTION SOURCE OF TRUTH (RC1) — Next.js SmartRecruit on :3010
+# Frontend CI deploys this file to /etc/nginx/sites-available/recruit.srpailabs.com
+# Legacy FastAPI ATS on :8009 is only used for /static/ and optional /api/legacy-ats.
+#
+# Rate limits apply to all Next /api/* including /api/screen, /api/bulk-jobs, /api/search.
 
 limit_req_zone $binary_remote_addr zone=ats_api:10m rate=30r/s;
 limit_req_zone $binary_remote_addr zone=ats_auth:10m rate=5r/s;
@@ -28,6 +31,7 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
     add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'" always;
     client_max_body_size 25M;
 
     # ── NextAuth + Next.js auth routes --> Next.js :3010

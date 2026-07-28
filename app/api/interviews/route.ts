@@ -26,6 +26,7 @@ import { createNotification }            from '@/lib/notificationCenter'
 import { upsertWorkflowInstance }        from '@/lib/workflowEngine'
 import { resolveDateFilter, resolveMineScope } from '@/lib/opsList'
 import { sanitizeText } from '@/lib/validate'
+import { advanceFromDomain, interviewStatusToLifecycle } from '@/lib/lifecycle'
 
 async function newInterviewId(tenantId: string): Promise<string> {
   return nextYearSeqId(pool, { tenantId, table: 'interviews', prefix: 'INT' })
@@ -362,6 +363,18 @@ export async function POST(req: NextRequest) {
     actorUserId: ctx.userId,
     actorEmail: ctx.userEmail,
     detail: 'Feedback due 24h after scheduled interview',
+  })
+
+  await advanceFromDomain({
+    tenantId: ctx.tenantId,
+    resumeId: body.resume_id,
+    toStage: interviewStatusToLifecycle('scheduled'),
+    jobPostId: body.job_post_id ?? null,
+    relatedEntityType: 'interview',
+    relatedEntityId: interview.id,
+    actorUserId: ctx.userId,
+    actorEmail: ctx.userEmail,
+    reason: 'interview_scheduled',
   })
 
   // Send invite email to candidate

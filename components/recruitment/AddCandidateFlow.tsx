@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import {
   ArrowLeft, FileText, Loader2, Sparkles, Upload, UserPlus, X, AlertTriangle,
 } from 'lucide-react'
+import { DuplicateCandidateModal } from '@/components/candidates/DuplicateCandidateModal'
+import type { DuplicateMatch } from '@/lib/duplicateCheckTypes'
 
 type JobOpt = { id: string; title: string; short_id?: string }
 type Path = 'chooser' | 'upload' | 'paste' | 'manual' | 'review'
@@ -71,11 +73,13 @@ export function AddCandidateFlow({
   onClose,
   onCreated,
   jobs,
+  onViewCandidate,
 }: {
   open: boolean
   onClose: () => void
   onCreated: (name: string) => void
   jobs: JobOpt[]
+  onViewCandidate?: (id: string) => void
 }) {
   const [path, setPath] = useState<Path>('chooser')
   const [form, setForm] = useState<CandForm>(emptyForm)
@@ -89,6 +93,8 @@ export function AddCandidateFlow({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dup, setDup] = useState<{ id: string; short_id: string; name?: string } | null>(null)
+  const [dupMatches, setDupMatches] = useState<DuplicateMatch[]>([])
+  const [showDupModal, setShowDupModal] = useState(false)
   const [showRaw, setShowRaw] = useState(false)
 
   useEffect(() => {
@@ -103,6 +109,8 @@ export function AddCandidateFlow({
     setReviewMsg(null)
     setError(null)
     setDup(null)
+    setDupMatches([])
+    setShowDupModal(false)
   }, [open])
 
   const setF = <K extends keyof CandForm>(k: K, v: CandForm[K]) =>
@@ -183,7 +191,30 @@ export function AddCandidateFlow({
     setSaving(true)
     setError(null)
     setDup(null)
+    setDupMatches([])
     try {
+      // Preflight duplicate check (email / phone / passport / LinkedIn / resume hash)
+      const checkRes = await fetch('/api/candidates/check-duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.candidate_email.trim() || undefined,
+          phone: form.candidate_phone.trim() || undefined,
+          passport: form.passport_number.trim() || undefined,
+          linkedin: form.linkedin_url.trim() || undefined,
+          resume_text: rawText || pasteText || undefined,
+        }),
+      })
+      const checkData = await checkRes.json().catch(() => ({}))
+      if (checkRes.ok && checkData.is_duplicate && Array.isArray(checkData.duplicates) && checkData.duplicates.length > 0) {
+        setDupMatches(checkData.duplicates)
+        setShowDupModal(true)
+        setDup(checkData.duplicates[0]
+          ? { id: checkData.duplicates[0].id, short_id: checkData.duplicates[0].short_id, name: checkData.duplicates[0].candidate_name }
+          : null)
+        return
+      }
+
       const payload = {
         candidate_name: form.candidate_name.trim(),
         candidate_email: form.candidate_email.trim() || undefined,
@@ -227,7 +258,24 @@ export function AddCandidateFlow({
       })
       const data = await res.json()
       if (res.status === 409 && data.is_duplicate) {
-        setDup(data.existing)
+        const existing = data.existing
+        if (existing?.id) {
+          setDupMatches([{
+            id: existing.id,
+            short_id: existing.short_id ?? existing.id.slice(0, 8),
+            candidate_name: existing.name ?? existing.candidate_name ?? 'Existing candidate',
+            candidate_email: existing.candidate_email ?? form.candidate_email ?? null,
+            pipeline_stage: existing.pipeline_stage ?? '',
+            status: existing.status ?? '',
+            created_at: existing.created_at ?? new Date().toISOString(),
+            client_name: existing.client_name ?? null,
+            owner_name: existing.owner_name ?? null,
+            owner_email: existing.owner_email ?? null,
+            matched_on: existing.matched_on ?? ['email'],
+          }])
+          setShowDupModal(true)
+        }
+        setDup(existing)
         return
       }
       if (!res.ok) { setError(data.error ?? 'Save failed'); return }
@@ -250,6 +298,19 @@ export function AddCandidateFlow({
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-50 overflow-y-auto flex items-start justify-center p-4">
+      {showDupModal && dupMatches.length > 0 && (
+        <DuplicateCandidateModal
+          duplicates={dupMatches}
+          onClose={() => setShowDupModal(false)}
+          onCancelCreate={() => { setShowDupModal(false); onClose() }}
+          onView={(id) => {
+            setShowDupModal(false)
+            onClose()
+            if (onViewCandidate) onViewCandidate(id)
+            else window.location.href = `/dashboard/candidates/${id}`
+          }}
+        />
+      )}
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-4 flex flex-col border border-slate-200" style={{ maxHeight: '94vh' }}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 flex-shrink-0">
           <div>

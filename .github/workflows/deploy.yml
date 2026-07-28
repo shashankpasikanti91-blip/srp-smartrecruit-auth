@@ -29,9 +29,12 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      - name: Lint
+        run: npm run lint
+
       - name: Build (verify it compiles)
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || '' }}
           # Stub required secrets so next build doesn't abort
           NEXTAUTH_SECRET: ci-stub-not-used
           NEXTAUTH_URL: https://recruit.srpailabs.com
@@ -106,12 +109,18 @@ jobs:
             # Always enforce correct NEXTAUTH_URL
             sed -i 's|NEXTAUTH_URL=.*|NEXTAUTH_URL=https://recruit.srpailabs.com|' /opt/srp-smartrecruit-auth/.env
             grep -q 'NEXTAUTH_URL' /opt/srp-smartrecruit-auth/.env || echo 'NEXTAUTH_URL=https://recruit.srpailabs.com' >> /opt/srp-smartrecruit-auth/.env
-            # Force correct DATABASE_URL (docker-compose needs it in env_file, not environment block)
-            sed -i '/^DATABASE_URL=/d' /opt/srp-smartrecruit-auth/.env
-            echo 'DATABASE_URL=postgresql://srp_auth:SrpAuth2024Secure!@db:5432/srp_auth' >> /opt/srp-smartrecruit-auth/.env
-            sed -i '/^POSTGRES_PASSWORD=/d' /opt/srp-smartrecruit-auth/.env
-            echo 'POSTGRES_PASSWORD=SrpAuth2024Secure!' >> /opt/srp-smartrecruit-auth/.env
-            echo "DB URL injected, POSTGRES_PASSWORD set"
+            # Credentials MUST come from PRODUCTION_ENV (FRONTEND_ENV) — never hardcode in CI
+            if ! grep -q '^DATABASE_URL=' /opt/srp-smartrecruit-auth/.env; then
+              echo "ERROR: DATABASE_URL missing from PRODUCTION_ENV secret"
+              exit 1
+            fi
+            if ! grep -q '^POSTGRES_PASSWORD=' /opt/srp-smartrecruit-auth/.env; then
+              echo "ERROR: POSTGRES_PASSWORD missing from PRODUCTION_ENV secret"
+              exit 1
+            fi
+            # Ensure compose can reach the DB container by hostname "db"
+            sed -i 's|@127.0.0.1:5432/|@db:5432/|g; s|@localhost:5432/|@db:5432/|g' /opt/srp-smartrecruit-auth/.env || true
+            echo "DB URL present in env (value not logged)"
 
             echo "=== [2b/5] Run DB migrations (additive; preserve tenants + logins) ==="
             # Legacy early patches (idempotent ALTER/ADD COLUMN)
@@ -126,7 +135,7 @@ jobs:
                   < "/opt/srp-smartrecruit-auth/db/$f"
               fi
             done
-            # Tracked OS migrations v0 + v14ΓÇôv27 (auth_users count must stay stable)
+            # Tracked OS migrations v0 + v14–v32 (auth_users count must stay stable)
             chmod +x /opt/srp-smartrecruit-auth/scripts/apply-tracked-migrations.sh
             APP_DIR=/opt/srp-smartrecruit-auth /opt/srp-smartrecruit-auth/scripts/apply-tracked-migrations.sh
 

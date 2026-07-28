@@ -8,6 +8,9 @@ import { extractResumeFields } from '@/lib/resumeExtract'
 import { writeTimeline } from '@/lib/timelineEngine'
 import { createNotification } from '@/lib/notificationCenter'
 import { chatCompletion } from '@/lib/aiClient'
+import { buildJdFromJobRow } from '@/lib/jobScreeningContext'
+import { advanceFromDomain } from '@/lib/lifecycle'
+import { assertFeatureEnabled, assertNotMaintenance } from '@/lib/featureFlags'
 
 /** AI models sometimes return score as a string — DB ai_score must be numeric for match_category. */
 function normalizeScreeningScore(value: unknown): number | null {
@@ -21,7 +24,12 @@ function normalizeScreeningScore(value: unknown): number | null {
   return null
 }
 
-export const maxDuration = 120
+export const maxDuration = 300
+
+const SCREEN_CONCURRENCY = 5
+const RESUME_MAX_CHARS = 10_000
+const JD_MAX_CHARS = 8_000
+const AI_TIMEOUT_MS = 60_000
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SCREENING SYSTEM PROMPT v2 — Senior Recruitment Auditor AI
@@ -193,14 +201,14 @@ Do NOT change field names. All fields are required.
   }
 }`
 
-async function callAI(messages: { role: string; content: string }[]): Promise<string> {
+async function callAI(messages: { role: string; content: string }[], timeoutMs = AI_TIMEOUT_MS): Promise<string> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 90000)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     return await chatCompletion({
       messages,
       temperature: 0.2,
-      max_tokens: 2500,
+      max_tokens: 2000,
       signal: controller.signal,
     })
   } finally {
@@ -208,65 +216,265 @@ async function callAI(messages: { role: string; content: string }[]): Promise<st
   }
 }
 
+type ResumeInput = { text: string; filename: string; id?: string }
+
+function normalizeResumeInputs(body: Record<string, unknown>): ResumeInput[] {
+  const raw = (body.resumes ?? body.candidates) as unknown
+  if (!Array.isArray(raw)) return []
+
+  const out: ResumeInput[] = []
+  for (let idx = 0; idx < raw.length; idx++) {
+    const item = raw[idx]
+    if (!item || typeof item !== 'object') continue
+    const row = item as Record<string, unknown>
+    const text = String(row.text ?? row.resume ?? row.content ?? '').trim()
+    if (!text) continue
+    const filename = String(row.filename ?? row.name ?? `resume_${idx + 1}`).slice(0, 255)
+    const id = typeof row.id === 'string' ? row.id : undefined
+    out.push({ text, filename, id })
+  }
+  return out
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let nextIndex = 0
+
+  async function runWorker() {
+    while (true) {
+      const index = nextIndex
+      nextIndex += 1
+      if (index >= items.length) return
+      results[index] = await worker(items[index], index)
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, () => runWorker())
+  await Promise.all(workers)
+  return results
+}
+
+async function processOneResume(
+  resume: ResumeInput,
+  opts: {
+    jdForModel: string
+    tenantId: string
+    userId: string
+    userEmail: string
+    jobPostId?: string
+    candidateId?: string
+  },
+): Promise<Record<string, unknown>> {
+  if (!resume.text?.trim()) {
+    return { error: 'empty resume', filename: resume.filename, screened_at: new Date().toISOString() }
+  }
+
+  const resumeText = resume.text.trim().slice(0, RESUME_MAX_CHARS)
+  const userMessage = `JOB DESCRIPTION:\n${opts.jdForModel}\n\nCANDIDATE RESUME:\n${resumeText}`
+  let raw: string
+  try {
+    raw = await callAI([
+      { role: 'system', content: SCREENING_SYSTEM_PROMPT },
+      { role: 'user', content: userMessage },
+    ])
+  } catch (aiErr) {
+    return {
+      error: aiErr instanceof Error ? aiErr.message : 'AI call failed',
+      filename: resume.filename,
+      screened_at: new Date().toISOString(),
+    }
+  }
+
+  let parsed: Record<string, unknown>
+  try {
+    const jsonMatch = raw.match(/\{[\s\S]*\}/)
+    parsed = JSON.parse(jsonMatch?.[0] ?? raw)
+  } catch {
+    parsed = { error: 'Failed to parse AI response', raw_preview: raw.slice(0, 200) }
+  }
+
+  if (!parsed.error && typeof parsed === 'object' && parsed !== null) {
+    const coerced = normalizeScreeningScore(parsed.score)
+    if (coerced != null) parsed.score = coerced
+  }
+
+  if (!parsed.error) {
+    try {
+      const p = parsed
+      const extracted = extractResumeFields(resumeText, resume.filename)
+      if (!(p.name as string)?.trim() && extracted.name) p.name = extracted.name
+      if (!(p.email as string)?.trim() && extracted.email) p.email = extracted.email
+      if (!(p.contact_number as string)?.trim() && extracted.phone) p.contact_number = extracted.phone
+
+      const evalData = p.evaluation as Record<string, unknown> | undefined
+      const jdMatch = p.jd_match as Record<string, unknown> | undefined
+      const score = normalizeScreeningScore(p.score)
+      const decision = (p.decision as string) ?? ''
+      const skills: string[] = [
+        ...((jdMatch?.matching_skills as string[]) ?? []),
+        ...((evalData?.high_match_skills as string[]) ?? []),
+      ].filter((s, i, a) => s && a.indexOf(s) === i).slice(0, 50)
+      const summary = ((evalData?.justification as string) || (p.executive_summary as string)) ?? ''
+      const stage = decision === 'Shortlisted' ? 'screening' : 'applied'
+      const resumeId = resume.id ?? opts.candidateId
+
+      const resolvedName = ((p.name as string)?.trim()
+        || extracted.name
+        || resume.filename?.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ')
+        || 'Unknown Candidate').slice(0, 200)
+
+      if (resumeId) {
+        const existing = await pool.query(
+          'SELECT id FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1',
+          [resumeId, opts.tenantId]
+        )
+        if (existing.rows.length) {
+          await pool.query(
+            `UPDATE resumes SET
+              ai_score = $1, ai_summary = $2,
+              ai_skills = $3, pipeline_stage = $4,
+              ai_screening_data = $5,
+              candidate_name = $6,
+              candidate_email = COALESCE(NULLIF($7::text, ''), candidate_email),
+              candidate_phone = COALESCE(NULLIF($8::text, ''), candidate_phone),
+              job_post_id = COALESCE($9::uuid, job_post_id),
+              status = 'reviewed', updated_at = NOW()
+            WHERE id = $10 AND tenant_id = $11`,
+            [score, summary.slice(0, 2000), skills, stage,
+             JSON.stringify(p),
+             resolvedName,
+             ((p.email as string) || extracted.email || null),
+             ((p.contact_number as string) || extracted.phone || null),
+             opts.jobPostId && isValidUUID(opts.jobPostId) ? opts.jobPostId : null,
+             resumeId, opts.tenantId]
+          )
+          parsed = { ...parsed, db_id: resumeId }
+        }
+      } else {
+        const candidateEmail = ((p.email as string | null) || extracted.email || null)
+        let existingId: string | null = null
+        if (candidateEmail?.trim()) {
+          const dupCheck = await pool.query<{ id: string }>(
+            `SELECT id FROM resumes WHERE tenant_id = $1 AND candidate_email = $2 LIMIT 1`,
+            [opts.tenantId, candidateEmail.trim().toLowerCase()]
+          )
+          if (dupCheck.rows.length) {
+            existingId = dupCheck.rows[0].id
+            await pool.query(
+              `UPDATE resumes SET
+                ai_score = $1, ai_summary = $2, ai_skills = $3,
+                pipeline_stage = $4, status = 'reviewed',
+                ai_screening_data = $5,
+                candidate_name = $6,
+                candidate_phone = COALESCE(NULLIF($7::text, ''), candidate_phone),
+                job_post_id = COALESCE($8::uuid, job_post_id),
+                updated_at = NOW()
+              WHERE id = $9 AND tenant_id = $10`,
+              [score, summary.slice(0, 2000), skills, stage,
+               JSON.stringify(p),
+               resolvedName,
+               ((p.contact_number as string) || extracted.phone || null),
+               opts.jobPostId && isValidUUID(opts.jobPostId) ? opts.jobPostId : null,
+               existingId, opts.tenantId]
+            )
+            parsed = { ...parsed, db_id: existingId, is_duplicate: true }
+          }
+        }
+
+        if (!existingId) {
+          const insertRes = await pool.query<{ id: string; short_id: string }>(
+            `INSERT INTO resumes
+              (tenant_id, user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
+               file_name, raw_text, ai_score, ai_summary, ai_skills, ai_screening_data, pipeline_stage, status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'reviewed')
+             RETURNING id, short_id`,
+            [opts.tenantId, opts.userId,
+             opts.jobPostId || null,
+             resolvedName,
+             candidateEmail?.toLowerCase() ?? null,
+             ((p.contact_number as string | null) || extracted.phone)?.slice(0, 50) ?? null,
+             resume.filename?.slice(0, 255) || null,
+             resumeText.slice(0, 100000),
+             score,
+             summary.slice(0, 2000),
+             skills,
+             JSON.stringify(p),
+             stage]
+          )
+          parsed = { ...parsed, db_id: insertRes.rows[0]?.id, short_id: insertRes.rows[0]?.short_id }
+        }
+      }
+    } catch (dbSaveErr) {
+      console.warn('[api/screen] DB save failed (results still returned):', dbSaveErr instanceof Error ? dbSaveErr.message : dbSaveErr)
+      parsed = { ...parsed, db_save_warning: 'Results generated but could not be saved to database.' }
+    }
+  }
+
+  return { ...parsed, filename: resume.filename, screened_at: new Date().toISOString() }
+}
+
 export async function POST(req: NextRequest) {
   const ctx = await requireTenant(req, 'ai_screen.use')
   if (ctx instanceof NextResponse) return ctx
+
+  const maintenance = await assertNotMaintenance(ctx.userEmail)
+  if (maintenance) return maintenance
+  const featureOff = await assertFeatureEnabled('ai_screening', true)
+  if (featureOff) return featureOff
+
   const { userId, tenantId } = ctx
 
   try {
     const body = await req.json()
-    const { jd_text, resumes, candidate_id, job_post_id } = body as {
-      jd_text: string
-      resumes: { text: string; filename?: string; id?: string }[]
+    const { jd_text, candidate_id, job_post_id } = body as {
+      jd_text?: string
+      resumes?: ResumeInput[]
+      candidates?: ResumeInput[]
       candidate_id?: string
       job_post_id?: string
     }
+    const resumes = normalizeResumeInputs(body as Record<string, unknown>)
 
-    if (!jd_text?.trim()) return NextResponse.json({ error: 'jd_text required' }, { status: 400 })
-
-    // Enrich JD with linked job post (required + optional skills) — tenant-scoped
-    let jdForModel = jd_text.trim()
+    // Resolve JD: explicit text and/or full job context (raw_jd_text preferred)
+    let jdForModel = (jd_text ?? '').trim()
     if (job_post_id && isValidUUID(job_post_id)) {
-      const jp = await pool.query<{
-        description: string | null
-        requirements: string | null
-        optional_requirements: string | null
-      }>(
-        `SELECT description, requirements, optional_requirements
+      const jp = await pool.query(
+        `SELECT title, company, client_name, location, type, employment_type,
+                experience_min, experience_max, description, requirements,
+                optional_requirements, raw_jd_text, skills_mandatory, skills_required,
+                tags, screening_questions
          FROM job_posts WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
-        [job_post_id, tenantId]
+        [job_post_id, tenantId],
       )
       const row = jp.rows[0]
-      if (row) {
-        const blocks: string[] = []
-        if (row.description?.trim()) blocks.push('## Role description\n' + row.description.trim())
-        if (row.requirements?.trim()) blocks.push('## Required / must-have\n' + row.requirements.trim())
-        if (row.optional_requirements?.trim()) {
-          blocks.push(
-            '## Nice-to-have / optional skills\n' +
-              row.optional_requirements.trim() +
-              '\n(Treat as bonus fit; list matches under jd_match.optional_skills_match.)'
-          )
-        }
-        if (blocks.length) jdForModel = `${jdForModel}\n\n---\n${blocks.join('\n\n')}`
+      if (!row) {
+        return NextResponse.json({ error: 'Invalid job_post_id' }, { status: 400 })
+      }
+      const fromJob = buildJdFromJobRow(row)
+      if (!jdForModel) {
+        jdForModel = fromJob
+      } else if (fromJob) {
+        jdForModel = `${jdForModel}\n\n---\n${fromJob}`
       }
     }
+
+    if (!jdForModel.trim()) {
+      return NextResponse.json(
+        { error: 'Select a job with a JD or provide jd_text' },
+        { status: 400 },
+      )
+    }
+    jdForModel = jdForModel.slice(0, JD_MAX_CHARS)
+
     if (!Array.isArray(resumes) || !resumes.length) {
-      return NextResponse.json({ error: 'resumes array required' }, { status: 400 })
+      return NextResponse.json({ error: 'resumes array required (each item needs text)' }, { status: 400 })
     }
     if (resumes.length > 50) {
       return NextResponse.json({ error: 'Max 50 resumes per batch' }, { status: 400 })
-    }
-
-    // Validate job_post_id belongs to this tenant if provided
-    if (job_post_id) {
-      const jpCheck = await pool.query(
-        'SELECT id FROM job_posts WHERE id = $1 AND tenant_id = $2 LIMIT 1',
-        [job_post_id, tenantId]
-      )
-      if (!jpCheck.rows.length) {
-        return NextResponse.json({ error: 'Invalid job_post_id' }, { status: 400 })
-      }
     }
 
     // Check monthly AI screen limit
@@ -279,156 +487,32 @@ export async function POST(req: NextRequest) {
       console.warn('[api/screen] Could not check limit, allowing:', limitErr instanceof Error ? limitErr.message : limitErr)
     }
 
-    const results = []
-    for (const resume of resumes) {
-      if (!resume.text?.trim()) { results.push({ error: 'empty resume' }); continue }
+    const results = await mapWithConcurrency(resumes, SCREEN_CONCURRENCY, (resume) =>
+      processOneResume(resume, {
+        jdForModel,
+        tenantId,
+        userId,
+        userEmail: ctx.userEmail,
+        jobPostId: job_post_id,
+        candidateId: candidate_id,
+      }),
+    )
 
-      const userMessage = `JOB DESCRIPTION:\n${jdForModel}\n\nCANDIDATE RESUME:\n${resume.text.trim()}`
-      let raw: string
-      try {
-        raw = await callAI([
-          { role: 'system', content: SCREENING_SYSTEM_PROMPT },
-          { role: 'user', content: userMessage },
-        ])
-      } catch (aiErr) {
-        results.push({ error: aiErr instanceof Error ? aiErr.message : 'AI call failed', filename: resume.filename })
-        continue
+    // Advance lifecycle to screening for saved candidates
+    for (const row of results as Record<string, unknown>[]) {
+      if (typeof row.db_id === 'string') {
+        await advanceFromDomain({
+          tenantId,
+          resumeId: row.db_id,
+          toStage: 'screening',
+          jobPostId: job_post_id && isValidUUID(job_post_id) ? job_post_id : null,
+          relatedEntityType: 'screening',
+          relatedEntityId: row.db_id,
+          actorUserId: userId,
+          actorEmail: ctx.userEmail,
+          reason: 'ai_screening',
+        })
       }
-
-      let parsed: Record<string, unknown>
-      try {
-        const jsonMatch = raw.match(/\{[\s\S]*\}/)
-        parsed = JSON.parse(jsonMatch?.[0] ?? raw)
-      } catch {
-        parsed = { error: 'Failed to parse AI response', raw_preview: raw.slice(0, 200) }
-      }
-
-      if (!parsed.error && typeof parsed === 'object' && parsed !== null) {
-        const coerced = normalizeScreeningScore((parsed as Record<string, unknown>).score)
-        if (coerced != null) (parsed as Record<string, unknown>).score = coerced
-      }
-
-      // Save to DB — update existing candidate OR insert new one
-      // DB save failure MUST NOT block returning screening results to the user
-      if (!parsed.error) {
-        try {
-          const p = parsed as Record<string, unknown>
-          const extracted = extractResumeFields(resume.text, resume.filename)
-          // Prefer AI fields; fall back to deterministic extract (never use job-title-like filename alone)
-          if (!(p.name as string)?.trim() && extracted.name) p.name = extracted.name
-          if (!(p.email as string)?.trim() && extracted.email) p.email = extracted.email
-          if (!(p.contact_number as string)?.trim() && extracted.phone) p.contact_number = extracted.phone
-
-          const evalData = p.evaluation as Record<string, unknown> | undefined
-          const jdMatch = p.jd_match as Record<string, unknown> | undefined
-          const score = normalizeScreeningScore(p.score)
-          const decision = (p.decision as string) ?? ''
-          // High match skills from jd_match (new format) with fallback to evaluation block (old)
-          const skills: string[] = [
-            ...((jdMatch?.matching_skills as string[]) ?? []),
-            ...((evalData?.high_match_skills as string[]) ?? []),
-          ].filter((s, i, a) => s && a.indexOf(s) === i).slice(0, 50)
-          const summary = ((evalData?.justification as string) || (p.executive_summary as string)) ?? ''
-          const stage = decision === 'Shortlisted' ? 'screening' : 'applied'
-          const resumeId = resume.id ?? candidate_id
-
-          const resolvedName = ((p.name as string)?.trim()
-            || extracted.name
-            || 'Unknown Candidate').slice(0, 200)
-
-          if (resumeId) {
-            // Validate resumeId belongs to this tenant before updating
-            const existing = await pool.query(
-              'SELECT id FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1',
-              [resumeId, tenantId]
-            )
-            if (existing.rows.length) {
-              // Always refresh name/contact from AI+extract (fixes earlier job-title-as-name bugs).
-              // Link job when screening against a selected job post.
-              await pool.query(
-                `UPDATE resumes SET
-                  ai_score = $1, ai_summary = $2,
-                  ai_skills = $3, pipeline_stage = $4,
-                  ai_screening_data = $5,
-                  candidate_name = $6,
-                  candidate_email = COALESCE(NULLIF($7::text, ''), candidate_email),
-                  candidate_phone = COALESCE(NULLIF($8::text, ''), candidate_phone),
-                  job_post_id = COALESCE($9::uuid, job_post_id),
-                  status = 'reviewed', updated_at = NOW()
-                WHERE id = $10 AND tenant_id = $11`,
-                [score, summary.slice(0, 2000), skills, stage,
-                 JSON.stringify(p),
-                 resolvedName,
-                 ((p.email as string) || extracted.email || null),
-                 ((p.contact_number as string) || extracted.phone || null),
-                 job_post_id && isValidUUID(job_post_id) ? job_post_id : null,
-                 resumeId, tenantId]
-              )
-              parsed = { ...parsed, db_id: resumeId }
-            }
-          } else {
-            // Duplicate check by email within this tenant before inserting
-            const candidateEmail = ((p.email as string | null) || extracted.email || null)
-            let existingId: string | null = null
-            if (candidateEmail?.trim()) {
-              const dupCheck = await pool.query<{ id: string }>(
-                `SELECT id FROM resumes WHERE tenant_id = $1 AND candidate_email = $2 LIMIT 1`,
-                [tenantId, candidateEmail.trim().toLowerCase()]
-              )
-              if (dupCheck.rows.length) {
-                existingId = dupCheck.rows[0].id
-                // Merge: update existing rather than insert duplicate
-                await pool.query(
-                  `UPDATE resumes SET
-                    ai_score = $1, ai_summary = $2, ai_skills = $3,
-                    pipeline_stage = $4, status = 'reviewed',
-                    ai_screening_data = $5,
-                    candidate_name = $6,
-                    candidate_phone = COALESCE(NULLIF($7::text, ''), candidate_phone),
-                    job_post_id = COALESCE($8::uuid, job_post_id),
-                    updated_at = NOW()
-                  WHERE id = $9 AND tenant_id = $10`,
-                  [score, summary.slice(0, 2000), skills, stage,
-                   JSON.stringify(p),
-                   resolvedName,
-                   ((p.contact_number as string) || extracted.phone || null),
-                   job_post_id && isValidUUID(job_post_id) ? job_post_id : null,
-                   existingId, tenantId]
-                )
-                parsed = { ...parsed, db_id: existingId, is_duplicate: true }
-              }
-            }
-
-            if (!existingId) {
-              const insertRes = await pool.query<{ id: string; short_id: string }>(
-                `INSERT INTO resumes
-                  (tenant_id, user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
-                   file_name, raw_text, ai_score, ai_summary, ai_skills, ai_screening_data, pipeline_stage, status)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'reviewed')
-                 RETURNING id, short_id`,
-                [tenantId, userId,
-                 job_post_id || null,
-                 resolvedName,
-                 candidateEmail?.toLowerCase() ?? null,
-                 ((p.contact_number as string | null) || extracted.phone)?.slice(0, 50) ?? null,
-                 resume.filename?.slice(0, 255) || null,
-                 resume.text.slice(0, 100000),
-                 score,
-                 summary.slice(0, 2000),
-                 skills,
-                 JSON.stringify(p),
-                 stage]
-              )
-              parsed = { ...parsed, db_id: insertRes.rows[0]?.id, short_id: insertRes.rows[0]?.short_id }
-            }
-          }
-        } catch (dbSaveErr) {
-          console.warn('[api/screen] DB save failed (results still returned):', dbSaveErr instanceof Error ? dbSaveErr.message : dbSaveErr)
-          parsed = { ...parsed, db_save_warning: 'Results generated but could not be saved to database.' }
-        }
-      }
-
-      results.push({ ...parsed, filename: resume.filename, screened_at: new Date().toISOString() })
     }
 
     const saved = (results as Record<string, unknown>[]).filter(

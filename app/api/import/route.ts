@@ -214,9 +214,21 @@ export async function POST(req: NextRequest) {
     const ref = batchRes.rows[0].batch_ref
 
     // Process in background (fire-and-forget, not awaited)
-    processImport(userId, tenantId, batchId, headers, rows).catch(e =>
-      console.error('[import] Background processing error:', e)
-    )
+    processImport(userId, tenantId, batchId, headers, rows).catch(e => {
+      const msg = e instanceof Error ? e.message : 'unknown'
+      // Never log CSV row contents / PII — message + ids only
+      console.error(
+        JSON.stringify({
+          level: 'ERROR',
+          module: 'import',
+          action: 'processImport',
+          tenantId,
+          userId,
+          batchId,
+          message: msg.slice(0, 200),
+        })
+      )
+    })
 
     return NextResponse.json({
       batch_id: batchId,

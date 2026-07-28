@@ -624,8 +624,9 @@ export async function setAdminTenantStatus(args: {
 }
 
 export async function getAdminPlatformHealth() {
-  const [dbRes, failedLoginsRes, activeSessionsRes, pendingInvitesRes] = await Promise.all([
-    pool.query('SELECT 1'),
+  const { collectPlatformHealth } = await import('@/lib/platformHealth')
+  const [snapshot, failedLoginsRes, activeSessionsRes, pendingInvitesRes] = await Promise.all([
+    collectPlatformHealth(),
     pool.query<{ count: string }>(
       `SELECT COUNT(*) FROM login_events WHERE success = FALSE AND created_at >= NOW() - interval '7 days'`
     ).catch(() => ({ rows: [{ count: '0' }] })),
@@ -637,10 +638,16 @@ export async function getAdminPlatformHealth() {
     ),
   ])
   return {
-    dbOk: !!dbRes,
+    dbOk: snapshot.database.ok,
     failedLogins7d: parseInt(failedLoginsRes.rows[0]?.count ?? '0'),
     activeSessions: parseInt(activeSessionsRes.rows[0]?.count ?? '0'),
     pendingInvites: parseInt(pendingInvitesRes.rows[0]?.count ?? '0'),
+    application: snapshot.application,
+    ai: snapshot.ai,
+    storage: snapshot.storage,
+    email: snapshot.email,
+    queues: snapshot.queues,
+    responseMs: snapshot.responseMs,
   }
 }
 

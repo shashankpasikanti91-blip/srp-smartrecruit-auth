@@ -14,6 +14,18 @@ const MIGRATIONS = [
   'migrate_v18_offer_history.sql',
   'migrate_v19_ess_full.sql',
   'migrate_v20_governance.sql',
+  'migrate_v21_ess_approval_audit.sql',
+  'migrate_v22_recruitment_os.sql',
+  'migrate_v23_phase2_os.sql',
+  'migrate_v24_job_candidate_parse.sql',
+  'migrate_v25_phase25_production.sql',
+  'migrate_v26_phase3_intelligence.sql',
+  'migrate_v27_perf_indexes.sql',
+  'migrate_v28_entity_notes.sql',
+  'migrate_v29_lifecycle.sql',
+  'migrate_v30_bulk_queue.sql',
+  'migrate_v31_enterprise.sql',
+  'migrate_v32_platform.sql',
 ]
 
 async function main() {

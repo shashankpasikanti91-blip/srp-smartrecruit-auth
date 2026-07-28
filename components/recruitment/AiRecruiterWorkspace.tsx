@@ -132,7 +132,7 @@ export function AiRecruiterWorkspace({ onNavigate }: { onNavigate?: (tab: string
           id: newId(),
           role: 'assistant',
           at: Date.now(),
-          content: 'Welcome to AI Assistant.\n\nAsk about pipeline priorities, candidate comparison, JD writing, or messaging — grounded on your tenant data.\n\nUse the mode chips above for AI Screen, Compose, JD Writer, and Boolean search.',
+          content: 'Welcome to AI Hub.\n\nUse the mode chips for AI Screening, Compose, JD Writer, and Boolean Search — or ask anything about your pipeline.\n\nTip: open a Job Hub page to run Screening / Boolean / Generate Post with the JD already loaded.',
         }],
       }
       sessions = [welcome]

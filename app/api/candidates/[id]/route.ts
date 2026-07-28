@@ -13,7 +13,10 @@ import {
 } from '@/lib/validate'
 import { LIFECYCLE_STATUSES, lifecycleToPipelineStage } from '@/lib/candidateLifecycle'
 
-const VALID_STAGES = ['sourced', 'applied', 'new', 'screening', 'interview', 'offer', 'hired', 'rejected']
+const VALID_STAGES = [
+  'sourced', 'applied', 'new', 'screening', 'submitted', 'interview', 'offer',
+  'hr_onboarding', 'joined', 'hired', 'employee', 'rejected', 'withdrawn', 'on_hold',
+]
 const VALID_STATUSES = ['pending', 'reviewed', 'shortlisted', 'rejected', 'hired']
 
 function parseProfile(v: unknown): Record<string, unknown> {

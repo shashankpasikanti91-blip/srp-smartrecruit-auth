@@ -94,6 +94,28 @@ export async function GET(req: NextRequest) {
         },
       })
     }
+    case 'feature_flags': {
+      try {
+        const { rows } = await pool.query(
+          `SELECT key, enabled, description, updated_at FROM platform_feature_flags ORDER BY key`
+        )
+        return NextResponse.json({ flags: rows })
+      } catch {
+        return NextResponse.json({ flags: [], error: 'Run migrate_v32_platform.sql' })
+      }
+    }
+    case 'announcements': {
+      try {
+        const { rows } = await pool.query(
+          `SELECT id, title, body, severity, is_active, starts_at, ends_at, created_at
+           FROM platform_announcements
+           ORDER BY created_at DESC LIMIT 50`
+        )
+        return NextResponse.json({ announcements: rows })
+      } catch {
+        return NextResponse.json({ announcements: [], error: 'Run migrate_v32_platform.sql' })
+      }
+    }
     default:
       return NextResponse.json({ error: 'Unknown view' }, { status: 400 })
   }
@@ -105,7 +127,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null) as
     | {
-        action?: 'create_tenant' | 'update_tenant'
+        action?: 'create_tenant' | 'update_tenant' | 'set_feature_flag' | 'create_announcement' | 'toggle_announcement'
         tenantId?: string
         name?: string
         slug?: string
@@ -116,11 +138,61 @@ export async function POST(req: NextRequest) {
         maxJobs?: number
         maxCandidates?: number
         ownerEmail?: string
+        flagKey?: string
+        enabled?: boolean
+        title?: string
+        announcementBody?: string
+        severity?: string
+        announcementId?: string
       }
     | null
 
   if (!body?.action) {
     return NextResponse.json({ error: 'Action is required' }, { status: 400 })
+  }
+
+  if (body.action === 'set_feature_flag') {
+    if (!body.flagKey) return NextResponse.json({ error: 'flagKey required' }, { status: 400 })
+    try {
+      await pool.query(
+        `INSERT INTO platform_feature_flags (key, enabled, updated_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()`,
+        [body.flagKey, Boolean(body.enabled)],
+      )
+      return NextResponse.json({ ok: true })
+    } catch {
+      return NextResponse.json({ error: 'Feature flags unavailable — run migrate_v32' }, { status: 501 })
+    }
+  }
+
+  if (body.action === 'create_announcement') {
+    const title = body.title?.trim()
+    const text = body.announcementBody?.trim()
+    if (!title || !text) return NextResponse.json({ error: 'title and body required' }, { status: 400 })
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO platform_announcements (title, body, severity, is_active)
+         VALUES ($1, $2, $3, TRUE) RETURNING id`,
+        [title, text, body.severity ?? 'info'],
+      )
+      return NextResponse.json({ ok: true, id: rows[0]?.id })
+    } catch {
+      return NextResponse.json({ error: 'Announcements unavailable — run migrate_v32' }, { status: 501 })
+    }
+  }
+
+  if (body.action === 'toggle_announcement') {
+    if (!body.announcementId) return NextResponse.json({ error: 'announcementId required' }, { status: 400 })
+    try {
+      await pool.query(
+        `UPDATE platform_announcements SET is_active = NOT is_active WHERE id = $1`,
+        [body.announcementId],
+      )
+      return NextResponse.json({ ok: true })
+    } catch {
+      return NextResponse.json({ error: 'Announcements unavailable' }, { status: 501 })
+    }
   }
 
   if (body.action === 'update_tenant') {

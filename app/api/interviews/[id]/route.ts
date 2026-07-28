@@ -14,6 +14,7 @@ import { writeTimeline }              from '@/lib/timelineEngine'
 import { createNotification }         from '@/lib/notificationCenter'
 import { upsertWorkflowInstance }     from '@/lib/workflowEngine'
 import { runCollaborativeChain }      from '@/lib/agentCollaboration'
+import { advanceFromDomain, interviewStatusToLifecycle } from '@/lib/lifecycle'
 
 export async function PATCH(
   req: NextRequest,
@@ -154,6 +155,17 @@ export async function PATCH(
         candidateName: interview.candidate_name,
       })
     }
+    await advanceFromDomain({
+      tenantId: ctx.tenantId,
+      resumeId: interview.resume_id,
+      toStage: interviewStatusToLifecycle(newStatus),
+      jobPostId: interview.job_post_id,
+      relatedEntityType: 'interview',
+      relatedEntityId: id,
+      actorUserId: ctx.userId,
+      actorEmail: ctx.userEmail,
+      reason: `interview_status:${oldStatus}->${newStatus}`,
+    })
   }
 
   return NextResponse.json({ interview: updated[0] })

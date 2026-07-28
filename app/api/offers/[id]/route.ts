@@ -11,6 +11,7 @@ import { createNotification } from '@/lib/notificationCenter'
 import { upsertWorkflowInstance } from '@/lib/workflowEngine'
 import { runCollaborativeChain } from '@/lib/agentCollaboration'
 import { mergeHrOps } from '@/lib/opsList'
+import { advanceFromDomain, offerStatusToLifecycle } from '@/lib/lifecycle'
 
 export async function PATCH(
   req: NextRequest,
@@ -262,6 +263,30 @@ export async function PATCH(
       ? `${oldStatus} → ${newStatus}`
       : null,
   })
+
+  if (body.status !== undefined && newStatus !== oldStatus) {
+    await advanceFromDomain({
+      tenantId: ctx.tenantId,
+      resumeId: prev.rows[0].resume_id,
+      toStage: offerStatusToLifecycle(newStatus),
+      relatedEntityType: 'offer',
+      relatedEntityId: id,
+      actorUserId: ctx.userId,
+      actorEmail: ctx.userEmail,
+      reason: `offer_status:${oldStatus}->${newStatus}`,
+    })
+  } else if (body.joined_status === 'joined') {
+    await advanceFromDomain({
+      tenantId: ctx.tenantId,
+      resumeId: prev.rows[0].resume_id,
+      toStage: 'joined',
+      relatedEntityType: 'offer',
+      relatedEntityId: id,
+      actorUserId: ctx.userId,
+      actorEmail: ctx.userEmail,
+      reason: 'joined_status:joined',
+    })
+  }
 
   return NextResponse.json({ offer: rows[0] })
 }

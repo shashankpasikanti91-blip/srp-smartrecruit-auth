@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant, checkPermission } from '@/lib/tenant'
-import { upsertJobPostContents } from '@/lib/db'
+import { upsertJobPostContents, pool } from '@/lib/db'
 import { chatCompletion, getAIConfig } from '@/lib/aiClient'
+import { isValidUUID } from '@/lib/validate'
 import {
   buildJobPostSystemPrompt,
   normalizePlatforms,
@@ -28,16 +29,45 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as {
       job_post_id?: string
-      title: string
+      title?: string
       company?: string
       location?: string
       type?: string
       description?: string
       requirements?: string
+      raw_jd_text?: string
       custom_prompt?: string
       platforms?: string[]
     }
-    if (!body.title?.trim()) return NextResponse.json({ error: 'title required' }, { status: 400 })
+
+    let title = body.title?.trim() || ''
+    let company = body.company
+    let location = body.location
+    let type = body.type
+    let description = body.description
+    let requirements = body.requirements
+    let rawJd = body.raw_jd_text
+
+    // Always load full job row when id provided — never lose raw_jd_text
+    if (body.job_post_id && isValidUUID(body.job_post_id)) {
+      const { rows } = await pool.query(
+        `SELECT title, company, location, type, description, requirements, raw_jd_text
+         FROM job_posts WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [body.job_post_id, ctx.tenantId],
+      )
+      const job = rows[0]
+      if (job) {
+        title = title || job.title || ''
+        company = company || job.company
+        location = location || job.location
+        type = type || job.type
+        description = description || job.description
+        requirements = requirements || job.requirements
+        rawJd = rawJd || job.raw_jd_text
+      }
+    }
+
+    if (!title) return NextResponse.json({ error: 'title required' }, { status: 400 })
 
     const platforms = normalizePlatforms(body.platforms)
 
@@ -45,16 +75,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 500 })
     }
 
+    const jdBlock = (rawJd || description || '').trim()
     const jobContext = [
-      `Job Title: ${body.title}`,
-      body.company && `Company: ${body.company}`,
-      body.location && `Location: ${body.location}`,
-      body.type && `Employment Type: ${body.type}`,
-      body.description && `Description: ${body.description}`,
-      body.requirements && `Requirements: ${body.requirements}`,
+      `Job Title: ${title}`,
+      company && `Company: ${company}`,
+      location && `Location: ${location}`,
+      type && `Employment Type: ${type}`,
+      jdBlock && `Full Job Description (source of truth):\n${jdBlock.slice(0, 12000)}`,
+      requirements && `Requirements:\n${requirements}`,
       body.custom_prompt && `Special Instructions: ${body.custom_prompt}`,
       `Selected platforms: ${platforms.join(', ')}`,
-    ].filter(Boolean).join('\n')
+    ].filter(Boolean).join('\n\n')
 
     const systemPrompt = buildJobPostSystemPrompt(platforms)
 
@@ -64,7 +95,7 @@ export async function POST(req: NextRequest) {
         { role: 'user', content: `Generate job posts for:\n${jobContext}` },
       ],
       temperature: 0.7,
-      max_tokens: 3000,
+      max_tokens: 6000,
       response_format: { type: 'json_object' },
     })
     const parsed = JSON.parse(raw) as Record<string, string>

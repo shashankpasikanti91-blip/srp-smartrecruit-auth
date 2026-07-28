@@ -28,6 +28,11 @@ FILES=(
   migrate_v25_phase25_production.sql
   migrate_v26_phase3_intelligence.sql
   migrate_v27_perf_indexes.sql
+  migrate_v28_entity_notes.sql
+  migrate_v29_lifecycle.sql
+  migrate_v30_bulk_queue.sql
+  migrate_v31_enterprise.sql
+  migrate_v32_platform.sql
 )
 
 echo "=== Applying tracked migrations (additive only) ==="

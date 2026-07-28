@@ -50,6 +50,25 @@
   --color-cta:           #2563EB;
   --color-cta-hover:     #1D4ED8;
 
+  /* ── Design system tokens (P14) ──────────────────────── */
+  --srp-surface:           #FFFFFF;
+  --srp-surface-elevated:  #F8FAFC;
+  --srp-border:            #E5E7EB;
+  --srp-text:              #111827;
+  --srp-text-muted:        #6B7280;
+  --srp-accent:            #2563EB;
+  --srp-action-post:       #2563EB;
+  --srp-action-boolean:    #059669;
+  --srp-action-screen:     #7C3AED;
+  --srp-action-pipeline:   #EA580C;
+  --srp-action-analytics:  #D97706;
+  --srp-action-interview:  #E11D48;
+  --srp-action-match:      #0D9488;
+  --srp-success:           #10B981;
+  --srp-warning:           #F59E0B;
+  --srp-danger:            #EF4444;
+  --srp-info:              #0EA5E9;
+
   /* ── Shadows (soft — reduce eye strain on bright screens) ─ */
   --shadow-card:   0 1px 2px rgba(17,24,39,0.04), 0 4px 12px rgba(17,24,39,0.04);
   --shadow-hover:  0 6px 20px rgba(17,24,39,0.08), 0 2px 6px rgba(17,24,39,0.04);

@@ -56,9 +56,13 @@ const FUNNEL_LABELS: Record<(typeof FUNNEL_STAGES)[number], string> = {
 export function WorkspaceTab({
   onNavigate,
   userName,
+  role,
+  isManager = false,
 }: {
   onNavigate?: (tab: string) => void
   userName?: string | null
+  role?: string | null
+  isManager?: boolean
 }) {
   const [kpi, setKpi] = useState<RecruiterKpi | null>(null)
   const [coach, setCoach] = useState<string | null>(null)
@@ -115,7 +119,6 @@ export function WorkspaceTab({
   useEffect(() => {
     // Auto-load AI insights once workspace data is ready (non-blocking)
     void loadCoach()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const loadCoach = async () => {
@@ -180,20 +183,55 @@ export function WorkspaceTab({
     { label: 'Follow-ups overdue', value: kpi?.follow_ups_overdue ?? 0, sub: 'Needs attention', warn: (kpi?.follow_ups_overdue ?? 0) > 0, tone: 'kpi-card--g3' },
   ]
 
+  const roleLabel =
+    role === 'owner' || role === 'admin' ? 'Tenant Admin'
+    : role === 'recruitment_head' ? 'Recruitment Head'
+    : role === 'manager' ? 'Manager'
+    : role === 'viewer' ? 'Viewer'
+    : 'Recruiter'
+
   return (
     <div className="space-y-5">
       <div className="dash-section-head !border-0 !pb-0 !mb-2">
         <div className="flex items-start gap-4">
           <div className="dash-section-icon"><TrendingUp className="w-5 h-5" /></div>
           <div>
-            <h1 className="page-title text-xl sm:text-2xl">Dashboard</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="page-title text-xl sm:text-2xl">
+                {isManager ? `${roleLabel} Dashboard` : 'Recruiter Dashboard'}
+              </h1>
+              <span className="text-[10px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200">
+                {roleLabel}
+              </span>
+            </div>
             <p className="desc-text mt-1">Welcome back, {greetName}. {dateLabel}</p>
             <p className="text-sm font-medium text-slate-500 mt-1">
-              Your recruitment command center — KPIs, queues, and AI briefing
+              {isManager
+                ? 'Team performance, hiring funnel, pending approvals, and AI insights'
+                : 'Your recruitment command center — KPIs, queues, and AI briefing'}
             </p>
           </div>
         </div>
       </div>
+
+      {isManager && insights?.leaderboard && insights.leaderboard.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-3">Team performance</p>
+          <ul className="divide-y divide-slate-100">
+            {insights.leaderboard.slice(0, 5).map((row, i) => (
+              <li key={row.email || i} className="py-2 flex items-center justify-between gap-3 text-sm">
+                <div className="min-w-0">
+                  <p className="font-extrabold text-slate-900 truncate">{row.name || row.email}</p>
+                  <p className="text-[11px] text-slate-500">{row.email}</p>
+                </div>
+                <div className="text-[11px] font-bold text-slate-600 whitespace-nowrap">
+                  {row.submissions} sub · {row.interviews} int · {row.offers} offers
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
         {kpis.map(c => (

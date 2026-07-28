@@ -43,6 +43,12 @@ interface PlatformHealth {
   failedLogins7d: number
   activeSessions: number
   pendingInvites: number
+  application?: { ok: boolean; version: string; env: string; uptimeSec: number }
+  ai?: { ok: boolean; configured: boolean; provider?: string; model?: string }
+  storage?: { ok: boolean; detail?: string }
+  email?: { ok: boolean; detail?: string }
+  queues?: { ok: boolean; running: number; pending: number; failedJobs: number; failedItems: number }
+  responseMs?: number
 }
 interface SecuritySummary {
   recentActivity: ActivityItem[]
@@ -50,7 +56,7 @@ interface SecuritySummary {
   failedLogins7d: number
 }
 
-type Tab = 'overview' | 'tenants' | 'users' | 'activity' | 'jobs' | 'resumes' | 'subscriptions' | 'tokens' | 'health' | 'security'
+type Tab = 'overview' | 'tenants' | 'users' | 'activity' | 'jobs' | 'resumes' | 'subscriptions' | 'tokens' | 'health' | 'security' | 'flags' | 'announcements'
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'overview',       label: 'Overview',       icon: <TrendingUp className="w-4 h-4" /> },
@@ -63,6 +69,8 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'tokens',         label: 'Token Usage',    icon: <Zap className="w-4 h-4" /> },
   { id: 'health',         label: 'System Health',  icon: <CheckCircle2 className="w-4 h-4" /> },
   { id: 'security',       label: 'Security',       icon: <AlertCircle className="w-4 h-4" /> },
+  { id: 'flags',          label: 'Feature Flags',  icon: <Zap className="w-4 h-4" /> },
+  { id: 'announcements',  label: 'Announcements',  icon: <Bell className="w-4 h-4" /> },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -95,6 +103,9 @@ export default function OwnerDashboard() {
   const [data, setData] = useState<Record<string, unknown[]>>({})
   const [health, setHealth] = useState<PlatformHealth | null>(null)
   const [security, setSecurity] = useState<SecuritySummary | null>(null)
+  const [flags, setFlags] = useState<{ key: string; enabled: boolean; description?: string | null }[]>([])
+  const [announcements, setAnnouncements] = useState<{ id: string; title: string; body: string; severity: string; is_active: boolean }[]>([])
+  const [announceForm, setAnnounceForm] = useState({ title: '', body: '', severity: 'info' })
   const [loading, setLoading] = useState(false)
   const [testNotifStatus, setTestNotifStatus] = useState<string | null>(null)
   const [tenantForm, setTenantForm] = useState({
@@ -134,12 +145,14 @@ export default function OwnerDashboard() {
       const map: Record<Tab, string> = {
         overview: 'stats', tenants: 'tenants', users: 'users', activity: 'activity',
         jobs: 'jobs', resumes: 'resumes', subscriptions: 'subscriptions', tokens: 'tokens',
-        health: 'health', security: 'security',
+        health: 'health', security: 'security', flags: 'feature_flags', announcements: 'announcements',
       }
       const res = await fetch(`/api/admin?view=${map[t]}`)
       const json = await res.json()
       if (t === 'health') setHealth(json.health)
       else if (t === 'security') setSecurity(json.security)
+      else if (t === 'flags') setFlags(json.flags ?? [])
+      else if (t === 'announcements') setAnnouncements(json.announcements ?? [])
       else {
         const key = Object.keys(json)[0]
         setData(prev => ({ ...prev, [t]: json[key] }))
@@ -157,7 +170,9 @@ export default function OwnerDashboard() {
 
   const handleTabChange = (t: Tab) => {
     setTab(t)
-    if (!data[t] || t === 'overview') fetchTab(t)
+    if (!data[t] || t === 'overview' || t === 'flags' || t === 'announcements' || t === 'health' || t === 'security') {
+      fetchTab(t)
+    }
   }
 
   const testNotifications = async () => {
@@ -403,18 +418,43 @@ export default function OwnerDashboard() {
           )}
 
           {tab === 'health' && (
-            <div className="grid md:grid-cols-4 gap-4">
-              {[
-                { label: 'Database', value: health?.dbOk ? 'Healthy' : 'Unavailable' },
-                { label: 'Active Sessions', value: health?.activeSessions ?? '—' },
-                { label: 'Failed Logins (7d)', value: health?.failedLogins7d ?? '—' },
-                { label: 'Pending Invites', value: health?.pendingInvites ?? '—' },
-              ].map(card => (
-                <div key={card.label} className="glass-card-dark rounded-2xl p-5">
-                  <p className="text-xs text-gray-500">{card.label}</p>
-                  <p className="mt-2 text-2xl font-bold text-white">{String(card.value)}</p>
-                </div>
-              ))}
+            <div className="space-y-4">
+              <div className="grid md:grid-cols-4 gap-4">
+                {[
+                  { label: 'Database', value: health?.dbOk ? 'Healthy' : 'Unavailable' },
+                  { label: 'Storage', value: health?.storage?.ok ? 'Writable' : (health?.storage?.detail ?? 'Unavailable') },
+                  { label: 'Email (SMTP)', value: health?.email?.ok ? 'Configured' : 'Not configured' },
+                  { label: 'AI Service', value: health?.ai?.configured ? `${health.ai.provider ?? 'ready'}` : 'Not configured' },
+                  { label: 'Active Sessions', value: health?.activeSessions ?? '—' },
+                  { label: 'Failed Logins (7d)', value: health?.failedLogins7d ?? '—' },
+                  { label: 'Pending Invites', value: health?.pendingInvites ?? '—' },
+                  { label: 'Health Latency', value: health?.responseMs != null ? `${health.responseMs} ms` : '—' },
+                ].map(card => (
+                  <div key={card.label} className="glass-card-dark rounded-2xl p-5">
+                    <p className="text-xs text-gray-500">{card.label}</p>
+                    <p className="mt-2 text-2xl font-bold text-white">{String(card.value)}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="grid md:grid-cols-4 gap-4">
+                {[
+                  { label: 'Bulk Queue Running', value: health?.queues?.running ?? '—' },
+                  { label: 'Bulk Queue Pending', value: health?.queues?.pending ?? '—' },
+                  { label: 'Failed Bulk Jobs', value: health?.queues?.failedJobs ?? '—' },
+                  { label: 'Failed Bulk Items', value: health?.queues?.failedItems ?? '—' },
+                ].map(card => (
+                  <div key={card.label} className="glass-card-dark rounded-2xl p-5">
+                    <p className="text-xs text-gray-500">{card.label}</p>
+                    <p className="mt-2 text-2xl font-bold text-white">{String(card.value)}</p>
+                  </div>
+                ))}
+              </div>
+              {health?.application && (
+                <p className="text-xs text-gray-500">
+                  App v{health.application.version} · {health.application.env} · uptime {health.application.uptimeSec}s
+                  {health.ai?.model ? ` · AI model ${health.ai.model}` : ''}
+                </p>
+              )}
             </div>
           )}
 
@@ -450,8 +490,120 @@ export default function OwnerDashboard() {
             </div>
           )}
 
+          {tab === 'flags' && (
+            <div className="glass-card-dark rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-white/5">
+                <p className="text-sm font-bold text-white">Platform feature flags</p>
+                <p className="text-xs text-gray-500 mt-1">Global kill-switches — separate from tenant admin settings.</p>
+              </div>
+              <ul className="divide-y divide-white/5">
+                {flags.length === 0 ? (
+                  <li className="px-5 py-8 text-sm text-gray-500">No flags loaded. Run migrate_v32_platform.sql.</li>
+                ) : flags.map(f => (
+                  <li key={f.key} className="px-5 py-4 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-bold text-white font-mono">{f.key}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{f.description || '—'}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await fetch('/api/admin', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'set_feature_flag', flagKey: f.key, enabled: !f.enabled }),
+                        })
+                        fetchTab('flags')
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold ${f.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}
+                    >
+                      {f.enabled ? 'Enabled' : 'Disabled'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {tab === 'announcements' && (
+            <div className="space-y-4">
+              <div className="glass-card-dark rounded-2xl p-5 space-y-3">
+                <p className="text-sm font-bold text-white">New announcement</p>
+                <input
+                  value={announceForm.title}
+                  onChange={e => setAnnounceForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="Title"
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white"
+                />
+                <textarea
+                  value={announceForm.body}
+                  onChange={e => setAnnounceForm(f => ({ ...f, body: e.target.value }))}
+                  placeholder="Message"
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white"
+                />
+                <div className="flex gap-2">
+                  <select
+                    value={announceForm.severity}
+                    onChange={e => setAnnounceForm(f => ({ ...f, severity: e.target.value }))}
+                    className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white"
+                  >
+                    <option value="info">Info</option>
+                    <option value="warning">Warning</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await fetch('/api/admin', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: 'create_announcement',
+                          title: announceForm.title,
+                          announcementBody: announceForm.body,
+                          severity: announceForm.severity,
+                        }),
+                      })
+                      setAnnounceForm({ title: '', body: '', severity: 'info' })
+                      fetchTab('announcements')
+                    }}
+                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold"
+                  >
+                    Publish
+                  </button>
+                </div>
+              </div>
+              <ul className="space-y-2">
+                {announcements.map(a => (
+                  <li key={a.id} className="glass-card-dark rounded-xl px-4 py-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-white">{a.title}</p>
+                      <p className="text-xs text-gray-400 mt-1">{a.body}</p>
+                      <p className="text-[10px] text-gray-500 mt-1 uppercase">{a.severity} · {a.is_active ? 'active' : 'off'}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await fetch('/api/admin', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'toggle_announcement', announcementId: a.id }),
+                        })
+                        fetchTab('announcements')
+                      }}
+                      className="text-xs font-bold text-indigo-300"
+                    >
+                      Toggle
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* ── Generic table view ─────────────────────────── */}
-          {!['overview', 'tenants', 'health', 'security'].includes(tab) && (
+          {!['overview', 'tenants', 'health', 'security', 'flags', 'announcements'].includes(tab) && (
             <div className="glass-card-dark rounded-2xl overflow-hidden">
               {loading ? (
                 <div className="flex items-center justify-center py-20">

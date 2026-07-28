@@ -88,7 +88,7 @@ export const VISA_TYPE_LABELS: Record<VisaType, string> = {
 
 export const INTERVIEW_MODES = ['video', 'phone', 'in_person', 'any'] as const
 
-/** Map rich lifecycle → existing pipeline_stage for kanban compatibility. */
+/** Map rich lifecycle → canonical pipeline_stage (RecruitOS P1). */
 export function lifecycleToPipelineStage(status: string | null | undefined): string | null {
   switch (status) {
     case 'new':
@@ -108,19 +108,21 @@ export function lifecycleToPipelineStage(status: string | null | undefined): str
     case 'submitted':
     case 'shortlisted':
     case 'client_review':
-      return 'screening'
+      return 'submitted'
     case 'interview_scheduled':
     case 'interview_completed':
       return 'interview'
     case 'selected':
     case 'offer_released':
-    case 'offer_accepted':
       return 'offer'
+    case 'offer_accepted':
+      return 'hr_onboarding'
     case 'joined':
-      return 'hired'
+      return 'joined'
     case 'rejected':
       return 'rejected'
     case 'hold':
+      return 'on_hold'
     case 'future_pipeline':
       return 'sourced'
     default:

@@ -6,6 +6,7 @@ import { logAudit } from '@/lib/audit'
 import { upsertWorkflowInstance } from '@/lib/workflowEngine'
 import { writeTimeline } from '@/lib/timelineEngine'
 import { createNotification } from '@/lib/notificationCenter'
+import { advanceFromDomain, submissionStageToLifecycle } from '@/lib/lifecycle'
 
 async function logSubmissionHistory(
   submissionId: string,
@@ -170,6 +171,17 @@ export async function PATCH(
       actorUserId: ctx.userId,
       actorEmail: ctx.userEmail,
       detail: `${oldStage} → ${newStage}`,
+    })
+    await advanceFromDomain({
+      tenantId: ctx.tenantId,
+      resumeId: prev.rows[0].resume_id,
+      toStage: submissionStageToLifecycle(newStage),
+      jobPostId: rows[0].job_post_id ?? null,
+      relatedEntityType: 'submission',
+      relatedEntityId: id,
+      actorUserId: ctx.userId,
+      actorEmail: ctx.userEmail,
+      reason: `submission_stage:${oldStage}->${newStage}`,
     })
   }
 

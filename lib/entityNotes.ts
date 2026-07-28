@@ -34,7 +34,12 @@ export type EntityNoteRow = {
   author_name: string | null
   created_at: string
   updated_at: string | null
+  edited_at: string | null
   is_deleted: boolean
+  is_pinned?: boolean
+  visibility?: 'private' | 'team'
+  mentions?: unknown[]
+  attachments?: unknown[]
 }
 
 /** Verify the entity belongs to the tenant. Returns false if not found / wrong tenant. */
@@ -45,6 +50,7 @@ export async function assertEntityInTenant(
 ): Promise<boolean> {
   const table =
     entityType === 'candidate' ? 'resumes'
+    : entityType === 'job' ? 'job_posts'
     : entityType === 'submission' ? 'submissions'
     : entityType === 'interview' ? 'interviews'
     : entityType === 'offer' ? 'offer_cases'
