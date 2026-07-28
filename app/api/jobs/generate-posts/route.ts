@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant, checkPermission } from '@/lib/tenant'
 import { upsertJobPostContents } from '@/lib/db'
+import { chatCompletion, getAIConfig } from '@/lib/aiClient'
 import {
   buildJobPostSystemPrompt,
   normalizePlatforms,
@@ -40,10 +41,9 @@ export async function POST(req: NextRequest) {
 
     const platforms = normalizePlatforms(body.platforms)
 
-    const apiKey = process.env.OPENAI_API_KEY
-    const baseUrl = process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1'
-    const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini'
-    if (!apiKey) return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 500 })
+    if (!getAIConfig()) {
+      return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 500 })
+    }
 
     const jobContext = [
       `Job Title: ${body.title}`,
@@ -58,32 +58,15 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = buildJobPostSystemPrompt(platforms)
 
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://recruit.srpailabs.com',
-        'X-Title': 'SRP SmartRecruit',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Generate job posts for:\n${jobContext}` },
-        ],
-        temperature: 0.7,
-        response_format: { type: 'json_object' },
-      }),
+    const raw = await chatCompletion({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Generate job posts for:\n${jobContext}` },
+      ],
+      temperature: 0.7,
+      max_tokens: 3000,
+      response_format: { type: 'json_object' },
     })
-
-    if (!res.ok) {
-      const errText = await res.text()
-      throw new Error(`AI API error ${res.status}: ${errText}`)
-    }
-
-    const data = await res.json()
-    const raw = data.choices?.[0]?.message?.content ?? '{}'
     const parsed = JSON.parse(raw) as Record<string, string>
 
     const posts: Partial<Record<JobPostPlatform, string>> = {}

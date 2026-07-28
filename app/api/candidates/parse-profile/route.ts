@@ -3,6 +3,7 @@ import { requireTenant } from '@/lib/tenant'
 import { hybridParseResume, type HybridResumeParse } from '@/lib/hybridResumeParse'
 import { sanitizeText } from '@/lib/validate'
 import { extractTextFromUpload } from '@/lib/extractFileText'
+import { chatCompletion } from '@/lib/aiClient'
 
 export const maxDuration = 90
 
@@ -38,35 +39,15 @@ Return JSON ONLY:
 Never invent IC/Passport/DOB. Leave blank if not in resume. Skills as comma-separated.`
 
 async function callAI(user: string): Promise<Record<string, unknown>> {
-  const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY
-  const baseUrl = (process.env.OPENAI_BASE_URL || (
-    process.env.OPENROUTER_API_KEY ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1'
-  )).replace(/\/$/, '')
-  const model = process.env.OPENAI_MODEL || (
-    baseUrl.includes('openrouter.ai') ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'
-  )
-  if (!apiKey) throw new Error('AI not configured')
-
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: AI_IMPROVE_PROMPT },
-        { role: 'user', content: user },
-      ],
-      temperature: 0.15,
-      max_tokens: 1800,
-      response_format: { type: 'json_object' },
-    }),
+  const content = await chatCompletion({
+    messages: [
+      { role: 'system', content: AI_IMPROVE_PROMPT },
+      { role: 'user', content: user },
+    ],
+    temperature: 0.15,
+    max_tokens: 1800,
+    response_format: { type: 'json_object' },
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data?.error?.message || 'AI improve failed')
-  const content = data.choices?.[0]?.message?.content ?? '{}'
   return JSON.parse(content)
 }
 

@@ -11,6 +11,7 @@ import {
   saveWorkingMemory,
 } from '@/lib/aiMemory'
 import { analyzeJobFillDifficulty, formatMarketInsightForPrompt } from '@/lib/marketIntelligence'
+import { chatCompletion, getAIConfig } from '@/lib/aiClient'
 
 const COPILOT_SYSTEM = `You are SmartRecruit AI — a Senior Recruitment Director with 20+ years of staffing / agency hiring experience (Malaysia, SEA, India, GCC aware).
 
@@ -234,15 +235,8 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY
-  const baseUrl = (process.env.OPENAI_BASE_URL || (
-    process.env.OPENROUTER_API_KEY ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1'
-  )).replace(/\/$/, '')
-  const model = process.env.OPENAI_MODEL || (
-    baseUrl.includes('openrouter.ai') ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'
-  )
-
-  if (!apiKey) {
+  const aiCfg = getAIConfig()
+  if (!aiCfg) {
     return NextResponse.json({ error: 'AI not configured — set OPENAI_API_KEY in .env' }, { status: 503 })
   }
 
@@ -377,30 +371,11 @@ INSTRUCTION: ${intent.hint}`
   const maxTokens = lastUserRaw || incomingMessages.length ? intent.maxTokens : 400
 
   try {
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://recruit.srpailabs.com',
-        'X-Title': 'SRP SmartRecruit AI',
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        max_tokens: maxTokens,
-        temperature: intent.mode === 'jd' ? 0.55 : 0.6,
-      }),
+    const text = await chatCompletion({
+      messages,
+      max_tokens: maxTokens,
+      temperature: intent.mode === 'jd' ? 0.55 : 0.6,
     })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      console.error('[coach]', res.status, data)
-      const detail = typeof data?.error === 'string'
-        ? data.error
-        : data?.error?.message || data?.message || 'SmartRecruit AI request failed'
-      return NextResponse.json({ error: detail }, { status: 502 })
-    }
-    const text = data.choices?.[0]?.message?.content ?? ''
 
     try {
       await pool.query(

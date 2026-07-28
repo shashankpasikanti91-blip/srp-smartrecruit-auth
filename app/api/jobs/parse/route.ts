@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { sanitizeText } from '@/lib/validate'
+import { chatCompletion } from '@/lib/aiClient'
 
 export const maxDuration = 60
 
@@ -65,37 +66,15 @@ function formatRequirements(items: string[]): string {
 }
 
 async function callAI(system: string, user: string): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY
-  const baseUrl = (process.env.OPENAI_BASE_URL || (
-    process.env.OPENROUTER_API_KEY ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1'
-  )).replace(/\/$/, '')
-  const model = process.env.OPENAI_MODEL || (
-    baseUrl.includes('openrouter.ai') ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'
-  )
-  if (!apiKey) throw new Error('AI not configured')
-
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      'HTTP-Referer': 'https://recruit.srpailabs.com',
-      'X-Title': 'SRP SmartRecruit JD Parse',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-      temperature: 0.2,
-      max_tokens: 1800,
-      response_format: { type: 'json_object' },
-    }),
+  return chatCompletion({
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    temperature: 0.2,
+    max_tokens: 1800,
+    response_format: { type: 'json_object' },
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data?.error?.message || 'AI parse failed')
-  return data.choices?.[0]?.message?.content ?? '{}'
 }
 
 /** POST /api/jobs/parse — Parse JD text into simple recruiter job fields. Always keeps raw JD. */

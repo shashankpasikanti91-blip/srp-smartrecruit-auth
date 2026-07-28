@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
+import { chatCompletion } from '@/lib/aiClient'
 
 export const maxDuration = 30
 
@@ -31,31 +32,15 @@ OUTPUT FORMAT — JSON ONLY. No markdown. No extra text.
 }`
 
 async function callAI(prompt: string, user: string): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY
-  const baseUrl = process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1'
-  const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini'
-  if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
-
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      'HTTP-Referer': 'https://recruit.srpailabs.com',
-      'X-Title': 'SRP SmartRecruit',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: prompt },
-        { role: 'user', content: user },
-      ],
-      temperature: 0.2,
-    }),
+  return chatCompletion({
+    messages: [
+      { role: 'system', content: prompt },
+      { role: 'user', content: user },
+    ],
+    temperature: 0.2,
+    max_tokens: 1200,
+    response_format: { type: 'json_object' },
   })
-  if (!res.ok) throw new Error(`AI API ${res.status}: ${await res.text()}`)
-  const data = await res.json()
-  return data.choices?.[0]?.message?.content ?? ''
 }
 
 function parseJSON(raw: string): Record<string, unknown> {

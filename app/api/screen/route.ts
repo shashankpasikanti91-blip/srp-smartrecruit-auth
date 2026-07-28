@@ -7,6 +7,7 @@ import { isValidUUID } from '@/lib/validate'
 import { extractResumeFields } from '@/lib/resumeExtract'
 import { writeTimeline } from '@/lib/timelineEngine'
 import { createNotification } from '@/lib/notificationCenter'
+import { chatCompletion } from '@/lib/aiClient'
 
 /** AI models sometimes return score as a string — DB ai_score must be numeric for match_category. */
 function normalizeScreeningScore(value: unknown): number | null {
@@ -193,33 +194,15 @@ Do NOT change field names. All fields are required.
 }`
 
 async function callAI(messages: { role: string; content: string }[]): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY
-  const baseUrl = process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1'
-  const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini'
-
-  if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
-
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 90000) // 90s timeout for AI
-
+  const timer = setTimeout(() => controller.abort(), 90000)
   try {
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://recruit.srpailabs.com',
-        'X-Title': 'SRP SmartRecruit',
-      },
-      body: JSON.stringify({ model, messages, temperature: 0.2 }),
+    return await chatCompletion({
+      messages,
+      temperature: 0.2,
+      max_tokens: 2500,
       signal: controller.signal,
     })
-    if (!res.ok) {
-      const errText = await res.text()
-      throw new Error(`AI API error ${res.status}: ${errText}`)
-    }
-    const data = await res.json()
-    return data.choices?.[0]?.message?.content ?? ''
   } finally {
     clearTimeout(timer)
   }
