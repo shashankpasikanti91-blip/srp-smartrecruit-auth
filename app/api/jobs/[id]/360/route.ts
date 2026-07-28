@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
-import { pool } from '@/lib/db'
+import { getJobPostContents, pool } from '@/lib/db'
 import { isValidUUID } from '@/lib/validate'
 import { analyzeJobFillDifficulty } from '@/lib/marketIntelligence'
 import { computeAiFitScores } from '@/lib/aiFitScore'
@@ -148,12 +148,31 @@ export async function GET(
   const pipelineMap: Record<string, number> = {}
   for (const r of pipeline.rows) pipelineMap[r.stage] = r.n
 
+  const savedPosts = await getJobPostContents(id).catch(() => null)
+  const post_contents: Record<string, string> = {}
+  if (savedPosts) {
+    const map: Array<[string, string | null]> = [
+      ['linkedin', savedPosts.linkedin],
+      ['whatsapp', savedPosts.whatsapp],
+      ['email', savedPosts.email],
+      ['twitter', savedPosts.twitter],
+      ['indeed', savedPosts.indeed],
+      ['telegram', savedPosts.telegram],
+      ['facebook', savedPosts.facebook],
+    ]
+    for (const [key, text] of map) {
+      if (typeof text === 'string' && text.trim()) post_contents[key] = text
+    }
+  }
+
   return NextResponse.json({
     job: {
       ...job,
       hiring_manager: job.hiring_manager ?? null,
       client_name: job.client_name,
+      post_contents,
     },
+    post_contents,
     required_skills: Array.isArray(job.skills) ? job.skills : (Array.isArray(job.tags) ? job.tags : []),
     pipeline: pipelineMap,
     ranking,

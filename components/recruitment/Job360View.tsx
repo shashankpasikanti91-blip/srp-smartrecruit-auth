@@ -1,12 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Briefcase, Loader2, Sparkles, TrendingUp, X } from 'lucide-react'
+import { Briefcase, Check, Copy, FileText, Loader2, Sparkles, TrendingUp, X } from 'lucide-react'
 import { AiFitScoreCard } from '@/components/recruitment/AiFitScoreCard'
 import type { AiFitScores } from '@/lib/aiFitScore'
+import {
+  JOB_POST_PLATFORMS,
+  JOB_POST_PLATFORM_META,
+  type JobPostPlatform,
+} from '@/lib/jobPostPlatforms'
 
 const TABS = [
   'overview',
+  'jd_document',
+  'posts',
   'pipeline',
   'ranking',
   'submissions',
@@ -21,6 +28,8 @@ type Job360Tab = typeof TABS[number]
 
 const TAB_LABELS: Record<Job360Tab, string> = {
   overview: 'Overview',
+  jd_document: 'JD Document',
+  posts: 'Posts',
   pipeline: 'Pipeline',
   ranking: 'Ranking',
   submissions: 'Submissions',
@@ -67,10 +76,12 @@ type Job360Job = {
   hiring_manager?: string | null
   hiring_difficulty?: string | null
   client_name?: string | null
+  post_contents?: Record<string, string> | null
 }
 
 type Job360Data = {
   job?: Job360Job
+  post_contents?: Record<string, string>
   required_skills?: string[]
   pipeline?: Record<string, number>
   ranking?: RankedCandidate[]
@@ -165,17 +176,27 @@ function employmentLabel(type?: string | null) {
   return type || '—'
 }
 
+function pickPosts(source?: Record<string, string> | null): Record<string, string> {
+  if (!source) return {}
+  const out: Record<string, string> = {}
+  for (const p of JOB_POST_PLATFORMS) {
+    const text = source[p]
+    if (typeof text === 'string' && text.trim()) out[p] = text
+  }
+  return out
+}
+
 export function Job360View({
   jobId,
   onClose,
   onOpenCandidate,
   onNavigate,
-  onGeneratePosts,
 }: {
   jobId: string
   onClose: () => void
   onOpenCandidate?: (id: string) => void
   onNavigate?: (tab: string) => void
+  /** @deprecated Posts are generated inside the Posts tab now */
   onGeneratePosts?: (job: Job360Job) => void
 }) {
   const [tab, setTab] = useState<Job360Tab>('overview')
@@ -185,6 +206,14 @@ export function Job360View({
   const [reparsing, setReparsing] = useState(false)
   const [parseMsg, setParseMsg] = useState<string | null>(null)
 
+  const [posts, setPosts] = useState<Record<string, string>>({})
+  const [postTab, setPostTab] = useState<JobPostPlatform>('linkedin')
+  const [selectedPlatforms, setSelectedPlatforms] = useState<JobPostPlatform[]>([...JOB_POST_PLATFORMS])
+  const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [customPrompt, setCustomPrompt] = useState('')
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -192,16 +221,16 @@ export function Job360View({
       const res = await fetch(`/api/jobs/${jobId}/360`)
       if (!res.ok) {
         const body = await res.json().catch(() => ({} as { error?: string }))
-        if (res.status === 404) {
-          setData({ job: { id: jobId, title: 'Job' } })
-          setError('360 view not available yet — showing shell')
-        } else {
-          setData({ job: { id: jobId, title: 'Job' } })
-          setError(body.error || `Could not load job 360 (${res.status})`)
-        }
+        setData({ job: { id: jobId, title: 'Job' } })
+        setError(body.error || `Could not load job 360 (${res.status})`)
         return
       }
-      setData(await res.json())
+      const json = await res.json() as Job360Data
+      setData(json)
+      const loaded = pickPosts(json.post_contents || json.job?.post_contents)
+      setPosts(loaded)
+      const first = (JOB_POST_PLATFORMS.find(p => loaded[p]) || 'linkedin') as JobPostPlatform
+      setPostTab(first)
     } catch {
       setData({ job: { id: jobId, title: 'Job' } })
       setError('Network error — limited view')
@@ -225,11 +254,11 @@ export function Job360View({
     Boolean(job?.description?.trim()) ||
     Boolean(job?.requirements?.trim()) ||
     keySkills.length > 0
-  const hasRaw = Boolean(job?.raw_jd_text?.trim())
+  const rawText = (job?.raw_jd_text || '').trim()
+  const hasRaw = Boolean(rawText)
 
   const reparseFromRaw = async () => {
-    const raw = job?.raw_jd_text?.trim()
-    if (!raw) {
+    if (!rawText) {
       setParseMsg('No raw JD saved on this job. Upload/paste a JD when creating the job.')
       return
     }
@@ -239,7 +268,7 @@ export function Job360View({
       const parseRes = await fetch('/api/jobs/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: raw, mode: 'ai' }),
+        body: JSON.stringify({ text: rawText, mode: 'ai' }),
       })
       const parsed = await parseRes.json()
       if (!parseRes.ok && !parsed.fields) {
@@ -267,7 +296,7 @@ export function Job360View({
         max_budget: f.max_budget ?? job?.max_budget,
         headcount: f.headcount ?? job?.headcount,
         priority: f.priority || job?.priority,
-        raw_jd_text: raw,
+        raw_jd_text: rawText,
       }
       const saveRes = await fetch(`/api/jobs/${jobId}`, {
         method: 'PATCH',
@@ -288,9 +317,76 @@ export function Job360View({
     }
   }
 
+  const togglePlatform = (p: JobPostPlatform) => {
+    setSelectedPlatforms(prev =>
+      prev.includes(p) ? (prev.length === 1 ? prev : prev.filter(x => x !== p)) : [...prev, p]
+    )
+  }
+
+  const generatePosts = async () => {
+    if (!job) return
+    if (selectedPlatforms.length === 0) {
+      setGenError('Select at least one channel')
+      return
+    }
+    setGenerating(true)
+    setGenError(null)
+    try {
+      const res = await fetch('/api/jobs/generate-posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_post_id: job.id,
+          title: job.title,
+          company: job.company || job.client_name,
+          location: job.location,
+          type: job.type,
+          description: job.description || rawText.slice(0, 6000),
+          requirements: job.requirements,
+          custom_prompt: customPrompt,
+          platforms: selectedPlatforms,
+        }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setGenError(body.error || `Generate failed (${res.status})`)
+        return
+      }
+      const next = pickPosts(body.posts)
+      if (!Object.keys(next).length) {
+        setGenError('AI returned empty posts — try again')
+        return
+      }
+      setPosts(prev => ({ ...prev, ...next }))
+      const first = (JOB_POST_PLATFORMS.find(p => next[p]) || selectedPlatforms[0]) as JobPostPlatform
+      setPostTab(first)
+    } catch {
+      setGenError('Network error while generating posts')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const copyPost = async (key: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    setCopiedKey(key)
+    setTimeout(() => setCopiedKey(null), 2000)
+  }
+
+  const openPostsTab = () => setTab('posts')
+
   return (
-    <div className="drawer-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="drawer-panel" style={{ maxWidth: 820 }}>
+    <div className="drawer-overlay" style={{ zIndex: 60 }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="drawer-panel" style={{ maxWidth: 860 }}>
         <div className="drawer-header">
           <div className="flex items-start gap-3 min-w-0">
             <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0">
@@ -305,15 +401,13 @@ export function Job360View({
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {onGeneratePosts && job && (
-              <button
-                type="button"
-                onClick={() => onGeneratePosts(job)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold"
-              >
-                <Sparkles className="w-3.5 h-3.5" /> Generate Posts
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={openPostsTab}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold"
+            >
+              <Sparkles className="w-3.5 h-3.5" /> Generate Posts
+            </button>
             <button type="button" onClick={onClose} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
               <X className="w-5 h-5" />
             </button>
@@ -331,6 +425,7 @@ export function Job360View({
               }`}
             >
               {TAB_LABELS[t]}
+              {t === 'posts' && Object.keys(posts).length > 0 ? ` (${Object.keys(posts).length})` : ''}
             </button>
           ))}
         </div>
@@ -353,20 +448,29 @@ export function Job360View({
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
                       <p className="text-sm font-extrabold text-amber-950">JD fields are empty</p>
                       <p className="text-xs font-medium text-amber-900">
-                        This job was saved without Parse with AI. {hasRaw
-                          ? 'Raw JD is available — click below to fill About Role, Responsibilities, Requirements, and Skills.'
+                        {hasRaw
+                          ? 'Raw JD is available — open JD Document tab or parse below.'
                           : 'No raw JD on file. Create the job again with Upload/Paste + Parse with AI.'}
                       </p>
                       {hasRaw && (
-                        <button
-                          type="button"
-                          disabled={reparsing}
-                          onClick={reparseFromRaw}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-xs font-extrabold disabled:opacity-50"
-                        >
-                          {reparsing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                          Parse JD now & save fields
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={reparsing}
+                            onClick={reparseFromRaw}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-xs font-extrabold disabled:opacity-50"
+                          >
+                            {reparsing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                            Parse JD now & save fields
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTab('jd_document')}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-300 bg-white text-amber-900 text-xs font-extrabold"
+                          >
+                            <FileText className="w-3.5 h-3.5" /> View raw JD
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}
@@ -421,48 +525,173 @@ export function Job360View({
                     <SkillChips skills={keySkills} />
                   </Section>
 
-                  {hasRaw && (
-                    <details className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <summary className="cursor-pointer text-xs font-extrabold text-slate-700">
-                        Raw JD ({job!.raw_jd_text!.trim().length.toLocaleString()} chars)
-                      </summary>
-                      <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap text-[11px] text-slate-600 leading-relaxed">
-                        {job!.raw_jd_text}
-                      </pre>
-                      {!hasStructured && (
-                        <button
-                          type="button"
-                          disabled={reparsing}
-                          onClick={reparseFromRaw}
-                          className="mt-3 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-extrabold disabled:opacity-50"
-                        >
-                          {reparsing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                          Parse raw JD into fields
-                        </button>
-                      )}
-                    </details>
-                  )}
-
-                  {hasStructured && (
-                    <div className="flex flex-wrap gap-2">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
+                        Raw JD document {hasRaw ? `(${rawText.length.toLocaleString()} chars)` : ''}
+                      </p>
                       <button
                         type="button"
-                        disabled={reparsing || !hasRaw}
+                        onClick={() => setTab('jd_document')}
+                        className="text-xs font-extrabold text-indigo-700 hover:underline"
+                      >
+                        Open full document →
+                      </button>
+                    </div>
+                    {hasRaw ? (
+                      <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-[11px] text-slate-600 leading-relaxed bg-white border border-slate-200 rounded-lg p-3">
+                        {rawText.slice(0, 2500)}
+                        {rawText.length > 2500 ? '\n\n… open JD Document tab for full text' : ''}
+                      </pre>
+                    ) : (
+                      <p className="text-sm font-medium text-slate-400">No raw JD stored for this job.</p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={reparsing || !hasRaw}
+                      onClick={reparseFromRaw}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {reparsing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                      Re-parse from raw JD
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openPostsTab}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-extrabold"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" /> Go to Posts tab
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {tab === 'jd_document' && (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3">
+                    <FileText className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-extrabold text-slate-900">Full raw JD document</p>
+                      <p className="text-xs font-medium text-slate-600 mt-0.5">
+                        Original pasted/uploaded job description stored with this job
+                        {hasRaw ? ` · ${rawText.length.toLocaleString()} characters` : ''}.
+                      </p>
+                    </div>
+                  </div>
+                  {hasRaw ? (
+                    <>
+                      <pre className="whitespace-pre-wrap text-sm font-medium text-slate-800 leading-relaxed bg-white border border-slate-200 rounded-xl p-4 max-h-[60vh] overflow-auto">
+                        {rawText}
+                      </pre>
+                      <button
+                        type="button"
+                        disabled={reparsing}
                         onClick={reparseFromRaw}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs font-extrabold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-extrabold disabled:opacity-50"
                       >
                         {reparsing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                        Re-parse from raw JD
+                        Parse this JD into Overview fields
                       </button>
-                      {onGeneratePosts && job && (
+                    </>
+                  ) : (
+                    <EmptyHint label="raw JD document" />
+                  )}
+                </div>
+              )}
+
+              {tab === 'posts' && (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 space-y-2">
+                    <p className="text-sm font-extrabold text-indigo-950">Channel posts</p>
+                    <p className="text-xs font-medium text-indigo-900/80">
+                      Generate Email, LinkedIn, WhatsApp, Indeed and more from this JD. Posts are saved on the job.
+                    </p>
+                    <input
+                      value={customPrompt}
+                      onChange={e => setCustomPrompt(e.target.value)}
+                      placeholder="Optional extra instructions (e.g. highlight remote, target seniors…)"
+                      className="w-full px-3 py-2 rounded-lg border border-indigo-100 bg-white text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-400"
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {JOB_POST_PLATFORMS.map(p => {
+                        const on = selectedPlatforms.includes(p)
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => togglePlatform(p)}
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold border ${
+                              on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'
+                            }`}
+                            title={JOB_POST_PLATFORM_META[p].hint}
+                          >
+                            {JOB_POST_PLATFORM_META[p].label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={generating || selectedPlatforms.length === 0}
+                      onClick={generatePosts}
+                      className="inline-flex items-center justify-center gap-1.5 w-full sm:w-auto px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold disabled:opacity-50"
+                    >
+                      {generating
+                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
+                        : Object.keys(posts).length
+                          ? <><Sparkles className="w-4 h-4" /> Regenerate selected posts</>
+                          : <><Sparkles className="w-4 h-4" /> Generate posts from JD</>}
+                    </button>
+                    {genError && (
+                      <p className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{genError}</p>
+                    )}
+                  </div>
+
+                  {Object.keys(posts).length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {JOB_POST_PLATFORMS.map(p => (
+                          posts[p] ? (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => setPostTab(p)}
+                              className={`px-2.5 py-1 rounded-full text-xs font-extrabold ${
+                                postTab === p ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                              }`}
+                            >
+                              {JOB_POST_PLATFORM_META[p].label}
+                            </button>
+                          ) : null
+                        ))}
+                      </div>
+                      <div className="relative">
+                        <textarea
+                          readOnly
+                          value={posts[postTab] ?? ''}
+                          rows={14}
+                          className="w-full px-3 py-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-800 leading-relaxed resize-y min-h-[220px]"
+                        />
                         <button
                           type="button"
-                          onClick={() => onGeneratePosts(job)}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-extrabold"
+                          onClick={() => copyPost(postTab, posts[postTab] ?? '')}
+                          className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 border border-slate-200"
                         >
-                          <Sparkles className="w-3.5 h-3.5" /> Generate Email / LinkedIn / WhatsApp posts
+                          {copiedKey === postTab
+                            ? <><Check className="w-3 h-3 text-emerald-600" /> Copied</>
+                            : <><Copy className="w-3 h-3" /> Copy</>}
                         </button>
-                      )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-sm font-extrabold text-amber-950">No posts yet</p>
+                      <p className="text-xs font-medium text-amber-900 mt-1">
+                        Click <span className="font-extrabold">Generate posts from JD</span> above. Results appear here and are saved on this job.
+                      </p>
                     </div>
                   )}
                 </div>

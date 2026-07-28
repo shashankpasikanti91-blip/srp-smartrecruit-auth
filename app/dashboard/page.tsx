@@ -4931,7 +4931,7 @@ export default function DashboardPage() {
 
       {/* ── Generate Job Posts Modal ─────────────────────────────────────── */}
       {genPostJob && (
-        <div className="fixed inset-0 bg-slate-900/35 backdrop-blur-[2px] z-50 overflow-y-auto flex items-start justify-center p-4">
+        <div className="fixed inset-0 bg-slate-900/35 backdrop-blur-[2px] z-[70] overflow-y-auto flex items-start justify-center p-4">
           <div className="glass-card rounded-2xl p-5 w-full max-w-2xl border border-slate-200 my-auto flex flex-col max-h-[92vh] overflow-hidden">
             <div className="flex items-center justify-between mb-3 flex-shrink-0">
               <div>
@@ -5077,19 +5077,6 @@ export default function DashboardPage() {
             if (c) setSelectedCandidate(c)
           }}
           onNavigate={(tab) => setActiveTab(tab as DashboardTab)}
-          onGeneratePosts={(job) => {
-            const matched = jobs.find(j => j.id === job.id) ?? selectedJobView
-            openJobDetails({
-              ...matched,
-              id: job.id,
-              title: job.title || matched.title,
-              company: job.company ?? matched.company,
-              location: job.location ?? matched.location,
-              type: job.type ?? matched.type,
-              description: job.description ?? matched.description,
-              requirements: job.requirements ?? matched.requirements,
-            })
-          }}
         />
       )}
 
