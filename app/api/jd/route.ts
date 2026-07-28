@@ -1,38 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 
 export const maxDuration = 60
 
-const JD_GENERATOR_PROMPT = `You are a senior recruitment consultant and professional JD writer.
-
-Your task is to write a complete, human-quality Job Description based on the inputs provided.
+const JD_GENERATOR_PROMPT = `You are a staffing-agency JD writer for recruiters.
+Write a SHORT, professional JD — not a long corporate brochure.
 
 STRICT RULES:
-- Write in clear, professional, human tone
-- No robotic AI language ("cutting-edge", "dynamic team", "passion for excellence")
-- No exaggerated claims or empty buzzwords
-- No fake promises about culture or compensation without facts
-- Be factual and realistic
-- Structure must be complete and scannable
+- Clear, human, professional tone
+- No buzzwords ("cutting-edge", "passion for excellence", "dynamic team")
+- No fake culture / benefits unless the user provided them
+- Recruiter-ready: role, responsibilities, requirements, skills, location, type, budget
 
-JD STRUCTURE (all sections required):
+STRUCTURE (keep short):
 1. Job Title
-2. Role Summary (3–4 sentences about the role purpose)
-3. Key Responsibilities (6–10 bullet points, start with action verbs)
-4. Required Skills (5–8 must-have items, be specific)
-5. Preferred / Nice-to-Have Skills (3–5 items)
-6. Experience Required (years + type)
-7. Education
-8. Employment Type
-9. Location
-10. Notice Period Preference (if provided)
-11. Compensation (only if salary range provided — otherwise omit entirely)
-12. About the Company (only if company info provided — otherwise omit)
+2. About the Role (2–4 sentences)
+3. Key Responsibilities (4–8 bullets)
+4. Requirements (4–8 bullets)
+5. Key Skills (5–10)
+6. Experience
+7. Employment Type (Permanent / Contract / etc.)
+8. Location
+9. Budget / Compensation (only if provided)
 
-OUTPUT FORMAT:
-Return JSON ONLY. No markdown. No extra text.
+OUTPUT FORMAT — JSON ONLY:
 {
   "job_title": "",
   "role_summary": "",
@@ -46,7 +38,7 @@ Return JSON ONLY. No markdown. No extra text.
   "notice_period": "",
   "compensation": "",
   "about_company": "",
-  "full_jd_text": "Complete formatted JD as a single readable text block"
+  "full_jd_text": "Formatted JD with sections: About the Role, Key Responsibilities, Requirements, Key Skills, Experience, Employment Type, Location, Budget"
 }`
 
 const JD_ANALYZER_PROMPT = `You are a senior recruitment intelligence analyst.
@@ -108,10 +100,8 @@ function parseJSON(raw: string): Record<string, unknown> {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const ctx = await requireTenant(req, 'jd_intel.use')
+  if (ctx instanceof NextResponse) return ctx
 
   try {
     const body = await req.json()
@@ -124,7 +114,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'action required: generate | analyze' }, { status: 400 })
     }
 
-    const userId = (session.user as Record<string, unknown>).userId as string
+    const userId = ctx.userId
 
     if (action === 'generate') {
       const { job_title, skills, experience, education, location,
@@ -217,14 +207,13 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const userId = (session.user as Record<string, unknown>).userId as string
+  const ctx = await requireTenant(req, 'jd_intel.use')
+  if (ctx instanceof NextResponse) return ctx
   try {
     const { rows } = await pool.query(
       `SELECT id, title, created_at FROM generated_jds WHERE user_id = $1
        ORDER BY created_at DESC LIMIT 30`,
-      [userId]
+      [ctx.userId]
     )
     return NextResponse.json({ jds: rows })
   } catch {

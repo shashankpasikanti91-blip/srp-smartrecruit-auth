@@ -1,15 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireTenant, checkPermission } from '@/lib/tenant'
 import { extractResumeFields } from '@/lib/resumeExtract'
 import { extractTextFromUpload } from '@/lib/extractFileText'
 
 export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await requireTenant(req)
+  if (ctx instanceof NextResponse) return ctx
+
+  // Used for resumes (candidates) and JD uploads (jobs / JD intel)
+  const allowed =
+    checkPermission(ctx.permissions, 'candidates.create') ||
+    checkPermission(ctx.permissions, 'jobs.create') ||
+    checkPermission(ctx.permissions, 'jd_intel.use')
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Forbidden: you lack permission to upload files in this workspace" },
+      { status: 403 },
+    )
   }
 
   let file: File | null = null

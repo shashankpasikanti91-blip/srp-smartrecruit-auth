@@ -4,13 +4,16 @@ import { pool } from '@/lib/db'
 import { isValidUUID } from '@/lib/validate'
 import {
   DOCUMENT_SLOTS,
-  SLOT_LABELS,
   validateUpload,
   saveCandidateDocumentFile,
   mimeForExt,
   extFromFilename,
+  isValidDocumentSlot,
+  slotLabel,
   type DocumentSlot,
 } from '@/lib/documentStorage'
+import { getDocumentChecklist } from '@/lib/recruitmentOs'
+import { resolveChecklistCountry, resolveEmploymentType } from '@/lib/dossierChecks'
 import { logAudit } from '@/lib/audit'
 
 async function assertCandidate(tenantId: string, resumeId: string) {
@@ -32,6 +35,24 @@ export async function GET(
 
   const cand = await assertCandidate(ctx.tenantId, id)
   if (!cand) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const profileRes = await pool.query<{ candidate_profile: Record<string, unknown> | null; nationality_hint: string | null }>(
+    `SELECT candidate_profile,
+            COALESCE(candidate_profile->>'nationality', candidate_profile->>'work_country', '') AS nationality_hint
+     FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    [id, ctx.tenantId]
+  )
+  const profile = profileRes.rows[0]?.candidate_profile ?? {}
+  const country = resolveChecklistCountry(profileRes.rows[0]?.nationality_hint)
+  const employmentType = resolveEmploymentType(profile)
+  const checklist = getDocumentChecklist(country, employmentType)
+  const checklistKeys = checklist.map(c => c.key)
+  // Always include core slots + country checklist (+ any already-uploaded slots)
+  const displaySlots = Array.from(new Set([
+    'resume',
+    ...checklistKeys.filter(k => isValidDocumentSlot(k) || DOCUMENT_SLOTS.includes(k as DocumentSlot)),
+    ...DOCUMENT_SLOTS.slice(0, 7),
+  ]))
 
   const { rows } = await pool.query(
     `SELECT cd.id, cd.slot_type, cd.label, cd.created_at, cd.updated_at,
@@ -60,21 +81,36 @@ export async function GET(
     [ctx.tenantId, id]
   )
 
-  const existingSlots = new Set(rows.map((r: { slot_type: string }) => r.slot_type))
-  const slots = DOCUMENT_SLOTS.map(slot => {
+  for (const r of rows as { slot_type: string }[]) {
+    if (!displaySlots.includes(r.slot_type)) displaySlots.push(r.slot_type)
+  }
+
+  const requiredKeys = new Set(checklist.filter(c => c.required).map(c => c.key))
+  const slots = displaySlots.map(slot => {
     const row = rows.find((r: { slot_type: string }) => r.slot_type === slot)
-    if (row) return { ...row, slot_label: SLOT_LABELS[slot as DocumentSlot] }
+    const label = slotLabel(slot)
+    const checklistItem = checklist.find(c => c.key === slot)
+    if (row) {
+      return {
+        ...row,
+        slot_label: label,
+        required: requiredKeys.has(slot) || !!checklistItem?.required,
+        country,
+      }
+    }
     return {
       id: null,
       slot_type: slot,
-      slot_label: SLOT_LABELS[slot as DocumentSlot],
-      label: SLOT_LABELS[slot as DocumentSlot],
+      slot_label: label,
+      label,
       versions: [],
       empty: true,
+      required: requiredKeys.has(slot) || !!checklistItem?.required,
+      country,
     }
   })
 
-  return NextResponse.json({ documents: slots, raw: rows })
+  return NextResponse.json({ documents: slots, country, employment_type: employmentType, checklist })
 }
 
 export async function POST(
@@ -104,7 +140,7 @@ export async function POST(
   if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 })
   const err = validateUpload(file)
   if (err) return NextResponse.json({ error: err }, { status: 400 })
-  if (!DOCUMENT_SLOTS.includes(slotType as DocumentSlot)) {
+  if (!isValidDocumentSlot(slotType)) {
     return NextResponse.json({ error: 'Invalid slot_type' }, { status: 400 })
   }
 
@@ -123,7 +159,7 @@ export async function POST(
       const ins = await client.query<{ id: string }>(
         `INSERT INTO candidate_documents (tenant_id, resume_id, slot_type, label)
          VALUES ($1,$2,$3,$4) RETURNING id`,
-        [ctx.tenantId, id, slotType, SLOT_LABELS[slotType as DocumentSlot]]
+        [ctx.tenantId, id, slotType, slotLabel(slotType)]
       )
       documentId = ins.rows[0].id
     } else {

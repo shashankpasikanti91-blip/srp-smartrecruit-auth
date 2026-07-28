@@ -10,11 +10,12 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const ctx = await requireTenant(req, 'candidates.read')
+  const ctx = await requireTenant(req, 'jobs.read')
   if (ctx instanceof NextResponse) return ctx
   const { id } = await params
   if (!isValidUUID(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
+  try {
   const jobRes = await pool.query(
     `SELECT j.*, c.name AS client_name
      FROM job_posts j
@@ -85,9 +86,13 @@ export async function GET(
     listEntityTimeline({ tenantId: ctx.tenantId, entityType: 'job', entityId: id, limit: 30 }).catch(() => []),
   ])
 
-  const market = await analyzeJobFillDifficulty({ tenantId: ctx.tenantId, jobId: id })
+  const market = await analyzeJobFillDifficulty({ tenantId: ctx.tenantId, jobId: id }).catch(() => ({
+    difficulty: 'medium' as const,
+    score: 50,
+    reasons: ['Market insight temporarily unavailable.'],
+  }))
 
-  // Persist difficulty hint
+  // Persist difficulty hint (ignore if columns not migrated yet)
   try {
     await pool.query(
       `UPDATE job_posts SET hiring_difficulty = $1, market_insights = $2::jsonb, updated_at = NOW()
@@ -109,7 +114,7 @@ export async function GET(
           location: job.location,
           requirements: job.requirements,
           description: job.description,
-          skills: job.skills,
+          skills: Array.isArray(job.skills) ? job.skills : job.tags,
           salary_min: job.salary_min,
           salary_max: job.salary_max,
         })
@@ -149,7 +154,7 @@ export async function GET(
       hiring_manager: job.hiring_manager ?? null,
       client_name: job.client_name,
     },
-    required_skills: job.skills ?? [],
+    required_skills: Array.isArray(job.skills) ? job.skills : (Array.isArray(job.tags) ? job.tags : []),
     pipeline: pipelineMap,
     ranking,
     candidate_ranking: ranking,
@@ -173,7 +178,11 @@ export async function GET(
     },
     hiring_difficulty: market.difficulty,
     time_to_fill_days,
-    ai_suggestions: market.reasons.slice(0, 5),
+    ai_suggestions: Array.isArray(market.reasons) ? market.reasons.slice(0, 5) : [],
     timeline,
   })
+  } catch (e) {
+    console.error('[api/jobs/360]', e)
+    return NextResponse.json({ error: 'Could not load job 360' }, { status: 500 })
+  }
 }

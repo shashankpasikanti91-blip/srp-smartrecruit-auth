@@ -124,12 +124,13 @@ export function Job360View({
     try {
       const res = await fetch(`/api/jobs/${jobId}/360`)
       if (!res.ok) {
+        const body = await res.json().catch(() => ({} as { error?: string }))
         if (res.status === 404) {
           setData({ job: { id: jobId, title: 'Job' } })
           setError('360 view not available yet — showing shell')
         } else {
-          setData(null)
-          setError('Could not load job 360')
+          setData({ job: { id: jobId, title: 'Job' } })
+          setError(body.error || `Could not load job 360 (${res.status})`)
         }
         return
       }

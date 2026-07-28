@@ -1,25 +1,9 @@
 import { pool } from './db'
 import { getUserSubscription } from './db'
+import { PLAN_LIMITS, type PlanKey } from './planLimits'
 
-export const PLAN_LIMITS = {
-  free: {
-    job_posts: 5,
-    ai_screens_per_month: 100,
-    label: 'Free',
-  },
-  pro: {
-    job_posts: Infinity,
-    ai_screens_per_month: Infinity,
-    label: 'Pro',
-  },
-  enterprise: {
-    job_posts: Infinity,
-    ai_screens_per_month: Infinity,
-    label: 'Enterprise',
-  },
-} as const
-
-type PlanKey = keyof typeof PLAN_LIMITS
+export { PLAN_LIMITS }
+export type { PlanKey }
 
 export async function checkJobPostLimit(userId: string): Promise<{ allowed: boolean; reason?: string }> {
   const sub = await getUserSubscription(userId)

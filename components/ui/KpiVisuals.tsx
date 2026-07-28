@@ -64,16 +64,11 @@ function MiniDonut({ pct, stroke }: { pct: number; stroke: string }) {
 export function KpiVisualStrip({ items }: { items: KpiItem[] }) {
   return (
     <div className="flex items-stretch gap-1.5 sm:gap-2 flex-wrap">
-      {items.map((item, idx) => {
+      {items.map((item) => {
         const tone = TONES[item.tone ?? 'indigo']
-        const series = item.series ?? [
-          Math.max(1, Number(item.value) || 2),
-          Math.max(1, (Number(item.value) || 2) * 0.7),
-          Math.max(1, (Number(item.value) || 2) * 1.1),
-          Math.max(1, (Number(item.value) || 2) * 0.85),
-          Math.max(1, Number(item.value) || 2),
-        ]
-        const pct = item.pct ?? Math.min(100, (Number(String(item.value).replace('%', '')) || idx * 12 + 20))
+        // Only show spark/ring when caller supplies real series/pct — never invent
+        const series = item.series?.length ? item.series : null
+        const pct = item.pct
         return (
           <div
             key={item.label}
@@ -86,11 +81,13 @@ export function KpiVisualStrip({ items }: { items: KpiItem[] }) {
               <span className={`text-base sm:text-lg font-extrabold ${tone.text} tabular-nums leading-tight mt-0.5`}>
                 {item.value}
               </span>
-              <div className="mt-0.5 hidden sm:block">
-                <SparkWave series={series} stroke={tone.stroke} fill={tone.fill} />
-              </div>
+              {series ? (
+                <div className="mt-0.5 hidden sm:block">
+                  <SparkWave series={series} stroke={tone.stroke} fill={tone.fill} />
+                </div>
+              ) : null}
             </div>
-            <MiniDonut pct={pct} stroke={tone.stroke} />
+            {pct != null ? <MiniDonut pct={pct} stroke={tone.stroke} /> : null}
           </div>
         )
       })}
@@ -244,7 +241,15 @@ export function AreaTrendChart({
 }) {
   const w = 200
   const h = height
-  const data = series.length ? series : [0, 0]
+  if (!series.length) {
+    return (
+      <div className="w-full">
+        {title ? <p className="text-xs font-extrabold text-slate-700 mb-1">{title}</p> : null}
+        <p className="text-[11px] text-slate-400 text-center py-6">No data</p>
+      </div>
+    )
+  }
+  const data = series
   const max = Math.max(...data, 1)
   const pts = data.map((v, i) => {
     const x = (i / Math.max(data.length - 1, 1)) * w
@@ -409,13 +414,19 @@ export function ReportCardVisual({
   slices?: { label: string; value: number; color: string }[]
   gauge?: { value: number; max?: number }
 }) {
-  const fallback = [3 + seed, 5, 4, 8, 6, 9, 7, 11, 8, 10, 12, 9].map((v, i) => v + ((seed + i) % 4))
-  const data = series?.length ? series : fallback
+  // Never invent decorative metrics — empty data must show an empty state
+  void seed
+  const data = series?.length ? series : []
+  const empty = (
+    <p className="text-[11px] text-slate-400 text-center py-4">No data</p>
+  )
 
   if (kind === 'area') {
+    if (!data.length) return empty
     return <AreaTrendChart series={data} color={color} height={56} />
   }
   if (kind === 'columns') {
+    if (!data.length) return empty
     return (
       <ColumnChart
         series={data.map((v, i) => ({ label: `D${i + 1}`, value: v }))}
@@ -425,22 +436,12 @@ export function ReportCardVisual({
     )
   }
   if (kind === 'funnel') {
-    const stages = (slices?.length ? slices : [
-      { label: 'Sourced', value: data[0] ?? 12, color: '#64748b' },
-      { label: 'Screen', value: data[2] ?? 8, color: '#7c3aed' },
-      { label: 'Interview', value: data[4] ?? 5, color: '#d97706' },
-      { label: 'Offer', value: data[6] ?? 3, color: '#059669' },
-      { label: 'Hired', value: data[8] ?? 2, color: '#16a34a' },
-    ]).slice(0, 5)
-    return <FunnelPyramid stages={stages} />
+    if (!slices?.length) return empty
+    return <FunnelPyramid stages={slices.slice(0, 5)} />
   }
   if (kind === 'donut') {
-    const s = slices?.length ? slices : [
-      { label: 'A', value: data[0] ?? 4, color: CHART_PALETTE[0] },
-      { label: 'B', value: data[2] ?? 3, color: CHART_PALETTE[1] },
-      { label: 'C', value: data[4] ?? 2, color: CHART_PALETTE[2] },
-      { label: 'D', value: data[6] ?? 1, color: CHART_PALETTE[3] },
-    ]
+    if (!slices?.length) return empty
+    const s = slices
     const total = s.reduce((a, x) => a + x.value, 0) || 1
     const r = 22
     const circ = 2 * Math.PI * r
@@ -476,6 +477,7 @@ export function ReportCardVisual({
     )
   }
   if (kind === 'bars') {
+    if (!data.length) return empty
     const max = Math.max(...data, 1)
     return (
       <div className="space-y-1.5">
@@ -491,10 +493,11 @@ export function ReportCardVisual({
     )
   }
   if (kind === 'gauge') {
+    if (gauge == null && !data.length) return empty
     return (
       <div className="flex justify-center">
         <GaugeChart
-          value={gauge?.value ?? Math.min(100, (data[data.length - 1] ?? 40) * 8)}
+          value={gauge?.value ?? 0}
           max={gauge?.max ?? 100}
           color={color}
           size={72}
@@ -503,17 +506,11 @@ export function ReportCardVisual({
     )
   }
   if (kind === 'stacked') {
-    return (
-      <StackedStatusBar
-        segments={slices?.length ? slices : [
-          { label: 'Open', value: data[0] ?? 5, color: '#0ea5e9' },
-          { label: 'Won', value: data[2] ?? 3, color: '#059669' },
-          { label: 'Lost', value: data[4] ?? 2, color: '#e11d48' },
-        ]}
-      />
-    )
+    if (!slices?.length) return empty
+    return <StackedStatusBar segments={slices} />
   }
-  // scatter-ish dots as density visual
+  // scatter-ish dots as density visual — only when real series exists
+  if (!data.length) return empty
   return (
     <svg width="100%" height={56} viewBox="0 0 120 56" aria-hidden>
       {data.slice(0, 12).map((v, i) => (

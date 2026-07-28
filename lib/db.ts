@@ -277,7 +277,7 @@ export async function createJobPost(job: {
     )
     return rows[0] ?? null
   } catch (err) {
-    // Fallback without v24 columns
+    // Fallback without enriched columns (older schemas)
     console.warn('[db] createJobPost enriched failed, falling back:', err instanceof Error ? err.message : err)
     try {
       const { rows } = await pool.query<JobPost>(
@@ -294,8 +294,23 @@ export async function createJobPost(job: {
       )
       return rows[0] ?? null
     } catch (err2) {
-      console.error('[db] createJobPost:', err2)
-      return null
+      // Ultimate fallback: core columns only (never invent a success; still try to persist the JD)
+      console.warn('[db] createJobPost mid fallback failed, using core columns:', err2 instanceof Error ? err2.message : err2)
+      try {
+        const { rows } = await pool.query<JobPost>(
+          `INSERT INTO job_posts (tenant_id, user_id, title, company, location, type, description, requirements,
+             salary_min, salary_max, currency, status, ai_generated, tags, applications_count)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,0) RETURNING *`,
+          [job.tenant_id ?? null, job.user_id, job.title, job.company ?? null, job.location ?? null,
+           job.type ?? 'full-time', job.description ?? null, job.requirements ?? null,
+           job.salary_min ?? null, job.salary_max ?? null, job.currency ?? 'MYR',
+           job.status ?? 'active', job.ai_generated ?? false, job.tags ?? []]
+        )
+        return rows[0] ?? null
+      } catch (err3) {
+        console.error('[db] createJobPost:', err3)
+        return null
+      }
     }
   }
 }
@@ -655,13 +670,13 @@ export async function upsertJobPostContents(entry: {
     `INSERT INTO job_post_contents (job_post_id, user_id, linkedin, whatsapp, email, twitter, indeed, telegram, facebook)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (job_post_id) DO UPDATE SET
-       linkedin = EXCLUDED.linkedin,
-       whatsapp = EXCLUDED.whatsapp,
-       email    = EXCLUDED.email,
-       twitter  = EXCLUDED.twitter,
-       indeed   = EXCLUDED.indeed,
-       telegram = EXCLUDED.telegram,
-       facebook = EXCLUDED.facebook,
+       linkedin = COALESCE(EXCLUDED.linkedin, job_post_contents.linkedin),
+       whatsapp = COALESCE(EXCLUDED.whatsapp, job_post_contents.whatsapp),
+       email    = COALESCE(EXCLUDED.email, job_post_contents.email),
+       twitter  = COALESCE(EXCLUDED.twitter, job_post_contents.twitter),
+       indeed   = COALESCE(EXCLUDED.indeed, job_post_contents.indeed),
+       telegram = COALESCE(EXCLUDED.telegram, job_post_contents.telegram),
+       facebook = COALESCE(EXCLUDED.facebook, job_post_contents.facebook),
        updated_at = NOW()`,
     [
       entry.job_post_id,

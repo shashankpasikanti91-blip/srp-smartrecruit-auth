@@ -5,6 +5,7 @@ import { Building2, Download, Loader2, Plus, RefreshCw } from 'lucide-react'
 import { ScrollableTable } from '@/components/dashboard/ScrollableTable'
 import { exportCsv } from '@/lib/exportCsv'
 import { Client360View } from '@/components/recruitment/Client360View'
+import { DeleteActionButton } from '@/components/recruitment/DeleteActionButton'
 
 type Client = {
   id: string
@@ -16,7 +17,13 @@ type Client = {
   notes: string | null
 }
 
-export function ClientsTab() {
+export function ClientsTab({
+  canDirectDelete = false,
+  canRequestDelete = true,
+}: {
+  canDirectDelete?: boolean
+  canRequestDelete?: boolean
+}) {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -101,10 +108,19 @@ export function ClientsTab() {
       ) : (
         <ScrollableTable stickyX>
           <table className="ent-table w-full">
-            <thead><tr><th>Name</th><th>Industry</th><th>Contact</th><th>Email</th><th>Phone</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Industry</th>
+                <th>Contact</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
             <tbody>
               {clients.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-10 text-slate-400">No clients yet</td></tr>
+                <tr><td colSpan={6} className="text-center py-10 text-slate-400">No clients yet</td></tr>
               ) : clients.map(c => (
                 <tr
                   key={c.id}
@@ -116,6 +132,21 @@ export function ClientsTab() {
                   <td>{c.contact_name || '—'}</td>
                   <td>{c.contact_email || '—'}</td>
                   <td>{c.contact_phone || '—'}</td>
+                  <td onClick={e => e.stopPropagation()}>
+                    {canRequestDelete ? (
+                      <DeleteActionButton
+                        resourceType="client"
+                        resourceId={c.id}
+                        resourceLabel={c.name}
+                        canDirectDelete={canDirectDelete}
+                        onDone={({ direct }) => {
+                          if (direct) setClients(prev => prev.filter(x => x.id !== c.id))
+                        }}
+                      />
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

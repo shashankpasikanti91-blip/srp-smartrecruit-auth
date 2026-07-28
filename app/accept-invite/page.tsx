@@ -18,7 +18,7 @@ function AcceptInviteContent() {
   const router  = useRouter()
   const params  = useSearchParams()
   const token   = params.get('token') ?? ''
-  const { data: session, status } = useSession()
+  const { data: session, status, update } = useSession()
 
   const [invite,  setInvite]  = useState<InviteDetails | null>(null)
   const [error,   setError]   = useState<string | null>(null)
@@ -49,7 +49,8 @@ function AcceptInviteContent() {
       const data = await res.json()
       if (res.ok && data.ok) {
         setDone(true)
-        // Redirect to dashboard after a brief pause to let the session refresh
+        // Refresh JWT so tenantId / tenantRole match the newly accepted membership
+        try { await update() } catch { /* ignore */ }
         setTimeout(() => router.replace('/dashboard'), 1500)
       } else {
         setError(data.error ?? 'Failed to accept invite.')

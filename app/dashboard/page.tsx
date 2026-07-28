@@ -29,10 +29,24 @@ import { HrConfigTab } from '@/components/recruitment/HrConfigTab'
 import { CommsHubTab } from '@/components/recruitment/CommsHubTab'
 import { NewJobModal } from '@/components/recruitment/NewJobModal'
 import { AddCandidateFlow } from '@/components/recruitment/AddCandidateFlow'
+import { DeleteActionButton } from '@/components/recruitment/DeleteActionButton'
+import { DeleteApprovalsPanel } from '@/components/recruitment/DeleteApprovalsPanel'
 import { NotificationBell } from '@/components/dashboard/NotificationBell'
 import { GovernanceTab } from '@/components/governance/GovernanceTab'
 import { BrandMark, AppSplash } from '@/components/ui/BrandMark'
+import {
+  getCandidateDossierChecks as buildDossierChecks,
+  getCandidateDossierStatus as buildDossierStatus,
+  dossierDisplayValue as buildDossierDisplayValue,
+  type DossierCheck,
+} from '@/lib/dossierChecks'
 import { formatLifecycle, HIRE_TYPES, HIRE_TYPE_LABELS, LIFECYCLE_STATUSES, LIFECYCLE_LABELS, VISA_TYPES, VISA_TYPE_LABELS } from '@/lib/candidateLifecycle'
+import { PLAN_LIMITS } from '@/lib/planLimits'
+import {
+  JOB_POST_PLATFORMS,
+  JOB_POST_PLATFORM_META,
+  type JobPostPlatform,
+} from '@/lib/jobPostPlatforms'
 import {
   Briefcase, Users, Search, Plus, ChevronDown, LogOut,
   Zap, Star, TrendingUp, X, Crown, Filter,
@@ -278,82 +292,16 @@ function dossierStr(v: unknown): string {
   return String(v).trim()
 }
 
-type DossierCheck = { id: string; label: string; level: 'required' | 'recommended'; ok: boolean }
-
-/** Required + recommended fields (full candidate dossier). IDs align with ATS record keys where applicable. */
 function getCandidateDossierChecks(c: Candidate): DossierCheck[] {
-  const p = c.candidate_profile ?? {}
-  const nat = dossierStr(p.nationality).toLowerCase()
-  const indiaLike = nat.includes('india') || nat === 'in' || nat.includes('indian')
-  const wa = dossierStr(p.work_authorization).toLowerCase()
-  const citizenLike = !wa || /\bcitizen\b|\bnational\b|n\.a\.|^na$|not applicable|n\/a/.test(wa)
-  const checks: DossierCheck[] = [
-    { id: 'candidate_name', label: 'Candidate name', level: 'required', ok: !!dossierStr(c.candidate_name) },
-    { id: 'candidate_email', label: 'Email', level: 'required', ok: !!dossierStr(c.candidate_email) },
-    { id: 'candidate_phone', label: 'Phone', level: 'recommended', ok: !!dossierStr(c.candidate_phone) },
-    { id: 'job_post', label: 'Assigned job', level: 'recommended', ok: !!c.job_posts?.id },
-    { id: 'raw_text', label: 'Resume / CV text on file', level: 'recommended', ok: !!dossierStr(c.raw_text) },
-    { id: 'current_company', label: 'Current company', level: 'recommended', ok: !!dossierStr(p.current_company) },
-    { id: 'current_title', label: 'Current title', level: 'recommended', ok: !!dossierStr(p.current_title) },
-    { id: 'current_location', label: 'Current location', level: 'recommended', ok: !!dossierStr(p.current_location) },
-    { id: 'notice_period', label: 'Notice period', level: 'recommended', ok: !!dossierStr(p.notice_period) },
-    { id: 'salary_expectation', label: 'Salary expectation', level: 'recommended', ok: !!dossierStr(p.salary_expectation) },
-    { id: 'nationality', label: 'Nationality', level: 'recommended', ok: !!dossierStr(p.nationality) },
-    { id: 'work_authorization', label: 'Work authorization', level: 'recommended', ok: !!dossierStr(p.work_authorization) },
-    { id: 'visa_type', label: 'Visa type (if not citizen)', level: 'recommended', ok: citizenLike || !!dossierStr(p.visa_type) },
-    { id: 'visa_expiry', label: 'Visa expiry (if visa)', level: 'recommended', ok: !dossierStr(p.visa_type) || !!dossierStr(p.visa_expiry) },
-  ]
-  if (indiaLike) {
-    checks.push(
-      { id: 'india_pan', label: 'India — PAN', level: 'recommended', ok: !!dossierStr(p.india_pan) },
-      { id: 'india_aadhaar_last4', label: 'India — Aadhaar reference', level: 'recommended', ok: !!dossierStr(p.india_aadhaar_last4) },
-    )
-  }
-  const myLike = nat.includes('malay') || nat === 'my' || nat.includes('malaysia') || (!nat && !!dossierStr(p.nric))
-  if (myLike || dossierStr(p.nric) || String(p.id_document_type ?? '').toLowerCase().includes('nric')) {
-    checks.push({
-      id: 'nric',
-      label: 'Malaysia — NRIC',
-      level: 'recommended',
-      ok: !!(dossierStr(p.nric) || (String(p.id_document_type ?? '').toLowerCase().includes('nric') && dossierStr(p.id_document_reference))),
-    })
-  }
-  return checks
+  return buildDossierChecks(c)
 }
 
 function getCandidateDossierStatus(c: Candidate) {
-  const checks = getCandidateDossierChecks(c)
-  const requiredMissing = checks.filter(x => x.level === 'required' && !x.ok).map(x => x.label)
-  const recommendedMissing = checks.filter(x => x.level === 'recommended' && !x.ok).map(x => x.label)
-  const filled = checks.filter(x => x.ok).length
-  const dossierPercent = checks.length ? Math.round((filled / checks.length) * 100) : 100
-  const warnRecordIds = new Set(checks.filter(x => x.level === 'recommended' && !x.ok).map(x => x.id))
-  return { checks, requiredMissing, recommendedMissing, dossierPercent, warnRecordIds }
+  return buildDossierStatus(c)
 }
 
-/** Human-readable value for dossier summary table. */
 function dossierDisplayValue(c: Candidate, id: string): string {
-  const p = c.candidate_profile ?? {}
-  switch (id) {
-    case 'candidate_name': return dossierStr(c.candidate_name) || '—'
-    case 'candidate_email': return dossierStr(c.candidate_email) || '—'
-    case 'candidate_phone': return dossierStr(c.candidate_phone) || '—'
-    case 'job_post': return c.job_posts ? `${c.job_posts.title} (${c.job_posts.short_id ?? ''})` : '—'
-    case 'raw_text': return c.raw_text ? `${c.raw_text.length.toLocaleString()} chars` : '—'
-    case 'current_company': return dossierStr(p.current_company) || '—'
-    case 'current_title': return dossierStr(p.current_title) || '—'
-    case 'current_location': return dossierStr(p.current_location) || '—'
-    case 'notice_period': return dossierStr(p.notice_period) || '—'
-    case 'salary_expectation': return dossierStr(p.salary_expectation) || '—'
-    case 'nationality': return dossierStr(p.nationality) || '—'
-    case 'work_authorization': return dossierStr(p.work_authorization) || '—'
-    case 'visa_type': return dossierStr(p.visa_type) || '—'
-    case 'visa_expiry': return dossierStr(p.visa_expiry) || '—'
-    case 'india_pan': return dossierStr(p.india_pan) || '—'
-    case 'india_aadhaar_last4': return dossierStr(p.india_aadhaar_last4) || '—'
-    case 'nric': return dossierStr(p.nric) || dossierStr(p.id_document_reference) || '—'
-    default: return '—'
-  }
+  return buildDossierDisplayValue(c, id)
 }
 
 function CandidateDossierListCell({ c }: { c: Candidate }) {
@@ -392,13 +340,57 @@ function JDTab() {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [history, setHistory] = useState<{id: string; title: string; created_at: string}[]>([])
+  const [selectedPlatforms, setSelectedPlatforms] = useState<JobPostPlatform[]>([...JOB_POST_PLATFORMS])
+  const [channelPosts, setChannelPosts] = useState<Partial<Record<JobPostPlatform, string>>>({})
+  const [channelTab, setChannelTab] = useState<JobPostPlatform>('linkedin')
+  const [generatingPosts, setGeneratingPosts] = useState(false)
+  const [postsError, setPostsError] = useState('')
+  const [copiedPost, setCopiedPost] = useState('')
 
   useEffect(() => {
     fetch('/api/jd').then(r => r.json()).then(d => setHistory(d.jds ?? []))
   }, [result])
 
+  function togglePlatform(p: JobPostPlatform) {
+    setSelectedPlatforms(prev =>
+      prev.includes(p) ? (prev.length === 1 ? prev : prev.filter(x => x !== p)) : [...prev, p]
+    )
+  }
+
+  async function generateChannelPosts(jdText: string, title: string) {
+    if (selectedPlatforms.length === 0) return
+    setGeneratingPosts(true)
+    setPostsError('')
+    setChannelPosts({})
+    try {
+      const res = await fetch('/api/jobs/generate-posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          company: companyName || undefined,
+          location: location || undefined,
+          type: employmentType || undefined,
+          description: jdText,
+          requirements: skills || undefined,
+          platforms: selectedPlatforms,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to generate channel posts')
+      const posts = (data.posts ?? {}) as Partial<Record<JobPostPlatform, string>>
+      setChannelPosts(posts)
+      const first = selectedPlatforms.find(p => posts[p]) ?? (Object.keys(posts)[0] as JobPostPlatform | undefined)
+      if (first) setChannelTab(first)
+    } catch (e) {
+      setPostsError(e instanceof Error ? e.message : 'Channel post generation failed')
+    } finally {
+      setGeneratingPosts(false)
+    }
+  }
+
   async function submit() {
-    setError(''); setLoading(true); setResult(null)
+    setError(''); setLoading(true); setResult(null); setChannelPosts({}); setPostsError('')
     try {
       const payload = mode === 'generate'
         ? { action: 'generate', job_title: jobTitle, skills: skills.split(',').map(s => s.trim()).filter(Boolean),
@@ -408,6 +400,14 @@ function JDTab() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed')
       setResult(data)
+      if (mode === 'generate') {
+        const text = (data.full_jd_text as string | undefined) ?? ''
+        if (text && selectedPlatforms.length > 0) {
+          setLoading(false)
+          await generateChannelPosts(text, (data.job_title as string) || jobTitle)
+          return
+        }
+      }
     } catch (e) { setError(e instanceof Error ? e.message : 'Error') }
     setLoading(false)
   }
@@ -423,15 +423,15 @@ function JDTab() {
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>JD Intelligence</h1>
-            <p className="text-sm text-slate-500 mt-0.5">AI job description writer and analyzer — same workspace as jobs & screening</p>
+            <p className="text-sm text-slate-500 mt-0.5">Write a short JD, then generate Email / LinkedIn / WhatsApp / Indeed posts to copy — no job save required</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 justify-end">
-          <button onClick={() => { setMode('generate'); setResult(null) }}
+          <button onClick={() => { setMode('generate'); setResult(null); setChannelPosts({}) }}
             className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'generate' ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
             Generate JD
           </button>
-          <button onClick={() => { setMode('analyze'); setResult(null) }}
+          <button onClick={() => { setMode('analyze'); setResult(null); setChannelPosts({}) }}
             className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'analyze' ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
             Analyze JD
           </button>
@@ -483,6 +483,48 @@ function JDTab() {
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
                   </div>
                 </div>
+
+                <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div>
+                      <p className="text-xs font-bold text-indigo-900">Generate channel posts (copy only)</p>
+                      <p className="text-[11px] text-indigo-700/80 mt-0.5">
+                        No job save needed here — generate Email / LinkedIn / WhatsApp / Indeed text and copy.
+                        To attach posts to a client job permanently, use <span className="font-semibold">Jobs → New Job → Create &amp; Generate Posts</span>.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPlatforms(prev => prev.length === JOB_POST_PLATFORMS.length ? ['linkedin'] : [...JOB_POST_PLATFORMS])}
+                      className="text-[11px] font-semibold text-indigo-700 hover:underline whitespace-nowrap"
+                    >
+                      {selectedPlatforms.length === JOB_POST_PLATFORMS.length ? 'Clear all' : 'Select all'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {JOB_POST_PLATFORMS.map(p => {
+                      const meta = JOB_POST_PLATFORM_META[p]
+                      const on = selectedPlatforms.includes(p)
+                      return (
+                        <label
+                          key={p}
+                          className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 cursor-pointer transition-all ${on ? 'border-indigo-300 bg-white shadow-sm' : 'border-slate-200 bg-white/60 opacity-80'}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={() => togglePlatform(p)}
+                            className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className="min-w-0">
+                            <span className="block text-xs font-bold text-slate-800">{meta.label}</span>
+                            <span className="block text-[10px] text-slate-500 leading-snug">{meta.hint}</span>
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
             ) : (
               <div>
@@ -493,7 +535,7 @@ function JDTab() {
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm resize-none focus:outline-none focus:border-blue-500" />
                 <p className="text-xs text-gray-400 mt-2 mb-1">Or upload a JD file (PDF / DOCX / TXT):</p>
                 <LightFileUploadZone
-                  label="Upload JD (PDF/DOCX/TXT) — click or drag & drop"
+                  label="Upload JD (PDF/DOC/DOCX/TXT) — click or drag & drop"
                   accept=".pdf,.docx,.doc,.txt"
                   onText={t => setAnalyzeText(prev => prev ? prev + '\n' + t : t)}
                   disabled={loading}
@@ -503,9 +545,11 @@ function JDTab() {
 
             {error && <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>}
 
-            <button onClick={submit} disabled={loading || (mode === 'generate' ? !jobTitle.trim() : !analyzeText.trim())}
+            <button onClick={submit} disabled={loading || generatingPosts || (mode === 'generate' ? !jobTitle.trim() : !analyzeText.trim())}
               className="mt-4 w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20">
-              {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Processing…</> : <><Sparkles className="w-4 h-4" />{mode === 'generate' ? 'Generate Job Description' : 'Analyze JD'}</>}
+              {loading || generatingPosts
+                ? <><Loader2 className="w-4 h-4 animate-spin" />{generatingPosts ? 'Writing channel posts…' : 'Processing…'}</>
+                : <><Sparkles className="w-4 h-4" />{mode === 'generate' ? (selectedPlatforms.length ? 'Generate JD + Channel Posts' : 'Generate Job Description') : 'Analyze JD'}</>}
             </button>
           </div>
 
@@ -529,7 +573,72 @@ function JDTab() {
                       </button>
                     </div>
                   </div>
-                  <pre className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed max-h-[60vh] overflow-y-auto bg-gray-50 rounded-lg p-4 border border-gray-200">{jdText.replace(/[□☐■▪◦◆►▸]/g, '•')}</pre>
+                  <pre className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed max-h-[40vh] overflow-y-auto bg-gray-50 rounded-lg p-4 border border-gray-200">{jdText.replace(/[□☐■▪◦◆►▸]/g, '•')}</pre>
+
+                  <div className="mt-5 border-t border-slate-100 pt-4">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-700">Channel posts (copy only)</h3>
+                        <p className="text-[11px] text-slate-500">Generated for copy/paste — not saved as a job unless you use Jobs → New Job.</p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={generatingPosts || selectedPlatforms.length === 0}
+                        onClick={() => generateChannelPosts(jdText, (result.job_title as string) || jobTitle)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 disabled:opacity-50"
+                      >
+                        {generatingPosts ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                        {Object.keys(channelPosts).length ? 'Regenerate selected' : 'Generate selected'}
+                      </button>
+                    </div>
+
+                    {postsError && (
+                      <div className="mb-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{postsError}</div>
+                    )}
+
+                    {Object.keys(channelPosts).length > 0 ? (
+                      <>
+                        <div className="flex gap-1 flex-wrap mb-2">
+                          {JOB_POST_PLATFORMS.map(p => (
+                            channelPosts[p] ? (
+                              <button
+                                key={p}
+                                type="button"
+                                onClick={() => setChannelTab(p)}
+                                className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${channelTab === p ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                              >
+                                {JOB_POST_PLATFORM_META[p].label}
+                              </button>
+                            ) : null
+                          ))}
+                        </div>
+                        <div className="relative">
+                          <textarea
+                            readOnly
+                            value={channelPosts[channelTab] ?? ''}
+                            rows={10}
+                            className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-800 resize-none focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const text = channelPosts[channelTab] ?? ''
+                              navigator.clipboard.writeText(text)
+                              setCopiedPost(channelTab)
+                              setTimeout(() => setCopiedPost(''), 2000)
+                            }}
+                            className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs text-slate-700 border border-slate-200"
+                          >
+                            {copiedPost === channelTab ? <><Check className="w-3 h-3 text-emerald-600" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy</>}
+                          </button>
+                        </div>
+                      </>
+                    ) : !generatingPosts ? (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        Select channels above, then click <span className="font-semibold">Generate selected</span> to create Email / LinkedIn / WhatsApp / Indeed posts with the platform-specific prompts.
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               ) : mode === 'analyze' ? (
                 <div className="space-y-4">
@@ -692,7 +801,7 @@ function BooleanTab() {
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm resize-none focus:outline-none focus:border-blue-500" />
                 <p className="text-xs text-gray-400 mt-2 mb-1">Or upload a JD file (PDF / DOCX / TXT):</p>
                 <LightFileUploadZone
-                  label="Upload JD (PDF/DOCX/TXT) — click or drag & drop"
+                  label="Upload JD (PDF/DOC/DOCX/TXT) — click or drag & drop"
                   accept=".pdf,.docx,.doc,.txt"
                   onText={t => setJdText(prev => prev ? prev + '\n' + t : t)}
                   disabled={loading}
@@ -1365,9 +1474,10 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('workspace')
   const [settingsPanel, setSettingsPanel] = useState<'main' | 'integrations' | 'governance'>('main')
   // Phase 3.2: collapse duplicate / hidden tabs into primary destinations
+  // Keep `performance` reachable (My Performance) — do not redirect it to reports.
   useEffect(() => {
     if (activeTab === 'pipeline') setActiveTab('candidates')
-    else if (activeTab === 'analytics' || activeTab === 'performance') setActiveTab('reports')
+    else if (activeTab === 'analytics') setActiveTab('reports')
     else if (activeTab === 'integrations') {
       setSettingsPanel('integrations')
       setActiveTab('settings')
@@ -1384,7 +1494,7 @@ export default function DashboardPage() {
   }, [activeTab])
 
   const isWideTab = useMemo(
-    () => ['workspace', 'candidates', 'jobs', 'screen', 'compose', 'jd', 'boolean', 'submissions', 'interviews', 'followups', 'selected', 'clients', 'reports', 'recruiters', 'documents', 'coach', 'comms', 'ess', 'hrconfig', 'settings', 'import'].includes(activeTab),
+    () => ['workspace', 'candidates', 'jobs', 'screen', 'compose', 'jd', 'boolean', 'submissions', 'interviews', 'followups', 'selected', 'clients', 'reports', 'performance', 'recruiters', 'documents', 'coach', 'comms', 'ess', 'hrconfig', 'settings', 'import'].includes(activeTab),
     [activeTab],
   )
   const [jobs, setJobs] = useState<Job[]>([])
@@ -1498,7 +1608,9 @@ export default function DashboardPage() {
   const [genPostError, setGenPostError] = useState('')
   const [genPostTab, setGenPostTab] = useState('linkedin')
   const [genCustomPrompt, setGenCustomPrompt] = useState('')
+  const [genPostPlatforms, setGenPostPlatforms] = useState<JobPostPlatform[]>([...JOB_POST_PLATFORMS])
   const [copiedPostKey, setCopiedPostKey] = useState('')
+  const [autoGeneratePosts, setAutoGeneratePosts] = useState(false)
 
   // Upgrade prompt state
   const [upgradePrompt, setUpgradePrompt] = useState<{ show: boolean; message: string; feature: string }>({ show: false, message: '', feature: '' })
@@ -1551,7 +1663,11 @@ export default function DashboardPage() {
   const [inviting, setInviting] = useState(false)
   const [inviteResult, setInviteResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [tenantRole, setTenantRole] = useState<string | null>(null)
-  const [tenantPermissions, setTenantPermissions] = useState<{ analytics?: { tenant?: boolean } } | null>(null)
+  const [tenantPermissions, setTenantPermissions] = useState<{
+    analytics?: { tenant?: boolean }
+    candidates?: { delete?: boolean }
+    jobs?: { delete?: boolean }
+  } | null>(null)
   const [tenantFunnel, setTenantFunnel] = useState<{ funnel: Record<string, number>; submission_stages: Record<string, number>; period_days: number } | null>(null)
   const [tenantFunnelLoading, setTenantFunnelLoading] = useState(false)
   const [agentPendingCount, setAgentPendingCount] = useState(0)
@@ -1737,7 +1853,15 @@ export default function DashboardPage() {
       })
       const data = await res.json()
       if (res.ok) {
-        setInviteResult({ ok: true, message: `Invite sent to ${inviteEmail.trim()}` })
+        const emailNote = data.emailSent === false
+          ? ' Invite created, but email could not be sent — share the invite link manually.'
+          : data.emailSent === true
+            ? ' Invitation email sent.'
+            : ''
+        setInviteResult({
+          ok: true,
+          message: `Invite created for ${inviteEmail.trim()} as ${inviteRole}.${emailNote}${data.inviteLink ? ` Link: ${data.inviteLink}` : ''}`,
+        })
         setInviteEmail('')
         loadTeamMembers()
       } else {
@@ -1748,12 +1872,39 @@ export default function DashboardPage() {
     }
   }
 
+  const changeMemberRole = async (memberId: string, role: string) => {
+    try {
+      const res = await fetch('/api/tenant/members', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId, role }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setInviteResult({ ok: true, message: `Role updated to ${role}.` })
+        loadTeamMembers()
+      } else {
+        setInviteResult({ ok: false, message: data.error ?? 'Could not update role' })
+      }
+    } catch {
+      setInviteResult({ ok: false, message: 'Network error updating role' })
+    }
+  }
+
   const removeMember = async (memberId: string) => {
     if (!confirm('Remove this team member?')) return
     try {
       const res = await fetch(`/api/tenant/members?memberId=${memberId}`, { method: 'DELETE' })
-      if (res.ok) loadTeamMembers()
-    } catch { /* ignore */ }
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setInviteResult({ ok: true, message: 'Member removed.' })
+        loadTeamMembers()
+      } else {
+        setInviteResult({ ok: false, message: data.error ?? 'Could not remove member' })
+      }
+    } catch {
+      setInviteResult({ ok: false, message: 'Network error removing member' })
+    }
   }
 
   const generateApiKey = async () => {
@@ -2226,7 +2377,7 @@ export default function DashboardPage() {
     setGenPostError('')
   }
 
-  const generateJobPosts = async (job: Job) => {
+  const generateJobPosts = async (job: Job, platforms = genPostPlatforms) => {
     setGeneratingPosts(true); setGenPostError(''); setGeneratedPosts({})
     try {
       const res = await fetch('/api/jobs/generate-posts', {
@@ -2241,6 +2392,7 @@ export default function DashboardPage() {
           description: job.description,
           requirements: job.requirements,
           custom_prompt: genCustomPrompt,
+          platforms,
         }),
       })
       const data = await res.json()
@@ -2260,6 +2412,13 @@ export default function DashboardPage() {
       setGeneratingPosts(false)
     }
   }
+
+  useEffect(() => {
+    if (!autoGeneratePosts || !genPostJob) return
+    setAutoGeneratePosts(false)
+    void generateJobPosts(genPostJob, genPostPlatforms)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoGeneratePosts, genPostJob])
 
   const copyPostContent = async (key: string, text: string) => {
     try {
@@ -2297,10 +2456,12 @@ export default function DashboardPage() {
     ...(canSeeClients ? [{ tab: 'clients' as const, icon: Building2, label: 'Clients', badge: null, section: 'recruitment' as const }] : []),
     { tab: 'submissions', icon: Send, label: 'Submissions', badge: null, section: 'recruitment' },
     { tab: 'interviews', icon: Calendar, label: 'Interviews', badge: null, section: 'recruitment' },
+    { tab: 'followups', icon: Clock, label: 'Follow-ups', badge: null, section: 'recruitment' },
     { tab: 'selected', icon: Award, label: 'Offer & Onboarding', badge: null, section: 'recruitment' },
     { tab: 'recruiters', icon: Users, label: 'Recruiters', badge: null, section: 'recruitment' },
     { tab: 'documents', icon: FileText, label: 'Documents', badge: null, section: 'recruitment' },
     ...(canSeeReports ? [{ tab: 'reports' as const, icon: Download, label: 'Reports', badge: null, section: 'recruitment' as const }] : []),
+    { tab: 'performance', icon: Target, label: 'My Performance', badge: null, section: 'recruitment' },
     /* AI Tools — first-class sidebar entries (not buried under a single hub) */
     { tab: 'screen', icon: Brain, label: 'AI Screening', badge: 'AI', section: 'ai' },
     { tab: 'coach', icon: Sparkles, label: 'AI Assistant', badge: null, section: 'ai' },
@@ -2488,18 +2649,19 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Free plan usage warning banner */}
+          {/* Free plan usage warning banner — thresholds scale with PLAN_LIMITS */}
           {profileData?.subscription?.plan === 'free' && profileData.usage && (
-            (profileData.usage.active_jobs >= 4 || profileData.usage.screens_this_month >= 15) && !subAlertDismissed
+            (profileData.usage.active_jobs >= Math.max(1, PLAN_LIMITS.free.job_posts - 1) ||
+              profileData.usage.screens_this_month >= Math.max(1, PLAN_LIMITS.free.ai_screens_per_month - 5)) && !subAlertDismissed
           ) && (
             <div className="border-b border-amber-200 bg-amber-50/90">
               <div className="dash-page-shell py-2.5 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
                   <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
                   <p className="text-sm font-medium text-amber-950">
-                    {profileData.usage.active_jobs >= 4
-                      ? `You've used ${profileData.usage.active_jobs} of 5 free job posts.`
-                      : `You've used ${profileData.usage.screens_this_month} of 20 free AI screens this month.`}
+                    {profileData.usage.active_jobs >= Math.max(1, PLAN_LIMITS.free.job_posts - 1)
+                      ? `You've used ${profileData.usage.active_jobs} of ${PLAN_LIMITS.free.job_posts} free job posts.`
+                      : `You've used ${profileData.usage.screens_this_month} of ${PLAN_LIMITS.free.ai_screens_per_month} free AI screens this month.`}
                     {' '}Upgrade to Pro for unlimited access.
                   </p>
                 </div>
@@ -2979,13 +3141,15 @@ export default function DashboardPage() {
                             {showCandCol('recruiter') && <td className="px-3 py-2.5 text-[11px] text-gray-500 truncate max-w-[110px]" title={formatUploader(c.uploaded_by)}>{formatUploader(c.uploaded_by)}</td>}
                             {showCandCol('cv') && (
                             <td className="px-3 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                              {c.resume_original_path || c.raw_text ? (
+                              {c.resume_original_path ? (
                                 <div className="flex gap-1">
                                   <a href={`/api/candidates/${c.id}/resume-file?inline=1`} target="_blank" rel="noreferrer"
                                     className="px-1.5 py-0.5 rounded text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100">Preview</a>
-                                  <a href={`/api/candidates/${c.id}/resume-file`} 
+                                  <a href={`/api/candidates/${c.id}/resume-file`}
                                     className="px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-700 bg-slate-50 border border-slate-200 hover:bg-slate-100">DL</a>
                                 </div>
+                              ) : c.raw_text ? (
+                                <span className="text-[10px] text-slate-400 font-medium" title="Parsed text only — no original file">Text only</span>
                               ) : <span className="text-xs text-gray-300">—</span>}
                             </td>
                             )}
@@ -3009,8 +3173,14 @@ export default function DashboardPage() {
                                   <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50" onClick={() => { setEditCandidate(c); setActionsMenuId(null) }}>Edit candidate</button>
                                   <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50" onClick={() => { setSubmissionCandidate(c); setActionsMenuId(null) }}>Submission details</button>
                                   <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50" onClick={() => { setActiveTab('screen'); setScreenMode('existing'); setSelectedCandIds([c.id]); setActionsMenuId(null) }}>AI analysis</button>
-                                  <a className="block w-full text-left px-3 py-2 hover:bg-slate-50" href={`/api/candidates/${c.id}/resume-file?inline=1`} target="_blank" rel="noreferrer" onClick={() => setActionsMenuId(null)}>Resume preview</a>
-                                  <a className="block w-full text-left px-3 py-2 hover:bg-slate-50" href={`/api/candidates/${c.id}/resume-file`} onClick={() => setActionsMenuId(null)}>Download resume</a>
+                                  {c.resume_original_path ? (
+                                    <>
+                                      <a className="block w-full text-left px-3 py-2 hover:bg-slate-50" href={`/api/candidates/${c.id}/resume-file?inline=1`} target="_blank" rel="noreferrer" onClick={() => setActionsMenuId(null)}>Resume preview</a>
+                                      <a className="block w-full text-left px-3 py-2 hover:bg-slate-50" href={`/api/candidates/${c.id}/resume-file`} onClick={() => setActionsMenuId(null)}>Download resume</a>
+                                    </>
+                                  ) : (
+                                    <span className="block w-full text-left px-3 py-2 text-slate-400 cursor-default">No resume file on record</span>
+                                  )}
                                   <button type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50 text-amber-700"
                                     onClick={async () => {
                                       setActionsMenuId(null)
@@ -3025,6 +3195,21 @@ export default function DashboardPage() {
                                         applyCandidatePatch(c.id, { candidate_profile: data.candidate?.candidate_profile ?? { ...(c.candidate_profile ?? {}), lifecycle_status: life }, pipeline_stage: 'sourced' })
                                       }
                                     }}>Archive / Hold</button>
+                                  {tenantRole !== 'viewer' && (
+                                    <DeleteActionButton
+                                      compact
+                                      resourceType="candidate"
+                                      resourceId={c.id}
+                                      resourceLabel={c.short_id || c.candidate_name || 'Candidate'}
+                                      canDirectDelete={isTenantAdminOrOwner || Boolean(tenantPermissions?.candidates?.delete)}
+                                      onDone={({ direct }) => {
+                                        setActionsMenuId(null)
+                                        if (direct) {
+                                          setCandidates(prev => prev.filter(x => x.id !== c.id))
+                                        }
+                                      }}
+                                    />
+                                  )}
                                 </div>
                               )}
                             </td>
@@ -3087,7 +3272,7 @@ export default function DashboardPage() {
                       placeholder="Paste the full job description here…"
                       className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 resize-none" />
                     <p className="text-xs font-semibold text-gray-600">Or upload JD file:</p>
-                    <FileUploadZone label="Upload JD (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
+                    <FileUploadZone label="Upload JD (PDF/DOC/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
                       onTexts={([t]) => setJdText(t.text)} disabled={screening} />
                   </div>
 
@@ -3685,6 +3870,17 @@ export default function DashboardPage() {
                                     className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 font-medium whitespace-nowrap">
                                     Candidates <ArrowRight className="w-3 h-3" />
                                   </button>
+                                  {tenantRole !== 'viewer' && (
+                                    <DeleteActionButton
+                                      resourceType="job"
+                                      resourceId={job.id}
+                                      resourceLabel={job.short_id || job.title || 'Job'}
+                                      canDirectDelete={isTenantAdminOrOwner || Boolean(tenantPermissions?.jobs?.delete)}
+                                      onDone={({ direct }) => {
+                                        if (direct) setJobs(prev => prev.filter(j => j.id !== job.id))
+                                      }}
+                                    />
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -4027,6 +4223,12 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
+                {isTenantAdminOrOwner && (
+                  <div className="mb-5">
+                    <DeleteApprovalsPanel onChanged={() => { void loadData() }} />
+                  </div>
+                )}
+
                 {profileLoading ? (
                   <div className="flex items-center justify-center py-20">
                     <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
@@ -4185,10 +4387,10 @@ export default function DashboardPage() {
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {[
-                          { label: 'AI Screens',   value: profileData.usage.screens_this_month,  limit: profileData.subscription.plan === 'free' ? 20 : null, icon: Brain,      color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                          { label: 'AI Screens',   value: profileData.usage.screens_this_month,  limit: profileData.subscription.plan === 'free' ? PLAN_LIMITS.free.ai_screens_per_month : null, icon: Brain,      color: 'text-indigo-600', bg: 'bg-indigo-50' },
                           { label: 'AI Compose',   value: profileData.usage.composes_this_month, limit: null,                                                  icon: Mail,       color: 'text-blue-600',   bg: 'bg-blue-50' },
                           { label: 'Candidates',   value: profileData.usage.total_candidates,    limit: null,                                                  icon: Users,      color: 'text-blue-600',   bg: 'bg-blue-50' },
-                          { label: 'Active Jobs',  value: profileData.usage.active_jobs,         limit: profileData.subscription.plan === 'free' ? 5 : null,   icon: Briefcase,  color: 'text-amber-600',  bg: 'bg-amber-50' },
+                          { label: 'Active Jobs',  value: profileData.usage.active_jobs,         limit: profileData.subscription.plan === 'free' ? PLAN_LIMITS.free.job_posts : null,   icon: Briefcase,  color: 'text-amber-600',  bg: 'bg-amber-50' },
                         ].map(({ label, value, limit, icon: Icon, color, bg }) => (
                           <div key={label} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                             <div className="flex items-center gap-1.5 mb-2">
@@ -4482,12 +4684,21 @@ export default function DashboardPage() {
                               {!m.invite_accepted && (
                                 <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Pending</span>
                               )}
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                m.role === 'owner' ? 'bg-indigo-100 text-indigo-700' :
-                                m.role === 'admin' ? 'bg-purple-100 text-purple-700' :
-                                m.role === 'recruiter' ? 'bg-blue-100 text-blue-700' :
-                                'bg-gray-100 text-gray-600'
-                              }`}>{m.role}</span>
+                              {m.role === 'owner' ? (
+                                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">owner</span>
+                              ) : (
+                                <select
+                                  value={m.role}
+                                  onChange={e => changeMemberRole(m.id, e.target.value)}
+                                  className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                  title="Change role"
+                                >
+                                  <option value="admin">admin</option>
+                                  <option value="recruiter">recruiter</option>
+                                  <option value="member">member</option>
+                                  <option value="viewer">viewer</option>
+                                </select>
+                              )}
                               {m.role !== 'owner' && (
                                 <button onClick={() => removeMember(m.id)} className="text-gray-300 hover:text-red-400 transition-colors" title="Remove member">
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -4516,6 +4727,7 @@ export default function DashboardPage() {
                           >
                             <option value="recruiter">Recruiter</option>
                             <option value="admin">Admin</option>
+                            <option value="member">Member</option>
                             <option value="viewer">Viewer</option>
                           </select>
                           <button
@@ -4527,7 +4739,7 @@ export default function DashboardPage() {
                           </button>
                         </div>
                         {inviteResult && (
-                          <p className={`mt-2 text-xs ${inviteResult.ok ? 'text-green-600' : 'text-red-500'}`}>
+                          <p className={`mt-2 text-xs break-all ${inviteResult.ok ? 'text-green-600' : 'text-red-500'}`}>
                             {inviteResult.message}
                           </p>
                         )}
@@ -4535,7 +4747,7 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Audit Trail */}
-                    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-sm ring-1 ring-slate-950/[0.02]">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <Shield className="w-4 h-4 text-indigo-600" />
@@ -4661,7 +4873,12 @@ export default function DashboardPage() {
               }} />
             )}
 
-            {activeTab === 'clients' && <ClientsTab />}
+            {activeTab === 'clients' && (
+              <ClientsTab
+                canDirectDelete={isTenantAdminOrOwner || Boolean(tenantPermissions?.candidates?.delete)}
+                canRequestDelete={tenantRole !== 'viewer'}
+              />
+            )}
             {activeTab === 'recruiters' && <RecruitersTab teamMembers={teamMembers} />}
             {activeTab === 'documents' && <DocumentsRegistryTab />}
             {activeTab === 'reports' && <ReportsTab onNavigate={(tab) => setActiveTab(tab as DashboardTab)} />}
@@ -4693,7 +4910,7 @@ export default function DashboardPage() {
       <NewJobModal
         open={showNewJob}
         onClose={() => setShowNewJob(false)}
-        onCreated={(job, generatePosts) => {
+        onCreated={(job, generatePosts, platforms) => {
           loadData()
           setWorkspaceBanner(`Job created: ${String(job.title ?? 'Job')}`)
           setFilterJobStatus('')
@@ -4701,10 +4918,13 @@ export default function DashboardPage() {
           setFilterJobRole('')
           setFilterJobCompany('')
           if (generatePosts) {
+            const selected = platforms?.length ? platforms : [...JOB_POST_PLATFORMS]
+            setGenPostPlatforms(selected)
             setGenPostJob(job as unknown as Job)
             setGeneratedPosts({})
             setGenCustomPrompt('')
             setGenPostError('')
+            setAutoGeneratePosts(true)
           }
         }}
       />
@@ -4758,14 +4978,45 @@ export default function DashboardPage() {
                 className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
             </div>
 
+            <div className="mb-3 flex-shrink-0 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="text-xs font-bold text-indigo-900">Channels to generate</p>
+                <button
+                  type="button"
+                  onClick={() => setGenPostPlatforms(prev => prev.length === JOB_POST_PLATFORMS.length ? ['linkedin'] : [...JOB_POST_PLATFORMS])}
+                  className="text-[11px] font-semibold text-indigo-700 hover:underline"
+                >
+                  {genPostPlatforms.length === JOB_POST_PLATFORMS.length ? 'Clear all' : 'Select all'}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {JOB_POST_PLATFORMS.map(p => {
+                  const on = genPostPlatforms.includes(p)
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setGenPostPlatforms(prev =>
+                        prev.includes(p) ? (prev.length === 1 ? prev : prev.filter(x => x !== p)) : [...prev, p]
+                      )}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                      title={JOB_POST_PLATFORM_META[p].hint}
+                    >
+                      {JOB_POST_PLATFORM_META[p].label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
             <button
               onClick={() => generateJobPosts(genPostJob)}
-              disabled={generatingPosts}
+              disabled={generatingPosts || genPostPlatforms.length === 0}
               className="mb-3 flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 font-semibold text-sm text-white transition-all disabled:opacity-50 flex-shrink-0">
               {generatingPosts
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating for all platforms…</>
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating for selected platforms…</>
                 : Object.keys(generatedPosts).length > 0
-                  ? <><Sparkles className="w-4 h-4" /> Regenerate posts</>
+                  ? <><Sparkles className="w-4 h-4" /> Regenerate selected posts</>
                   : <><Sparkles className="w-4 h-4" /> Generate posts from full JD</>
               }
             </button>
@@ -5880,6 +6131,116 @@ function AiFitScoreInline({ resumeId }: { resumeId: string }) {
   )
 }
 
+/** Resume tab — probes file availability before iframe preview. */
+function ResumeFilePanel({ candidate: c }: { candidate: Candidate }) {
+  const path = c.resume_original_path ?? null
+  const isPdf = !!path && path.toLowerCase().endsWith('.pdf')
+  const [fileState, setFileState] = useState<'checking' | 'ok' | 'missing' | 'none'>(
+    path ? 'checking' : 'none',
+  )
+
+  useEffect(() => {
+    if (!path) { setFileState('none'); return }
+    let cancelled = false
+    setFileState('checking')
+    fetch(`/api/candidates/${c.id}/resume-file`, { method: 'HEAD' })
+      .then(res => {
+        if (cancelled) return
+        setFileState(res.ok ? 'ok' : 'missing')
+      })
+      .catch(() => { if (!cancelled) setFileState('missing') })
+    return () => { cancelled = true }
+  }, [c.id, path])
+
+  return (
+    <div className="p-5 sm:p-6 space-y-4 bg-slate-50/40">
+      <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-950/[0.02] p-4 sm:p-5 space-y-3">
+        <h3 className="text-sm font-extrabold text-slate-900">Original file</h3>
+        {fileState === 'none' && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-start gap-3">
+            <FileText className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-slate-700">No original file stored</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {c.file_name
+                  ? `"${c.file_name}" was imported without file storage. Re-upload a resume to enable download and PDF preview.`
+                  : 'Upload a resume file on this candidate to enable download and preview.'}
+              </p>
+            </div>
+          </div>
+        )}
+        {fileState === 'checking' && (
+          <div className="flex items-center gap-2 text-sm text-slate-500 py-4 justify-center">
+            <Loader2 className="w-4 h-4 animate-spin text-indigo-500" /> Checking file…
+          </div>
+        )}
+        {fileState === 'missing' && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 flex items-start gap-3">
+            <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-amber-900">File path on record, but file is missing</p>
+              <p className="text-xs text-amber-800/80 mt-0.5">
+                The database references a resume file that could not be found in storage. Re-upload the resume to restore preview and download.
+              </p>
+            </div>
+          </div>
+        )}
+        {fileState === 'ok' && path && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <FileText className="w-5 h-5 text-indigo-500 flex-shrink-0" />
+              <span className="text-sm font-semibold text-slate-800 flex-1 truncate">{c.file_name || 'Resume file'}</span>
+              <a
+                href={`/api/candidates/${c.id}/resume-file`}
+                download={c.file_name || 'resume'}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-colors">
+                <Download className="w-3.5 h-3.5" /> Download
+              </a>
+              {isPdf && (
+                <a
+                  href={`/api/candidates/${c.id}/resume-file?inline=1`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors">
+                  <ExternalLink className="w-3.5 h-3.5" /> Open PDF
+                </a>
+              )}
+            </div>
+            {isPdf ? (
+              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-100">
+                <iframe
+                  title="Original resume PDF"
+                  className="w-full bg-white"
+                  style={{ height: '65vh', minHeight: '480px' }}
+                  src={`/api/candidates/${c.id}/resume-file?inline=1`}
+                />
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">
+                Preview is available for PDF files. Use Download to open this {path.split('.').pop()?.toUpperCase() || 'document'} locally.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-950/[0.02] p-4 sm:p-5">
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Extracted text (searchable)</p>
+        {c.raw_text ? (
+          <pre className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50 rounded-xl p-4 border border-slate-200 font-sans">
+            {c.raw_text.replace(/[□☐■▪◦◆►▸]/g, '•')}
+          </pre>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-10 text-slate-500 rounded-xl border border-slate-100 bg-slate-50">
+            <FileText className="w-10 h-10 mb-2 opacity-30" />
+            <p className="text-sm font-medium">No resume text stored</p>
+            <p className="text-xs mt-1 text-slate-400">Run AI Screening with a CV file to extract and save text</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function CandidateDetailModal({ candidate: c, duplicateSiblings, teamMembers = [], canChangeOwner = false, jobs, onClose, onJumpToCandidate, onStageChange, onJobChange, onOwnerChange, onRecordSaved, onPhoneSaved, onEdit, onSubmissionDetails }: {
   candidate: Candidate
   /** Other resume rows in this workspace with the same email (tenant-scoped). */
@@ -6436,68 +6797,7 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, teamMembers = [
         )}
 
         {tab === 'resume' && (
-          <div className="p-6 space-y-4 bg-white">
-            {/* Original file download + PDF embed */}
-            {c.resume_original_path ? (
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                  <FileText className="w-5 h-5 text-indigo-500 flex-shrink-0" />
-                  <span className="text-sm font-medium text-slate-700 flex-1 truncate">{c.file_name || 'Resume file'}</span>
-                  <a
-                    href={`/api/candidates/${c.id}/resume-file`}
-                    download={c.file_name || 'resume'}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-colors">
-                    <Download className="w-3.5 h-3.5" /> Download
-                  </a>
-                  {c.resume_original_path.toLowerCase().endsWith('.pdf') && (
-                    <a
-                      href={`/api/candidates/${c.id}/resume-file?inline=1`}
-                      target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors">
-                      <ExternalLink className="w-3.5 h-3.5" /> Open PDF
-                    </a>
-                  )}
-                </div>
-                {c.resume_original_path.toLowerCase().endsWith('.pdf') && (
-                  <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-100">
-                    <iframe
-                      title="Original resume PDF"
-                      className="w-full bg-white"
-                      style={{ height: '65vh', minHeight: '480px' }}
-                      src={`/api/candidates/${c.id}/resume-file?inline=1`}
-                    />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 flex items-start gap-3">
-                <FileText className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-slate-700">No original file stored</p>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {c.file_name
-                      ? `"${c.file_name}" was imported without file storage. Add new candidates with a resume file attached to enable download and PDF preview.`
-                      : 'Add candidates using the AI Screening upload to store and preview the original file.'}
-                  </p>
-                </div>
-              </div>
-            )}
-            {/* Extracted text */}
-            {c.raw_text ? (
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Extracted text (searchable)</p>
-                <pre className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50 rounded-lg p-4 border border-slate-200 font-sans">
-                  {c.raw_text.replace(/[□☐■▪◦◆►▸]/g, '•')}
-                </pre>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-slate-500 rounded-lg border border-slate-100 bg-slate-50">
-                <FileText className="w-10 h-10 mb-2 opacity-30" />
-                <p className="text-sm font-medium">No resume text stored</p>
-                <p className="text-xs mt-1 text-slate-400">Run AI Screening with a CV file to extract and save text</p>
-              </div>
-            )}
-          </div>
+          <ResumeFilePanel candidate={c} />
         )}
 
         {isCandidate360PanelTab(tab) && (

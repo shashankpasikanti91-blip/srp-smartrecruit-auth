@@ -94,7 +94,9 @@ export async function POST(req: NextRequest) {
     })
 
     if (!job) {
-      return NextResponse.json({ error: 'Failed to create job post' }, { status: 500 })
+      return NextResponse.json({
+        error: 'Failed to create job post. Database schema may be missing required columns — contact support.',
+      }, { status: 500 })
     }
 
     await logActivity({

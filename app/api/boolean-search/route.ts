@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 
 export const maxDuration = 30
@@ -67,9 +66,9 @@ function parseJSON(raw: string): Record<string, unknown> {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const userId = (session.user as Record<string, unknown>).userId as string
+  const ctx = await requireTenant(req, 'boolean_search.use')
+  if (ctx instanceof NextResponse) return ctx
+  const userId = ctx.userId
 
   try {
     const body = await req.json() as Record<string, unknown>
@@ -134,16 +133,15 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const userId = (session.user as Record<string, unknown>).userId as string
+  const ctx = await requireTenant(req, 'boolean_search.use')
+  if (ctx instanceof NextResponse) return ctx
   try {
     const { rows } = await pool.query(
       `SELECT id, job_title, short_boolean, created_at
        FROM generated_boolean_searches
        WHERE user_id = $1
        ORDER BY created_at DESC LIMIT 30`,
-      [userId]
+      [ctx.userId]
     )
     return NextResponse.json({ searches: rows })
   } catch {

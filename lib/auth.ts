@@ -127,18 +127,22 @@ export const authOptions: AuthOptions = {
       }
     },
 
-    async jwt({ token, account, user }) {
+    async jwt({ token, account, user, trigger }) {
       if (account?.provider) {
         token.provider = account.provider
       }
-      // Attach role + tenant from DB on first sign-in (both Google and credentials)
-      if (user?.email && !token.role) {
+      // Attach role + tenant from DB on first sign-in, or refresh after invite accept
+      const shouldResolveTenant = (user?.email && !token.role) || trigger === 'update'
+      if (shouldResolveTenant) {
+        const email = user?.email ?? (token.email as string | undefined)
+        if (!email) return token
         const { getUserByEmail } = await import('./db')
-        const dbUser = await getUserByEmail(user.email)
+        const dbUser = await getUserByEmail(email)
         if (dbUser) {
           token.role = dbUser.role
           token.userId = dbUser.id
           token.productAccess = dbUser.product_access
+          token.email = dbUser.email
           // Resolve primary tenant membership
           try {
             const { pool } = await import('./db')
@@ -155,7 +159,7 @@ export const authOptions: AuthOptions = {
               token.tenantSlug = rows[0].tenant_slug
               token.tenantName = rows[0].tenant_name
               token.tenantRole = rows[0].tenant_role
-            } else {
+            } else if (trigger !== 'update') {
               // Only provision a new tenant if the user has NO pending invites.
               // If they have a pending invite (invite_accepted = FALSE) they must
               // accept it through the invite flow — not get a phantom tenant.

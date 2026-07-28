@@ -4,7 +4,9 @@ import { sanitizeText } from '@/lib/validate'
 
 export const maxDuration = 60
 
-const PARSE_JD_PROMPT = `You are a senior recruitment OS parser. Extract structured fields from a raw Job Description.
+/** Recruiter-focused parse — keep it simple, not a corporate brochure. */
+const PARSE_JD_PROMPT = `You are a staffing-agency recruitment assistant.
+Extract ONLY what a recruiter needs from a raw Job Description.
 
 Return JSON ONLY (no markdown):
 {
@@ -19,9 +21,9 @@ Return JSON ONLY (no markdown):
   "salary_min": null,
   "salary_max": null,
   "currency": "MYR",
-  "description": "",
-  "requirements": "",
-  "optional_requirements": "",
+  "about_role": "",
+  "responsibilities": [],
+  "requirements": [],
   "skills_mandatory": [],
   "skills_required": [],
   "priority": "medium",
@@ -30,13 +32,37 @@ Return JSON ONLY (no markdown):
   "max_budget": null
 }
 
-Rules:
-- Prefer Malaysia/SEA context when currency/location unclear → MYR
-- skills_mandatory = must-have; skills_required = nice-to-have/all listed
-- description = role summary + responsibilities (readable text)
-- requirements = must-have skills/experience as text
-- Do not invent salary or budget — leave null if not in JD
-- type: map Permanent→full-time, Contract→contract`
+RULES FOR RECRUITERS:
+- Keep it short and practical — no marketing fluff, no culture essays, no fake benefits
+- about_role: 2–4 plain sentences on what the role is
+- responsibilities: 4–8 action bullets (what they will do)
+- requirements: 4–8 must-have bullets (experience, education, tools)
+- skills_mandatory: top 5–10 hard skills only (e.g. Java, Spring, SQL)
+- skills_required: nice-to-have only
+- type: Permanent → full-time, Contract → contract, Temporary → contract
+- Prefer MYR / Malaysia-SEA when currency or location is unclear
+- Do NOT invent salary, budget, or headcount — use null / 1 if missing
+- Do NOT invent company name if not in the JD`
+
+function formatRecruiterDescription(about: string, responsibilities: string[]): string {
+  const parts: string[] = []
+  if (about.trim()) {
+    parts.push('About the Role', about.trim())
+  }
+  const bullets = responsibilities.map(r => r.trim()).filter(Boolean)
+  if (bullets.length) {
+    parts.push('', 'Key Responsibilities', ...bullets.map(b => `• ${b.replace(/^[•\-–*]\s*/, '')}`))
+  }
+  return parts.join('\n').trim()
+}
+
+function formatRequirements(items: string[]): string {
+  return items
+    .map(r => r.trim())
+    .filter(Boolean)
+    .map(b => `• ${b.replace(/^[•\-–*]\s*/, '')}`)
+    .join('\n')
+}
 
 async function callAI(system: string, user: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY
@@ -63,7 +89,7 @@ async function callAI(system: string, user: string): Promise<string> {
         { role: 'user', content: user },
       ],
       temperature: 0.2,
-      max_tokens: 2200,
+      max_tokens: 1800,
       response_format: { type: 'json_object' },
     }),
   })
@@ -72,7 +98,7 @@ async function callAI(system: string, user: string): Promise<string> {
   return data.choices?.[0]?.message?.content ?? '{}'
 }
 
-/** POST /api/jobs/parse — Parse JD text into job form fields. */
+/** POST /api/jobs/parse — Parse JD text into simple recruiter job fields. Always keeps raw JD. */
 export async function POST(req: NextRequest) {
   const ctx = await requireTenant(req, 'jobs.create')
   if (ctx instanceof NextResponse) return ctx
@@ -91,14 +117,15 @@ export async function POST(req: NextRequest) {
       mode: 'manual',
       fields: {
         raw_jd_text: text,
-        description: text.slice(0, 8000),
+        description: '',
+        requirements: '',
       },
-      message: 'Text kept without AI. Fill location, experience, salary, and skills yourself.',
+      message: 'Raw JD saved. Fill About the Role, Responsibilities, Requirements, and Skills yourself.',
     })
   }
 
   try {
-    const raw = await callAI(PARSE_JD_PROMPT, `Parse this JD:\n\n${text.slice(0, 12000)}`)
+    const raw = await callAI(PARSE_JD_PROMPT, `Parse this JD for a recruiter:\n\n${text.slice(0, 12000)}`)
     let parsed: Record<string, unknown> = {}
     try {
       parsed = JSON.parse(raw)
@@ -108,7 +135,15 @@ export async function POST(req: NextRequest) {
     }
 
     const arr = (v: unknown) =>
-      Array.isArray(v) ? v.map(x => String(x).trim()).filter(Boolean).slice(0, 30) : []
+      Array.isArray(v) ? v.map(x => String(x).trim()).filter(Boolean).slice(0, 20) : []
+
+    const about = String(parsed.about_role ?? parsed.description ?? '').trim()
+    const responsibilities = arr(parsed.responsibilities)
+    const reqList = arr(parsed.requirements)
+    // Back-compat if model returns requirements as a string
+    const requirementsText = reqList.length
+      ? formatRequirements(reqList)
+      : String(parsed.requirements ?? '').trim()
 
     const fields = {
       title: String(parsed.title ?? '').trim(),
@@ -122,8 +157,8 @@ export async function POST(req: NextRequest) {
       salary_min: parsed.salary_min != null && parsed.salary_min !== '' ? Number(parsed.salary_min) : null,
       salary_max: parsed.salary_max != null && parsed.salary_max !== '' ? Number(parsed.salary_max) : null,
       currency: String(parsed.currency ?? 'MYR').trim() || 'MYR',
-      description: String(parsed.description ?? '').trim() || text.slice(0, 4000),
-      requirements: String(parsed.requirements ?? '').trim(),
+      description: formatRecruiterDescription(about, responsibilities) || about,
+      requirements: requirementsText,
       optional_requirements: String(parsed.optional_requirements ?? '').trim(),
       skills_mandatory: arr(parsed.skills_mandatory),
       skills_required: arr(parsed.skills_required),
@@ -133,25 +168,26 @@ export async function POST(req: NextRequest) {
       headcount: Number(parsed.headcount) || 1,
       candidate_type: String(parsed.candidate_type ?? 'any'),
       max_budget: parsed.max_budget != null && parsed.max_budget !== '' ? Number(parsed.max_budget) : null,
+      // Always preserve the original uploaded/pasted JD
       raw_jd_text: text,
     }
 
     return NextResponse.json({
       mode: 'ai',
       fields,
-      message: 'Parse with AI filled title, skills, experience, and salary when possible. Review before creating.',
+      message: 'Parsed for recruiters: About Role, Responsibilities, Requirements, Skills, Location, Type & Budget. Raw JD kept.',
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Parse failed'
-    // Fallback: keep text so recruiter can continue manually
     return NextResponse.json({
       mode: 'fallback',
       error: msg,
       fields: {
         raw_jd_text: text,
-        description: text.slice(0, 8000),
+        description: '',
+        requirements: '',
       },
-      message: 'AI unavailable — text kept. Fill fields manually or retry Parse with AI.',
+      message: 'AI unavailable — raw JD kept. Fill recruiter fields manually or retry Parse with AI.',
     }, { status: msg.includes('not configured') ? 503 : 200 })
   }
 }

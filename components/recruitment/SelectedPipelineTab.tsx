@@ -368,8 +368,12 @@ export function SelectedPipelineTab({
                 <tr><td colSpan={13} className="text-center py-10 text-slate-400">No selected / docs cases</td></tr>
               ) : offers.map((o, i) => {
                 const filled = typeof o.slots_filled === 'number' ? o.slots_filled : 0
-                const total = typeof o.slots_total === 'number' && o.slots_total > 0 ? o.slots_total : 5
-                const pct = total ? Math.round((filled / total) * 100) : 0
+                const requiredTotal = checklistItems.filter(i => i.required).length
+                const total = typeof o.slots_total === 'number' && o.slots_total > 0
+                  ? o.slots_total
+                  : (requiredTotal > 0 ? requiredTotal : checklistItems.length || 5)
+                const pct = total ? Math.min(100, Math.round((filled / total) * 100)) : 0
+                const missingRequired = checklistItems.filter(i => i.required).map(i => i.label)
                 return (
                   <tr key={o.id} className={i % 2 ? 'bg-slate-50/70' : ''}>
                     <td>
@@ -402,11 +406,12 @@ export function SelectedPipelineTab({
                         ))}
                       </select>
                     </td>
-                    <td>
+                    <td title={missingRequired.length ? `Required for ${country}: ${missingRequired.join(', ')}` : `Checklist: ${country}`}>
                       <div className="w-24 h-2 rounded-full bg-slate-100 overflow-hidden mb-1">
                         <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
                       </div>
                       <span className="text-xs font-bold text-slate-600">{pct}% · {filled}/{total}</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{country} checklist</p>
                     </td>
                     <td className="whitespace-nowrap space-x-2">
                       <button type="button" className="text-xs font-bold text-indigo-700 hover:underline"

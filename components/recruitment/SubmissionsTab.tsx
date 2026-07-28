@@ -5,6 +5,7 @@ import { Eye, History, Loader2, Send, X } from 'lucide-react'
 import { ScrollableTable } from '@/components/dashboard/ScrollableTable'
 import { OpsListChrome } from '@/components/recruitment/OpsListChrome'
 import { EntityIdLink } from '@/components/ui/EntityIdLink'
+import { EntityNotesTimeline } from '@/components/ui/EntityNotesTimeline'
 import { SUBMISSION_STAGES, labelFor } from '@/lib/recruitmentOs'
 import { presetToRange, type DatePreset } from '@/lib/datePresets'
 import { formatIsoDate } from '@/lib/opsList'
@@ -364,10 +365,18 @@ export function SubmissionsTab({
                 <textarea className="form-input w-full" rows={3} value={feedbackDraft} onChange={e => setFeedbackDraft(e.target.value)} placeholder="Update feedback…" />
               </div>
               <div>
-                <p className="text-xs font-extrabold uppercase text-slate-400 mb-1">Recruiter notes</p>
+                <p className="text-xs font-extrabold uppercase text-slate-400 mb-1">Recruiter notes (legacy field)</p>
                 <textarea className="form-input w-full" rows={3} value={notesDraft} onChange={e => setNotesDraft(e.target.value)} />
                 <button type="button" onClick={saveNotes} className="btn-primary mt-2 !py-1.5 !px-3 text-xs">Save feedback</button>
               </div>
+              <EntityNotesTimeline
+                entityType="submission"
+                entityId={detail.id}
+                title="Submission note thread"
+                subtitle="Append recruiter and client-feedback notes over time."
+                defaultCategory="recruiter"
+                allowedCategories={['recruiter', 'client_feedback', 'internal', 'follow_up', 'general']}
+              />
               <div>
                 <p className="text-xs font-extrabold uppercase text-slate-400 mb-2 flex items-center gap-1"><History className="w-3.5 h-3.5" /> Timeline / history</p>
                 {history.length === 0 ? (

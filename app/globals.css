@@ -289,6 +289,40 @@ aside ::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.7); }
   box-shadow: var(--shadow-card);
 }
 
+/* Premium ATS panel chrome (matches SectionPanel React primitive) */
+.ats-panel {
+  background: var(--dash-surface);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  ring: 1px solid rgba(2, 6, 23, 0.02);
+  outline: 1px solid rgba(2, 6, 23, 0.02);
+}
+.ats-panel-pad {
+  padding: 1.25rem;
+}
+@media (min-width: 640px) {
+  .ats-panel-pad { padding: 1.5rem; }
+}
+.ats-inner-block {
+  background: rgba(248, 250, 252, 0.6);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 12px;
+  padding: 1rem;
+}
+.ats-field-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.ats-field-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--dash-heading);
+}
+
 /* ── Modal surface (light) ─────────────────────────────── */
 .glass-card {
   background: #ffffff;

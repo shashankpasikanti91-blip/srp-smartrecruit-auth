@@ -161,7 +161,9 @@ export function EditCandidateModal({
   const set = (key: keyof FormState, value: string) => {
     setForm(prev => {
       const next = { ...prev, [key]: value }
-      if (key === 'nric') {
+      const nat = (key === 'nationality' ? value : prev.nationality).toLowerCase()
+      const malaysiaLike = !nat || nat.includes('malay') || nat === 'my'
+      if (key === 'nric' && malaysiaLike) {
         const formatted = formatNric(value)
         next.nric = formatted
         if (isValidNric(formatted)) {
@@ -181,8 +183,15 @@ export function EditCandidateModal({
       setMsg({ ok: false, text: 'Name is required.' })
       return
     }
-    if (form.nric && form.nric.replace(/\D/g, '').length > 0 && form.nric.replace(/\D/g, '').length !== 12) {
-      setMsg({ ok: false, text: 'NRIC must be 12 digits (e.g. 901231-10-5678).' })
+    const nat = form.nationality.toLowerCase()
+    const malaysiaLike = !nat || nat.includes('malay') || nat === 'my'
+    if (
+      malaysiaLike &&
+      form.nric &&
+      form.nric.replace(/\D/g, '').length > 0 &&
+      form.nric.replace(/\D/g, '').length !== 12
+    ) {
+      setMsg({ ok: false, text: 'Malaysia NRIC must be 12 digits (e.g. 901231-10-5678).' })
       return
     }
     setSaving(true)
@@ -224,8 +233,13 @@ export function EditCandidateModal({
         candidate_feedback: form.candidate_feedback || null,
         internal_comments: form.internal_comments || null,
         next_action: form.next_action || null,
-        id_document_type: form.nric ? 'NRIC' : null,
-        id_document_reference: form.nric || null,
+        id_document_type: form.nric
+          ? (nat.includes('singapore') ? 'NRIC/FIN'
+            : nat.includes('india') ? 'Aadhaar/PAN'
+            : malaysiaLike ? 'NRIC'
+            : 'National ID')
+          : form.passport_number ? 'Passport' : null,
+        id_document_reference: form.nric || form.passport_number || null,
       }
 
       const res = await fetch(`/api/candidates/${candidate.id}`, {
@@ -336,9 +350,28 @@ export function EditCandidateModal({
               {field('candidate_name', 'Full name', { placeholder: 'Candidate full name' })}
               {field('candidate_email', 'Email', { placeholder: 'name@email.com' })}
               {field('candidate_phone', 'Phone', { placeholder: '+60 12-345 6789' })}
-              {field('nric', 'NRIC (Malaysian)', { placeholder: '901231-10-5678', hint: 'Auto-fills DOB & gender when complete' })}
-              {field('passport_number', 'Passport (Expat)', { placeholder: 'A12345678' })}
-              {field('nationality', 'Nationality', { placeholder: 'Malaysian' })}
+              {field('nationality', 'Nationality', { placeholder: 'Malaysian / Indian / Singaporean' })}
+              {field(
+                'nric',
+                form.nationality.toLowerCase().includes('india')
+                  ? 'Aadhaar / PAN reference'
+                  : form.nationality.toLowerCase().includes('singapore')
+                    ? 'NRIC / FIN'
+                    : form.nationality.toLowerCase().includes('malay') || !form.nationality
+                      ? 'NRIC / IC (Malaysia)'
+                      : 'National ID / local ID',
+                {
+                  placeholder: form.nationality.toLowerCase().includes('india')
+                    ? 'PAN or Aadhaar ref'
+                    : form.nationality.toLowerCase().includes('singapore')
+                      ? 'NRIC / FIN'
+                      : '901231-10-5678',
+                  hint: (form.nationality.toLowerCase().includes('malay') || !form.nationality)
+                    ? 'Malaysia: auto-fills DOB & gender when 12-digit NRIC is complete'
+                    : 'Use the ID format for this candidate’s country',
+                },
+              )}
+              {field('passport_number', 'Passport', { placeholder: 'A12345678' })}
               {field('dob', 'Date of birth', { type: 'date' })}
               <div>
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1 uppercase tracking-wide">Gender</label>

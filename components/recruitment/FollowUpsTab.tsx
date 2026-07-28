@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Bell, Check, Download, Loader2, Plus, RefreshCw } from 'lucide-react'
 import { exportCsv } from '@/lib/exportCsv'
+import { EntityNotesTimeline } from '@/components/ui/EntityNotesTimeline'
 
 type FollowUp = {
   id: string
@@ -30,6 +31,7 @@ export function FollowUpsTab() {
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ title: '', channel: 'call', due_at: '', notes: '', candidate_q: '', resume_id: '' })
+  const [notesForId, setNotesForId] = useState<string | null>(null)
 
   const loadCounts = useCallback(async () => {
     const res = await fetch('/api/follow-ups?counts=1&mine=1')
@@ -167,18 +169,37 @@ export function FollowUpsTab() {
       ) : (
         <ul className="space-y-2">
           {rows.map(f => (
-            <li key={f.id} className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="font-semibold text-slate-900">{f.title}</p>
-                <p className="text-xs text-slate-500 mt-0.5 capitalize">{f.channel} · Due {new Date(f.due_at).toLocaleString()}</p>
-                {f.candidate_name && <p className="text-xs text-indigo-700 mt-1">{f.candidate_name} ({f.candidate_short_id})</p>}
-                {f.notes && <p className="text-sm text-slate-600 mt-2">{f.notes}</p>}
+            <li key={f.id} className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-950/[0.02]">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-slate-900">{f.title}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 capitalize">{f.channel} · Due {new Date(f.due_at).toLocaleString()}</p>
+                  {f.candidate_name && <p className="text-xs text-indigo-700 mt-1">{f.candidate_name} ({f.candidate_short_id})</p>}
+                  {f.notes && <p className="text-sm text-slate-600 mt-2">{f.notes}</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setNotesForId(notesForId === f.id ? null : f.id)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-800 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100">
+                    Notes
+                  </button>
+                  {f.status === 'pending' && (
+                    <button type="button" onClick={() => markDone(f.id)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100">
+                      <Check className="w-3.5 h-3.5" /> Done
+                    </button>
+                  )}
+                </div>
               </div>
-              {f.status === 'pending' && (
-                <button type="button" onClick={() => markDone(f.id)}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100">
-                  <Check className="w-3.5 h-3.5" /> Done
-                </button>
+              {notesForId === f.id && (
+                <div className="mt-3">
+                  <EntityNotesTimeline
+                    entityType="follow_up"
+                    entityId={f.id}
+                    title="Follow-up notes"
+                    defaultCategory="follow_up"
+                    allowedCategories={['follow_up', 'recruiter', 'internal', 'general']}
+                  />
+                </div>
               )}
             </li>
           ))}

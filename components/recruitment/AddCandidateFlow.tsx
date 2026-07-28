@@ -211,8 +211,13 @@ export function AddCandidateFlow({
           linkedin_url: form.linkedin_url || null,
           portfolio_url: form.portfolio_url || null,
           source_channel: form.source_channel || null,
-          id_document_type: form.nric ? 'NRIC' : null,
-          id_document_reference: form.nric || null,
+          id_document_type: form.nric
+            ? (form.nationality.toLowerCase().includes('singapore') ? 'NRIC/FIN'
+              : form.nationality.toLowerCase().includes('india') ? 'Aadhaar/PAN'
+              : form.nationality.toLowerCase().includes('malay') || !form.nationality ? 'NRIC'
+              : 'National ID')
+            : form.passport_number ? 'Passport' : null,
+          id_document_reference: form.nric || form.passport_number || null,
         },
       }
       const res = await fetch('/api/candidates', {
@@ -404,18 +409,39 @@ export function AddCandidateFlow({
 
               <section className="rounded-xl border border-slate-200 p-4 space-y-3">
                 <p className="text-xs font-extrabold uppercase tracking-widest text-slate-800">Identity & Personal</p>
+                <p className="text-[11px] text-slate-500">
+                  Identity fields depend on nationality — Malaysia uses NRIC/IC, India uses Aadhaar/PAN, Singapore uses NRIC/FIN or passport. Set nationality first.
+                </p>
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div>
-                    <label className={labelCls}>{candidateFieldLabel('nric')} <ConfBadge c={conf.nric} /></label>
-                    <input className={inputCls} value={form.nric} onChange={e => setF('nric', e.target.value)} placeholder="901231-10-5678" />
+                    <label className={labelCls}>Nationality <ConfBadge c={conf.nationality} /></label>
+                    <input className={inputCls} value={form.nationality} onChange={e => setF('nationality', e.target.value)} placeholder="e.g. Malaysian, Indian, Singaporean" />
+                  </div>
+                  <div>
+                    <label className={labelCls}>
+                      {form.nationality.toLowerCase().includes('india')
+                        ? 'Aadhaar / PAN reference'
+                        : form.nationality.toLowerCase().includes('singapore')
+                          ? 'NRIC / FIN'
+                          : form.nationality.toLowerCase().includes('malay') || !form.nationality
+                            ? candidateFieldLabel('nric')
+                            : 'National ID / local ID'}
+                      {' '}<ConfBadge c={conf.nric} />
+                    </label>
+                    <input
+                      className={inputCls}
+                      value={form.nric}
+                      onChange={e => setF('nric', e.target.value)}
+                      placeholder={
+                        form.nationality.toLowerCase().includes('india') ? 'PAN or Aadhaar ref'
+                        : form.nationality.toLowerCase().includes('singapore') ? 'NRIC / FIN'
+                        : '901231-10-5678'
+                      }
+                    />
                   </div>
                   <div>
                     <label className={labelCls}>{candidateFieldLabel('passport_number')} <ConfBadge c={conf.passport_number} /></label>
                     <input className={inputCls} value={form.passport_number} onChange={e => setF('passport_number', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Nationality <ConfBadge c={conf.nationality} /></label>
-                    <input className={inputCls} value={form.nationality} onChange={e => setF('nationality', e.target.value)} />
                   </div>
                   <div>
                     <label className={labelCls}>Date of Birth</label>

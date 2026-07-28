@@ -74,7 +74,8 @@ export function CandidateTimeline({ candidateId }: { candidateId: string }) {
   }
 
   return (
-    <div className="p-5 bg-white">
+    <div className="p-4 sm:p-5 bg-slate-50/40">
+      <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-950/[0.02] p-4 sm:p-5">
       <div className="flex items-center justify-between mb-4">
         <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Activity timeline</p>
         <button type="button" onClick={() => load()} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
@@ -114,6 +115,7 @@ export function CandidateTimeline({ candidateId }: { candidateId: string }) {
           {loadingMore ? 'Loading…' : 'Load more activity'}
         </button>
       )}
+      </div>
     </div>
   )
 }

@@ -24,7 +24,7 @@ export async function analyzeJobFillDifficulty(opts: {
   let score = 40
 
   const jobRes = await db.query(
-    `SELECT id, title, location, requirements, description, skills,
+    `SELECT id, title, location, requirements, description,
             salary_min, salary_max, currency, priority, internal_sla_days
      FROM job_posts WHERE id = $1 AND tenant_id = $2`,
     [opts.jobId, opts.tenantId]
@@ -34,9 +34,7 @@ export async function analyzeJobFillDifficulty(opts: {
     return { difficulty: 'medium', score: 50, reasons: ['Job not found in tenant data.'] }
   }
 
-  const skillList: string[] = Array.isArray(job.skills)
-    ? job.skills
-    : tokens(`${job.requirements ?? ''} ${job.title ?? ''}`)
+  const skillList: string[] = tokens(`${job.requirements ?? ''} ${job.title ?? ''} ${job.description ?? ''}`)
 
   // Candidate pool in location / skills
   let poolSize = 0

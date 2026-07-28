@@ -1,7 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Briefcase, Loader2, Sparkles, X, Plus } from 'lucide-react'
+import {
+  JOB_POST_PLATFORMS,
+  JOB_POST_PLATFORM_META,
+  type JobPostPlatform,
+} from '@/lib/jobPostPlatforms'
 
 type Client = { id: string; name: string }
 type JobForm = {
@@ -63,7 +68,7 @@ export function NewJobModal({
 }: {
   open: boolean
   onClose: () => void
-  onCreated: (job: Record<string, unknown>, generatePosts?: boolean) => void
+  onCreated: (job: Record<string, unknown>, generatePosts?: boolean, platforms?: JobPostPlatform[]) => void
 }) {
   const [form, setForm] = useState<JobForm>(emptyForm)
   const [clients, setClients] = useState<Client[]>([])
@@ -73,6 +78,7 @@ export function NewJobModal({
   const [msg, setMsg] = useState<string | null>(null)
   const [skillDraft, setSkillDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [selectedPlatforms, setSelectedPlatforms] = useState<JobPostPlatform[]>([...JOB_POST_PLATFORMS])
 
   const set = <K extends keyof JobForm>(key: K, value: JobForm[K]) =>
     setForm(p => ({ ...p, [key]: value }))
@@ -82,10 +88,17 @@ export function NewJobModal({
     setForm(emptyForm())
     setMsg(null)
     setError(null)
+    setSelectedPlatforms([...JOB_POST_PLATFORMS])
     fetch('/api/clients').then(r => r.json()).then(d => setClients(d.clients ?? [])).catch(() => setClients([]))
   }, [open])
 
   const selectedClient = clients.find(c => c.id === form.client_id)
+
+  const togglePlatform = (p: JobPostPlatform) => {
+    setSelectedPlatforms(prev =>
+      prev.includes(p) ? (prev.length === 1 ? prev : prev.filter(x => x !== p)) : [...prev, p]
+    )
+  }
 
   const parseJd = async (mode: 'ai' | 'manual') => {
     const text = form.raw_jd_text || form.description
@@ -146,8 +159,8 @@ export function NewJobModal({
       const res = await fetch('/api/parse', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Could not read file'); return }
-      setForm(p => ({ ...p, raw_jd_text: data.text || '', description: data.text?.slice(0, 4000) || p.description }))
-      setMsg(`Loaded "${file.name}" — click Parse with AI or Use text without AI.`)
+      setForm(p => ({ ...p, raw_jd_text: data.text || '', description: p.description }))
+      setMsg(`Loaded "${file.name}" — raw JD saved. Click Parse with AI to fill recruiter fields.`)
     } catch {
       setError('File upload failed')
     } finally {
@@ -157,9 +170,15 @@ export function NewJobModal({
 
   const save = async (generatePosts = false) => {
     if (!form.title.trim()) { setError('Job title is required'); return }
+    if (generatePosts && selectedPlatforms.length === 0) {
+      setError('Select at least one channel (Email, LinkedIn, WhatsApp…) for post generation')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
+      // Always keep the original pasted/uploaded JD alongside structured fields
+      const rawJd = (form.raw_jd_text || '').trim() || (form.description || '').trim() || null
       const payload = {
         ...form,
         company: form.company || selectedClient?.name || '',
@@ -172,7 +191,8 @@ export function NewJobModal({
         target_cv_submissions: form.target_cv_submissions || null,
         internal_sla_days: form.internal_sla_days || 10,
         max_budget: form.max_budget || null,
-        ai_generated: Boolean(form.raw_jd_text && form.title),
+        raw_jd_text: rawJd,
+        ai_generated: Boolean(rawJd && form.title),
         tags: form.skills_mandatory,
       }
       const res = await fetch('/api/jobs', {
@@ -182,7 +202,7 @@ export function NewJobModal({
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Create failed'); return }
-      onCreated(data.job, generatePosts)
+      onCreated(data.job, generatePosts, generatePosts ? selectedPlatforms : undefined)
       onClose()
     } catch {
       setError('Network error')
@@ -235,16 +255,18 @@ export function NewJobModal({
 
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Contract / Employment Type</label>
+              <label className={labelCls}>Employment type</label>
               <select className={inputCls} value={form.type} onChange={e => set('type', e.target.value)}>
-                {['full-time', 'part-time', 'contract', 'remote', 'internship'].map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
+                <option value="full-time">Permanent / Full-time</option>
+                <option value="contract">Contract</option>
+                <option value="part-time">Part-time</option>
+                <option value="remote">Remote</option>
+                <option value="internship">Internship</option>
               </select>
             </div>
             <div>
               <label className={labelCls}>Contract duration</label>
-              <input className={inputCls} value={form.contract_duration} onChange={e => set('contract_duration', e.target.value)} placeholder="e.g. 10 months" />
+              <input className={inputCls} value={form.contract_duration} onChange={e => set('contract_duration', e.target.value)} placeholder="e.g. 10 months (if contract)" />
             </div>
           </div>
 
@@ -268,7 +290,8 @@ export function NewJobModal({
               <label className="flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 rounded-xl bg-white py-8 cursor-pointer hover:bg-indigo-50/40">
                 <input type="file" accept=".pdf,.doc,.docx,.txt" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f) }} />
-                <p className="text-sm font-bold text-slate-700">Drop JD — PDF / DOCX / TXT</p>
+                <p className="text-sm font-bold text-slate-700">Drop JD — PDF / DOC / DOCX / TXT</p>
+                <p className="text-[11px] font-medium text-slate-500 mt-1">Legacy Word .doc files are supported</p>
               </label>
             )}
             <div className="flex flex-wrap gap-2">
@@ -279,12 +302,23 @@ export function NewJobModal({
               </button>
               <button type="button" disabled={parsing} onClick={() => parseJd('manual')}
                 className="px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-extrabold text-slate-800 hover:bg-slate-50 disabled:opacity-50">
-                Use text without AI
+                Keep raw JD only
               </button>
             </div>
             <p className="text-[11px] font-medium text-slate-500">
-              Parse with AI fills title, skills, experience, and salary when possible. Use without AI if you will type those fields yourself.
+              Parse fills About Role, Responsibilities, Requirements, Key Skills, Location, Type & Budget. The original raw JD is always saved with the job.
             </p>
+            {form.raw_jd_text.trim().length > 40 && (
+              <details className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <summary className="cursor-pointer text-xs font-extrabold text-slate-700">
+                  Raw JD saved ({form.raw_jd_text.trim().length.toLocaleString()} chars) — click to preview
+                </summary>
+                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-[11px] text-slate-600 leading-relaxed">
+                  {form.raw_jd_text.slice(0, 4000)}
+                  {form.raw_jd_text.length > 4000 ? '\n…' : ''}
+                </pre>
+              </details>
+            )}
           </div>
 
           <div className="grid sm:grid-cols-2 gap-3">
@@ -376,8 +410,8 @@ export function NewJobModal({
                 <input type="date" className={inputCls} value={form.target_submission_date} onChange={e => set('target_submission_date', e.target.value)} />
               </div>
               <div>
-                <label className={labelCls}>Max candidate budget</label>
-                <input type="number" min={0} className={inputCls} value={form.max_budget} onChange={e => set('max_budget', e.target.value)} placeholder="Optional" />
+                <label className={labelCls}>Budget / Max budget</label>
+                <input type="number" min={0} className={inputCls} value={form.max_budget} onChange={e => set('max_budget', e.target.value)} placeholder="Optional monthly / package" />
               </div>
             </div>
             <label className="flex items-center gap-2 text-sm font-bold text-slate-800">
@@ -403,7 +437,8 @@ export function NewJobModal({
 
           {/* Skills */}
           <div className="space-y-2">
-            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-800">Required Skills</p>
+            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-800">Key Skills</p>
+            <p className="text-[11px] font-medium text-slate-500">Must-have hard skills for screening (Java, Spring, SQL…)</p>
             <div className="flex flex-wrap gap-1.5">
               {form.skills_mandatory.map(s => (
                 <span key={s} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-bold border border-amber-200">
@@ -414,7 +449,7 @@ export function NewJobModal({
             </div>
             <div className="flex gap-2">
               <input className={inputCls} value={skillDraft} onChange={e => setSkillDraft(e.target.value)}
-                placeholder="Skill 1" onKeyDown={e => {
+                placeholder="Add a key skill" onKeyDown={e => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
                     const s = skillDraft.trim()
@@ -437,12 +472,60 @@ export function NewJobModal({
           </div>
 
           <div>
-            <label className={labelCls}>Description</label>
-            <textarea className={`${inputCls} min-h-[80px]`} value={form.description} onChange={e => set('description', e.target.value)} />
+            <label className={labelCls}>About the Role &amp; Responsibilities</label>
+            <p className="text-[11px] font-medium text-slate-500 mb-1.5">Short about + key responsibilities bullets (recruiter view — not a long brochure)</p>
+            <textarea
+              className={`${inputCls} min-h-[120px]`}
+              value={form.description}
+              onChange={e => set('description', e.target.value)}
+              placeholder={'About the Role\n2–4 sentences…\n\nKey Responsibilities\n• …\n• …'}
+            />
           </div>
           <div>
             <label className={labelCls}>Requirements</label>
-            <textarea className={`${inputCls} min-h-[60px]`} value={form.requirements} onChange={e => set('requirements', e.target.value)} />
+            <p className="text-[11px] font-medium text-slate-500 mb-1.5">Must-have experience, education, tools</p>
+            <textarea
+              className={`${inputCls} min-h-[90px]`}
+              value={form.requirements}
+              onChange={e => set('requirements', e.target.value)}
+              placeholder={'• 3+ years Java\n• Spring Boot\n• SQL'}
+            />
+          </div>
+
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-widest text-indigo-900">Channel posts (Create & Generate)</p>
+                <p className="text-[11px] font-medium text-indigo-700/80 mt-0.5">
+                  Email letter · LinkedIn hashtags · WhatsApp group msg · Indeed ATS — each uses a different prompt
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPlatforms(prev => prev.length === JOB_POST_PLATFORMS.length ? ['linkedin'] : [...JOB_POST_PLATFORMS])}
+                className="text-[11px] font-bold text-indigo-700 hover:underline whitespace-nowrap"
+              >
+                {selectedPlatforms.length === JOB_POST_PLATFORMS.length ? 'Clear all' : 'Select all'}
+              </button>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {JOB_POST_PLATFORMS.map(p => {
+                const meta = JOB_POST_PLATFORM_META[p]
+                const on = selectedPlatforms.includes(p)
+                return (
+                  <label
+                    key={p}
+                    className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 cursor-pointer bg-white ${on ? 'border-indigo-300' : 'border-slate-200 opacity-80'}`}
+                  >
+                    <input type="checkbox" checked={on} onChange={() => togglePlatform(p)} className="mt-0.5" />
+                    <span className="min-w-0">
+                      <span className="block text-xs font-bold text-slate-800">{meta.label}</span>
+                      <span className="block text-[10px] text-slate-500">{meta.hint}</span>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
           </div>
         </div>
 

@@ -153,8 +153,9 @@ export function WorkspaceTab({
   const pipeline = { ...(kpi?.pipeline_by_stage ?? {}), ...(insights?.funnel ?? {}) }
   const openJobs = jobs.filter(j => (j.status ?? 'active') === 'active').length || jobs.length
   const activeCandidates = Object.values(pipeline).reduce((a, b) => a + b, 0)
-  const convRate = kpi ? Math.round((kpi.submission_conversion_rate || 0) * 100) : null
-  const intConv = kpi ? Math.round((kpi.interview_conversion_rate || 0) * 100) : null
+  // kpiEngine already returns 0–100 percentages — do not multiply again
+  const convRate = kpi ? Math.round(kpi.submission_conversion_rate || 0) : null
+  const intConv = kpi ? Math.round(kpi.interview_conversion_rate || 0) : null
   const fillProxy = activeCandidates > 0 && kpi
     ? Math.round(((pipeline.hired ?? 0) / Math.max(activeCandidates, 1)) * 100)
     : null

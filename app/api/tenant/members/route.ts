@@ -120,6 +120,7 @@ export async function POST(req: NextRequest) {
     : `${process.env.NEXTAUTH_URL}/signup?invite=${inviteToken}`
 
   // Send invite email (non-fatal)
+  let emailSent = false
   try {
     const { sendInviteEmail } = await import('@/lib/notifications')
     await sendInviteEmail({
@@ -129,11 +130,12 @@ export async function POST(req: NextRequest) {
       role:       body.role,
       inviteLink,
     })
+    emailSent = true
   } catch (e) {
     console.error('[tenant/members] invite email failed (non-fatal):', e)
   }
 
-  return NextResponse.json({ ok: true, inviteLink, inviteToken, role: body.role })
+  return NextResponse.json({ ok: true, inviteLink, inviteToken, role: body.role, emailSent })
 }
 
 // ── PATCH: update a member's role/permissions ─────────────────────────────────

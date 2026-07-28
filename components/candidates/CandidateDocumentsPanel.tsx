@@ -146,22 +146,30 @@ export function CandidateDocumentsPanel({ candidateId }: { candidateId: string }
   }
 
   return (
-    <div className="p-5 space-y-4 bg-white">
+    <div className="p-4 sm:p-5 space-y-4 bg-slate-50/40">
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 font-bold">{error}</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 font-bold">{error}</div>
       )}
+      <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-950/[0.02] p-4 sm:p-5 space-y-3">
       <p className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest">Document Center</p>
+      <p className="text-xs text-slate-500 -mt-1">Slots follow country checklist when nationality is set. Required items are marked.</p>
       <div className="space-y-3">
         {docs.map(slot => {
           const ver = getVersion(slot)
           const hasFile = !!ver && !!slot.id
           const vst = slot.verification_status || (hasFile ? 'pending_verification' : null)
+          const required = !!(slot as DocSlot & { required?: boolean }).required
           return (
-            <div key={slot.slot_type} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+            <div key={slot.slot_type} className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-950/[0.02]">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-extrabold text-slate-900">{slot.slot_label}</p>
+                    {required && (
+                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded border bg-rose-50 text-rose-800 border-rose-200">
+                        Required
+                      </span>
+                    )}
                     {vst && (
                       <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded border ${statusStyle(vst)}`}>
                         {vst.replace(/_/g, ' ')}
@@ -289,6 +297,7 @@ export function CandidateDocumentsPanel({ candidateId }: { candidateId: string }
             </div>
           )
         })}
+      </div>
       </div>
     </div>
   )

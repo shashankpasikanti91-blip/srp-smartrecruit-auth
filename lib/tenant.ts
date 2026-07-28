@@ -311,8 +311,8 @@ export function defaultOwnerPermissions(): TenantPermissions {
 
 export function defaultAdminPermissions(): TenantPermissions {
   return {
-    jobs:           { create: true, read: true, update: true, delete: false },
-    candidates:     { create: true, read: true, update: true, delete: false },
+    jobs:           { create: true, read: true, update: true, delete: true },
+    candidates:     { create: true, read: true, update: true, delete: true },
     pipeline:       { read: true, update: true },
     ai_screen:      { use: true },
     ai_compose:     { use: true },
@@ -320,7 +320,7 @@ export function defaultAdminPermissions(): TenantPermissions {
     boolean_search: { use: true },
     integrations:   { read: true, update: false },
     billing:        { read: true, update: false },
-    users:          { invite: true, manage: false },
+    users:          { invite: true, manage: true },
     analytics:      { self: true, tenant: true },
     ess:            { access: true, admin: true },
     reports:        { read: true },

@@ -29,7 +29,8 @@
     "pg": "^8.20.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "recharts": "^2.15.0"
+    "recharts": "^2.15.0",
+    "word-extractor": "^1.0.4"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",

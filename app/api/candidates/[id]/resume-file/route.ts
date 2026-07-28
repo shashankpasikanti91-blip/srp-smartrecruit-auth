@@ -87,10 +87,38 @@ export async function POST(
   }
 
   const { rows } = await pool.query<{ resume_original_path: string | null }>(
-    'SELECT resume_original_path FROM resumes WHERE id = $1',
-    [id]
+    'SELECT resume_original_path FROM resumes WHERE id = $1 AND tenant_id = $2',
+    [id, ctx.tenantId]
   )
   return NextResponse.json({ ok: true, resume_original_path: rows[0]?.resume_original_path })
+}
+
+/** HEAD — check whether the resume file exists without streaming it. */
+export async function HEAD(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const ctx = await requireTenant(req, 'candidates.read')
+  if (ctx instanceof NextResponse) return ctx
+
+  const { id } = await params
+  if (!isValidUUID(id)) {
+    return new NextResponse(null, { status: 400 })
+  }
+
+  const { rows } = await pool.query<{ resume_original_path: string | null }>(
+    'SELECT resume_original_path FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1',
+    [id, ctx.tenantId]
+  )
+  const rel = rows[0]?.resume_original_path
+  if (!rel) return new NextResponse(null, { status: 404 })
+
+  try {
+    await readStoredFile(rel)
+    return new NextResponse(null, { status: 200 })
+  } catch {
+    return new NextResponse(null, { status: 404 })
+  }
 }
 
 /** GET — stream stored resume (auth + tenant). */
@@ -129,24 +157,14 @@ export async function GET(
   try {
     buf = await readStoredFile(rel)
   } catch {
-    // Fallback: legacy candidate-resumes path
-    const legacyRoot = path.join(process.cwd(), 'uploads', 'candidate-resumes')
-    const legacyPath = path.join(legacyRoot, rel)
-    if (!legacyPath.startsWith(legacyRoot)) {
-      return NextResponse.json({ error: 'Invalid storage path' }, { status: 500 })
-    }
-    const { readFile } = await import('fs/promises')
-    try {
-      buf = await readFile(legacyPath)
-    } catch {
-      return NextResponse.json({ error: 'File missing on disk' }, { status: 404 })
-    }
+    return NextResponse.json({ error: 'File missing on disk' }, { status: 404 })
   }
 
   const ext = path.extname(rel).toLowerCase()
   const mime = mimeForExt(ext)
   const inline = req.nextUrl.searchParams.get('inline') === '1'
-  const disposition = inline ? 'inline' : `attachment; filename="${path.basename(rel)}"`
+  const safeName = path.basename(rel).replace(/"/g, '')
+  const disposition = inline ? `inline; filename="${safeName}"` : `attachment; filename="${safeName}"`
 
   return new NextResponse(new Uint8Array(buf), {
     status: 200,

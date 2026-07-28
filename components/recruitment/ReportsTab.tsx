@@ -198,9 +198,10 @@ export function ReportsTab({ onNavigate }: { onNavigate?: (tab: string) => void 
   const loadDashboard = useCallback(async () => {
     setDashLoading(true)
     try {
+      const days = kpiDays || 30
       const [kpiRes, insRes] = await Promise.all([
-        fetch('/api/analytics/recruiter/me?days=30'),
-        fetch('/api/dashboard/insights?days=30'),
+        fetch(`/api/analytics/recruiter/me?days=${days}`),
+        fetch(`/api/dashboard/insights?days=${days}`),
       ])
       const kpiData = await kpiRes.json().catch(() => ({}))
       setKpi(kpiData.kpi ?? null)
@@ -209,7 +210,7 @@ export function ReportsTab({ onNavigate }: { onNavigate?: (tab: string) => void 
     } finally {
       setDashLoading(false)
     }
-  }, [])
+  }, [kpiDays])
 
   useEffect(() => { loadTemplates() }, [loadTemplates])
   useEffect(() => { loadDashboard() }, [loadDashboard])
@@ -228,8 +229,10 @@ export function ReportsTab({ onNavigate }: { onNavigate?: (tab: string) => void 
       const blob = await res.blob()
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-      a.download = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1]
+      const rawName = res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1]
         ?? `${type}-report.${format}`
+      // Sanitize filename — never allow path separators or control chars from remote header
+      a.download = rawName.replace(/[/\\?%*:|"<>]/g, '_').replace(/\.\./g, '_').slice(0, 180)
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -300,20 +303,13 @@ export function ReportsTab({ onNavigate }: { onNavigate?: (tab: string) => void 
 
   const sourceSlices = useMemo(() => {
     const src = insights?.queues?.source_performance ?? []
-    if (!src.length) {
-      return [
-        { label: 'LinkedIn', value: Math.max(1, kpi?.candidates_added ?? 0), color: CHART_PALETTE[0] },
-        { label: 'Referral', value: Math.max(0, Math.floor((kpi?.submissions ?? 0) / 2)), color: CHART_PALETTE[1] },
-        { label: 'Job board', value: Math.max(0, kpi?.candidates_screened ?? 0), color: CHART_PALETTE[2] },
-        { label: 'Other', value: 1, color: CHART_PALETTE[3] },
-      ]
-    }
+    // Never invent source mix — empty means no chart data
     return src.slice(0, 6).map((s, i) => ({
       label: s.source || 'Unknown',
       value: s.n,
       color: CHART_PALETTE[i % CHART_PALETTE.length],
     }))
-  }, [insights, kpi])
+  }, [insights])
 
   const activitySlices = useMemo(() => [
     { label: 'Candidates', value: kpi?.candidates_added ?? 0, color: '#4f46e5' },
@@ -333,14 +329,13 @@ export function ReportsTab({ onNavigate }: { onNavigate?: (tab: string) => void 
     if (c.type === 'interviews' || c.type === 'productivity') return intTrend.length ? intTrend : undefined
     if (c.type === 'offers' || c.type === 'joining' || c.type === 'drop') return offerTrend.length ? offerTrend : undefined
     if (c.type === 'aging') return agingSeries.length ? agingSeries : undefined
-    if (c.type === 'kpi') {
+    if (c.type === 'kpi' && kpi) {
       return [
-        kpi?.candidates_added ?? 2,
-        kpi?.candidates_screened ?? 2,
-        kpi?.submissions ?? 1,
-        kpi?.interviews_scheduled ?? 1,
-        kpi?.offers_active ?? 1,
-        kpi?.candidates_added ?? 2,
+        kpi.candidates_added ?? 0,
+        kpi.candidates_screened ?? 0,
+        kpi.submissions ?? 0,
+        kpi.interviews_scheduled ?? 0,
+        kpi.offers_active ?? 0,
       ]
     }
     return undefined
@@ -348,13 +343,15 @@ export function ReportsTab({ onNavigate }: { onNavigate?: (tab: string) => void 
 
   const cardSlices = (c: ReportDef) => {
     if (c.visual === 'funnel' || c.type === 'funnel') return funnelStages
-    if (c.type === 'sources' || c.type === 'joining') return sourceSlices
+    if (c.type === 'sources' || c.type === 'joining') return sourceSlices.length ? sourceSlices : undefined
     if (c.type === 'offers') {
-      return [
-        { label: 'Active', value: kpi?.offers_active ?? 0, color: '#0ea5e9' },
-        { label: 'Accepted', value: Math.round(((insights?.offer_acceptance_rate ?? 0) / 100) * (kpi?.offers_active ?? 1)), color: '#059669' },
-        { label: 'Other', value: 1, color: '#94a3b8' },
-      ]
+      const active = kpi?.offers_active ?? 0
+      const accepted = Math.round(((insights?.offer_acceptance_rate ?? 0) / 100) * active)
+      const slices = [
+        { label: 'Active', value: active, color: '#0ea5e9' },
+        { label: 'Accepted', value: accepted, color: '#059669' },
+      ].filter(s => s.value > 0)
+      return slices.length ? slices : undefined
     }
     return undefined
   }
@@ -398,7 +395,7 @@ export function ReportsTab({ onNavigate }: { onNavigate?: (tab: string) => void 
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
             <p className="text-[11px] font-extrabold uppercase tracking-widest text-indigo-600">Dashboard Summary</p>
-            <p className="text-sm font-extrabold text-slate-900">Last 30 days · live tenant data</p>
+            <p className="text-sm font-extrabold text-slate-900">Last {kpiDays} days · live tenant data only (no estimates)</p>
           </div>
           <button
             type="button"
@@ -441,7 +438,7 @@ export function ReportsTab({ onNavigate }: { onNavigate?: (tab: string) => void 
               </div>
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <p className="text-xs font-extrabold text-slate-800 mb-2">Interview trend</p>
-                <AreaTrendChart series={intTrend.length ? intTrend : [0, 1, 0, 2, 1]} color="#d97706" height={110} />
+                <AreaTrendChart series={intTrend} color="#d97706" height={110} />
               </div>
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col items-center justify-center">
                 <p className="text-xs font-extrabold text-slate-800 mb-1 self-start">Time to hire</p>
@@ -469,7 +466,11 @@ export function ReportsTab({ onNavigate }: { onNavigate?: (tab: string) => void 
               />
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <p className="text-sm font-extrabold text-slate-900 mb-3">Source mix</p>
-                <ReportCardVisual kind="donut" color="#14b8a6" slices={sourceSlices} />
+                {sourceSlices.length > 0 ? (
+                  <ReportCardVisual kind="donut" color="#14b8a6" slices={sourceSlices} />
+                ) : (
+                  <p className="text-[11px] text-slate-400 text-center py-8">No source data yet</p>
+                )}
                 {(insights?.aging?.length ?? 0) > 0 && (
                   <div className="mt-4 pt-3 border-t border-slate-100">
                     <p className="text-xs font-extrabold text-slate-700 mb-2">Aging buckets</p>
