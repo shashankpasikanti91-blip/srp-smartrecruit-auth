@@ -5077,6 +5077,19 @@ export default function DashboardPage() {
             if (c) setSelectedCandidate(c)
           }}
           onNavigate={(tab) => setActiveTab(tab as DashboardTab)}
+          onGeneratePosts={(job) => {
+            const matched = jobs.find(j => j.id === job.id) ?? selectedJobView
+            openJobDetails({
+              ...matched,
+              id: job.id,
+              title: job.title || matched.title,
+              company: job.company ?? matched.company,
+              location: job.location ?? matched.location,
+              type: job.type ?? matched.type,
+              description: job.description ?? matched.description,
+              requirements: job.requirements ?? matched.requirements,
+            })
+          }}
         />
       )}
 

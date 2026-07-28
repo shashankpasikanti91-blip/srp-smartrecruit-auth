@@ -100,49 +100,71 @@ export function NewJobModal({
     )
   }
 
+  const applyParsedFields = (f: Record<string, unknown>, text: string, clientName?: string) => {
+    setForm(p => ({
+      ...p,
+      title: (f.title as string) || p.title,
+      company: (f.company as string) || p.company || clientName || '',
+      location: (f.location as string) || p.location,
+      department: (f.department as string) || p.department,
+      type: (f.type as string) || p.type,
+      contract_duration: (f.contract_duration as string) || p.contract_duration,
+      experience_min: f.experience_min != null ? String(f.experience_min) : p.experience_min,
+      experience_max: f.experience_max != null ? String(f.experience_max) : p.experience_max,
+      salary_min: f.salary_min != null ? String(f.salary_min) : p.salary_min,
+      salary_max: f.salary_max != null ? String(f.salary_max) : p.salary_max,
+      currency: (f.currency as string) || p.currency,
+      description: (f.description as string) || p.description,
+      requirements: (f.requirements as string) || p.requirements,
+      optional_requirements: (f.optional_requirements as string) || p.optional_requirements,
+      raw_jd_text: (f.raw_jd_text as string) || text,
+      skills_mandatory: Array.isArray(f.skills_mandatory) && f.skills_mandatory.length
+        ? (f.skills_mandatory as string[])
+        : p.skills_mandatory,
+      skills_required: Array.isArray(f.skills_required) && f.skills_required.length
+        ? (f.skills_required as string[])
+        : p.skills_required,
+      priority: (f.priority as string) || p.priority,
+      headcount: f.headcount != null ? String(f.headcount) : p.headcount,
+      candidate_type: (f.candidate_type as string) || p.candidate_type,
+      max_budget: f.max_budget != null ? String(f.max_budget) : p.max_budget,
+    }))
+  }
+
+  const parseJdText = async (
+    text: string,
+    mode: 'ai' | 'manual',
+    opts?: { silent?: boolean }
+  ): Promise<Record<string, unknown> | null> => {
+    if (!text.trim()) {
+      if (!opts?.silent) setError('Paste the JD text first')
+      return null
+    }
+    const res = await fetch('/api/jobs/parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, mode }),
+    })
+    const data = await res.json()
+    if (!res.ok && !data.fields) {
+      if (!opts?.silent) setError(data.error ?? 'Parse failed')
+      return null
+    }
+    return (data.fields ?? {}) as Record<string, unknown>
+  }
+
   const parseJd = async (mode: 'ai' | 'manual') => {
     const text = form.raw_jd_text || form.description
-    if (!text.trim()) { setError('Paste the JD text first'); return }
     setParsing(true)
     setError(null)
     setMsg(null)
     try {
-      const res = await fetch('/api/jobs/parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, mode }),
-      })
-      const data = await res.json()
-      if (!res.ok && !data.fields) {
-        setError(data.error ?? 'Parse failed')
-        return
-      }
-      const f = data.fields ?? {}
-      setForm(p => ({
-        ...p,
-        title: f.title || p.title,
-        company: f.company || p.company || selectedClient?.name || '',
-        location: f.location || p.location,
-        department: f.department || p.department,
-        type: f.type || p.type,
-        contract_duration: f.contract_duration || p.contract_duration,
-        experience_min: f.experience_min != null ? String(f.experience_min) : p.experience_min,
-        experience_max: f.experience_max != null ? String(f.experience_max) : p.experience_max,
-        salary_min: f.salary_min != null ? String(f.salary_min) : p.salary_min,
-        salary_max: f.salary_max != null ? String(f.salary_max) : p.salary_max,
-        currency: f.currency || p.currency,
-        description: f.description || p.description,
-        requirements: f.requirements || p.requirements,
-        optional_requirements: f.optional_requirements || p.optional_requirements,
-        raw_jd_text: f.raw_jd_text || text,
-        skills_mandatory: f.skills_mandatory?.length ? f.skills_mandatory : p.skills_mandatory,
-        skills_required: f.skills_required?.length ? f.skills_required : p.skills_required,
-        priority: f.priority || p.priority,
-        headcount: f.headcount != null ? String(f.headcount) : p.headcount,
-        candidate_type: f.candidate_type || p.candidate_type,
-        max_budget: f.max_budget != null ? String(f.max_budget) : p.max_budget,
-      }))
-      setMsg(data.message ?? (mode === 'ai' ? 'Parsed with AI — review fields.' : 'Text kept without AI.'))
+      const f = await parseJdText(text, mode)
+      if (!f) return
+      applyParsedFields(f, text, selectedClient?.name)
+      setMsg(mode === 'ai'
+        ? 'Parsed with AI — About Role, Responsibilities, Requirements & Skills filled. Review then Create.'
+        : 'Text kept without AI.')
     } catch {
       setError('Network error')
     } finally {
@@ -153,14 +175,27 @@ export function NewJobModal({
   const onFile = async (file: File) => {
     setParsing(true)
     setError(null)
+    setMsg(null)
     try {
       const fd = new FormData()
       fd.append('file', file)
       const res = await fetch('/api/parse', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Could not read file'); return }
-      setForm(p => ({ ...p, raw_jd_text: data.text || '', description: p.description }))
-      setMsg(`Loaded "${file.name}" — raw JD saved. Click Parse with AI to fill recruiter fields.`)
+      const text = String(data.text || '')
+      setForm(p => ({ ...p, raw_jd_text: text }))
+      if (text.trim().length < 40) {
+        setMsg(`Loaded "${file.name}" — raw JD saved (short). Add more text or parse manually.`)
+        return
+      }
+      setMsg(`Loaded "${file.name}" — parsing JD into recruiter fields…`)
+      const f = await parseJdText(text, 'ai', { silent: true })
+      if (f) {
+        applyParsedFields(f, text, selectedClient?.name)
+        setMsg(`Loaded & parsed "${file.name}" — review About Role, Requirements & Skills, then Create.`)
+      } else {
+        setMsg(`Loaded "${file.name}" — raw JD saved. Click Parse with AI if fields look empty.`)
+      }
     } catch {
       setError('File upload failed')
     } finally {
@@ -169,7 +204,6 @@ export function NewJobModal({
   }
 
   const save = async (generatePosts = false) => {
-    if (!form.title.trim()) { setError('Job title is required'); return }
     if (generatePosts && selectedPlatforms.length === 0) {
       setError('Select at least one channel (Email, LinkedIn, WhatsApp…) for post generation')
       return
@@ -177,23 +211,64 @@ export function NewJobModal({
     setSaving(true)
     setError(null)
     try {
+      let working = { ...form }
+      const rawJd = (working.raw_jd_text || '').trim() || (working.description || '').trim() || null
+      const needsParse = Boolean(rawJd && rawJd.length >= 40 && (!working.description.trim() || !working.requirements.trim()))
+      if (needsParse) {
+        setMsg('Parsing JD before save…')
+        const f = await parseJdText(rawJd!, 'ai', { silent: true })
+        if (f) {
+          working = {
+            ...working,
+            title: (f.title as string) || working.title,
+            company: (f.company as string) || working.company || selectedClient?.name || '',
+            location: (f.location as string) || working.location,
+            department: (f.department as string) || working.department,
+            type: (f.type as string) || working.type,
+            contract_duration: (f.contract_duration as string) || working.contract_duration,
+            experience_min: f.experience_min != null ? String(f.experience_min) : working.experience_min,
+            experience_max: f.experience_max != null ? String(f.experience_max) : working.experience_max,
+            salary_min: f.salary_min != null ? String(f.salary_min) : working.salary_min,
+            salary_max: f.salary_max != null ? String(f.salary_max) : working.salary_max,
+            currency: (f.currency as string) || working.currency,
+            description: (f.description as string) || working.description,
+            requirements: (f.requirements as string) || working.requirements,
+            optional_requirements: (f.optional_requirements as string) || working.optional_requirements,
+            raw_jd_text: (f.raw_jd_text as string) || rawJd!,
+            skills_mandatory: Array.isArray(f.skills_mandatory) && f.skills_mandatory.length
+              ? (f.skills_mandatory as string[])
+              : working.skills_mandatory,
+            skills_required: Array.isArray(f.skills_required) && f.skills_required.length
+              ? (f.skills_required as string[])
+              : working.skills_required,
+            priority: (f.priority as string) || working.priority,
+            headcount: f.headcount != null ? String(f.headcount) : working.headcount,
+            candidate_type: (f.candidate_type as string) || working.candidate_type,
+            max_budget: f.max_budget != null ? String(f.max_budget) : working.max_budget,
+          }
+          setForm(working)
+        }
+      }
+      if (!working.title.trim()) {
+        setError('Job title is required — paste/upload a JD and wait for parse, or type a title')
+        return
+      }
       // Always keep the original pasted/uploaded JD alongside structured fields
-      const rawJd = (form.raw_jd_text || '').trim() || (form.description || '').trim() || null
       const payload = {
-        ...form,
-        company: form.company || selectedClient?.name || '',
-        client_id: form.client_id || null,
-        salary_min: form.salary_min || null,
-        salary_max: form.salary_max || null,
-        experience_min: form.experience_min || null,
-        experience_max: form.experience_max || null,
-        headcount: form.headcount || 1,
-        target_cv_submissions: form.target_cv_submissions || null,
-        internal_sla_days: form.internal_sla_days || 10,
-        max_budget: form.max_budget || null,
+        ...working,
+        company: working.company || selectedClient?.name || '',
+        client_id: working.client_id || null,
+        salary_min: working.salary_min || null,
+        salary_max: working.salary_max || null,
+        experience_min: working.experience_min || null,
+        experience_max: working.experience_max || null,
+        headcount: working.headcount || 1,
+        target_cv_submissions: working.target_cv_submissions || null,
+        internal_sla_days: working.internal_sla_days || 10,
+        max_budget: working.max_budget || null,
         raw_jd_text: rawJd,
-        ai_generated: Boolean(rawJd && form.title),
-        tags: form.skills_mandatory,
+        ai_generated: Boolean(rawJd && working.title),
+        tags: working.skills_mandatory,
       }
       const res = await fetch('/api/jobs', {
         method: 'POST',
@@ -306,7 +381,7 @@ export function NewJobModal({
               </button>
             </div>
             <p className="text-[11px] font-medium text-slate-500">
-              Parse fills About Role, Responsibilities, Requirements, Key Skills, Location, Type & Budget. The original raw JD is always saved with the job.
+              Upload auto-parses the JD. Or paste text and click Parse with AI. Fields fill for About Role, Responsibilities, Requirements, Key Skills, Location, Type & Budget. Raw JD is always saved. Create also auto-parses if those fields are still empty.
             </p>
             {form.raw_jd_text.trim().length > 40 && (
               <details className="rounded-lg border border-slate-200 bg-white px-3 py-2">
