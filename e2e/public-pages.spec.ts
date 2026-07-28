@@ -3,8 +3,8 @@ import { test, expect } from '@playwright/test'
 test.describe('Public pages', () => {
   test('login page renders', async ({ page }) => {
     await page.goto('/login')
-    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
-    await expect(page.getByText('Sign in to continue to SmartRecruit')).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Sign in/i })).toBeVisible()
+    await expect(page.getByText(/Welcome back/i)).toBeVisible()
   })
 
   test('signup page renders', async ({ page }) => {
