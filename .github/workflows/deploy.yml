@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ΓöÇΓöÇ 1. Type-check & build locally to catch errors before SSH ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  # ╬ô├╢├ç╬ô├╢├ç 1. Type-check & build locally to catch errors before SSH ╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç
   build-check:
     name: Type Check & Build
     runs-on: ubuntu-latest
@@ -37,7 +37,7 @@ jobs:
           NEXTAUTH_URL: https://recruit.srpailabs.com
         run: npm run build
 
-  # ΓöÇΓöÇ 2. Deploy to Hetzner & E2E ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  # ╬ô├╢├ç╬ô├╢├ç 2. Deploy to Hetzner & E2E ╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç╬ô├╢├ç
   deploy:
     name: Deploy & E2E
     runs-on: ubuntu-latest
@@ -79,7 +79,7 @@ jobs:
             echo "=== [0/5] If app is down, start existing image immediately ==="
             HTTP_NOW=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3010/api/health 2>/dev/null || echo "000")
             if [ "$HTTP_NOW" != "200" ]; then
-              echo "Health is $HTTP_NOW — bringing up existing containers (DB untouched)"
+              echo "Health is $HTTP_NOW ΓÇö bringing up existing containers (DB untouched)"
               docker compose up -d || true
               sleep 5
             fi
@@ -90,7 +90,7 @@ jobs:
             git reset --hard origin/main
             git clean -fd -e uploads -e .env
 
-            echo "=== [1b/5] Pre-deploy backup (DB + uploads) — REQUIRED ==="
+            echo "=== [1b/5] Pre-deploy backup (DB + uploads) ΓÇö REQUIRED ==="
             # Install/refresh backup helper from repo (additive; never deletes tenants)
             sudo cp /opt/srp-smartrecruit-auth/scripts/srp-backup.sh /usr/local/bin/srp-backup
             sudo chmod +x /usr/local/bin/srp-backup
@@ -126,7 +126,7 @@ jobs:
                   < "/opt/srp-smartrecruit-auth/db/$f"
               fi
             done
-            # Tracked OS migrations v0 + v14–v27 (auth_users count must stay stable)
+            # Tracked OS migrations v0 + v14ΓÇôv27 (auth_users count must stay stable)
             chmod +x /opt/srp-smartrecruit-auth/scripts/apply-tracked-migrations.sh
             APP_DIR=/opt/srp-smartrecruit-auth /opt/srp-smartrecruit-auth/scripts/apply-tracked-migrations.sh
 
@@ -135,7 +135,7 @@ jobs:
               "SELECT email, is_active, (password_hash IS NOT NULL) AS has_password FROM auth_users WHERE email IN ('demo@srpailabs.com','pasikantishashank24@gmail.com','hareesh4u22@gmail.com','priyapasikanti0@gmail.com') ORDER BY email;"
 
             echo "=== [3/5] Build app image (DB stays up; keep serving until recreate) ==="
-            # Do NOT stop app before build — previous timeout left site 502
+            # Do NOT stop app before build ΓÇö previous timeout left site 502
             docker compose build app
 
             echo "=== [4/5] Recreate app container only ==="
@@ -150,7 +150,7 @@ jobs:
                 echo "Next.js healthy (attempt $i)"
                 HEALTHY=1; break
               fi
-              echo "   Attempt $i/40 — HTTP $HTTP"
+              echo "   Attempt $i/40 ΓÇö HTTP $HTTP"
               sleep 4
             done
             [ "$HEALTHY" -eq 1 ] || { echo "Next.js never became healthy"; docker logs srp-auth-app --tail 80 || true; exit 1; }
@@ -163,15 +163,15 @@ jobs:
             NGINX_CONF="/etc/nginx/sites-available/recruit.srpailabs.com"
             if [ -f "$NGINX_CONF" ]; then
               cp /opt/srp-smartrecruit-auth/deployment/recruit.srpailabs.com.nginx "$NGINX_CONF"
-              nginx -t 2>&1 && sudo systemctl reload nginx && echo "Γ£à Nginx config updated" \
-                || echo "ΓÜá∩╕Å Nginx config test failed ΓÇö keeping old config"
+              nginx -t 2>&1 && sudo systemctl reload nginx && echo "╬ô┬ú├á Nginx config updated" \
+                || echo "╬ô├£├íΓê⌐Γòò├à Nginx config test failed ╬ô├ç├╢ keeping old config"
             else
-              echo "ΓÜá∩╕Å Nginx site config not found at $NGINX_CONF ΓÇö skipping update"
+              echo "╬ô├£├íΓê⌐Γòò├à Nginx site config not found at $NGINX_CONF ╬ô├ç├╢ skipping update"
             fi
 
-            echo "Γ£à Frontend deploy complete"
+            echo "╬ô┬ú├á Frontend deploy complete"
 
-      # ΓöÇΓöÇ E2E: HTTP checks against live HTTPS domain (no SSH needed) ΓöÇΓöÇ
+      # ╬ô├╢├ç╬ô├╢├ç E2E: HTTP checks against live HTTPS domain (no SSH needed) ╬ô├╢├ç╬ô├╢├ç
       - name: Run HTTPS E2E checks
         run: |
           python3 - << 'PYEOF'
@@ -212,10 +212,14 @@ jobs:
           get("/api/auth/csrf",         200)
           get("/api/auth/providers",    200)
           get("/api/auth/me",           [400, 401, 403, 405])
-          get("/api/resume/list",       [401, 403, 405])
-          get("/api/support/tickets",   [401, 403, 405])
-          get("/api/screening/results", [401, 403, 405])
+          get("/api/health",            200)
+          get("/api/jobs",              [401, 403])
+          get("/api/jd",                [401, 403])
+          # Legacy FastAPI paths may 404 when nginx routes /api to Next.js
+          get("/api/resume/list",       [401, 403, 404, 405])
+          get("/api/support/tickets",   [401, 403, 404, 405])
+          get("/api/screening/results", [401, 403, 404, 405])
 
-          print(f"\n{'Γ£à All checks passed!' if not failures else 'Γ¥î FAILED: ' + str(failures)}")
+          print(f"\n{'╬ô┬ú├á All checks passed!' if not failures else '╬ô┬Ñ├« FAILED: ' + str(failures)}")
           sys.exit(1 if failures else 0)
           PYEOF
