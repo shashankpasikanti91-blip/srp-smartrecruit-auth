@@ -168,7 +168,8 @@ find "${BACKUP_ROOT}" -mindepth 1 -maxdepth 1 -type d \
   && ok "Old local backups pruned (kept last ${KEEP_DAYS} days)" \
   || true
 
-# ── 7. Optional Supabase offsite upload ──────────────────────────────────────
+# ── 7. Optional Supabase offsite upload (NEVER fails local backup) ───────────
+# Local Auth dump is the deploy gate. Cloud/email are best-effort only.
 echo ""
 echo "${LOG_PREFIX} [7/7] Uploading to Supabase Storage (offsite)..."
 
@@ -195,7 +196,7 @@ supabase_upload() {
         -H "Content-Type: application/octet-stream" \
         -H "x-upsert: true" \
         --data-binary @"${file_path}" \
-        --max-time 300)
+        --max-time 300) || http_code="000"
 
     if [[ "$http_code" =~ ^2 ]]; then
         ok "  Cloud upload OK — ${remote_key}"
@@ -206,24 +207,40 @@ supabase_upload() {
     fi
 }
 
-if [[ -n "$SUPABASE_URL" && -n "$SUPABASE_KEY" ]]; then
+cloud_upload_section() {
+    if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_KEY" ]]; then
+        warn "Supabase not configured — only local backup was created"
+        return 0
+    fi
+
+    local BUCKET_CODE
     BUCKET_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
         -X POST \
         "${SUPABASE_URL}/storage/v1/bucket" \
         -H "Authorization: Bearer ${SUPABASE_KEY}" \
         -H "Content-Type: application/json" \
-        -d "{\"id\":\"${SUPABASE_BUCKET}\",\"name\":\"${SUPABASE_BUCKET}\",\"public\":false}")
+        -d "{\"id\":\"${SUPABASE_BUCKET}\",\"name\":\"${SUPABASE_BUCKET}\",\"public\":false}" \
+        --max-time 30) || BUCKET_CODE="000"
+
     if [[ "$BUCKET_CODE" == "200" || "$BUCKET_CODE" == "409" ]]; then
         ok "Supabase bucket '${SUPABASE_BUCKET}' ready"
     else
         warn "Could not ensure bucket exists (HTTP ${BUCKET_CODE}) — will still attempt upload"
     fi
 
-    UPLOAD_ERRORS=0
-    [[ -f "${BACKUP_DIR}/ats_database.dump" ]] && supabase_upload "${BACKUP_DIR}/ats_database.dump" "ats_database.dump" || true
-    supabase_upload "${BACKUP_DIR}/auth_database.dump" "auth_database.dump" || UPLOAD_ERRORS=$((UPLOAD_ERRORS+1))
-    [[ -f "${BACKUP_DIR}/uploads.tar.gz" ]] && supabase_upload "${BACKUP_DIR}/uploads.tar.gz" "uploads.tar.gz" || true
-    [[ -f "${BACKUP_DIR}/auth_uploads.tar.gz" ]] && supabase_upload "${BACKUP_DIR}/auth_uploads.tar.gz" "auth_uploads.tar.gz" || true
+    local UPLOAD_ERRORS=0
+    if [[ -f "${BACKUP_DIR}/ats_database.dump" ]]; then
+        supabase_upload "${BACKUP_DIR}/ats_database.dump" "ats_database.dump" || true
+    fi
+    if ! supabase_upload "${BACKUP_DIR}/auth_database.dump" "auth_database.dump"; then
+        UPLOAD_ERRORS=$((UPLOAD_ERRORS + 1))
+    fi
+    if [[ -f "${BACKUP_DIR}/uploads.tar.gz" ]]; then
+        supabase_upload "${BACKUP_DIR}/uploads.tar.gz" "uploads.tar.gz" || true
+    fi
+    if [[ -f "${BACKUP_DIR}/auth_uploads.tar.gz" ]]; then
+        supabase_upload "${BACKUP_DIR}/auth_uploads.tar.gz" "auth_uploads.tar.gz" || true
+    fi
     supabase_upload "${BACKUP_DIR}/manifest.json" "manifest.json" || true
 
     if [[ $UPLOAD_ERRORS -eq 0 ]]; then
@@ -232,19 +249,21 @@ if [[ -n "$SUPABASE_URL" && -n "$SUPABASE_KEY" ]]; then
     else
         warn "Auth dump cloud upload failed — local backup still intact"
     fi
-else
-    warn "Supabase not configured — only local backup was created"
-fi
+}
+
+cloud_upload_section || warn "Cloud upload section errored — local backup still intact"
 
 # ── Email notification (best-effort) ─────────────────────────────────────────
-if [[ -n "$SMTP_HOST" && -n "$SMTP_USER" && -n "$SMTP_PASS" && -n "$OWNER_EMAIL" ]]; then
+email_notify_section() {
+    [[ -n "$SMTP_HOST" && -n "$SMTP_USER" && -n "$SMTP_PASS" && -n "$OWNER_EMAIL" ]] || return 0
     echo ""
+    local TOTAL_SIZE
     TOTAL_SIZE=$(du -sh "${BACKUP_DIR}" | cut -f1)
-    CLOUD_STATUS="Uploaded to Supabase Storage"
+    local CLOUD_STATUS="Uploaded to Supabase Storage"
     [[ $CLOUD_UPLOAD_OK -eq 0 ]] && CLOUD_STATUS="Cloud upload skipped/failed — local only"
 
-    SUBJECT="SRP SmartRecruit Backup — ${DATE}"
-    BODY="SRP SmartRecruit Backup Report
+    local SUBJECT="SRP SmartRecruit Backup — ${DATE}"
+    local BODY="SRP SmartRecruit Backup Report
 
 Date:         ${DATE} UTC
 Local path:   ${BACKUP_DIR}
@@ -258,7 +277,7 @@ Files:
 
 Retention: ${KEEP_DAYS} days local. No tenant data deleted."
 
-    curl -s \
+    if curl -s \
         --url "smtp://${SMTP_HOST}:${SMTP_PORT}" \
         --ssl-reqd \
         --mail-from "${SMTP_USER}" \
@@ -266,10 +285,19 @@ Retention: ${KEEP_DAYS} days local. No tenant data deleted."
         --user "${SMTP_USER}:${SMTP_PASS}" \
         -T <(printf "From: SRP Backup <%s>\r\nTo: %s\r\nSubject: %s\r\n\r\n%s\r\n" \
             "${SMTP_USER}" "${OWNER_EMAIL}" "${SUBJECT}" "${BODY}") \
-        2>/dev/null \
-    && { EMAIL_SENT=1; ok "Email notification sent to ${OWNER_EMAIL}"; } \
-    || warn "Email notification failed (backup is still fine)"
-fi
+        2>/dev/null; then
+        EMAIL_SENT=1
+        ok "Email notification sent to ${OWNER_EMAIL}"
+    else
+        warn "Email notification failed (backup is still fine)"
+    fi
+}
+
+email_notify_section || warn "Email notify section errored — local backup still intact"
+
+# Require local Auth dump — this is the deploy rollback point
+[[ -f "${BACKUP_DIR}/auth_database.dump" ]] || fail "Auth database dump missing after backup"
+[[ -s "${BACKUP_DIR}/auth_database.dump" ]] || fail "Auth database dump is empty"
 
 echo ""
 TOTAL_SIZE=$(du -sh "${BACKUP_DIR}" | cut -f1)
@@ -285,4 +313,5 @@ echo "  Size:         ${TOTAL_SIZE}"
 echo "  Local copies: ${BACKUP_COUNT} (${KEEP_DAYS}-day retention)"
 echo "  Cloud:        ${CLOUD_MSG}"
 echo "  Email:        ${EMAIL_MSG}"
+echo "  Rollback:     ${BACKUP_DIR}/auth_database.dump"
 echo "========================================================"
