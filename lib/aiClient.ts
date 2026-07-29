@@ -40,10 +40,27 @@ export type ChatCompletionOptions = {
   signal?: AbortSignal
 }
 
-export async function chatCompletion(opts: ChatCompletionOptions): Promise<string> {
+export type ChatCompletionResult = {
+  content: string
+  model: string
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  duration_ms: number
+}
+
+/** Rough USD estimate for gpt-4o-mini / OpenRouter mini-class models. */
+export function estimateTokenCostUsd(promptTokens: number, completionTokens: number): number {
+  const input = (promptTokens / 1_000_000) * 0.15
+  const output = (completionTokens / 1_000_000) * 0.6
+  return Math.round((input + output) * 1_000_000) / 1_000_000
+}
+
+export async function chatCompletionWithUsage(opts: ChatCompletionOptions): Promise<ChatCompletionResult> {
   const cfg = getAIConfig()
   if (!cfg) throw new Error('AI not configured — set OPENAI_API_KEY in .env')
 
+  const started = Date.now()
   const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -72,8 +89,29 @@ export async function chatCompletion(opts: ChatCompletionOptions): Promise<strin
     throw new Error(`AI API ${res.status}: ${message}`)
   }
 
-  const data = await res.json()
-  return data.choices?.[0]?.message?.content ?? ''
+  const data = await res.json() as {
+    choices?: { message?: { content?: string } }[]
+    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+    model?: string
+  }
+  const prompt_tokens = Number(data.usage?.prompt_tokens ?? 0)
+  const completion_tokens = Number(data.usage?.completion_tokens ?? 0)
+  const total_tokens = Number(data.usage?.total_tokens ?? prompt_tokens + completion_tokens)
+
+  return {
+    content: data.choices?.[0]?.message?.content ?? '',
+    model: data.model || cfg.model,
+    prompt_tokens,
+    completion_tokens,
+    total_tokens,
+    duration_ms: Date.now() - started,
+  }
+}
+
+/** Backward-compatible: returns content string only. */
+export async function chatCompletion(opts: ChatCompletionOptions): Promise<string> {
+  const result = await chatCompletionWithUsage(opts)
+  return result.content
 }
 
 /** Safe status for health checks — never exposes the key. */

@@ -460,24 +460,59 @@ export async function getAllSubscriptions() {
 // ─────────────────────────── Token Usage ─────────────────────────────────────
 
 export async function logTokenUsage(entry: {
-  user_id: string; model: string; operation: string
-  prompt_tokens: number; completion_tokens: number
-  cost_usd: number; metadata?: Record<string, unknown>
+  user_id: string
+  tenant_id?: string | null
+  model: string
+  operation: string
+  prompt_tokens: number
+  completion_tokens: number
+  cost_usd: number
+  metadata?: Record<string, unknown>
 }): Promise<void> {
-  await pool.query(
-    `INSERT INTO token_usage (user_id, model, operation, prompt_tokens, completion_tokens, cost_usd, metadata)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [entry.user_id, entry.model, entry.operation, entry.prompt_tokens,
-     entry.completion_tokens, entry.cost_usd, entry.metadata ?? null]
-  )
+  try {
+    await pool.query(
+      `INSERT INTO token_usage (user_id, tenant_id, model, operation, prompt_tokens, completion_tokens, cost_usd, metadata)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [entry.user_id, entry.tenant_id ?? null, entry.model, entry.operation, entry.prompt_tokens,
+       entry.completion_tokens, entry.cost_usd, entry.metadata ? JSON.stringify(entry.metadata) : null]
+    )
+  } catch (err) {
+    // Fallback if tenant_id column missing on older DBs
+    try {
+      await pool.query(
+        `INSERT INTO token_usage (user_id, model, operation, prompt_tokens, completion_tokens, cost_usd, metadata)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [entry.user_id, entry.model, entry.operation, entry.prompt_tokens,
+         entry.completion_tokens, entry.cost_usd, entry.metadata ? JSON.stringify(entry.metadata) : null]
+      )
+    } catch (err2) {
+      console.error('[logTokenUsage]', err2)
+    }
+  }
 }
 
 export async function getTokenStats() {
   const { rows } = await pool.query(
-    `SELECT user_id, model, operation, prompt_tokens, completion_tokens, cost_usd, created_at
+    `SELECT user_id, tenant_id, model, operation, prompt_tokens, completion_tokens, cost_usd, metadata, created_at
      FROM token_usage ORDER BY created_at DESC LIMIT 1000`
   )
-  return rows
+  let summary = {
+    total_requests: rows.length,
+    total_tokens: 0,
+    estimated_cost_usd: 0,
+    by_operation: {} as Record<string, number>,
+    by_tenant: {} as Record<string, number>,
+  }
+  for (const r of rows) {
+    const tokens = Number(r.prompt_tokens || 0) + Number(r.completion_tokens || 0)
+    summary.total_tokens += tokens
+    summary.estimated_cost_usd += Number(r.cost_usd || 0)
+    const op = String(r.operation || 'unknown')
+    summary.by_operation[op] = (summary.by_operation[op] || 0) + 1
+    const tid = String(r.tenant_id || 'unknown')
+    summary.by_tenant[tid] = (summary.by_tenant[tid] || 0) + 1
+  }
+  return { rows, summary }
 }
 
 // ─────────────────────────── Activity Log ────────────────────────────────────
@@ -628,10 +663,13 @@ export async function getAdminPlatformHealth() {
   const [snapshot, failedLoginsRes, activeSessionsRes, pendingInvitesRes] = await Promise.all([
     collectPlatformHealth(),
     pool.query<{ count: string }>(
-      `SELECT COUNT(*) FROM login_events WHERE success = FALSE AND created_at >= NOW() - interval '7 days'`
+      `SELECT COUNT(*) FROM login_history WHERE success = FALSE AND created_at >= NOW() - interval '7 days'`
     ).catch(() => ({ rows: [{ count: '0' }] })),
     pool.query<{ count: string }>(
-      `SELECT COUNT(*) FROM user_sessions WHERE is_active = TRUE`
+      `SELECT COUNT(*) FROM tenant_members
+       WHERE invite_accepted = TRUE
+         AND last_active_at IS NOT NULL
+         AND last_active_at >= NOW() - interval '15 minutes'`
     ).catch(() => ({ rows: [{ count: '0' }] })),
     pool.query<{ count: string }>(
       `SELECT COUNT(*) FROM tenant_members WHERE invite_accepted = FALSE`

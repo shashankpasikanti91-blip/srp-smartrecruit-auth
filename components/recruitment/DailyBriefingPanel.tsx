@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, RefreshCw, Sun } from 'lucide-react'
+import {
+  Calendar, FileWarning, Loader2, RefreshCw, Sparkles, Sun, Target, Zap,
+} from 'lucide-react'
 
 type Briefing = {
   date?: string
@@ -51,22 +53,12 @@ export function DailyBriefingPanel({
 
   useEffect(() => { load() }, [load])
 
-  const rows: { label: string; value: string; tab?: string }[] = data
-    ? [
-        { label: 'New candidates', value: String(data.new_candidates ?? 0), tab: 'candidates' },
-        { label: 'Interviews today', value: String(data.pending_interviews?.length ?? 0), tab: 'interviews' },
-        { label: 'Waiting feedback', value: String(data.waiting_feedback?.length ?? 0), tab: 'interviews' },
-        { label: 'Offers pending', value: String(data.offers_pending?.length ?? 0), tab: 'selected' },
-        { label: 'Joining this week', value: String(data.joining_this_week?.length ?? 0), tab: 'selected' },
-        { label: 'Visa expiry (30d)', value: String(data.expiring_visas?.length ?? 0), tab: 'candidates' },
-        { label: 'Missing documents', value: String(data.missing_documents ?? 0), tab: 'documents' },
-        {
-          label: 'Your week',
-          value: `${data.recruiter_performance?.submissions ?? 0} sub · ${data.recruiter_performance?.interviews_scheduled ?? 0} int · ${data.recruiter_performance?.offers_active ?? 0} offers`,
-          tab: 'performance',
-        },
-      ]
-    : []
+  const interviewNames = [
+    ...(data?.pending_interviews ?? []).map(i => i.candidate_name).filter(Boolean),
+    ...(data?.waiting_feedback ?? []).map(i => i.candidate_name).filter(Boolean),
+  ].slice(0, 4) as string[]
+
+  const followUps = data?.recruiter_performance?.follow_ups_overdue ?? 0
 
   return (
     <div className={`ess-panel overflow-hidden ${className}`}>
@@ -89,47 +81,120 @@ export function DailyBriefingPanel({
       ) : (
         <div className="p-4 space-y-3">
           {data?.narrative && (
-            <pre className="text-xs font-medium text-slate-700 whitespace-pre-wrap bg-amber-50/80 border border-amber-100 rounded-xl p-3">
+            <pre className="text-xs font-medium text-slate-700 whitespace-pre-wrap bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-100 rounded-xl p-3">
               {data.narrative}
             </pre>
           )}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            {rows.map(r => (
-              <button
-                key={r.label}
-                type="button"
-                onClick={() => r.tab && onNavigate?.(r.tab)}
-                className="text-left rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2.5 hover:border-indigo-200 hover:bg-indigo-50/40 transition-colors"
-              >
-                <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">{r.label}</p>
-                <p className="text-sm font-extrabold text-slate-900 mt-0.5">{r.value}</p>
+
+          <div className="briefing-grid">
+            <div className="briefing-section">
+              <p className="briefing-section__title"><Target className="w-3.5 h-3.5 text-blue-600" /> Today&apos;s priorities</p>
+              <ul className="space-y-1.5 text-sm font-semibold text-slate-800">
+                <li className="flex justify-between gap-2">
+                  <span>New candidates</span>
+                  <button type="button" className="tabular-nums text-blue-700 font-extrabold" onClick={() => onNavigate?.('candidates')}>{data?.new_candidates ?? 0}</button>
+                </li>
+                <li className="flex justify-between gap-2">
+                  <span>Offers pending</span>
+                  <button type="button" className="tabular-nums text-emerald-700 font-extrabold" onClick={() => onNavigate?.('selected')}>{data?.offers_pending?.length ?? 0}</button>
+                </li>
+                <li className="flex justify-between gap-2">
+                  <span>Joining this week</span>
+                  <span className="tabular-nums font-extrabold">{data?.joining_this_week?.length ?? 0}</span>
+                </li>
+                <li className="flex justify-between gap-2">
+                  <span>Visa expiry (30d)</span>
+                  <button type="button" className="tabular-nums text-rose-700 font-extrabold" onClick={() => onNavigate?.('candidates')}>{data?.expiring_visas?.length ?? 0}</button>
+                </li>
+              </ul>
+            </div>
+
+            <div className="briefing-section">
+              <p className="briefing-section__title"><Calendar className="w-3.5 h-3.5 text-orange-600" /> Interviews</p>
+              {(data?.pending_interviews?.length ?? 0) + (data?.waiting_feedback?.length ?? 0) === 0 ? (
+                <p className="text-sm font-medium text-slate-500">No interviews needing attention</p>
+              ) : (
+                <ul className="space-y-1 text-sm font-semibold text-slate-800">
+                  <li className="text-xs text-slate-500 font-bold mb-1">
+                    {data?.pending_interviews?.length ?? 0} scheduled · {data?.waiting_feedback?.length ?? 0} awaiting feedback
+                  </li>
+                  {interviewNames.map((n, i) => (
+                    <li key={i} className="truncate">{n}</li>
+                  ))}
+                </ul>
+              )}
+              <button type="button" className="mt-2 text-[11px] font-extrabold text-orange-700" onClick={() => onNavigate?.('interviews')}>
+                Open interviews →
               </button>
-            ))}
+            </div>
+
+            <div className="briefing-section">
+              <p className="briefing-section__title"><FileWarning className="w-3.5 h-3.5 text-rose-600" /> Documents</p>
+              <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{data?.missing_documents ?? 0}</p>
+              <p className="text-xs font-medium text-slate-500 mt-1">Missing documents in collection</p>
+              <button type="button" className="mt-2 text-[11px] font-extrabold text-rose-700" onClick={() => onNavigate?.('documents')}>
+                Review documents →
+              </button>
+            </div>
+
+            <div className="briefing-section">
+              <p className="briefing-section__title"><Zap className="w-3.5 h-3.5 text-amber-600" /> Follow-ups</p>
+              <p className="text-2xl font-extrabold text-slate-900 tabular-nums">{followUps}</p>
+              <p className="text-xs font-medium text-slate-500 mt-1">Overdue follow-ups this week</p>
+              <p className="text-xs font-semibold text-slate-600 mt-2">
+                Week: {data?.recruiter_performance?.submissions ?? 0} sub · {data?.recruiter_performance?.interviews_scheduled ?? 0} int · {data?.recruiter_performance?.offers_active ?? 0} offers
+              </p>
+              <button type="button" className="mt-2 text-[11px] font-extrabold text-amber-700" onClick={() => onNavigate?.('followups')}>
+                Clear follow-ups →
+              </button>
+            </div>
+
+            <div className="briefing-section">
+              <p className="briefing-section__title"><Sparkles className="w-3.5 h-3.5 text-violet-600" /> AI recommendations</p>
+              {(data?.ai_recommendations?.length ?? 0) === 0 ? (
+                <p className="text-sm font-medium text-slate-500">No recommendations yet</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {data!.ai_recommendations!.slice(0, 4).map((a, i) => (
+                    <li key={i} className="text-xs font-bold text-violet-900 bg-violet-50 rounded-lg px-2.5 py-1.5 border border-violet-100">
+                      {a.title}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="briefing-section">
+              <p className="briefing-section__title"><Sun className="w-3.5 h-3.5 text-indigo-600" /> Quick actions</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: 'Candidates', tab: 'candidates' },
+                  { label: 'Jobs', tab: 'jobs' },
+                  { label: 'AI Screen', tab: 'screen' },
+                  { label: 'Performance', tab: 'performance' },
+                  { label: 'AI Hub', tab: 'coach' },
+                ].map(a => (
+                  <button
+                    key={a.tab}
+                    type="button"
+                    onClick={() => onNavigate?.(a.tab)}
+                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold border border-indigo-200 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 transition-colors"
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+              {(data?.collaborations?.length ?? 0) > 0 && (
+                <ul className="mt-3 space-y-1">
+                  {data!.collaborations!.slice(0, 2).map(c => (
+                    <li key={c.id} className="text-xs font-bold text-teal-900 bg-teal-50 rounded-lg px-2.5 py-1.5">
+                      {c.title}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-          {(data?.ai_recommendations?.length ?? 0) > 0 && (
-            <div>
-              <p className="text-xs font-extrabold text-slate-700 mb-1.5">AI recommendations</p>
-              <ul className="space-y-1">
-                {data!.ai_recommendations!.slice(0, 4).map((a, i) => (
-                  <li key={i} className="text-xs font-bold text-indigo-900 bg-indigo-50 rounded-lg px-2.5 py-1.5">
-                    {a.title}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {(data?.collaborations?.length ?? 0) > 0 && (
-            <div>
-              <p className="text-xs font-extrabold text-slate-700 mb-1.5">Agent collaborations</p>
-              <ul className="space-y-1">
-                {data!.collaborations!.map(c => (
-                  <li key={c.id} className="text-xs font-bold text-teal-900 bg-teal-50 rounded-lg px-2.5 py-1.5">
-                    {c.title}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       )}
     </div>

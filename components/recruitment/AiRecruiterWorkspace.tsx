@@ -526,9 +526,9 @@ export function AiRecruiterWorkspace({
         </div>
       </div>
 
-      {/* Premium AI tool cards — same navigation as before */}
+      {/* Premium AI tool cards — equal size, 3-col responsive */}
       {onNavigate && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+        <div className="option-card-grid">
           {TOOL_CARDS.map(m => {
             const Icon = m.icon
             const activeTool = m.id === 'coach'
@@ -537,13 +537,13 @@ export function AiRecruiterWorkspace({
                 key={m.id}
                 type="button"
                 onClick={() => onNavigate(m.id)}
-                className={`group relative text-left rounded-2xl p-4 text-white overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 ${m.ring} bg-gradient-to-br ${m.gradient} shadow-lg ${m.shadow} ${
+                className={`group relative text-left rounded-2xl p-4 text-white overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus-visible:ring-2 ${m.ring} bg-gradient-to-br ${m.gradient} shadow-lg ${m.shadow} !min-h-[128px] ${
                   activeTool ? 'ring-2 ring-offset-2 ring-indigo-400 scale-[1.01]' : ''
                 }`}
               >
                 <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-white/10" />
-                <div className="relative flex flex-col gap-3 min-h-[108px]">
-                  <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-inner">
+                <div className="relative flex flex-col gap-3 h-full min-h-[108px]">
+                  <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-inner">
                     <Icon className="w-5 h-5 text-white" />
                   </div>
                   <div>

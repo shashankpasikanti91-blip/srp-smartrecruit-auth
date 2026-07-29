@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Briefcase, Filter, Loader2, Search, Users } from 'lucide-react'
+import { Briefcase, Filter, Loader2, Search, Sparkles, Users, X } from 'lucide-react'
 import { ScrollableTable } from '@/components/dashboard/ScrollableTable'
 
 type ApiCandidate = {
@@ -29,6 +29,8 @@ function firstSkills(skills: string[] | undefined, limit = 3) {
   return skills.slice(0, limit).join(', ')
 }
 
+const SKILL_CHIPS = ['React', 'Java', 'Python', 'SAP', 'AWS', 'Node.js', '.NET', 'DevOps']
+
 export function InternalTalentPoolTab({}: {}) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -36,6 +38,7 @@ export function InternalTalentPoolTab({}: {}) {
   const [q, setQ] = useState('')
   const [skill, setSkill] = useState('')
   const [location, setLocation] = useState('')
+  const [previewId, setPreviewId] = useState<string | null>(null)
 
   const [rows, setRows] = useState<ApiCandidate[]>([])
   const [total, setTotal] = useState(0)
@@ -70,6 +73,7 @@ export function InternalTalentPoolTab({}: {}) {
   useEffect(() => { void load() }, [load])
 
   const onSearch = () => { void load() }
+  const preview = previewId ? rows.find(r => r.id === previewId) : null
 
   return (
     <div>
@@ -88,25 +92,52 @@ export function InternalTalentPoolTab({}: {}) {
         <div />
       </div>
 
-      <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm shadow-slate-900/5 mb-5 ring-1 ring-slate-950/[0.02]">
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm shadow-slate-900/5 mb-5 ring-1 ring-slate-950/[0.02]">
         <div className="flex items-center gap-2 mb-3">
           <Filter className="w-3.5 h-3.5 text-indigo-600" aria-hidden />
           <span className="text-xs font-extrabold uppercase tracking-wide text-indigo-700">Search</span>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[220px]">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-            <input
-              value={q}
-              onChange={e => setQ(e.target.value)}
-              placeholder="Search name, skill keywords, or role…"
-              className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
-            />
-          </div>
+        <div className="relative mb-3">
+          <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
+          <input
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') onSearch() }}
+            placeholder="Search name, skill keywords, or role…"
+            className="w-full pl-12 pr-4 py-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 shadow-inner"
+          />
+        </div>
 
+        <div className="flex flex-wrap gap-2 mb-3">
+          {SKILL_CHIPS.map(chip => (
+            <button
+              key={chip}
+              type="button"
+              onClick={() => setSkill(prev => prev === chip ? '' : chip)}
+              className={`px-3 py-1.5 rounded-full text-xs font-extrabold border transition-all ${
+                skill === chip
+                  ? 'bg-violet-600 text-white border-violet-600'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'
+              }`}
+            >
+              {chip}
+            </button>
+          ))}
+          {(skill || location || q) && (
+            <button
+              type="button"
+              onClick={() => { setQ(''); setSkill(''); setLocation('') }}
+              className="px-3 py-1.5 rounded-full text-xs font-extrabold border border-slate-200 text-slate-500 inline-flex items-center gap-1"
+            >
+              <X className="w-3 h-3" /> Clear
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-end gap-3 flex-wrap">
           <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Skill</span>
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Skill filter</span>
             <input
               value={skill}
               onChange={e => setSkill(e.target.value)}
@@ -129,8 +160,8 @@ export function InternalTalentPoolTab({}: {}) {
             <button
               type="button"
               onClick={onSearch}
-              disabled={!canSearch || loading}
-              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20 disabled:opacity-50"
+              disabled={loading}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20 disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Search'}
             </button>
@@ -144,15 +175,48 @@ export function InternalTalentPoolTab({}: {}) {
         </div>
       )}
 
+      {preview && (
+        <div className="mb-4 rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-extrabold text-slate-900">{preview.candidate_name}</p>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {preview.ai_score != null && (
+                  <span className="ui-badge ui-badge--purple inline-flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> AI {preview.ai_score}
+                  </span>
+                )}
+                <span className="ui-badge ui-badge--slate">{preview.pipeline_stage ?? preview.status ?? '—'}</span>
+                {safeStr((preview.candidate_profile ?? {}).visa_status) && (
+                  <span className="ui-badge ui-badge--cyan">Visa {safeStr((preview.candidate_profile ?? {}).visa_status)}</span>
+                )}
+                {safeStr((preview.candidate_profile ?? {}).availability) && (
+                  <span className="ui-badge ui-badge--green">{safeStr((preview.candidate_profile ?? {}).availability)}</span>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 mt-2">
+                Recruiter: {preview.uploaded_by?.name ?? preview.uploaded_by?.email ?? '—'}
+                {' · '}Exp: {safeStr((preview.candidate_profile ?? {}).total_experience) || '—'}
+                {' · '}Notice: {safeStr((preview.candidate_profile ?? {}).notice_period) || '—'}
+                {' · '}Salary: {safeStr((preview.candidate_profile ?? {}).expected_salary ?? (preview.candidate_profile ?? {}).current_salary) || '—'}
+              </p>
+            </div>
+            <button type="button" onClick={() => setPreviewId(null)} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center h-40">
           <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
         </div>
       ) : rows.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-60 text-center">
-          <Briefcase className="w-10 h-10 text-gray-300 mb-3" />
-          <p className="text-gray-500 mb-4">No internal candidates match your search.</p>
-          <p className="text-xs text-gray-400 max-w-xl">
+        <div className="ui-empty h-60">
+          <Briefcase className="w-10 h-10 text-gray-300" />
+          <p>No internal candidates match your search.</p>
+          <p className="text-xs text-gray-400 max-w-xl font-medium">
             Tip: try a keyword like <span className="font-semibold">React</span>, a role like <span className="font-semibold">Java Developer</span>, or a location.
           </p>
         </div>
@@ -166,8 +230,10 @@ export function InternalTalentPoolTab({}: {}) {
                 <th>Primary Skills</th>
                 <th>Experience</th>
                 <th>Location</th>
+                <th>Visa</th>
+                <th>Expected Salary</th>
                 <th>Notice</th>
-                <th className="text-center">AI Score</th>
+                <th className="text-center">AI Match</th>
                 <th>Status</th>
                 <th>Recruiter</th>
                 <th>Updated</th>
@@ -177,16 +243,18 @@ export function InternalTalentPoolTab({}: {}) {
             <tbody>
               {rows.map(c => {
                 const prof = c.candidate_profile ?? {}
-                const currentRole = safeStr((prof as Record<string, unknown>).current_title ?? (prof as Record<string, unknown>).current_role ?? '')
-                const totalExp = safeStr((prof as Record<string, unknown>).total_experience ?? '')
-                const loc = safeStr((prof as Record<string, unknown>).current_location ?? (prof as Record<string, unknown>).location ?? '')
-                const notice = safeStr((prof as Record<string, unknown>).notice_period ?? '')
+                const currentRole = safeStr(prof.current_title ?? prof.current_role ?? '')
+                const totalExp = safeStr(prof.total_experience ?? '')
+                const loc = safeStr(prof.current_location ?? prof.location ?? '')
+                const notice = safeStr(prof.notice_period ?? '')
+                const visa = safeStr(prof.visa_status ?? prof.visa ?? '')
+                const salary = safeStr(prof.expected_salary ?? prof.current_salary ?? '')
                 const updated = c.updated_at ? new Date(c.updated_at).toLocaleDateString() : '—'
                 const recruiter = c.uploaded_by?.name ?? c.uploaded_by?.email ?? '—'
                 const status = c.pipeline_stage ?? c.status ?? '—'
 
                 return (
-                  <tr key={c.id} className="hover:bg-indigo-50/30 transition-colors">
+                  <tr key={c.id} className="hover:bg-indigo-50/30 transition-colors cursor-pointer" onClick={() => setPreviewId(c.id)}>
                     <td>
                       <div className="flex flex-col">
                         <p className="font-semibold text-gray-900 text-sm">{c.candidate_name}</p>
@@ -197,19 +265,23 @@ export function InternalTalentPoolTab({}: {}) {
                     <td className="text-sm text-gray-700">{firstSkills(c.ai_skills, 3)}</td>
                     <td className="text-sm text-gray-600">{totalExp || '—'}</td>
                     <td className="text-sm text-gray-600">{loc || '—'}</td>
+                    <td className="text-sm text-gray-600">{visa || '—'}</td>
+                    <td className="text-sm text-gray-600">{salary || '—'}</td>
                     <td className="text-sm text-gray-600">{notice || '—'}</td>
-                    <td className="text-center text-sm text-gray-700">
-                      {c.ai_score != null ? c.ai_score : <span className="text-gray-400">—</span>}
+                    <td className="text-center">
+                      {c.ai_score != null ? (
+                        <span className="ui-badge ui-badge--purple inline-flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" /> {c.ai_score}
+                        </span>
+                      ) : <span className="text-gray-400 text-sm">—</span>}
                     </td>
                     <td>
-                      <span className="text-xs px-2 py-0.5 rounded-full font-medium border border-slate-200 bg-slate-50 text-slate-700">
-                        {status}
-                      </span>
+                      <span className="ui-badge ui-badge--slate">{status}</span>
                     </td>
                     <td className="text-sm text-gray-600">{recruiter}</td>
                     <td className="text-sm text-gray-500 whitespace-nowrap">{updated}</td>
-                    <td className="text-center">
-                      <div className="flex items-center justify-center gap-2">
+                    <td className="text-center" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
                         <button
                           type="button"
                           onClick={() => window.location.assign(`/dashboard/candidates/${c.id}`)}
@@ -253,4 +325,3 @@ export function InternalTalentPoolTab({}: {}) {
     </div>
   )
 }
-

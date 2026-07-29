@@ -53,8 +53,29 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ jobs })
     }
     case 'resumes': {
+      // Owner PII lockdown: redact candidate PII unless an approved support session is active
+      const { hasActiveSupportSession, redactResumePii } = await import('@/lib/supportAccess')
+      const { rows: ownerRows } = await pool.query(
+        `SELECT id FROM auth_users WHERE LOWER(email) = $1`,
+        [session.user!.email!.toLowerCase()]
+      )
+      const ownerUserId = ownerRows[0]?.id as string | undefined
+      const allowed = ownerUserId
+        ? await hasActiveSupportSession({ ownerUserId })
+        : false
       const resumes = await getAllResumes()
-      return NextResponse.json({ resumes })
+      if (allowed) {
+        return NextResponse.json({
+          resumes,
+          pii_access: 'support_session',
+          note: 'Unredacted via approved support session',
+        })
+      }
+      return NextResponse.json({
+        resumes: (resumes as Record<string, unknown>[]).map(r => redactResumePii(r)),
+        pii_access: 'locked',
+        note: 'Candidate PII is hidden by default. Request Tenant Owner approval via Support Access.',
+      })
     }
     case 'subscriptions': {
       const subs = await getAllSubscriptions()
@@ -62,7 +83,11 @@ export async function GET(req: NextRequest) {
     }
     case 'tokens': {
       const tokens = await getTokenStats()
-      return NextResponse.json({ tokens })
+      // Backward compatible: array of rows + additive summary
+      if (Array.isArray(tokens)) {
+        return NextResponse.json({ tokens })
+      }
+      return NextResponse.json({ tokens: tokens.rows, summary: tokens.summary })
     }
     case 'tenants': {
       const tenants = await getAdminTenantSummaries()
@@ -81,7 +106,7 @@ export async function GET(req: NextRequest) {
              AND created_at >= NOW() - interval '7 days'`
         ),
         pool.query<{ count: string }>(
-          `SELECT COUNT(*) FROM login_events
+          `SELECT COUNT(*) FROM login_history
            WHERE success = FALSE
              AND created_at >= NOW() - interval '7 days'`
         ).catch(() => ({ rows: [{ count: '0' }] })),

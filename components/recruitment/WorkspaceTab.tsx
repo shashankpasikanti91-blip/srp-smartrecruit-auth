@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import {
   Briefcase, Calendar, Loader2, Sparkles, TrendingUp, Users, Bell, Send, Award,
   FileWarning, Clock, Target, BarChart3,
@@ -10,6 +10,7 @@ import { AgentInboxPanel } from '@/components/recruitment/AgentInboxPanel'
 import { DailyBriefingPanel } from '@/components/recruitment/DailyBriefingPanel'
 import { VisualWorkflow } from '@/components/recruitment/VisualWorkflow'
 import { CardGridSkeleton, KpiStripSkeleton } from '@/components/ui/Skeletons'
+import { KpiGradientCard, type KpiTone } from '@/components/ui/KpiGradientCard'
 import { HiringFunnelChart, TrendAreaChart, CHART_COLORS } from '@/components/analytics/HiringCharts'
 
 type FollowUpRow = { id: string; title?: string; due_at?: string; status?: string }
@@ -168,19 +169,27 @@ export function WorkspaceTab({
   })
   const greetName = userName?.split(' ')[0] || 'there'
 
-  const kpis: { label: string; value: string | number; sub: string; warn?: boolean; tone: string }[] = [
-    { label: 'Open Jobs', value: openJobs, sub: 'Active postings', tone: 'kpi-card--g1' },
-    { label: 'Active Candidates', value: activeCandidates, sub: 'In pipeline', tone: 'kpi-card--g2' },
-    { label: 'Submissions', value: kpi?.submissions ?? 0, sub: 'Last 30 days', tone: 'kpi-card--g3' },
-    { label: 'Interviews', value: `${kpi?.interviews_scheduled ?? 0}`, sub: `${kpi?.interviews_completed ?? 0} completed`, tone: 'kpi-card--g4' },
-    { label: 'Offers', value: kpi?.offers_active ?? 0, sub: 'Active offers', tone: 'kpi-card--g5' },
-    { label: 'Time To Hire', value: insights?.time_to_hire_avg_days != null ? `${insights.time_to_hire_avg_days}d` : '—', sub: 'Avg days to join', tone: 'kpi-card--g6' },
-    { label: 'Offer Accept %', value: insights?.offer_acceptance_rate != null ? `${insights.offer_acceptance_rate}%` : '—', sub: 'Acceptance rate', tone: 'kpi-card--g7' },
-    { label: 'Fill Rate', value: fillProxy != null ? `${fillProxy}%` : '—', sub: 'Hired / pipeline', tone: 'kpi-card--g1' },
-    { label: 'Pipeline Conv. %', value: convRate != null ? `${convRate}%` : '—', sub: 'Submission conversion', tone: 'kpi-card--g2' },
-    { label: 'Interview Conv. %', value: intConv != null ? `${intConv}%` : '—', sub: 'Interview conversion', tone: 'kpi-card--g4' },
-    { label: 'Pending Documents', value: insights?.pending_docs ?? 0, sub: 'Doc collection', warn: (insights?.pending_docs ?? 0) > 0, tone: 'kpi-card--g5' },
-    { label: 'Follow-ups overdue', value: kpi?.follow_ups_overdue ?? 0, sub: 'Needs attention', warn: (kpi?.follow_ups_overdue ?? 0) > 0, tone: 'kpi-card--g3' },
+  const kpis: {
+    label: string
+    value: string | number
+    sub: string
+    warn?: boolean
+    tone: KpiTone
+    icon: ReactNode
+    trend?: 'up' | 'down' | 'flat'
+  }[] = [
+    { label: 'Open Jobs', value: openJobs, sub: 'Active postings', tone: 'g1', icon: <Briefcase className="w-4 h-4" />, trend: 'flat' },
+    { label: 'Active Candidates', value: activeCandidates, sub: 'In pipeline', tone: 'g2', icon: <Users className="w-4 h-4" />, trend: activeCandidates > 0 ? 'up' : 'flat' },
+    { label: 'Submissions', value: kpi?.submissions ?? 0, sub: 'Last 30 days', tone: 'g3', icon: <Send className="w-4 h-4" />, trend: (kpi?.submissions ?? 0) > 0 ? 'up' : 'flat' },
+    { label: 'Interviews', value: `${kpi?.interviews_scheduled ?? 0}`, sub: `${kpi?.interviews_completed ?? 0} completed`, tone: 'g4', icon: <Calendar className="w-4 h-4" />, trend: 'flat' },
+    { label: 'Offers', value: kpi?.offers_active ?? 0, sub: 'Active offers', tone: 'g5', icon: <Award className="w-4 h-4" />, trend: (kpi?.offers_active ?? 0) > 0 ? 'up' : 'flat' },
+    { label: 'Time To Hire', value: insights?.time_to_hire_avg_days != null ? `${insights.time_to_hire_avg_days}d` : '—', sub: 'Avg days to join', tone: 'g6', icon: <Clock className="w-4 h-4" />, trend: 'flat' },
+    { label: 'Offer Accept %', value: insights?.offer_acceptance_rate != null ? `${insights.offer_acceptance_rate}%` : '—', sub: 'Acceptance rate', tone: 'g7', icon: <Target className="w-4 h-4" />, trend: 'flat' },
+    { label: 'Fill Rate', value: fillProxy != null ? `${fillProxy}%` : '—', sub: 'Hired / pipeline', tone: 'g1', icon: <BarChart3 className="w-4 h-4" />, trend: 'flat' },
+    { label: 'Pipeline Conv. %', value: convRate != null ? `${convRate}%` : '—', sub: 'Submission conversion', tone: 'g2', icon: <TrendingUp className="w-4 h-4" />, trend: convRate != null && convRate >= 20 ? 'up' : 'flat' },
+    { label: 'Interview Conv. %', value: intConv != null ? `${intConv}%` : '—', sub: 'Interview conversion', tone: 'g4', icon: <TrendingUp className="w-4 h-4" />, trend: 'flat' },
+    { label: 'Pending Documents', value: insights?.pending_docs ?? 0, sub: 'Doc collection', warn: (insights?.pending_docs ?? 0) > 0, tone: 'g6', icon: <FileWarning className="w-4 h-4" />, trend: (insights?.pending_docs ?? 0) > 0 ? 'down' : 'flat' },
+    { label: 'Follow-ups overdue', value: kpi?.follow_ups_overdue ?? 0, sub: 'Needs attention', warn: (kpi?.follow_ups_overdue ?? 0) > 0, tone: 'g7', icon: <Bell className="w-4 h-4" />, trend: (kpi?.follow_ups_overdue ?? 0) > 0 ? 'down' : 'flat' },
   ]
 
   const MANAGEMENT_KPI_LABELS = new Set([
@@ -244,11 +253,17 @@ export function WorkspaceTab({
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+      <div className="kpi-grid">
         {recruiterKpis.map(c => (
-          <button
+          <KpiGradientCard
             key={c.label}
-            type="button"
+            label={c.label}
+            value={c.value}
+            sub={c.sub}
+            tone={c.tone}
+            icon={c.icon}
+            trend={c.trend}
+            warn={c.warn}
             onClick={() => {
               const map: Record<string, string> = {
                 'Open Jobs': 'jobs',
@@ -261,12 +276,7 @@ export function WorkspaceTab({
               }
               onNavigate?.(map[c.label] ?? 'workspace')
             }}
-            className={`kpi-card kpi-card--gradient ${c.tone} ${c.warn ? 'ring-2 ring-amber-300' : ''} text-left transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
-          >
-            <p className="kpi-card__label">{c.label}</p>
-            <p className="kpi-card__value">{c.value}</p>
-            <p className="kpi-card__sub">{c.sub}</p>
-          </button>
+          />
         ))}
       </div>
 
@@ -275,18 +285,18 @@ export function WorkspaceTab({
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Team KPIs</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {teamKpis.map(c => (
-              <button
+              <KpiGradientCard
                 key={c.label}
-                type="button"
+                label={c.label}
+                value={c.value}
+                sub={c.sub}
+                tone={c.tone}
+                icon={c.icon}
+                trend={c.trend}
                 onClick={() => onNavigate?.('analytics')}
-                className={`kpi-card kpi-card--gradient ${c.tone} text-left transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
-              >
-                <p className="kpi-card__label">{c.label}</p>
-                <p className="kpi-card__value">{c.value}</p>
-                <p className="kpi-card__sub">{c.sub}</p>
-              </button>
+              />
             ))}
           </div>
         </div>

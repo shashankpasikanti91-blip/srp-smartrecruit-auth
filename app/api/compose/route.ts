@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
-import { chatCompletion } from '@/lib/aiClient'
+import { chatCompletionWithUsage } from '@/lib/aiClient'
+import { recordAiUsage } from '@/lib/aiUsage'
 
 export const maxDuration = 30
 
@@ -52,8 +53,8 @@ Request feedback professionally and include context about the candidate and role
 Use emojis appropriately, keep it brief and conversational.`,
 }
 
-async function callAI(systemPrompt: string, userMessage: string): Promise<string> {
-  return chatCompletion({
+async function callAI(systemPrompt: string, userMessage: string) {
+  return chatCompletionWithUsage({
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage },
@@ -146,8 +147,25 @@ ${custom_notes ? `Additional notes: ${custom_notes}` : ''}
 Generate the full message now:`
     }
 
-    const result = await callAI(COMPOSE_SYSTEM_PROMPT, userMessage)
-    return NextResponse.json({ content: result })
+    const ai = await callAI(COMPOSE_SYSTEM_PROMPT, userMessage)
+    await recordAiUsage({
+      userId: ctx.userId,
+      tenantId: ctx.tenantId,
+      operation: 'compose',
+      result: ai,
+      metadata: { action: effectiveAction, email_type: email_type ?? null, platform: platform ?? null },
+    })
+    return NextResponse.json({
+      content: ai.content,
+      cached: false,
+      generation: {
+        status: 'completed',
+        generated_at: new Date().toISOString(),
+        model: ai.model,
+        tokens: ai.total_tokens,
+        duration_ms: ai.duration_ms,
+      },
+    })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Server error'
     console.error('[api/compose]', err)

@@ -198,9 +198,35 @@ export function Candidate360PageView({
                   </a>
                 )}
                 {mailto && (
-                  <a href={`mailto:${mailto}`} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-xs font-extrabold text-slate-700 hover:bg-slate-50">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const subject = window.prompt('Email subject', `Following up — ${h?.name || 'your application'}`)
+                      if (!subject) return
+                      const html = window.prompt('Message (plain text OK)', `Hi ${h?.name || ''},\n\n`)
+                      if (html == null) return
+                      const res = await fetch('/api/candidates/send-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          resume_id: candidateId,
+                          to: mailto,
+                          subject,
+                          html: html.replace(/\n/g, '<br/>'),
+                        }),
+                      })
+                      const data = await res.json().catch(() => ({}))
+                      if (!res.ok) {
+                        window.alert(data.error || 'Send failed — connect Gmail/Outlook in Settings, or use mailto.')
+                        window.location.href = `mailto:${mailto}?subject=${encodeURIComponent(subject)}`
+                        return
+                      }
+                      window.alert(`Sent via ${data.sent_via || 'email'}`)
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
+                  >
                     <Mail className="w-3.5 h-3.5" /> Email
-                  </a>
+                  </button>
                 )}
                 {phone && (
                   <a

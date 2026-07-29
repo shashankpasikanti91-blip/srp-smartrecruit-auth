@@ -3,7 +3,8 @@ import { requireTenant } from '@/lib/tenant'
 import { hybridParseResume, type HybridResumeParse } from '@/lib/hybridResumeParse'
 import { sanitizeText } from '@/lib/validate'
 import { extractTextFromUpload } from '@/lib/extractFileText'
-import { chatCompletion } from '@/lib/aiClient'
+import { chatCompletionWithUsage } from '@/lib/aiClient'
+import { recordAiUsage } from '@/lib/aiUsage'
 
 export const maxDuration = 90
 
@@ -38,8 +39,8 @@ Return JSON ONLY:
 }
 Never invent IC/Passport/DOB. Leave blank if not in resume. Skills as comma-separated.`
 
-async function callAI(user: string): Promise<Record<string, unknown>> {
-  const content = await chatCompletion({
+async function callAI(user: string, ctx: { userId: string; tenantId: string }): Promise<Record<string, unknown>> {
+  const ai = await chatCompletionWithUsage({
     messages: [
       { role: 'system', content: AI_IMPROVE_PROMPT },
       { role: 'user', content: user },
@@ -48,7 +49,13 @@ async function callAI(user: string): Promise<Record<string, unknown>> {
     max_tokens: 1800,
     response_format: { type: 'json_object' },
   })
-  return JSON.parse(content)
+  await recordAiUsage({
+    userId: ctx.userId,
+    tenantId: ctx.tenantId,
+    operation: 'resume_parse',
+    result: ai,
+  })
+  return JSON.parse(ai.content)
 }
 
 function mergeAi(base: HybridResumeParse, ai: Record<string, unknown>): HybridResumeParse {
@@ -138,7 +145,10 @@ export async function POST(req: NextRequest) {
 
   if (improve) {
     try {
-      const ai = await callAI(`Resume text:\n${text.slice(0, 10000)}\n\nCurrent extract:\n${JSON.stringify(result)}`)
+      const ai = await callAI(
+        `Resume text:\n${text.slice(0, 10000)}\n\nCurrent extract:\n${JSON.stringify(result)}`,
+        { userId: ctx.userId, tenantId: ctx.tenantId },
+      )
       result = mergeAi(result, ai)
     } catch (e) {
       result.warnings.push(

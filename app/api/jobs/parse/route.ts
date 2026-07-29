@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { sanitizeText } from '@/lib/validate'
-import { chatCompletion } from '@/lib/aiClient'
+import { chatCompletionWithUsage } from '@/lib/aiClient'
+import { recordAiUsage } from '@/lib/aiUsage'
 
 export const maxDuration = 60
 
@@ -65,8 +66,8 @@ function formatRequirements(items: string[]): string {
     .join('\n')
 }
 
-async function callAI(system: string, user: string): Promise<string> {
-  return chatCompletion({
+async function callAI(system: string, user: string) {
+  return chatCompletionWithUsage({
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user },
@@ -104,7 +105,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const raw = await callAI(PARSE_JD_PROMPT, `Parse this JD for a recruiter:\n\n${text.slice(0, 12000)}`)
+    const ai = await callAI(PARSE_JD_PROMPT, `Parse this JD for a recruiter:\n\n${text.slice(0, 12000)}`)
+    await recordAiUsage({
+      userId: ctx.userId,
+      tenantId: ctx.tenantId,
+      operation: 'jd_parse',
+      result: ai,
+    })
+    const raw = ai.content
     let parsed: Record<string, unknown> = {}
     try {
       parsed = JSON.parse(raw)

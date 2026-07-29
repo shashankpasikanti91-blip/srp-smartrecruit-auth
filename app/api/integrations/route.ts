@@ -96,9 +96,15 @@ const CONNECTOR_CATALOGUE = [
     ],
   },
   {
-    id: 'whatsapp', name: 'WhatsApp (Twilio)', category: 'messaging',
-    description: 'Send WhatsApp messages via Twilio Business API',
-    mode: 'live', icon: '💬',
+    id: 'whatsapp', name: 'WhatsApp Business', category: 'messaging',
+    description: 'WhatsApp Business Cloud — Advanced / Coming soon in a later release. Use Telegram Bot for messaging today.',
+    mode: 'coming_soon', icon: '💬',
+    fields: [],
+  },
+  {
+    id: 'whatsapp_twilio_legacy', name: 'WhatsApp (Twilio — legacy)', category: 'messaging',
+    description: 'Legacy Twilio WhatsApp credentials (advanced). Prefer waiting for native WhatsApp Business Cloud.',
+    mode: 'coming_soon', icon: '💬',
     fields: [
       { name: 'account_sid', label: 'Twilio Account SID', type: 'text' },
       { name: 'auth_token', label: 'Twilio Auth Token', type: 'password' },
@@ -248,6 +254,13 @@ export async function POST(req: NextRequest) {
       if (!integration_id) return NextResponse.json({ error: 'integration_id required' }, { status: 400 })
       await pool.query(`DELETE FROM integrations WHERE id = $1 AND tenant_id = $2`, [integration_id, ctx.tenantId])
       return NextResponse.json({ status: 'deleted' })
+    }
+
+    if (action === 'test') {
+      // Thin alias — prefer POST /api/integrations/test
+      return NextResponse.json({
+        error: 'Use POST /api/integrations/test with { type, provider }',
+      }, { status: 400 })
     }
 
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })

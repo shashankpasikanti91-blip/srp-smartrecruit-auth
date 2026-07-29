@@ -244,15 +244,20 @@ aside ::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.7); }
   color: var(--dash-text-3);
 }
 
-/* Soft KPI tiles — muted tints + dark text (comfortable on bright laptops) */
+/* Soft KPI tiles — readable gradients + dark text (enterprise SaaS) */
 .kpi-card--gradient {
-  border: 1px solid var(--dash-border);
-  border-left-width: 3px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 108px;
+  border: 1px solid transparent;
+  border-radius: 14px;
   color: inherit;
   box-shadow: var(--shadow-card);
+  overflow: hidden;
 }
 .kpi-card--gradient:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   box-shadow: var(--shadow-hover);
 }
 .kpi-card--gradient .kpi-card__label {
@@ -260,17 +265,153 @@ aside ::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.7); }
 }
 .kpi-card--gradient .kpi-card__sub {
   color: var(--dash-text-3);
+  margin-top: auto;
 }
 .kpi-card--gradient .kpi-card__value {
   color: var(--dash-heading);
 }
-.kpi-card--g1 { background: #f1f5f9; border-left-color: #64748b; }
-.kpi-card--g2 { background: #eef2ff; border-left-color: #6366f1; }
-.kpi-card--g3 { background: #f0fdfa; border-left-color: #0d9488; }
-.kpi-card--g4 { background: #fff7ed; border-left-color: #d97706; }
-.kpi-card--g5 { background: #faf5ff; border-left-color: #7c3aed; }
-.kpi-card--g6 { background: #fef2f2; border-left-color: #e11d48; }
-.kpi-card--g7 { background: #ecfeff; border-left-color: #0891b2; }
+.kpi-card__icon {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  opacity: 0.9;
+}
+.kpi-card__trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.kpi-card__trend--up { color: #059669; }
+.kpi-card__trend--down { color: #e11d48; }
+.kpi-card__trend--flat { color: var(--dash-text-3); }
+
+/* Named tones: Open Jobs blue, Candidates purple, Submissions cyan, Interviews orange, Offers green, Docs red, Follow-ups amber */
+.kpi-card--g1 { background: linear-gradient(145deg, #eff6ff 0%, #dbeafe 55%, #bfdbfe 100%); border-color: #93c5fd; }
+.kpi-card--g1 .kpi-card__icon { background: rgba(37, 99, 235, 0.12); color: #2563eb; }
+.kpi-card--g2 { background: linear-gradient(145deg, #faf5ff 0%, #f3e8ff 55%, #e9d5ff 100%); border-color: #d8b4fe; }
+.kpi-card--g2 .kpi-card__icon { background: rgba(124, 58, 237, 0.12); color: #7c3aed; }
+.kpi-card--g3 { background: linear-gradient(145deg, #ecfeff 0%, #cffafe 55%, #a5f3fc 100%); border-color: #67e8f9; }
+.kpi-card--g3 .kpi-card__icon { background: rgba(8, 145, 178, 0.12); color: #0891b2; }
+.kpi-card--g4 { background: linear-gradient(145deg, #fff7ed 0%, #ffedd5 55%, #fed7aa 100%); border-color: #fdba74; }
+.kpi-card--g4 .kpi-card__icon { background: rgba(234, 88, 12, 0.12); color: #ea580c; }
+.kpi-card--g5 { background: linear-gradient(145deg, #ecfdf5 0%, #d1fae5 55%, #a7f3d0 100%); border-color: #6ee7b7; }
+.kpi-card--g5 .kpi-card__icon { background: rgba(5, 150, 105, 0.12); color: #059669; }
+.kpi-card--g6 { background: linear-gradient(145deg, #fef2f2 0%, #fee2e2 55%, #fecaca 100%); border-color: #fca5a5; }
+.kpi-card--g6 .kpi-card__icon { background: rgba(225, 29, 72, 0.12); color: #e11d48; }
+.kpi-card--g7 { background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 55%, #fde68a 100%); border-color: #fcd34d; }
+.kpi-card--g7 .kpi-card__icon { background: rgba(217, 119, 6, 0.12); color: #d97706; }
+
+/* Equal-height card grids */
+.kpi-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 640px) {
+  .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 1280px) {
+  .kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+.kpi-grid > * { height: 100%; }
+
+/* Option / tool card equal grid (3 columns) */
+.option-card-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+@media (min-width: 640px) {
+  .option-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .option-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.option-card-grid > * {
+  min-height: 96px;
+  height: 100%;
+}
+
+/* Empty / badge helpers */
+.ui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  border-radius: 14px;
+  border: 1px dashed var(--dash-border);
+  background: #f8fafc;
+  color: var(--dash-text-3);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+.ui-badge--blue { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.ui-badge--purple { background: #faf5ff; color: #6d28d9; border-color: #e9d5ff; }
+.ui-badge--cyan { background: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
+.ui-badge--orange { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.ui-badge--green { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.ui-badge--red { background: #fef2f2; color: #be123c; border-color: #fecaca; }
+.ui-badge--amber { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+.ui-badge--slate { background: #f8fafc; color: #475569; border-color: #e2e8f0; }
+
+/* Briefing section cards */
+.briefing-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+@media (min-width: 640px) {
+  .briefing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .briefing-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.briefing-section {
+  border-radius: 14px;
+  border: 1px solid var(--dash-border);
+  background: #fff;
+  padding: 0.85rem 1rem;
+  box-shadow: var(--shadow-card);
+  min-height: 120px;
+}
+.briefing-section__title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dash-text-2);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
 
 /* ── Job cards ───────────────────────────────────────────── */
 .job-card {

@@ -450,3 +450,65 @@ export async function disconnectCalendar(
     [tenantId, userId, provider]
   )
 }
+
+export async function testCalendarConnection(
+  tenantId: string,
+  userId: string,
+  provider: 'google' | 'outlook'
+): Promise<{ ok: boolean; email?: string; error?: string }> {
+  const { rows } = await pool.query(
+    `SELECT access_token_enc, refresh_token_enc, email_address
+     FROM calendar_connections
+     WHERE tenant_id=$1 AND user_id=$2 AND provider=$3`,
+    [tenantId, userId, provider]
+  )
+  if (!rows[0]) return { ok: false, error: 'Not connected' }
+
+  let access = decrypt(rows[0].access_token_enc)
+  const refresh = decrypt(rows[0].refresh_token_enc)
+
+  const probe = async (tok: string) => {
+    if (provider === 'google') {
+      const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1', {
+        headers: { Authorization: `Bearer ${tok}` },
+      })
+      if (!res.ok) throw new Error(`Google Calendar probe ${res.status}`)
+      return rows[0].email_address as string
+    }
+    const res = await fetch('https://graph.microsoft.com/v1.0/me/calendar', {
+      headers: { Authorization: `Bearer ${tok}` },
+    })
+    if (!res.ok) throw new Error(`Outlook Calendar probe ${res.status}`)
+    return rows[0].email_address as string
+  }
+
+  try {
+    const email = await probe(access)
+    await pool.query(
+      `UPDATE calendar_connections SET is_active=TRUE, updated_at=NOW()
+       WHERE tenant_id=$1 AND user_id=$2 AND provider=$3`,
+      [tenantId, userId, provider]
+    )
+    return { ok: true, email }
+  } catch {
+    try {
+      access = provider === 'google'
+        ? await refreshGoogleToken(refresh)
+        : await refreshOutlookToken(refresh)
+      await pool.query(
+        `UPDATE calendar_connections SET access_token_enc=$1, is_active=TRUE, updated_at=NOW()
+         WHERE tenant_id=$2 AND user_id=$3 AND provider=$4`,
+        [encrypt(access), tenantId, userId, provider]
+      )
+      const email = await probe(access)
+      return { ok: true, email }
+    } catch (err) {
+      await pool.query(
+        `UPDATE calendar_connections SET is_active=FALSE, updated_at=NOW()
+         WHERE tenant_id=$1 AND user_id=$2 AND provider=$3`,
+        [tenantId, userId, provider]
+      ).catch(() => {})
+      return { ok: false, error: err instanceof Error ? err.message : 'Reconnect required' }
+    }
+  }
+}

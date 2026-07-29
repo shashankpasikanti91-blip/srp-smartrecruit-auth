@@ -359,6 +359,12 @@ export async function sendEmailFromTenant(
           return { sent_via: prov, from: conn.email_address }
         } catch (refreshErr) {
           console.error(`[email] Token refresh failed for ${prov}:`, refreshErr)
+          // Mark reconnect required — do not leave a silently broken active token
+          await pool.query(
+            `UPDATE email_connections SET is_active = FALSE, updated_at = NOW()
+             WHERE tenant_id = $1 AND user_id = $2 AND provider = $3`,
+            [tenantId, userId, prov]
+          ).catch(() => {})
           // Fall through to SMTP
         }
       } else {
@@ -420,4 +426,69 @@ export async function disconnectEmailProvider(
      WHERE tenant_id = $1 AND user_id = $2 AND provider = $3`,
     [tenantId, userId, provider]
   )
+}
+
+/** Validate token + basic scope by calling provider identity endpoint (with refresh). */
+export async function testEmailConnection(
+  tenantId: string,
+  userId: string,
+  provider: 'gmail' | 'outlook'
+): Promise<{ ok: boolean; email?: string; error?: string }> {
+  const { rows } = await pool.query(
+    `SELECT access_token_enc, refresh_token_enc, email_address
+     FROM email_connections
+     WHERE tenant_id = $1 AND user_id = $2 AND provider = $3`,
+    [tenantId, userId, provider]
+  )
+  if (!rows[0]) return { ok: false, error: 'Not connected' }
+
+  let access = decrypt(rows[0].access_token_enc)
+  const refresh = decrypt(rows[0].refresh_token_enc)
+
+  const probe = async (tok: string) => {
+    if (provider === 'gmail') {
+      const res = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+        headers: { Authorization: `Bearer ${tok}` },
+      })
+      if (!res.ok) throw new Error(`Gmail probe ${res.status}`)
+      const me = await res.json() as { email?: string }
+      return me.email ?? rows[0].email_address
+    }
+    const res = await fetch('https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName', {
+      headers: { Authorization: `Bearer ${tok}` },
+    })
+    if (!res.ok) throw new Error(`Outlook probe ${res.status}`)
+    const me = await res.json() as { mail?: string; userPrincipalName?: string }
+    return me.mail ?? me.userPrincipalName ?? rows[0].email_address
+  }
+
+  try {
+    const email = await probe(access)
+    await pool.query(
+      `UPDATE email_connections SET is_active = TRUE, updated_at = NOW()
+       WHERE tenant_id = $1 AND user_id = $2 AND provider = $3`,
+      [tenantId, userId, provider]
+    )
+    return { ok: true, email }
+  } catch {
+    try {
+      access = provider === 'gmail'
+        ? await refreshGmailToken(refresh)
+        : await refreshOutlookToken(refresh)
+      await pool.query(
+        `UPDATE email_connections SET access_token_enc = $1, is_active = TRUE, updated_at = NOW()
+         WHERE tenant_id = $2 AND user_id = $3 AND provider = $4`,
+        [encrypt(access), tenantId, userId, provider]
+      )
+      const email = await probe(access)
+      return { ok: true, email }
+    } catch (err) {
+      await pool.query(
+        `UPDATE email_connections SET is_active = FALSE, updated_at = NOW()
+         WHERE tenant_id = $1 AND user_id = $2 AND provider = $3`,
+        [tenantId, userId, provider]
+      ).catch(() => {})
+      return { ok: false, error: err instanceof Error ? err.message : 'Reconnect required' }
+    }
+  }
 }

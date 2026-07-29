@@ -28,6 +28,67 @@ export async function GET(req: NextRequest) {
     [ctx.tenantId]
   )
 
+  // AI analytics (additive — owners/admins see full; recruiters see own)
+  const period = req.nextUrl.searchParams.get('ai_period') || 'month'
+  const interval =
+    period === 'today' ? "interval '1 day'"
+    : period === 'week' ? "interval '7 days'"
+    : "interval '30 days'"
+  const isAdmin = ['owner', 'admin'].includes(ctx.tenantRole)
+  let aiAnalytics: Record<string, unknown> | null = null
+  try {
+    const scopeSql = isAdmin ? '' : 'AND user_id = $2'
+    const params: unknown[] = isAdmin ? [ctx.tenantId] : [ctx.tenantId, ctx.userId]
+    const { rows: byOp } = await pool.query(
+      `SELECT operation,
+              COUNT(*)::int AS requests,
+              COALESCE(SUM(prompt_tokens + completion_tokens), 0)::int AS tokens,
+              COALESCE(SUM(cost_usd), 0)::float AS cost_usd
+       FROM token_usage
+       WHERE tenant_id = $1
+         AND created_at >= NOW() - ${interval}
+         ${scopeSql}
+       GROUP BY operation
+       ORDER BY requests DESC`,
+      params,
+    )
+    const { rows: topUsers } = isAdmin
+      ? await pool.query(
+          `SELECT tu.user_id, u.name, u.email,
+                  COUNT(*)::int AS requests,
+                  COALESCE(SUM(tu.cost_usd), 0)::float AS cost_usd
+           FROM token_usage tu
+           LEFT JOIN auth_users u ON u.id = tu.user_id
+           WHERE tu.tenant_id = $1
+             AND tu.created_at >= NOW() - ${interval}
+           GROUP BY tu.user_id, u.name, u.email
+           ORDER BY requests DESC
+           LIMIT 10`,
+          [ctx.tenantId],
+        )
+      : { rows: [] }
+    const { rows: recent } = await pool.query(
+      `SELECT operation, model, prompt_tokens, completion_tokens, cost_usd, created_at, metadata
+       FROM token_usage
+       WHERE tenant_id = $1 ${scopeSql}
+       ORDER BY created_at DESC LIMIT 25`,
+      params,
+    )
+    aiAnalytics = {
+      period,
+      by_operation: byOp,
+      top_users: topUsers,
+      recent,
+      totals: {
+        requests: byOp.reduce((a: number, r: { requests: number }) => a + Number(r.requests || 0), 0),
+        tokens: byOp.reduce((a: number, r: { tokens: number }) => a + Number(r.tokens || 0), 0),
+        cost_usd: byOp.reduce((a: number, r: { cost_usd: number }) => a + Number(r.cost_usd || 0), 0),
+      },
+    }
+  } catch {
+    aiAnalytics = null
+  }
+
   return NextResponse.json({
     tenant: {
       ...tenant,
@@ -40,6 +101,7 @@ export async function GET(req: NextRequest) {
     members,
     myRole: ctx.tenantRole,
     myPermissions: ctx.permissions,
+    ai_analytics: aiAnalytics,
   })
 }
 

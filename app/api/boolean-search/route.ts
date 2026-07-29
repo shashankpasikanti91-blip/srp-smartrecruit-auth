@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
-import { chatCompletion } from '@/lib/aiClient'
+import { chatCompletionWithUsage } from '@/lib/aiClient'
+import { recordAiUsage } from '@/lib/aiUsage'
 
 export const maxDuration = 30
 
@@ -31,8 +32,8 @@ OUTPUT FORMAT — JSON ONLY. No markdown. No extra text.
   "exclude_terms": []
 }`
 
-async function callAI(prompt: string, user: string): Promise<string> {
-  return chatCompletion({
+async function callAI(prompt: string, user: string) {
+  return chatCompletionWithUsage({
     messages: [
       { role: 'system', content: prompt },
       { role: 'user', content: user },
@@ -57,12 +58,45 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json() as Record<string, unknown>
-    const { job_title, skills, experience, location, jd_text } = body as {
+    const { job_title, skills, experience, location, jd_text, force } = body as {
       job_title?: string
       skills?: string | string[]
       experience?: string
       location?: string
       jd_text?: string
+      force?: boolean
+    }
+
+    // Cache: return latest boolean for same title unless force
+    if (!force && job_title?.trim() && !jd_text?.trim()) {
+      try {
+        const { rows } = await pool.query(
+          `SELECT id, job_title, short_boolean, advanced_boolean, alternate_boolean,
+                  linkedin_search, naukri_search, indeed_search, created_at
+           FROM generated_boolean_searches
+           WHERE user_id = $1 AND LOWER(job_title) = LOWER($2)
+           ORDER BY created_at DESC LIMIT 1`,
+          [userId, job_title.trim()],
+        )
+        if (rows[0]) {
+          const r = rows[0]
+          return NextResponse.json({
+            id: r.id,
+            job_title: r.job_title,
+            short_boolean: r.short_boolean,
+            advanced_boolean: r.advanced_boolean,
+            alternate_boolean: r.alternate_boolean,
+            linkedin_search: r.linkedin_search,
+            naukri_search: r.naukri_search,
+            indeed_search: r.indeed_search,
+            cached: true,
+            generation: {
+              status: 'completed',
+              generated_at: r.created_at,
+            },
+          })
+        }
+      } catch { /* ignore */ }
     }
 
     let userMsg: string
@@ -80,8 +114,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Provide job_title+skills or jd_text' }, { status: 400 })
     }
 
-    const raw = await callAI(BOOLEAN_SEARCH_PROMPT, userMsg)
-    const result = parseJSON(raw)
+    const ai = await callAI(BOOLEAN_SEARCH_PROMPT, userMsg)
+    const result = parseJSON(ai.content)
 
     let savedId: string | null = null
     try {
@@ -108,7 +142,26 @@ export async function POST(req: NextRequest) {
       console.warn('[api/boolean-search] DB save:', dbErr instanceof Error ? dbErr.message : dbErr)
     }
 
-    return NextResponse.json({ id: savedId, ...result })
+    await recordAiUsage({
+      userId,
+      tenantId: ctx.tenantId,
+      operation: 'boolean_search',
+      result: ai,
+      metadata: { search_id: savedId, force: Boolean(force) },
+    })
+
+    return NextResponse.json({
+      id: savedId,
+      ...result,
+      cached: false,
+      generation: {
+        status: 'completed',
+        generated_at: new Date().toISOString(),
+        model: ai.model,
+        tokens: ai.total_tokens,
+        duration_ms: ai.duration_ms,
+      },
+    })
 
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Server error'

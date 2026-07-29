@@ -11,7 +11,8 @@ import {
   saveWorkingMemory,
 } from '@/lib/aiMemory'
 import { analyzeJobFillDifficulty, formatMarketInsightForPrompt } from '@/lib/marketIntelligence'
-import { chatCompletion, getAIConfig } from '@/lib/aiClient'
+import { chatCompletionWithUsage, getAIConfig } from '@/lib/aiClient'
+import { recordAiUsage } from '@/lib/aiUsage'
 
 const COPILOT_SYSTEM = `You are SmartRecruit AI — a Senior Recruitment Director with 20+ years of staffing / agency hiring experience (Malaysia, SEA, India, GCC aware).
 
@@ -371,10 +372,19 @@ INSTRUCTION: ${intent.hint}`
   const maxTokens = lastUserRaw || incomingMessages.length ? intent.maxTokens : 400
 
   try {
-    const text = await chatCompletion({
+    const ai = await chatCompletionWithUsage({
       messages,
       max_tokens: maxTokens,
       temperature: intent.mode === 'jd' ? 0.55 : 0.6,
+    })
+    const text = ai.content
+
+    await recordAiUsage({
+      userId: ctx.userId,
+      tenantId: ctx.tenantId,
+      operation: 'coach',
+      result: ai,
+      metadata: { mode: intent.mode },
     })
 
     try {

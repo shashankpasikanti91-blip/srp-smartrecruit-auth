@@ -53,25 +53,46 @@ export async function logUserActivity(opts: {
 
 export async function logLogin(opts: {
   tenantId?: string
-  userId: string
+  userId?: string | null
   email?: string
   success?: boolean
   ipAddress?: string
   userAgent?: string
   failureReason?: string
+  role?: string | null
+  sessionToken?: string | null
+  browser?: string | null
+  os?: string | null
+  deviceName?: string | null
 }) {
   try {
     await pool.query(
       `INSERT INTO login_history
-         (tenant_id, user_id, email, success, ip_address, user_agent, failure_reason)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+         (tenant_id, user_id, email, success, ip_address, user_agent, failure_reason,
+          role, session_token, browser, os, device_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [
-        opts.tenantId ?? null, opts.userId, opts.email ?? null,
+        opts.tenantId ?? null, opts.userId ?? null, opts.email ?? null,
         opts.success ?? true, opts.ipAddress ?? null, opts.userAgent ?? null,
         opts.failureReason ?? null,
+        opts.role ?? null, opts.sessionToken ?? null,
+        opts.browser ?? null, opts.os ?? null, opts.deviceName ?? null,
       ]
     )
   } catch {
-    /* table may not exist yet */
+    try {
+      await pool.query(
+        `INSERT INTO login_history
+           (tenant_id, user_id, email, success, ip_address, user_agent, failure_reason)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [
+          opts.tenantId ?? null, opts.userId ?? null, opts.email ?? null,
+          opts.success ?? true, opts.ipAddress ?? null, opts.userAgent ?? null,
+          opts.failureReason ?? null,
+        ]
+      )
+    } catch {
+      /* table may not exist yet */
+    }
   }
 }

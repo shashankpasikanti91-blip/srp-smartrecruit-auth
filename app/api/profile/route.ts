@@ -37,16 +37,27 @@ export async function GET() {
 
     // Get usage stats this month (non-fatal)
     let usage: Record<string, unknown> = { screens_this_month: 0, composes_this_month: 0 }
+    let ai_history: unknown[] = []
     try {
       const usageRes = await pool.query(
         `SELECT
            COUNT(*) FILTER (WHERE operation LIKE '%screen%') AS screens_this_month,
-           COUNT(*) FILTER (WHERE operation LIKE '%compose%') AS composes_this_month
+           COUNT(*) FILTER (WHERE operation LIKE '%compose%') AS composes_this_month,
+           COUNT(*) AS total_requests,
+           COALESCE(SUM(prompt_tokens + completion_tokens), 0) AS total_tokens,
+           COALESCE(SUM(cost_usd), 0) AS estimated_cost_usd
          FROM token_usage
          WHERE user_id = $1 AND created_at >= date_trunc('month', NOW())`,
         [user.id]
       )
       if (usageRes.rows[0]) usage = usageRes.rows[0]
+      const hist = await pool.query(
+        `SELECT id, operation, model, prompt_tokens, completion_tokens, cost_usd, metadata, created_at
+         FROM token_usage WHERE user_id = $1
+         ORDER BY created_at DESC LIMIT 40`,
+        [user.id]
+      )
+      ai_history = hist.rows
     } catch { /* token_usage may not exist */ }
 
     // Get candidate & job counts scoped to current tenant (non-fatal)
@@ -137,9 +148,13 @@ export async function GET() {
       usage: {
         screens_this_month: parseInt(String(usage.screens_this_month ?? '0')),
         composes_this_month: parseInt(String(usage.composes_this_month ?? '0')),
+        total_requests: parseInt(String(usage.total_requests ?? '0')),
+        total_tokens: parseInt(String(usage.total_tokens ?? '0')),
+        estimated_cost_usd: Number(usage.estimated_cost_usd ?? 0),
         total_candidates: parseInt(String(counts.total_candidates ?? '0')),
         active_jobs: parseInt(String(counts.active_jobs ?? '0')),
       },
+      ai_history,
     })
   } catch (err) {
     console.error('Profile API error:', err)

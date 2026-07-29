@@ -539,6 +539,23 @@ export function SelectedPipelineTab({
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
                     </select>
+                    {o.candidate_email && (
+                      <button
+                        type="button"
+                        className="mt-1 block text-[10px] font-bold text-indigo-600 hover:underline"
+                        onClick={async () => {
+                          const res = await fetch('/api/offers/send-email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ offer_id: o.id }),
+                          })
+                          const data = await res.json().catch(() => ({}))
+                          window.alert(res.ok ? `Offer email sent via ${data.sent_via}` : (data.error || 'Send failed'))
+                        }}
+                      >
+                        Send email
+                      </button>
+                    )}
                   </td>
                   <td>
                     <select

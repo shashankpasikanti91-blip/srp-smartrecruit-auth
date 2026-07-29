@@ -4,7 +4,7 @@ export type NotificationCategory =
   | 'interview' | 'joining' | 'offer' | 'reminder' | 'approval'
   | 'documents' | 'visa' | 'attendance' | 'email' | 'whatsapp' | 'general'
   | 'ownership' | 'assignment' | 'bulk' | 'ai' | 'job' | 'mention' | 'task'
-  | 'leave' | 'system'
+  | 'leave' | 'system' | 'security'
 
 export async function createNotification(opts: {
   tenantId: string

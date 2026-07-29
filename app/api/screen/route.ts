@@ -7,7 +7,8 @@ import { isValidUUID } from '@/lib/validate'
 import { extractResumeFields } from '@/lib/resumeExtract'
 import { writeTimeline } from '@/lib/timelineEngine'
 import { createNotification } from '@/lib/notificationCenter'
-import { chatCompletion } from '@/lib/aiClient'
+import { chatCompletionWithUsage } from '@/lib/aiClient'
+import { recordAiUsage } from '@/lib/aiUsage'
 import { buildJdFromJobRow } from '@/lib/jobScreeningContext'
 import { advanceFromDomain } from '@/lib/lifecycle'
 import { assertFeatureEnabled, assertNotMaintenance } from '@/lib/featureFlags'
@@ -201,11 +202,11 @@ Do NOT change field names. All fields are required.
   }
 }`
 
-async function callAI(messages: { role: string; content: string }[], timeoutMs = AI_TIMEOUT_MS): Promise<string> {
+async function callAI(messages: { role: string; content: string }[], timeoutMs = AI_TIMEOUT_MS) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    return await chatCompletion({
+    return await chatCompletionWithUsage({
       messages,
       temperature: 0.2,
       max_tokens: 2000,
@@ -267,17 +268,51 @@ async function processOneResume(
     userEmail: string
     jobPostId?: string
     candidateId?: string
+    force?: boolean
   },
 ): Promise<Record<string, unknown>> {
   if (!resume.text?.trim()) {
     return { error: 'empty resume', filename: resume.filename, screened_at: new Date().toISOString() }
   }
 
+  const resumeId = resume.id ?? opts.candidateId
+
+  // Cache hit: return existing screening unless force
+  if (!opts.force && resumeId) {
+    try {
+      const { rows } = await pool.query(
+        `SELECT id, short_id, candidate_name, ai_score, ai_summary, ai_skills, ai_screening_data, updated_at
+         FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [resumeId, opts.tenantId],
+      )
+      const existing = rows[0]
+      if (existing?.ai_screening_data) {
+        const data = typeof existing.ai_screening_data === 'object'
+          ? existing.ai_screening_data as Record<string, unknown>
+          : {}
+        return {
+          ...data,
+          db_id: existing.id,
+          short_id: existing.short_id,
+          candidate_name: existing.candidate_name,
+          score: existing.ai_score ?? data.score,
+          filename: resume.filename,
+          cached: true,
+          generation: {
+            status: 'completed',
+            generated_at: existing.updated_at,
+          },
+          screened_at: existing.updated_at,
+        }
+      }
+    } catch { /* continue to screen */ }
+  }
+
   const resumeText = resume.text.trim().slice(0, RESUME_MAX_CHARS)
   const userMessage = `JOB DESCRIPTION:\n${opts.jdForModel}\n\nCANDIDATE RESUME:\n${resumeText}`
-  let raw: string
+  let ai
   try {
-    raw = await callAI([
+    ai = await callAI([
       { role: 'system', content: SCREENING_SYSTEM_PROMPT },
       { role: 'user', content: userMessage },
     ])
@@ -289,6 +324,7 @@ async function processOneResume(
     }
   }
 
+  const raw = ai.content
   let parsed: Record<string, unknown>
   try {
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
@@ -301,6 +337,14 @@ async function processOneResume(
     const coerced = normalizeScreeningScore(parsed.score)
     if (coerced != null) parsed.score = coerced
   }
+
+  await recordAiUsage({
+    userId: opts.userId,
+    tenantId: opts.tenantId,
+    operation: 'ai_screen',
+    result: ai,
+    metadata: { resume_id: resumeId ?? null, job_post_id: opts.jobPostId ?? null, force: Boolean(opts.force) },
+  })
 
   if (!parsed.error) {
     try {
@@ -320,17 +364,17 @@ async function processOneResume(
       ].filter((s, i, a) => s && a.indexOf(s) === i).slice(0, 50)
       const summary = ((evalData?.justification as string) || (p.executive_summary as string)) ?? ''
       const stage = decision === 'Shortlisted' ? 'screening' : 'applied'
-      const resumeId = resume.id ?? opts.candidateId
+      const resolvedResumeId = resume.id ?? opts.candidateId
 
       const resolvedName = ((p.name as string)?.trim()
         || extracted.name
         || resume.filename?.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ')
         || 'Unknown Candidate').slice(0, 200)
 
-      if (resumeId) {
+      if (resolvedResumeId) {
         const existing = await pool.query(
           'SELECT id FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1',
-          [resumeId, opts.tenantId]
+          [resolvedResumeId, opts.tenantId]
         )
         if (existing.rows.length) {
           await pool.query(
@@ -350,9 +394,9 @@ async function processOneResume(
              ((p.email as string) || extracted.email || null),
              ((p.contact_number as string) || extracted.phone || null),
              opts.jobPostId && isValidUUID(opts.jobPostId) ? opts.jobPostId : null,
-             resumeId, opts.tenantId]
+             resolvedResumeId, opts.tenantId]
           )
-          parsed = { ...parsed, db_id: resumeId }
+          parsed = { ...parsed, db_id: resolvedResumeId }
         }
       } else {
         const candidateEmail = ((p.email as string | null) || extracted.email || null)
@@ -414,7 +458,19 @@ async function processOneResume(
     }
   }
 
-  return { ...parsed, filename: resume.filename, screened_at: new Date().toISOString() }
+  return {
+    ...parsed,
+    filename: resume.filename,
+    screened_at: new Date().toISOString(),
+    cached: false,
+    generation: {
+      status: 'completed',
+      generated_at: new Date().toISOString(),
+      model: ai.model,
+      tokens: ai.total_tokens,
+      duration_ms: ai.duration_ms,
+    },
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -430,12 +486,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { jd_text, candidate_id, job_post_id } = body as {
+    const { jd_text, candidate_id, job_post_id, force } = body as {
       jd_text?: string
       resumes?: ResumeInput[]
       candidates?: ResumeInput[]
       candidate_id?: string
       job_post_id?: string
+      force?: boolean
     }
     const resumes = normalizeResumeInputs(body as Record<string, unknown>)
 
@@ -495,6 +552,7 @@ export async function POST(req: NextRequest) {
         userEmail: ctx.userEmail,
         jobPostId: job_post_id,
         candidateId: candidate_id,
+        force: Boolean(force),
       }),
     )
 

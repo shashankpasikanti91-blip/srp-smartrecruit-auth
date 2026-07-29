@@ -8,6 +8,9 @@ type GovData = {
   logins_count: number
   failed_logins_count: number
   active_sessions: number
+  online_now?: number
+  top_recruiters?: { name: string; email: string; screens: number }[]
+  funnel?: { candidates?: number; submissions?: number; interviews?: number; offers?: number }
   activity_breakdown: { action: string; c: string }[]
   data_access_breakdown: { access_type: string; c: string }[]
   recent_logins: { name: string; email: string; created_at: string; ip_address: string | null }[]
@@ -60,10 +63,39 @@ export function GovernanceTab() {
           <p className="text-3xl font-bold text-slate-900 mt-1">{data?.active_sessions ?? 0}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs text-slate-400 uppercase font-bold">Activity types</p>
-          <p className="text-3xl font-bold text-slate-900 mt-1">{data?.activity_breakdown?.length ?? 0}</p>
+          <p className="text-xs text-slate-400 uppercase font-bold">Online now</p>
+          <p className="text-3xl font-bold text-slate-900 mt-1">{data?.online_now ?? 0}</p>
         </div>
       </div>
+
+      {(data?.funnel || (data?.top_recruiters?.length ?? 0) > 0) && (
+        <div className="grid lg:grid-cols-2 gap-4 mb-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <p className="text-sm font-bold text-slate-900 mb-3">Pipeline funnel</p>
+            <ul className="text-sm space-y-1">
+              <li className="flex justify-between"><span>Candidates</span><strong>{data?.funnel?.candidates ?? 0}</strong></li>
+              <li className="flex justify-between"><span>Submissions</span><strong>{data?.funnel?.submissions ?? 0}</strong></li>
+              <li className="flex justify-between"><span>Interviews</span><strong>{data?.funnel?.interviews ?? 0}</strong></li>
+              <li className="flex justify-between"><span>Offers</span><strong>{data?.funnel?.offers ?? 0}</strong></li>
+            </ul>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <p className="text-sm font-bold text-slate-900 mb-3">Top recruiters (AI screens)</p>
+            {(data?.top_recruiters ?? []).length === 0 ? (
+              <p className="text-sm text-slate-400">No screening activity in period.</p>
+            ) : (
+              <ul className="text-sm space-y-1">
+                {data!.top_recruiters!.map((r, i) => (
+                  <li key={i} className="flex justify-between gap-2">
+                    <span className="truncate">{r.name || r.email}</span>
+                    <strong>{r.screens}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-4 mb-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-5">

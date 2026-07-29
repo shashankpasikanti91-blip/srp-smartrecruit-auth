@@ -18,8 +18,11 @@ export async function POST(req: NextRequest) {
       [normalizedEmail]
     )
 
-    // Always return success to prevent email enumeration
-    const successMsg = { ok: true, message: 'If an account with that email exists, a password reset link has been sent.' }
+    // Always return success to prevent email enumeration — reset is only sent to the registered account
+    const successMsg = {
+      ok: true,
+      message: 'If an account with that email exists, a password reset link has been sent to the registered email address. Reset emails are never redirected to a different address.',
+    }
 
     if (rows.length === 0) {
       return NextResponse.json(successMsg)

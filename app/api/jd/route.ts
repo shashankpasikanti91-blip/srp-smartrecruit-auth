@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
-import { chatCompletion } from '@/lib/aiClient'
+import { chatCompletionWithUsage } from '@/lib/aiClient'
+import { recordAiUsage } from '@/lib/aiUsage'
 
 export const maxDuration = 60
 
@@ -65,8 +66,8 @@ OUTPUT FORMAT — Return JSON ONLY. No markdown. No extra text.
   "industry_hints": []
 }`
 
-async function callAI(systemPrompt: string, userMessage: string): Promise<string> {
-  return chatCompletion({
+async function callAI(systemPrompt: string, userMessage: string) {
+  return chatCompletionWithUsage({
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage },
@@ -103,10 +104,42 @@ export async function POST(req: NextRequest) {
     if (action === 'generate') {
       const { job_title, skills, experience, education, location,
               employment_type, salary, industry, company_name,
-              notice_period, additional_notes } = params as Record<string, string>
+              notice_period, additional_notes, force } = params as Record<string, string> & { force?: boolean }
 
       if (!job_title?.trim()) {
         return NextResponse.json({ error: 'job_title is required' }, { status: 400 })
+      }
+
+      // Return last generated JD for this user+title unless force
+      if (!force) {
+        try {
+          const { rows } = await pool.query(
+            `SELECT id, title, full_jd_text, structured_data, created_at
+             FROM generated_jds
+             WHERE user_id = $1 AND LOWER(title) = LOWER($2)
+             ORDER BY created_at DESC LIMIT 1`,
+            [userId, job_title.trim()],
+          )
+          if (rows[0]) {
+            const row = rows[0]
+            const structured = typeof row.structured_data === 'object' && row.structured_data
+              ? row.structured_data as Record<string, unknown>
+              : {}
+            return NextResponse.json({
+              id: row.id,
+              action: 'generate',
+              cached: true,
+              generation: {
+                status: 'completed',
+                generated_at: row.created_at,
+                generated_by: null,
+              },
+              ...structured,
+              full_jd_text: row.full_jd_text ?? structured.full_jd_text,
+              job_title: row.title,
+            })
+          }
+        } catch { /* table may vary */ }
       }
 
       const userMessage = [
@@ -123,8 +156,8 @@ export async function POST(req: NextRequest) {
         additional_notes ? `\nAdditional Notes:\n${additional_notes}` : '',
       ].filter(Boolean).join('\n')
 
-      const raw = await callAI(JD_GENERATOR_PROMPT, userMessage)
-      const result = parseJSON(raw)
+      const ai = await callAI(JD_GENERATOR_PROMPT, userMessage)
+      const result = parseJSON(ai.content)
 
       // Save to DB
       let savedId: string | null = null
@@ -134,18 +167,38 @@ export async function POST(req: NextRequest) {
             (user_id, title, input_params, full_jd_text, structured_data)
            VALUES ($1, $2, $3, $4, $5)
            RETURNING id`,
-          [userId, job_title, JSON.stringify(params), result.full_jd_text ?? raw, JSON.stringify(result)]
+          [userId, job_title, JSON.stringify(params), result.full_jd_text ?? ai.content, JSON.stringify(result)]
         )
         savedId = dbRes.rows[0]?.id ?? null
       } catch (dbErr) {
         console.warn('[api/jd] DB save warning:', dbErr instanceof Error ? dbErr.message : dbErr)
       }
 
-      return NextResponse.json({ id: savedId, action: 'generate', ...result })
+      await recordAiUsage({
+        userId,
+        tenantId: ctx.tenantId,
+        operation: 'jd_generate',
+        result: ai,
+        metadata: { jd_id: savedId, force: Boolean(force) },
+      })
+
+      return NextResponse.json({
+        id: savedId,
+        action: 'generate',
+        cached: false,
+        generation: {
+          status: 'completed',
+          generated_at: new Date().toISOString(),
+          model: ai.model,
+          tokens: ai.total_tokens,
+          duration_ms: ai.duration_ms,
+        },
+        ...result,
+      })
     }
 
     if (action === 'analyze') {
-      const { jd_text } = params as { jd_text: string }
+      const { jd_text, force } = params as { jd_text: string; force?: boolean }
       if (!jd_text?.trim()) {
         return NextResponse.json({ error: 'jd_text is required for analyze action' }, { status: 400 })
       }
@@ -153,8 +206,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'JD text too long (max 20,000 chars)' }, { status: 400 })
       }
 
-      const raw = await callAI(JD_ANALYZER_PROMPT, `ANALYZE THIS JD:\n\n${jd_text}`)
-      const result = parseJSON(raw)
+      const ai = await callAI(JD_ANALYZER_PROMPT, `ANALYZE THIS JD:\n\n${jd_text}`)
+      const result = parseJSON(ai.content)
 
       // Save analysis
       try {
@@ -178,7 +231,26 @@ export async function POST(req: NextRequest) {
         console.warn('[api/jd] DB save warning:', dbErr instanceof Error ? dbErr.message : dbErr)
       }
 
-      return NextResponse.json({ action: 'analyze', ...result })
+      await recordAiUsage({
+        userId,
+        tenantId: ctx.tenantId,
+        operation: 'jd_analyze',
+        result: ai,
+        metadata: { force: Boolean(force) },
+      })
+
+      return NextResponse.json({
+        action: 'analyze',
+        cached: false,
+        generation: {
+          status: 'completed',
+          generated_at: new Date().toISOString(),
+          model: ai.model,
+          tokens: ai.total_tokens,
+          duration_ms: ai.duration_ms,
+        },
+        ...result,
+      })
     }
 
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })

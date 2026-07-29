@@ -35,6 +35,8 @@ import { DeleteApprovalsPanel } from '@/components/recruitment/DeleteApprovalsPa
 import { NotificationBell } from '@/components/dashboard/NotificationBell'
 import { GlobalSearchPalette } from '@/components/dashboard/GlobalSearchPalette'
 import { GovernanceTab } from '@/components/governance/GovernanceTab'
+import { SecurityCenterTab } from '@/components/security/SecurityCenterTab'
+import { EmailCalendarHub } from '@/components/security/EmailCalendarHub'
 import { BrandMark, AppSplash } from '@/components/ui/BrandMark'
 import {
   getCandidateDossierChecks as buildDossierChecks,
@@ -356,74 +358,25 @@ function JDTab() {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [history, setHistory] = useState<{id: string; title: string; created_at: string}[]>([])
-  const [selectedPlatforms, setSelectedPlatforms] = useState<JobPostPlatform[]>([...JOB_POST_PLATFORMS])
-  const [channelPosts, setChannelPosts] = useState<Partial<Record<JobPostPlatform, string>>>({})
-  const [channelTab, setChannelTab] = useState<JobPostPlatform>('linkedin')
-  const [generatingPosts, setGeneratingPosts] = useState(false)
-  const [postsError, setPostsError] = useState('')
-  const [copiedPost, setCopiedPost] = useState('')
+
+  const EMPLOYMENT_OPTIONS = ['Full-Time', 'Part-Time', 'Contract', 'Internship', 'Remote', 'Hybrid'] as const
 
   useEffect(() => {
     fetch('/api/jd').then(r => r.json()).then(d => setHistory(d.jds ?? []))
   }, [result])
 
-  function togglePlatform(p: JobPostPlatform) {
-    setSelectedPlatforms(prev =>
-      prev.includes(p) ? (prev.length === 1 ? prev : prev.filter(x => x !== p)) : [...prev, p]
-    )
-  }
-
-  async function generateChannelPosts(jdText: string, title: string) {
-    if (selectedPlatforms.length === 0) return
-    setGeneratingPosts(true)
-    setPostsError('')
-    setChannelPosts({})
-    try {
-      const res = await fetch('/api/jobs/generate-posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          company: companyName || undefined,
-          location: location || undefined,
-          type: employmentType || undefined,
-          description: jdText,
-          requirements: skills || undefined,
-          platforms: selectedPlatforms,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Failed to generate channel posts')
-      const posts = (data.posts ?? {}) as Partial<Record<JobPostPlatform, string>>
-      setChannelPosts(posts)
-      const first = selectedPlatforms.find(p => posts[p]) ?? (Object.keys(posts)[0] as JobPostPlatform | undefined)
-      if (first) setChannelTab(first)
-    } catch (e) {
-      setPostsError(e instanceof Error ? e.message : 'Channel post generation failed')
-    } finally {
-      setGeneratingPosts(false)
-    }
-  }
-
-  async function submit() {
-    setError(''); setLoading(true); setResult(null); setChannelPosts({}); setPostsError('')
+  async function submit(force = false) {
+    setError(''); setLoading(true)
+    if (!force) setResult(null)
     try {
       const payload = mode === 'generate'
         ? { action: 'generate', job_title: jobTitle, skills: skills.split(',').map(s => s.trim()).filter(Boolean),
-            experience, location, employment_type: employmentType, salary, company_name: companyName }
-        : { action: 'analyze', jd_text: analyzeText }
+            experience, location, employment_type: employmentType, salary, company_name: companyName, force }
+        : { action: 'analyze', jd_text: analyzeText, force }
       const res = await fetch('/api/jd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed')
       setResult(data)
-      if (mode === 'generate') {
-        const text = (data.full_jd_text as string | undefined) ?? ''
-        if (text && selectedPlatforms.length > 0) {
-          setLoading(false)
-          await generateChannelPosts(text, (data.job_title as string) || jobTitle)
-          return
-        }
-      }
     } catch (e) { setError(e instanceof Error ? e.message : 'Error') }
     setLoading(false)
   }
@@ -438,19 +391,32 @@ function JDTab() {
             <FileText className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>JD Intelligence</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Write a short JD, then generate Email / LinkedIn / WhatsApp / Indeed posts to copy — no job save required</p>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>JD Writer</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Generate a professional job description — channel posts live under Generate Job Post</p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 justify-end">
-          <button onClick={() => { setMode('generate'); setResult(null); setChannelPosts({}) }}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'generate' ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-            Generate JD
-          </button>
-          <button onClick={() => { setMode('analyze'); setResult(null); setChannelPosts({}) }}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'analyze' ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-            Analyze JD
-          </button>
+      </div>
+
+      <div className="option-card-grid mb-2">
+        <button
+          type="button"
+          onClick={() => { setMode('generate'); setResult(null) }}
+          className={`rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 ${mode === 'generate' ? 'border-indigo-300 bg-gradient-to-br from-indigo-50 to-violet-50 shadow-md ring-1 ring-indigo-200' : 'border-slate-200 bg-white hover:border-indigo-150'}`}
+        >
+          <p className="text-sm font-extrabold text-slate-900">Generate JD</p>
+          <p className="text-xs text-slate-500 mt-1">Build a structured professional job description from title, skills, and context.</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => { setMode('analyze'); setResult(null) }}
+          className={`rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 ${mode === 'analyze' ? 'border-indigo-300 bg-gradient-to-br from-indigo-50 to-violet-50 shadow-md ring-1 ring-indigo-200' : 'border-slate-200 bg-white hover:border-indigo-150'}`}
+        >
+          <p className="text-sm font-extrabold text-slate-900">Analyze JD</p>
+          <p className="text-xs text-slate-500 mt-1">Extract skills, interview questions, and alternate titles from an existing JD.</p>
+        </button>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-sm font-extrabold text-slate-900">Channel posts</p>
+          <p className="text-xs text-slate-500 mt-1">Use <span className="font-semibold text-indigo-700">Generate Job Post</span> for LinkedIn, JobStreet, Indeed, and more.</p>
         </div>
       </div>
 
@@ -486,59 +452,25 @@ function JDTab() {
                     <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Hyderabad / Remote"
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
                   </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-700 mb-1 block">Employment Type</label>
-                    <select value={employmentType} onChange={e => setEmploymentType(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500">
-                      {['Full-Time','Part-Time','Contract','Internship','Remote','Hybrid'].map(t => <option key={t}>{t}</option>)}
-                    </select>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-semibold text-gray-700 mb-2 block">Employment Type</label>
+                    <div className="option-card-grid">
+                      {EMPLOYMENT_OPTIONS.map(t => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setEmploymentType(t)}
+                          className={`rounded-xl border px-3 py-3 text-left transition-all hover:-translate-y-0.5 ${employmentType === t ? 'border-indigo-300 bg-indigo-50 shadow-sm' : 'border-slate-200 bg-white'}`}
+                        >
+                          <span className="text-xs font-extrabold text-slate-800">{t}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div>
+                  <div className="sm:col-span-2">
                     <label className="text-xs font-semibold text-gray-700 mb-1 block">Salary / CTC (optional)</label>
                     <input value={salary} onChange={e => setSalary(e.target.value)} placeholder="₹12–18 LPA or $80k–100k"
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div>
-                      <p className="text-xs font-bold text-indigo-900">Generate channel posts (copy only)</p>
-                      <p className="text-[11px] text-indigo-700/80 mt-0.5">
-                        No job save needed here — generate Email / LinkedIn / WhatsApp / Indeed text and copy.
-                        To attach posts to a client job permanently, use <span className="font-semibold">Jobs → New Job → Create &amp; Generate Posts</span>.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPlatforms(prev => prev.length === JOB_POST_PLATFORMS.length ? ['linkedin'] : [...JOB_POST_PLATFORMS])}
-                      className="text-[11px] font-semibold text-indigo-700 hover:underline whitespace-nowrap"
-                    >
-                      {selectedPlatforms.length === JOB_POST_PLATFORMS.length ? 'Clear all' : 'Select all'}
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {JOB_POST_PLATFORMS.map(p => {
-                      const meta = JOB_POST_PLATFORM_META[p]
-                      const on = selectedPlatforms.includes(p)
-                      return (
-                        <label
-                          key={p}
-                          className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 cursor-pointer transition-all ${on ? 'border-indigo-300 bg-white shadow-sm' : 'border-slate-200 bg-white/60 opacity-80'}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={on}
-                            onChange={() => togglePlatform(p)}
-                            className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                          />
-                          <span className="min-w-0">
-                            <span className="block text-xs font-bold text-slate-800">{meta.label}</span>
-                            <span className="block text-[10px] text-slate-500 leading-snug">{meta.hint}</span>
-                          </span>
-                        </label>
-                      )
-                    })}
                   </div>
                 </div>
               </div>
@@ -561,16 +493,40 @@ function JDTab() {
 
             {error && <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>}
 
-            <button onClick={submit} disabled={loading || generatingPosts || (mode === 'generate' ? !jobTitle.trim() : !analyzeText.trim())}
+            <button onClick={() => submit(false)} disabled={loading || (mode === 'generate' ? !jobTitle.trim() : !analyzeText.trim())}
               className="mt-4 w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20">
-              {loading || generatingPosts
-                ? <><Loader2 className="w-4 h-4 animate-spin" />{generatingPosts ? 'Writing channel posts…' : 'Processing…'}</>
-                : <><Sparkles className="w-4 h-4" />{mode === 'generate' ? (selectedPlatforms.length ? 'Generate JD + Channel Posts' : 'Generate Job Description') : 'Analyze JD'}</>}
+              {loading
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Processing…</>
+                : <><Sparkles className="w-4 h-4" />{mode === 'generate' ? 'Generate Job Description' : 'Analyze JD'}</>}
             </button>
           </div>
 
           {result && (
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+              {Boolean(result.cached || result.generation) && (
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] font-semibold text-slate-600">
+                    {result.cached ? 'Last Generated (cached — no tokens used)' : 'Freshly generated'}
+                    {typeof (result.generation as { generated_at?: string } | undefined)?.generated_at === 'string'
+                      ? ` · ${new Date((result.generation as { generated_at: string }).generated_at).toLocaleString()}`
+                      : ''}
+                    {(result.generation as { model?: string } | undefined)?.model
+                      ? ` · ${(result.generation as { model: string }).model}`
+                      : ''}
+                    {(result.generation as { tokens?: number } | undefined)?.tokens
+                      ? ` · ${(result.generation as { tokens: number }).tokens} tokens`
+                      : ''}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => submit(true)}
+                    disabled={loading}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 text-[11px] font-extrabold disabled:opacity-50"
+                  >
+                    <Sparkles className="w-3 h-3" /> Generate Again
+                  </button>
+                </div>
+              )}
               {mode === 'generate' && jdText ? (
                 <div>
                   <div className="flex items-center justify-between mb-3">
@@ -590,71 +546,9 @@ function JDTab() {
                     </div>
                   </div>
                   <pre className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed max-h-[40vh] overflow-y-auto bg-gray-50 rounded-lg p-4 border border-gray-200">{jdText.replace(/[□☐■▪◦◆►▸]/g, '•')}</pre>
-
-                  <div className="mt-5 border-t border-slate-100 pt-4">
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-700">Channel posts (copy only)</h3>
-                        <p className="text-[11px] text-slate-500">Generated for copy/paste — not saved as a job unless you use Jobs → New Job.</p>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={generatingPosts || selectedPlatforms.length === 0}
-                        onClick={() => generateChannelPosts(jdText, (result.job_title as string) || jobTitle)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 disabled:opacity-50"
-                      >
-                        {generatingPosts ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                        {Object.keys(channelPosts).length ? 'Regenerate selected' : 'Generate selected'}
-                      </button>
-                    </div>
-
-                    {postsError && (
-                      <div className="mb-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{postsError}</div>
-                    )}
-
-                    {Object.keys(channelPosts).length > 0 ? (
-                      <>
-                        <div className="flex gap-1 flex-wrap mb-2">
-                          {JOB_POST_PLATFORMS.map(p => (
-                            channelPosts[p] ? (
-                              <button
-                                key={p}
-                                type="button"
-                                onClick={() => setChannelTab(p)}
-                                className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${channelTab === p ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                              >
-                                {JOB_POST_PLATFORM_META[p].label}
-                              </button>
-                            ) : null
-                          ))}
-                        </div>
-                        <div className="relative">
-                          <textarea
-                            readOnly
-                            value={channelPosts[channelTab] ?? ''}
-                            rows={10}
-                            className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-800 resize-none focus:outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const text = channelPosts[channelTab] ?? ''
-                              navigator.clipboard.writeText(text)
-                              setCopiedPost(channelTab)
-                              setTimeout(() => setCopiedPost(''), 2000)
-                            }}
-                            className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs text-slate-700 border border-slate-200"
-                          >
-                            {copiedPost === channelTab ? <><Check className="w-3 h-3 text-emerald-600" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy</>}
-                          </button>
-                        </div>
-                      </>
-                    ) : !generatingPosts ? (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                        Select channels above, then click <span className="font-semibold">Generate selected</span> to create Email / LinkedIn / WhatsApp / Indeed posts with the platform-specific prompts.
-                      </div>
-                    ) : null}
-                  </div>
+                  <p className="mt-3 text-xs text-slate-500">
+                    Need social channel posts? Open <span className="font-semibold text-indigo-700">Generate Job Post</span> from Jobs or AI Hub.
+                  </p>
                 </div>
               ) : mode === 'analyze' ? (
                 <div className="space-y-4">
@@ -737,12 +631,13 @@ function BooleanTab() {
     fetch('/api/boolean-search').then(r => r.json()).then(d => setHistory(d.searches ?? []))
   }, [result])
 
-  async function submit() {
-    setError(''); setLoading(true); setResult(null)
+  async function submit(force = false) {
+    setError(''); setLoading(true)
+    if (!force) setResult(null)
     try {
       const payload = mode === 'fromjd'
-        ? { jd_text: jdText }
-        : { job_title: jobTitle, skills: skills.split(',').map(s => s.trim()).filter(Boolean), experience }
+        ? { jd_text: jdText, force }
+        : { job_title: jobTitle, skills: skills.split(',').map(s => s.trim()).filter(Boolean), experience, force }
       const res = await fetch('/api/boolean-search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed')
@@ -827,7 +722,7 @@ function BooleanTab() {
 
             {error && <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>}
 
-            <button onClick={submit} disabled={loading || (mode === 'simple' ? !jobTitle.trim() : !jdText.trim())}
+            <button onClick={() => submit(false)} disabled={loading || (mode === 'simple' ? !jobTitle.trim() : !jdText.trim())}
               className="mt-4 w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20">
               {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : <><Sparkles className="w-4 h-4" />Generate Boolean Strings</>}
             </button>
@@ -835,6 +730,24 @@ function BooleanTab() {
 
           {result && (
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-3">
+              {Boolean(result.cached || result.generation) && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] font-semibold text-slate-600">
+                    {result.cached ? 'Last Generated (cached — no tokens used)' : 'Freshly generated'}
+                    {typeof (result.generation as { generated_at?: string } | undefined)?.generated_at === 'string'
+                      ? ` · ${new Date((result.generation as { generated_at: string }).generated_at).toLocaleString()}`
+                      : ''}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => submit(true)}
+                    disabled={loading}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 text-[11px] font-extrabold disabled:opacity-50"
+                  >
+                    <Sparkles className="w-3 h-3" /> Generate Again
+                  </button>
+                </div>
+              )}
               <h3 className="text-sm font-semibold text-gray-700">Generated Boolean Strings</h3>
               {boolFields.map(({ key, label, color }) => {
                 const val = result[key] as string | undefined
@@ -1183,6 +1096,18 @@ function IntegrationsTab() {
     load()
   }
 
+  async function testTelegram(e: React.MouseEvent) {
+    e.stopPropagation()
+    setSaveMsg('Testing Telegram…')
+    const res = await fetch('/api/integrations/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'telegram' }),
+    })
+    const data = await res.json()
+    setSaveMsg(data.ok ? `Telegram OK (@${data.bot}) · ${data.latency_ms}ms` : `Telegram: ${data.error || data.status}`)
+  }
+
   const categories = [...new Set((catalogue as Record<string, string>[]).map(c => c.category))]
   const connectedCount = integrations.filter(i => i.is_active).length
 
@@ -1465,6 +1390,12 @@ function IntegrationsTab() {
                 className="px-5 py-2.5 rounded-xl bg-gray-100 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-all">
                 Cancel
               </button>
+              {selected.id === 'telegram' && (
+                <button type="button" onClick={testTelegram}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                  Test Connection
+                </button>
+              )}
               <button onClick={save} disabled={saving}
                 className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold disabled:opacity-50 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm">
                 {saving
@@ -1506,10 +1437,17 @@ const AI_SHORTCUTS: AiShortcut[] = [
 
 export default function DashboardPage() {
   const { data: session, status } = useSession()
+
+  // Sync tracked session cookie for Security Center terminate/heartbeat
+  useEffect(() => {
+    if (status === 'authenticated') {
+      void fetch('/api/security/session-cookie', { method: 'POST' }).catch(() => {})
+    }
+  }, [status, session])
   const router = useRouter()
 
   const [activeTab, setActiveTab] = useState<DashboardTab>('workspace')
-  const [settingsPanel, setSettingsPanel] = useState<'main' | 'integrations' | 'governance'>('main')
+  const [settingsPanel, setSettingsPanel] = useState<'main' | 'integrations' | 'governance' | 'security'>('main')
   /** Expandable AI Tools sidebar (shortcuts into existing Hub tabs) */
   const [aiNavExpanded, setAiNavExpanded] = useState(true)
   const [aiNavQuery, setAiNavQuery] = useState('')
@@ -1719,6 +1657,12 @@ export default function DashboardPage() {
 
   // Job post generator state
   const [genPostJob, setGenPostJob] = useState<Job | null>(null)
+  const [genPostOpen, setGenPostOpen] = useState(false)
+  const [genPostMode, setGenPostMode] = useState<'existing' | 'quick'>('existing')
+  const [quickJdText, setQuickJdText] = useState('')
+  const [quickTitle, setQuickTitle] = useState('')
+  const [quickCompany, setQuickCompany] = useState('')
+  const [quickLocation, setQuickLocation] = useState('')
   const [generatingPosts, setGeneratingPosts] = useState(false)
   const [generatedPosts, setGeneratedPosts] = useState<Record<string, string>>({})
   const [genPostError, setGenPostError] = useState('')
@@ -2190,7 +2134,9 @@ export default function DashboardPage() {
       setFilterJobCompany('')
       await loadData()
       if (data.job) {
+        setGenPostMode('existing')
         setGenPostJob(data.job)
+        setGenPostOpen(true)
         setGeneratedPosts({}); setGenCustomPrompt(''); setGenPostError('')
         setWorkspaceBanner(`Job post saved: ${savedTitle}. Generate social posts below when you are ready.`)
       } else {
@@ -2542,11 +2488,14 @@ export default function DashboardPage() {
   }
 
   const openJobDetails = (job: Job) => {
+    setGenPostMode('existing')
     setGenPostJob(job)
+    setGenPostOpen(true)
     const saved = job.post_contents
+    const allKeys = JOB_POST_PLATFORMS as unknown as string[]
     const posts = saved
       ? Object.fromEntries(
-          ['linkedin','whatsapp','email','twitter','indeed','telegram','facebook']
+          allKeys
             .filter(k => saved[k])
             .map(k => [k, saved[k]])
         )
@@ -2556,10 +2505,31 @@ export default function DashboardPage() {
     setGenPostTab(firstKey || 'linkedin')
     setGenCustomPrompt('')
     setGenPostError('')
+    setQuickJdText('')
+    setQuickTitle('')
   }
 
-  const generateJobPosts = async (job: Job, platforms = genPostPlatforms) => {
-    setGeneratingPosts(true); setGenPostError(''); setGeneratedPosts({})
+  const openGenPostModal = (mode: 'existing' | 'quick' = 'existing') => {
+    setGenPostMode(mode)
+    setGenPostOpen(true)
+    if (mode === 'quick') {
+      setGenPostJob(null)
+      setGeneratedPosts({})
+      setGenPostTab('linkedin')
+      setGenCustomPrompt('')
+      setGenPostError('')
+    }
+  }
+
+  const closeGenPostModal = () => {
+    setGenPostOpen(false)
+    setGenPostJob(null)
+    setActiveTab('jobs')
+    loadData()
+  }
+
+  const generateJobPosts = async (job: Job, platforms = genPostPlatforms, force = true) => {
+    setGeneratingPosts(true); setGenPostError(''); if (force) setGeneratedPosts({})
     try {
       const res = await fetch('/api/jobs/generate-posts', {
         method: 'POST',
@@ -2575,6 +2545,7 @@ export default function DashboardPage() {
           raw_jd_text: (job as Job & { raw_jd_text?: string }).raw_jd_text,
           custom_prompt: genCustomPrompt,
           platforms,
+          force,
         }),
       })
       const data = await res.json()
@@ -2588,6 +2559,77 @@ export default function DashboardPage() {
       if (firstKey) setGenPostTab(firstKey)
       await loadData()
       setWorkspaceBanner('Social posts generated and saved for this job.')
+    } catch (e) {
+      setGenPostError(String(e))
+    } finally {
+      setGeneratingPosts(false)
+    }
+  }
+
+  const generateQuickPosts = async (platforms = genPostPlatforms, force = true) => {
+    const jd = quickJdText.trim()
+    if (!jd) { setGenPostError('Paste or upload a job description first.'); return }
+    const title = quickTitle.trim() || jd.split('\n').find(l => l.trim())?.slice(0, 80) || 'Untitled Role'
+    setGeneratingPosts(true); setGenPostError(''); if (force) setGeneratedPosts({})
+    try {
+      const res = await fetch('/api/jobs/generate-posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          company: quickCompany || undefined,
+          location: quickLocation || undefined,
+          description: jd,
+          raw_jd_text: jd,
+          custom_prompt: genCustomPrompt,
+          platforms,
+          force,
+        }),
+      })
+      const data = await res.json()
+      if (res.status === 403) {
+        setUpgradePrompt({ show: true, message: data.error || 'You have reached your plan limit.', feature: 'Job Post Generation' })
+        return
+      }
+      if (!res.ok) { setGenPostError(data.error ?? 'Failed to generate posts'); return }
+      setGeneratedPosts(data.posts ?? {})
+      setQuickTitle(title)
+      const firstKey = Object.keys(data.posts ?? {})[0]
+      if (firstKey) setGenPostTab(firstKey)
+      setWorkspaceBanner('Channel posts generated (not saved as a job). Use Save as Job to persist.')
+    } catch (e) {
+      setGenPostError(String(e))
+    } finally {
+      setGeneratingPosts(false)
+    }
+  }
+
+  const saveQuickAsJob = async () => {
+    const jd = quickJdText.trim()
+    const title = quickTitle.trim() || 'Untitled Role'
+    if (!jd) { setGenPostError('JD text required to save as job.'); return }
+    setGeneratingPosts(true); setGenPostError('')
+    try {
+      const res = await fetch('/api/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          company: quickCompany || undefined,
+          location: quickLocation || undefined,
+          description: jd,
+          raw_jd_text: jd,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setGenPostError(data.error ?? 'Failed to save job'); return }
+      const job = data.job as Job
+      await loadData()
+      if (job) {
+        setGenPostJob(job)
+        setGenPostMode('existing')
+      }
+      setWorkspaceBanner(`Saved as job: ${title}. Open Generate posts on the job to attach channels permanently.`)
     } catch (e) {
       setGenPostError(String(e))
     } finally {
@@ -4047,8 +4089,18 @@ export default function DashboardPage() {
                       <div className="min-w-0">
                         <p className="text-sm font-extrabold text-indigo-900">Generate Job Post</p>
                         <p className="text-xs text-indigo-800 mt-1">
-                          Choose a job below, then click the <span className="font-bold">JD / Posts</span> action to open the existing generator.
+                          Generate from an existing job, or Quick Generate from pasted / uploaded JD text without creating a job first.
                         </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button type="button" onClick={() => { setPendingAiAction(null); openGenPostModal('existing') }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-extrabold bg-indigo-600 text-white hover:bg-indigo-500">
+                            From existing job
+                          </button>
+                          <button type="button" onClick={() => { setPendingAiAction(null); openGenPostModal('quick') }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-extrabold border border-indigo-300 bg-white text-indigo-800 hover:bg-indigo-50">
+                            Quick Generate
+                          </button>
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -4530,6 +4582,10 @@ export default function DashboardPage() {
                           className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
                           Integrations catalog
                         </button>
+                        <button type="button" onClick={() => setSettingsPanel('security')}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
+                          Security Center
+                        </button>
                         {canSeeGovernance && (
                           <button type="button" onClick={() => setSettingsPanel('governance')}
                             className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
@@ -4763,59 +4819,7 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Email & Calendar Connections */}
-                    <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Mail className="w-4 h-4 text-blue-600" />
-                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Email &amp; Calendar</h2>
-                      </div>
-                      <p className="text-xs text-gray-400 mb-5">Connect your work email and calendar to send interview invites and schedule meetings.</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {/* Gmail */}
-                        <a href="/api/oauth/gmail" className="flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all group">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-xs font-bold text-red-600">G</div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-800">Gmail</p>
-                              <p className="text-xs text-gray-400">Send via Google</p>
-                            </div>
-                          </div>
-                          <span className="text-xs text-blue-600 group-hover:underline">Connect →</span>
-                        </a>
-                        {/* Outlook Email */}
-                        <a href="/api/oauth/outlook" className="flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all group">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">O</div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-800">Outlook</p>
-                              <p className="text-xs text-gray-400">Send via Microsoft</p>
-                            </div>
-                          </div>
-                          <span className="text-xs text-blue-600 group-hover:underline">Connect →</span>
-                        </a>
-                        {/* Google Calendar */}
-                        <a href="/api/oauth/gcal" className="flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-green-300 hover:bg-green-50/50 transition-all group">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-green-50 border border-green-100 flex items-center justify-center text-xs font-bold text-green-600">Cal</div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-800">Google Calendar</p>
-                              <p className="text-xs text-gray-400">Schedule + Meet links</p>
-                            </div>
-                          </div>
-                          <span className="text-xs text-green-600 group-hover:underline">Connect →</span>
-                        </a>
-                        {/* Outlook Calendar */}
-                        <a href="/api/oauth/outlookcal" className="flex items-center justify-between p-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all group">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600">OC</div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-800">Outlook Calendar</p>
-                              <p className="text-xs text-gray-400">Schedule + Teams links</p>
-                            </div>
-                          </div>
-                          <span className="text-xs text-blue-600 group-hover:underline">Connect →</span>
-                        </a>
-                      </div>
-                    </div>
+                    <EmailCalendarHub />
 
                     {/* API Keys for n8n / ATS Integration */}
                     <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
@@ -5246,6 +5250,15 @@ export default function DashboardPage() {
                 <GovernanceTab />
               </div>
             )}
+            {activeTab === 'settings' && settingsPanel === 'security' && (
+              <div>
+                <button type="button" onClick={() => setSettingsPanel('main')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← Back to Settings</button>
+                <SecurityCenterTab onOpenMfa={() => {
+                  window.location.hash = 'mfa'
+                  setSettingsPanel('security')
+                }} />
+              </div>
+            )}
             {activeTab === 'settings' && settingsPanel === 'integrations' && (
               <div>
                 <button type="button" onClick={() => setSettingsPanel('main')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← Back to Settings</button>
@@ -5275,7 +5288,9 @@ export default function DashboardPage() {
           if (generatePosts) {
             const selected = platforms?.length ? platforms : [...JOB_POST_PLATFORMS]
             setGenPostPlatforms(selected)
+            setGenPostMode('existing')
             setGenPostJob(job as unknown as Job)
+            setGenPostOpen(true)
             setGeneratedPosts({})
             setGenCustomPrompt('')
             setGenPostError('')
@@ -5285,51 +5300,93 @@ export default function DashboardPage() {
       />
 
       {/* ── Generate Job Posts Modal ─────────────────────────────────────── */}
-      {genPostJob && (
+      {genPostOpen && (
         <div className="fixed inset-0 bg-slate-900/35 backdrop-blur-[2px] z-[70] overflow-y-auto flex items-start justify-center p-4">
           <div className="glass-card rounded-2xl p-5 w-full max-w-2xl border border-slate-200 my-auto flex flex-col max-h-[92vh] overflow-hidden">
             <div className="flex items-center justify-between mb-3 flex-shrink-0">
               <div>
-                <h2 className="text-base font-bold text-slate-900">Job details &amp; social posts</h2>
+                <h2 className="text-base font-bold text-slate-900">Generate Job Post</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {genPostJob.title}
-                  {genPostJob.company ? ` · ${genPostJob.company}` : ''}
-                  {genPostJob.short_id ? <> · <span className="font-mono bg-slate-100 px-1 py-0.5 rounded text-indigo-700">{genPostJob.short_id}</span></> : ''}
-                </p>
-                <p className="text-[10px] text-slate-400 mt-1 font-mono">
-                  Posted: {fmtDate(genPostJob.created_at)}
-                  {genPostJob.updated_at && genPostJob.updated_at !== genPostJob.created_at ? ` · Updated: ${fmtDate(genPostJob.updated_at)}` : ''}
+                  {genPostMode === 'existing' && genPostJob
+                    ? <>{genPostJob.title}{genPostJob.company ? ` · ${genPostJob.company}` : ''}{genPostJob.short_id ? <> · <span className="font-mono bg-slate-100 px-1 py-0.5 rounded text-indigo-700">{genPostJob.short_id}</span></> : ''}</>
+                    : 'Quick generate from JD text — no job required'}
                 </p>
               </div>
-              <button onClick={() => { setGenPostJob(null); setActiveTab('jobs'); loadData() }} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button>
+              <button onClick={closeGenPostModal} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button>
             </div>
 
-            {/* Source JD preview */}
-            <div className="mb-3 grid grid-cols-1 gap-2 flex-shrink-0">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">Job description</label>
-                  {Object.keys(generatedPosts).length > 0 && (
-                    <span className="text-[11px] text-emerald-700">Saved posts loaded — no AI cost unless you click Regenerate</span>
-                  )}
-                </div>
-                <div className="max-h-24 overflow-auto whitespace-pre-wrap text-xs text-slate-700">
-                  {genPostJob.description?.trim() || 'No description saved for this job yet.'}
-                </div>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1 block">Requirements</label>
-                <div className="max-h-24 overflow-auto whitespace-pre-wrap text-xs text-slate-700">
-                  {genPostJob.requirements?.trim() || 'No requirements saved for this job yet.'}
-                </div>
-              </div>
+            <div className="grid grid-cols-2 gap-2 mb-3 flex-shrink-0">
+              <button type="button" onClick={() => setGenPostMode('existing')}
+                className={`rounded-xl border px-3 py-2.5 text-left transition-all ${genPostMode === 'existing' ? 'border-indigo-300 bg-indigo-50 shadow-sm' : 'border-slate-200 bg-white'}`}>
+                <p className="text-xs font-extrabold text-slate-900">From existing job</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">Reuse JD and save posts to the job</p>
+              </button>
+              <button type="button" onClick={() => { setGenPostMode('quick'); setGenPostJob(null) }}
+                className={`rounded-xl border px-3 py-2.5 text-left transition-all ${genPostMode === 'quick' ? 'border-cyan-300 bg-cyan-50 shadow-sm' : 'border-slate-200 bg-white'}`}>
+                <p className="text-xs font-extrabold text-slate-900">Quick Generate</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">Paste / upload JD — no job save</p>
+              </button>
             </div>
 
-            {/* Custom prompt */}
+            {genPostMode === 'existing' ? (
+              <div className="mb-3 space-y-2 flex-shrink-0">
+                {!genPostJob ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 max-h-40 overflow-y-auto">
+                    <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">Select a job</p>
+                    {jobs.length === 0 ? (
+                      <p className="text-xs text-slate-500">No jobs yet — use Quick Generate or New Job.</p>
+                    ) : jobs.slice(0, 40).map(j => (
+                      <button key={j.id} type="button" onClick={() => openJobDetails(j)}
+                        className="w-full text-left px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-800 hover:bg-indigo-50 truncate">
+                        {j.title}{j.company ? ` · ${j.company}` : ''}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">Job description</label>
+                        {Object.keys(generatedPosts).length > 0 && (
+                          <span className="text-[11px] text-emerald-700">Saved posts loaded — no AI cost unless you Regenerate</span>
+                        )}
+                      </div>
+                      <div className="max-h-24 overflow-auto whitespace-pre-wrap text-xs text-slate-700">
+                        {genPostJob.description?.trim() || 'No description saved for this job yet.'}
+                      </div>
+                    </div>
+                    <button type="button" className="text-[11px] font-bold text-indigo-700 self-start" onClick={() => { setGenPostJob(null); setGeneratedPosts({}) }}>
+                      Change job
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="mb-3 space-y-2 flex-shrink-0">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <input value={quickTitle} onChange={e => setQuickTitle(e.target.value)} placeholder="Job title (optional)"
+                    className="px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                  <input value={quickCompany} onChange={e => setQuickCompany(e.target.value)} placeholder="Company"
+                    className="px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                  <input value={quickLocation} onChange={e => setQuickLocation(e.target.value)} placeholder="Location"
+                    className="px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                </div>
+                <textarea value={quickJdText} onChange={e => setQuickJdText(e.target.value)} rows={5}
+                  placeholder="Paste full job description…"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm resize-none" />
+                <LightFileUploadZone
+                  label="Upload JD (PDF/DOC/DOCX/TXT)"
+                  accept=".pdf,.docx,.doc,.txt"
+                  onText={t => setQuickJdText(prev => prev ? prev + '\n' + t : t)}
+                  disabled={generatingPosts}
+                />
+              </div>
+            )}
+
             <div className="mb-3 flex-shrink-0">
               <label className="text-xs font-semibold text-slate-600 mb-1 block">Extra context / instructions (optional)</label>
               <input value={genCustomPrompt} onChange={e => setGenCustomPrompt(e.target.value)}
-                placeholder="e.g. Highlight remote work, mention 5LPA stipend, target freshers…"
+                placeholder="e.g. Highlight remote work, mention stipend…"
                 className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
             </div>
 
@@ -5344,7 +5401,7 @@ export default function DashboardPage() {
                   {genPostPlatforms.length === JOB_POST_PLATFORMS.length ? 'Clear all' : 'Select all'}
                 </button>
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="option-card-grid !gap-1.5">
                 {JOB_POST_PLATFORMS.map(p => {
                   const on = genPostPlatforms.includes(p)
                   return (
@@ -5354,7 +5411,7 @@ export default function DashboardPage() {
                       onClick={() => setGenPostPlatforms(prev =>
                         prev.includes(p) ? (prev.length === 1 ? prev : prev.filter(x => x !== p)) : [...prev, p]
                       )}
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                      className={`!min-h-0 px-2.5 py-2 rounded-xl text-[11px] font-semibold border text-left transition-all ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
                       title={JOB_POST_PLATFORM_META[p].hint}
                     >
                       {JOB_POST_PLATFORM_META[p].label}
@@ -5364,17 +5421,29 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <button
-              onClick={() => generateJobPosts(genPostJob)}
-              disabled={generatingPosts || genPostPlatforms.length === 0}
-              className="mb-3 flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 font-semibold text-sm text-white transition-all disabled:opacity-50 flex-shrink-0">
-              {generatingPosts
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating for selected platforms…</>
-                : Object.keys(generatedPosts).length > 0
-                  ? <><Sparkles className="w-4 h-4" /> Regenerate selected posts</>
-                  : <><Sparkles className="w-4 h-4" /> Generate posts from full JD</>
-              }
-            </button>
+            <div className="mb-3 flex gap-2 flex-shrink-0">
+              <button
+                onClick={() => {
+                  if (genPostMode === 'quick') void generateQuickPosts()
+                  else if (genPostJob) void generateJobPosts(genPostJob)
+                  else setGenPostError('Select a job first.')
+                }}
+                disabled={generatingPosts || genPostPlatforms.length === 0 || (genPostMode === 'existing' && !genPostJob) || (genPostMode === 'quick' && !quickJdText.trim())}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 font-semibold text-sm text-white transition-all disabled:opacity-50">
+                {generatingPosts
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
+                  : Object.keys(generatedPosts).length > 0
+                    ? <><Sparkles className="w-4 h-4" /> Generate Again</>
+                    : <><Sparkles className="w-4 h-4" /> Generate posts</>
+                }
+              </button>
+              {genPostMode === 'quick' && Object.keys(generatedPosts).length > 0 && (
+                <button type="button" onClick={() => void saveQuickAsJob()} disabled={generatingPosts}
+                  className="px-3 py-2.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 text-sm font-extrabold hover:bg-emerald-100 disabled:opacity-50">
+                  Save as Job
+                </button>
+              )}
+            </div>
 
             {genPostError && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs mb-3 flex-shrink-0">
@@ -5384,18 +5453,16 @@ export default function DashboardPage() {
 
             {Object.keys(generatedPosts).length > 0 ? (
               <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
-                {/* Platform tabs */}
                 <div className="flex gap-1 flex-wrap mb-2 flex-shrink-0">
-                  {(['linkedin', 'whatsapp', 'email', 'twitter', 'indeed', 'telegram', 'facebook'] as const).map(p => (
-                    generatedPosts[p] && (
+                  {JOB_POST_PLATFORMS.map(p => (
+                    generatedPosts[p] ? (
                       <button key={p} onClick={() => setGenPostTab(p)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize transition-all ${genPostTab === p ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                        {p === 'twitter' ? 'Twitter/X' : p === 'facebook' ? 'Facebook' : p.charAt(0).toUpperCase() + p.slice(1)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${genPostTab === p ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        {JOB_POST_PLATFORM_META[p].label}
                       </button>
-                    )
+                    ) : null
                   ))}
                 </div>
-                {/* Post content */}
                 <div className="relative flex-1 min-h-0">
                   <textarea
                     readOnly
@@ -5411,10 +5478,11 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-                <p className="font-semibold mb-1">No saved posts yet for this job.</p>
+                <p className="font-semibold mb-1">
+                  {genPostMode === 'quick' ? 'Paste or upload a JD, then generate.' : 'No saved posts yet for this job.'}
+                </p>
                 <p className="text-xs text-amber-900/90">
-                  Click <span className="font-semibold">Generate posts from full JD</span> once to create and save them.
-                  After that, opening this job will show the saved posts without generating again.
+                  Generate once to create channel posts. Opening an existing job with saved posts will not spend AI tokens until you Generate Again.
                 </p>
               </div>
             )}

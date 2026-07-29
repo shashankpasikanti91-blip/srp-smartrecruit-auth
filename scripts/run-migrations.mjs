@@ -27,6 +27,7 @@ const FILES = [
   'migrate_v30_bulk_queue.sql',
   'migrate_v31_enterprise.sql',
   'migrate_v32_platform.sql',
+  'migrate_v33_security.sql',
 ]
 
 const url = process.env.DATABASE_URL

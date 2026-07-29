@@ -5,6 +5,22 @@ import bcrypt from 'bcryptjs'
 import { pool, upsertUser, logActivity } from './db'
 import { notifyNewSignup, notifyLogin, notifyError, sendWelcomeEmail } from './notifications'
 import { logLogin } from './activityLog'
+import { createUserSession } from './sessions'
+import { isAccountLocked, recordFailedLogin, clearFailedLogins, getTenantSecuritySettings } from './passwordPolicy'
+
+async function resolvePrimaryTenantId(userId: string): Promise<string | null> {
+  try {
+    const { rows } = await pool.query<{ tenant_id: string }>(
+      `SELECT tenant_id FROM tenant_members
+       WHERE user_id = $1 AND invite_accepted = TRUE
+       ORDER BY created_at ASC LIMIT 1`,
+      [userId]
+    )
+    return rows[0]?.tenant_id ?? null
+  } catch {
+    return null
+  }
+}
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -16,16 +32,62 @@ export const authOptions: AuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
+        const email = credentials.email.toLowerCase()
         try {
           const { rows } = await pool.query(
-            `SELECT id, name, email, image, role, product_access, is_active, password_hash
+            `SELECT id, name, email, image, role, product_access, is_active, password_hash,
+                    locked_until, failed_login_count, mfa_enabled
              FROM auth_users WHERE email = $1`,
-            [credentials.email.toLowerCase()]
+            [email]
           )
           const user = rows[0]
-          if (!user || !user.password_hash || !user.is_active) return null
+          if (!user || !user.password_hash || !user.is_active) {
+            await logLogin({
+              userId: user?.id ?? null,
+              email,
+              success: false,
+              failureReason: !user ? 'unknown_user' : !user.is_active ? 'inactive' : 'no_password',
+            }).catch(() => {})
+            return null
+          }
+          if (await isAccountLocked(user.id)) {
+            await logLogin({
+              userId: user.id,
+              email,
+              success: false,
+              failureReason: 'account_locked',
+            }).catch(() => {})
+            return null
+          }
           const valid = await bcrypt.compare(credentials.password, user.password_hash as string)
-          if (!valid) return null
+          if (!valid) {
+            const tenantId = await resolvePrimaryTenantId(user.id)
+            const settings = tenantId ? await getTenantSecuritySettings(tenantId) : null
+            const { locked } = await recordFailedLogin(
+              user.id,
+              settings?.max_login_attempts ?? 5,
+              settings?.lock_duration_minutes ?? 30
+            )
+            await logLogin({
+              userId: user.id,
+              email,
+              tenantId: tenantId ?? undefined,
+              success: false,
+              failureReason: locked ? 'account_locked' : 'bad_password',
+            }).catch(() => {})
+            if (locked && tenantId) {
+              const { createNotification } = await import('./notificationCenter')
+              await createNotification({
+                tenantId,
+                userId: user.id,
+                category: 'security',
+                title: 'Account locked',
+                body: `Too many failed sign-in attempts. Try again in ${settings?.lock_duration_minutes ?? 30} minutes or reset your password.`,
+              }).catch(() => {})
+            }
+            return null
+          }
+          await clearFailedLogins(user.id)
           return { id: user.id, name: user.name, email: user.email, image: user.image }
         } catch (err) {
           console.error('[auth] credentials error:', err)
@@ -65,14 +127,22 @@ export const authOptions: AuthOptions = {
           const { getUserByEmail } = await import('./db')
           const dbUser = await getUserByEmail(user.email!)
           if (!dbUser) return false
+          const tenantId = await resolvePrimaryTenantId(dbUser.id)
           await logActivity({
             user_id: dbUser.id,
             event_type: 'login',
             event_data: { email: user.email, provider: 'credentials' },
             severity: 'info',
           })
-          await logLogin({ userId: dbUser.id, email: user.email!, success: true })
+          await logLogin({
+            userId: dbUser.id,
+            email: user.email!,
+            tenantId: tenantId ?? undefined,
+            success: true,
+            role: dbUser.role,
+          })
           await notifyLogin({ name: user.name ?? null, email: user.email! })
+          ;(user as unknown as Record<string, unknown>)._tenantId = tenantId
         } catch { /* non-fatal */ }
         return true
       }
@@ -110,7 +180,14 @@ export const authOptions: AuthOptions = {
             provider: 'google',
           }).catch(() => {})
         } else {
-          await logLogin({ userId: dbUser.id, email: user.email!, success: true })
+          const tenantId = await resolvePrimaryTenantId(dbUser.id)
+          await logLogin({
+            userId: dbUser.id,
+            email: user.email!,
+            tenantId: tenantId ?? undefined,
+            success: true,
+            role: dbUser.role,
+          })
           await notifyLogin({ name: user.name ?? null, email: user.email! })
         }
 
@@ -184,6 +261,17 @@ export const authOptions: AuthOptions = {
           } catch (err) {
             console.error('[auth] tenant resolve error — continuing without tenant ctx:', err)
           }
+
+          // Create tracked DB session on fresh sign-in (JWT remains source of auth)
+          if (user && !token.sessionToken) {
+            try {
+              const sessToken = await createUserSession({
+                userId: dbUser.id,
+                tenantId: (token.tenantId as string) ?? null,
+              })
+              if (sessToken) token.sessionToken = sessToken
+            } catch { /* non-fatal */ }
+          }
         }
       }
       return token
@@ -199,6 +287,7 @@ export const authOptions: AuthOptions = {
         ;(session.user as Record<string, unknown>).tenantSlug = token.tenantSlug ?? null
         ;(session.user as Record<string, unknown>).tenantName = token.tenantName ?? null
         ;(session.user as Record<string, unknown>).tenantRole = token.tenantRole ?? null
+        ;(session.user as Record<string, unknown>).sessionToken = token.sessionToken ?? null
       }
       return session
     },

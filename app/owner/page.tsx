@@ -118,6 +118,16 @@ export default function OwnerDashboard() {
     maxCandidates: '200',
   })
   const [tenantActionStatus, setTenantActionStatus] = useState<string | null>(null)
+  const [tokenSummary, setTokenSummary] = useState<{
+    total_requests?: number
+    total_tokens?: number
+    estimated_cost_usd?: number
+    by_operation?: Record<string, number>
+  } | null>(null)
+  const [piiAccess, setPiiAccess] = useState<string | null>(null)
+  const [supportTenantId, setSupportTenantId] = useState('')
+  const [supportReason, setSupportReason] = useState('')
+  const [supportMsg, setSupportMsg] = useState('')
 
   const user = session?.user
   const role = (user as Record<string, unknown> | undefined)?.role as string | undefined
@@ -154,8 +164,10 @@ export default function OwnerDashboard() {
       else if (t === 'flags') setFlags(json.flags ?? [])
       else if (t === 'announcements') setAnnouncements(json.announcements ?? [])
       else {
-        const key = Object.keys(json)[0]
+        const key = Object.keys(json).find(k => Array.isArray(json[k])) || Object.keys(json)[0]
         setData(prev => ({ ...prev, [t]: json[key] }))
+        if (t === 'tokens' && json.summary) setTokenSummary(json.summary)
+        if (t === 'resumes') setPiiAccess(json.pii_access ?? null)
       }
     } finally { setLoading(false) }
   }, [fetchStats])
@@ -610,7 +622,18 @@ export default function OwnerDashboard() {
                   <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : (
-                <TableView tab={tab} rows={data[tab] ?? []} />
+                <TableView
+                  tab={tab}
+                  rows={data[tab] ?? []}
+                  tokenSummary={tokenSummary}
+                  piiAccess={piiAccess}
+                  supportTenantId={supportTenantId}
+                  setSupportTenantId={setSupportTenantId}
+                  supportReason={supportReason}
+                  setSupportReason={setSupportReason}
+                  supportMsg={supportMsg}
+                  setSupportMsg={setSupportMsg}
+                />
               )}
             </div>
           )}
@@ -628,7 +651,23 @@ function fmtShortId(row: Record<string, unknown>): string {
 }
 
 // ── Table renderer ────────────────────────────────────────────────────────────
-function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
+function TableView({ tab, rows, tokenSummary, piiAccess, supportTenantId, setSupportTenantId, supportReason, setSupportReason, supportMsg, setSupportMsg }: {
+  tab: Tab
+  rows: unknown[]
+  tokenSummary?: {
+    total_requests?: number
+    total_tokens?: number
+    estimated_cost_usd?: number
+    by_operation?: Record<string, number>
+  } | null
+  piiAccess?: string | null
+  supportTenantId?: string
+  setSupportTenantId?: (v: string) => void
+  supportReason?: string
+  setSupportReason?: (v: string) => void
+  supportMsg?: string
+  setSupportMsg?: (v: string) => void
+}) {
   if (!rows.length) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-gray-600">
@@ -694,6 +733,40 @@ function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
       ))}</tbody>
     </table>
   ) : tab === 'resumes' ? (
+    <div>
+      <div className="mx-5 mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-100 space-y-2">
+        <p className="font-semibold">
+          Candidate PII access: {piiAccess === 'support_session' ? 'Unlocked (active support session)' : 'Locked / redacted by default'}
+        </p>
+        <p>Request time-boxed access; the Tenant Owner must approve before unredacted resumes are returned.</p>
+        <div className="flex flex-wrap gap-2 items-center">
+          <input value={supportTenantId ?? ''} onChange={e => setSupportTenantId?.(e.target.value)} placeholder="Tenant UUID"
+            className="px-2 py-1.5 rounded bg-black/30 border border-white/10 text-white text-xs w-56" />
+          <input value={supportReason ?? ''} onChange={e => setSupportReason?.(e.target.value)} placeholder="Reason"
+            className="px-2 py-1.5 rounded bg-black/30 border border-white/10 text-white text-xs flex-1 min-w-[160px]" />
+          <button
+            type="button"
+            className="px-3 py-1.5 rounded bg-indigo-600 text-white text-xs font-bold"
+            onClick={async () => {
+              const res = await fetch('/api/security/support', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'request',
+                  tenant_id: supportTenantId,
+                  reason: supportReason,
+                  duration_hours: 4,
+                }),
+              })
+              const json = await res.json().catch(() => ({}))
+              setSupportMsg?.(res.ok ? 'Support request submitted.' : (json.error || 'Failed'))
+            }}
+          >
+            Request support access
+          </button>
+        </div>
+        {supportMsg && <p>{supportMsg}</p>}
+      </div>
     <table className="w-full text-sm">
       <thead><tr className="border-b border-white/5">
         {['ID','Candidate','Email','AI Score','Status','Uploaded'].map(h => (
@@ -715,6 +788,7 @@ function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
         </tr>
       ))}</tbody>
     </table>
+    </div>
   ) : tab === 'subscriptions' ? (
     <table className="w-full text-sm">
       <thead><tr className="border-b border-white/5">
@@ -735,6 +809,27 @@ function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
       ))}</tbody>
     </table>
   ) : tab === 'tokens' ? (
+    <div>
+      {tokenSummary && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 px-1">
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+            <p className="text-[10px] uppercase text-gray-500 font-bold">Requests</p>
+            <p className="text-xl font-extrabold text-white mt-1">{Number(tokenSummary.total_requests ?? 0).toLocaleString()}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+            <p className="text-[10px] uppercase text-gray-500 font-bold">Tokens</p>
+            <p className="text-xl font-extrabold text-white mt-1">{Number(tokenSummary.total_tokens ?? 0).toLocaleString()}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+            <p className="text-[10px] uppercase text-gray-500 font-bold">Est. Cost</p>
+            <p className="text-xl font-extrabold text-emerald-400 mt-1">${Number(tokenSummary.estimated_cost_usd ?? 0).toFixed(4)}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+            <p className="text-[10px] uppercase text-gray-500 font-bold">Operations</p>
+            <p className="text-xl font-extrabold text-indigo-300 mt-1">{Object.keys(tokenSummary.by_operation ?? {}).length}</p>
+          </div>
+        </div>
+      )}
     <table className="w-full text-sm">
       <thead><tr className="border-b border-white/5">
         {['User','Model','Operation','Tokens','Cost','Time'].map(h => (
@@ -752,6 +847,7 @@ function TableView({ tab, rows }: { tab: Tab; rows: unknown[] }) {
         </tr>
       ))}</tbody>
     </table>
+    </div>
   ) : null
 
   return table ? <div className="owner-table-wrap">{table}</div> : null

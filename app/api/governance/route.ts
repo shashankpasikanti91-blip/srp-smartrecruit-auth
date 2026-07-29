@@ -55,11 +55,41 @@ export async function GET(req: NextRequest) {
     [ctx.tenantId]
   ).catch(() => ({ rows: [] }))
 
+  const [online, topRecruiters, funnel] = await Promise.all([
+    pool.query(
+      `SELECT COUNT(*)::int AS c FROM tenant_members
+       WHERE tenant_id = $1 AND invite_accepted = TRUE
+         AND last_active_at IS NOT NULL AND last_active_at > NOW() - interval '15 minutes'`,
+      [ctx.tenantId]
+    ).catch(() => ({ rows: [{ c: 0 }] })),
+    pool.query(
+      `SELECT u.name, u.email, COUNT(*)::int AS screens
+       FROM token_usage tu
+       JOIN auth_users u ON u.id = tu.user_id
+       WHERE tu.tenant_id = $1 AND tu.created_at >= $2
+         AND tu.operation ILIKE '%screen%'
+       GROUP BY u.name, u.email
+       ORDER BY screens DESC LIMIT 8`,
+      [ctx.tenantId, since.toISOString()]
+    ).catch(() => ({ rows: [] })),
+    pool.query(
+      `SELECT
+         (SELECT COUNT(*)::int FROM resumes WHERE tenant_id = $1) AS candidates,
+         (SELECT COUNT(*)::int FROM submissions WHERE tenant_id = $1) AS submissions,
+         (SELECT COUNT(*)::int FROM interviews WHERE tenant_id = $1) AS interviews,
+         (SELECT COUNT(*)::int FROM offer_cases WHERE tenant_id = $1) AS offers`,
+      [ctx.tenantId]
+    ).catch(() => ({ rows: [{}] })),
+  ])
+
   return NextResponse.json({
     period_days: days,
     logins_count: parseInt(logins.rows[0]?.c ?? '0', 10),
     failed_logins_count: parseInt(failedLogins.rows[0]?.c ?? '0', 10),
     active_sessions: parseInt(activeSessions.rows[0]?.c ?? '0', 10),
+    online_now: online.rows[0]?.c ?? 0,
+    top_recruiters: topRecruiters.rows,
+    funnel: funnel.rows[0] ?? {},
     activity_breakdown: activity.rows,
     data_access_breakdown: dataAccess.rows,
     recent_logins: recentLogins.rows,

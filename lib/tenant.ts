@@ -182,6 +182,19 @@ export async function requireTenant(
       )
     }
   }
+  // Heartbeat: approximate "online" from last_active_at (throttled in SQL)
+  void pool.query(
+    `UPDATE tenant_members
+     SET last_active_at = NOW()
+     WHERE tenant_id = $1 AND user_id = $2
+       AND (last_active_at IS NULL OR last_active_at < NOW() - interval '2 minutes')`,
+    [ctx.tenantId, ctx.userId],
+  ).catch(() => {})
+  // Touch tracked user_sessions when cookie present
+  const sessTok = req.cookies.get('srp_session_token')?.value
+  if (sessTok) {
+    void import('./sessions').then(({ touchUserSession }) => touchUserSession(sessTok)).catch(() => {})
+  }
   return ctx
 }
 

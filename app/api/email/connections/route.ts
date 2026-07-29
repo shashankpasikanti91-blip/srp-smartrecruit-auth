@@ -27,5 +27,11 @@ export async function DELETE(req: NextRequest) {
   }
 
   await disconnectEmailProvider(ctx.tenantId, ctx.userId, provider)
+  const { logAudit } = await import('@/lib/audit')
+  await logAudit({
+    userId: ctx.userId, userEmail: ctx.userEmail, tenantId: ctx.tenantId,
+    action: 'email_disconnect', resourceType: 'email_connection',
+    details: { provider }, module: 'integrations',
+  })
   return NextResponse.json({ ok: true, provider })
 }

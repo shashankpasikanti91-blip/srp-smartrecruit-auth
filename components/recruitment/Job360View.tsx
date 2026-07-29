@@ -1,7 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Briefcase, Check, Copy, FileText, Loader2, Sparkles, TrendingUp, X } from 'lucide-react'
+import { Briefcase, Check, Copy, FileText, Loader2, Sparkles, TrendingUp, X,
+  LayoutDashboard, Users, Send, Calendar, Award, Brain, BarChart3, PenLine,
+  StickyNote, Clock, GitBranch, LineChart,
+} from 'lucide-react'
 import { AiFitScoreCard } from '@/components/recruitment/AiFitScoreCard'
 import { InternalMatchesTab } from '@/components/jobs/InternalMatchesTab'
 import { EntityNotesTimeline } from '@/components/ui/EntityNotesTimeline'
@@ -47,6 +50,29 @@ const TAB_LABELS: Record<Job360Tab, string> = {
   timeline: 'Timeline',
 }
 
+const TAB_GROUPS: { label: string; tabs: Job360Tab[]; accent: string }[] = [
+  { label: 'Recruitment', tabs: ['overview', 'pipeline', 'submissions', 'interviews', 'offers'], accent: 'text-blue-700' },
+  { label: 'AI', tabs: ['internal_matches', 'ranking', 'posts'], accent: 'text-violet-700' },
+  { label: 'Documents', tabs: ['jd_document', 'notes', 'timeline'], accent: 'text-slate-600' },
+  { label: 'Insights', tabs: ['similar_jobs', 'market'], accent: 'text-teal-700' },
+]
+
+const TAB_ICONS: Partial<Record<Job360Tab, typeof LayoutDashboard>> = {
+  overview: LayoutDashboard,
+  pipeline: Users,
+  submissions: Send,
+  interviews: Calendar,
+  offers: Award,
+  internal_matches: Brain,
+  ranking: BarChart3,
+  posts: PenLine,
+  jd_document: FileText,
+  notes: StickyNote,
+  timeline: Clock,
+  similar_jobs: GitBranch,
+  market: LineChart,
+}
+
 type RankedCandidate = {
   id: string
   candidate_name?: string
@@ -84,6 +110,10 @@ type Job360Job = {
   hiring_difficulty?: string | null
   client_name?: string | null
   post_contents?: Record<string, string> | null
+  created_at?: string | null
+  open_date?: string | null
+  closing_date?: string | null
+  updated_at?: string | null
 }
 
 type Job360Data = {
@@ -181,6 +211,15 @@ function employmentLabel(type?: string | null) {
   if (t === 'remote') return 'Remote'
   if (t === 'internship') return 'Internship'
   return type || '—'
+}
+
+function fmtDateShort(v?: string | null) {
+  if (!v) return '—'
+  try {
+    return new Date(v).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+  } catch {
+    return String(v).slice(0, 10)
+  }
 }
 
 function pickPosts(source?: Record<string, string> | null): Record<string, string> {
@@ -356,6 +395,7 @@ export function Job360View({
           raw_jd_text: job.raw_jd_text || rawText || undefined,
           custom_prompt: customPrompt,
           platforms: selectedPlatforms,
+          force: true,
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -433,9 +473,19 @@ export function Job360View({
                 </button>
               )}
               <h2 className="text-lg font-extrabold text-slate-900 truncate page-title">{job?.title ?? 'Job 360°'}</h2>
-              <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                {[job?.company || job?.client_name, job?.location, job?.status].filter(Boolean).join(' · ')}
-                {job?.short_id ? ` · ${job.short_id}` : ''}
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {job?.priority && <span className="ui-badge ui-badge--orange">{job.priority}</span>}
+                {job?.status && <span className="ui-badge ui-badge--blue">{job.status}</span>}
+                {(job?.company || job?.client_name) && <span className="ui-badge ui-badge--purple">{job.company || job.client_name}</span>}
+                {job?.location && <span className="ui-badge ui-badge--cyan">{job.location}</span>}
+                {job?.type && <span className="ui-badge ui-badge--slate">{employmentLabel(job.type)}</span>}
+                {job?.contract_duration && <span className="ui-badge ui-badge--amber">{job.contract_duration}</span>}
+                {salary && <span className="ui-badge ui-badge--green">{salary}</span>}
+                {job?.short_id && <span className="ui-badge ui-badge--slate font-mono">{job.short_id}</span>}
+              </div>
+              <p className="text-[11px] font-medium text-slate-500 mt-1.5">
+                {[job?.open_date || job?.created_at ? `Open ${fmtDateShort(job.open_date || job.created_at)}` : null,
+                  job?.closing_date ? `Close ${fmtDateShort(job.closing_date)}` : null].filter(Boolean).join(' · ')}
               </p>
             </div>
           </div>
@@ -474,19 +524,44 @@ export function Job360View({
           </div>
         )}
 
-        <div className="flex flex-wrap border-b border-slate-200 gap-x-0.5 bg-white px-1 sticky top-0 z-10">
-          {TABS.map(t => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={`px-3 py-2.5 text-xs font-extrabold transition-all whitespace-nowrap ${
-                tab === t ? 'text-indigo-700 border-b-2 border-indigo-600' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {TAB_LABELS[t]}
-              {t === 'posts' && Object.keys(posts).length > 0 ? ` (${Object.keys(posts).length})` : ''}
-            </button>
+        <div className="border-b border-slate-200 bg-white px-2 py-2 sticky top-0 z-10 space-y-2">
+          {TAB_GROUPS.map(group => (
+            <div key={group.label} className="flex flex-wrap items-center gap-1">
+              <span className={`text-[9px] font-extrabold uppercase tracking-widest px-1.5 ${group.accent} opacity-80 min-w-[4.5rem]`}>
+                {group.label}
+              </span>
+              {group.tabs.map(t => {
+                const Icon = TAB_ICONS[t]
+                const count =
+                  t === 'posts' ? Object.keys(posts).length
+                  : t === 'pipeline' ? Object.values(data?.pipeline ?? {}).reduce((a, b) => a + b, 0)
+                  : t === 'submissions' ? (data?.submissions?.length ?? 0)
+                  : t === 'interviews' ? (data?.interviews?.length ?? 0)
+                  : t === 'offers' ? (data?.offers?.length ?? 0)
+                  : t === 'ranking' ? (data?.ranking?.length ?? 0)
+                  : 0
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTab(t)}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-extrabold transition-all whitespace-nowrap ${
+                      tab === t
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    {Icon ? <Icon className="w-3 h-3 opacity-80" /> : null}
+                    {TAB_LABELS[t]}
+                    {count > 0 ? (
+                      <span className={`ui-badge !px-1.5 !py-0 ${tab === t ? 'bg-white/20 text-white border-white/30' : 'ui-badge--slate'}`}>
+                        {count}
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })}
+            </div>
           ))}
         </div>
         </div>
@@ -505,6 +580,20 @@ export function Job360View({
 
               {tab === 'overview' && (
                 <div className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                    {[
+                      { label: 'AI Match', value: data?.ranking?.[0]?.ai_score != null ? `${data.ranking[0].ai_score}` : '—', tone: 'g2' },
+                      { label: 'Candidates', value: Object.values(data?.pipeline ?? {}).reduce((a, b) => a + b, 0), tone: 'g1' },
+                      { label: 'Interviews', value: data?.interviews?.length ?? 0, tone: 'g4' },
+                      { label: 'Submissions', value: data?.submissions?.length ?? 0, tone: 'g3' },
+                      { label: 'Offers', value: data?.offers?.length ?? 0, tone: 'g5' },
+                    ].map(m => (
+                      <div key={m.label} className={`kpi-card kpi-card--gradient kpi-card--${m.tone} !min-h-[88px]`}>
+                        <p className="kpi-card__label">{m.label}</p>
+                        <p className="kpi-card__value text-xl">{m.value}</p>
+                      </div>
+                    ))}
+                  </div>
                   {!hasStructured && (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
                       <p className="text-sm font-extrabold text-amber-950">JD fields are empty</p>
