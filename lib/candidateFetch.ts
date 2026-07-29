@@ -120,7 +120,7 @@ const CANDIDATE_SELECT = `
          u.name AS uploader_name, u.email AS uploader_email,
          ou.name AS owner_name, ou.email AS owner_email,
          jp.id AS job_id, jp.short_id AS job_short_id, jp.title AS job_title,
-         COALESCE(jp.company, jp.client_name, '') AS job_company
+         COALESCE(jp.company, '') AS job_company
   FROM resumes r
   LEFT JOIN auth_users u ON u.id = r.user_id
   LEFT JOIN auth_users ou ON ou.id = r.user_id
