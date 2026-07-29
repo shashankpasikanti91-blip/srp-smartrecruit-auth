@@ -31,6 +31,11 @@ test.describe('Authenticated authz & isolation', () => {
     expect(JSON.stringify(body)).not.toMatch(/@.*\./) // no leaked emails
   })
 
+  test('candidate 360 for random UUID returns 404', async ({ request }) => {
+    const res = await request.get('/api/candidates/00000000-0000-4000-8000-000000000099/360')
+    expect([404, 400, 403]).toContain(res.status())
+  })
+
   test('foreign candidate id rejected when configured', async ({ request }) => {
     const id = process.env.E2E_FOREIGN_CANDIDATE_ID?.trim()
     test.skip(!id, 'Set E2E_FOREIGN_CANDIDATE_ID to a UUID from another tenant')

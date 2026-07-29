@@ -45,14 +45,13 @@ test.describe('Pipeline (Candidates view)', () => {
     expect(after).toBeLessThanOrEqual(before)
   })
 
-  test('clicking a candidate row opens candidate drawer', async ({ page }) => {
+  test('clicking a candidate row opens Candidate 360', async ({ page }) => {
     const table = page.locator('.ent-table')
     await expect(table).toBeVisible({ timeout: 15_000 })
     const rows = table.locator('tbody tr')
     test.skip((await rows.count()) === 0, 'No candidates')
 
     await rows.first().click()
-    const drawer = page.locator('.drawer-panel, [role="dialog"]').first()
-    await expect(drawer).toBeVisible({ timeout: 10_000 })
+    await expect(page).toHaveURL(/\/dashboard\/candidates\/[0-9a-f-]{36}/i, { timeout: 15_000 })
   })
 })

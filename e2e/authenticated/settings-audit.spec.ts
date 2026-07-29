@@ -14,11 +14,13 @@ test.describe('Settings and audit trail', () => {
   })
 
   test('audit refresh loads ent-table with sticky scroll wrapper', async ({ page }) => {
-    const auditCard = page.locator('div.rounded-xl').filter({ has: page.getByRole('heading', { name: 'Audit Trail' }) })
-    await expect(auditCard).toBeVisible({ timeout: 15_000 })
-    await auditCard.scrollIntoViewIfNeeded()
+    const auditCard = page
+      .locator('div.rounded-2xl, div.rounded-xl')
+      .filter({ has: page.getByRole('heading', { name: /Audit Trail/i }) })
+    await expect(auditCard.first()).toBeVisible({ timeout: 15_000 })
+    await auditCard.first().scrollIntoViewIfNeeded()
 
-    const refreshBtn = auditCard.getByRole('button', { name: /Refresh/i })
+    const refreshBtn = auditCard.first().getByRole('button', { name: /Refresh/i })
     await expect(refreshBtn).toBeEnabled({ timeout: 15_000 })
 
     const responsePromise = page.waitForResponse(
@@ -29,8 +31,7 @@ test.describe('Settings and audit trail', () => {
     const response = await responsePromise
     expect(response.ok()).toBeTruthy()
 
-    // Empty tenants show a placeholder; otherwise sticky table wrapper.
-    const empty = auditCard.getByText(/No activity recorded yet/i)
+    const empty = auditCard.first().getByText(/No activity recorded yet/i)
     const tableWrap = page.locator('.ent-table-wrap').filter({ has: page.locator('thead th:text("Action")') })
     await expect(empty.or(tableWrap)).toBeVisible({ timeout: 15_000 })
     if (await tableWrap.isVisible().catch(() => false)) {

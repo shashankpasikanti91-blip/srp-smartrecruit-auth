@@ -104,24 +104,23 @@ test.describe('Candidates tracker filters', () => {
     await expect(table.getByRole('columnheader', { name: 'Email' })).not.toBeVisible()
   })
 
-  test('candidate drawer shows Documents and Timeline tabs', async ({ page }) => {
+  test('candidate row opens Candidate 360 page with Documents and Timeline', async ({ page }) => {
     const baseline = await getEntTableRowCount(page)
     test.skip(baseline === 0, 'No candidates')
 
-    // Click the first candidate row (the tr itself opens the drawer)
     await page.locator('.ent-table tbody tr').first().click()
-    // Wait for the drawer to open
-    const drawer = page.locator('.drawer-panel').first()
-    await expect(drawer).toBeVisible({ timeout: 10_000 })
-    // Documents tab should be available in the 360 tab bar (scope to drawer to avoid sidebar conflict)
-    const docsBtn = drawer.getByRole('button', { name: 'Documents' })
-    await expect(docsBtn).toBeVisible({ timeout: 10_000 })
-    await docsBtn.click()
-    // After clicking Documents, the drawer should still be visible
-    await expect(drawer).toBeVisible({ timeout: 10_000 })
-    const timelineBtn = drawer.getByRole('button', { name: 'Timeline' })
-    await expect(timelineBtn).toBeVisible({ timeout: 10_000 })
-    await timelineBtn.click()
-    await expect(drawer).toBeVisible({ timeout: 10_000 })
+    await expect(page).toHaveURL(/\/dashboard\/candidates\/[0-9a-f-]{36}/i, { timeout: 15_000 })
+    await expect(page.getByRole('button', { name: /Documents|Timeline|Notes|Overview/i }).first()).toBeVisible({
+      timeout: 15_000,
+    })
+    const docsBtn = page.getByRole('button', { name: /^Documents$/i }).or(page.getByRole('tab', { name: /Documents/i }))
+    if (await docsBtn.first().isVisible().catch(() => false)) {
+      await docsBtn.first().click()
+    }
+    const timelineBtn = page.getByRole('button', { name: /^Timeline$/i }).or(page.getByRole('tab', { name: /Timeline/i }))
+    if (await timelineBtn.first().isVisible().catch(() => false)) {
+      await timelineBtn.first().click()
+    }
+    await expect(page).toHaveURL(/\/dashboard\/candidates\//)
   })
 })

@@ -10,6 +10,20 @@ import { insertCommLog } from '@/lib/commLog'
 
 export const maxDuration = 30
 
+/** Escape user/template text before embedding in HTML email bodies (CWE-79). */
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function textToSafeHtml(body: string): string {
+  return escapeHtml(body).replace(/\n/g, '<br>')
+}
+
 const CHANNEL_MAP: Record<string, string> = {
   smtp: 'email', outlook: 'email', sendgrid: 'email', mailgun: 'email', gmail: 'email',
   telegram: 'telegram', whatsapp: 'whatsapp',
@@ -59,7 +73,7 @@ async function sendViaSMTP(
     to,
     subject,
     text: body,
-    html: body.replace(/\n/g, '<br>'),
+    html: textToSafeHtml(body),
   })
 }
 

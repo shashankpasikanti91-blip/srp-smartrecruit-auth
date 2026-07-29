@@ -12,6 +12,7 @@ import {
   sanitizeCandidateProfile,
 } from '@/lib/validate'
 import { LIFECYCLE_STATUSES, lifecycleToPipelineStage } from '@/lib/candidateLifecycle'
+import { fetchCandidateById } from '@/lib/candidateFetch'
 
 const VALID_STAGES = [
   'sourced', 'applied', 'new', 'screening', 'submitted', 'interview', 'offer',
@@ -29,6 +30,35 @@ function parseProfile(v: unknown): Record<string, unknown> {
     } catch { /* ignore */ }
   }
   return {}
+}
+
+/** Tenant-scoped candidate read — never leak cross-tenant data (404 not 405). */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const ctx = await requireTenant(req, 'candidates.read')
+  if (ctx instanceof NextResponse) return ctx
+
+  try {
+    const { id } = await params
+    if (!isValidUUID(id)) {
+      return NextResponse.json({ error: 'Invalid candidate id' }, { status: 400 })
+    }
+
+    const candidate = await fetchCandidateById(ctx.tenantId, id)
+    if (!candidate) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+
+    // Omit raw resume text from list-style GET to reduce PII exposure
+    const { raw_text: _omitRaw, ...safe } = candidate
+    void _omitRaw
+    return NextResponse.json({ candidate: safe })
+  } catch (err) {
+    console.error('[api/candidates/[id]] GET error:', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
 }
 
 export async function PATCH(
