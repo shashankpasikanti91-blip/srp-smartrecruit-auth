@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { gotoDashboard, openTab } from '../helpers/dashboard'
+import { getEntTableRowCount, selectFilterByLabel } from '../helpers/filters'
 
 /**
  * The Pipeline Kanban board was removed in Phase 3.2.
@@ -39,7 +40,6 @@ test.describe('Pipeline (Candidates view)', () => {
     test.skip(before === 0, 'No candidates')
 
     // Use the helper from filters which targets the correct header select
-    const { selectFilterByLabel } = await import('../helpers/filters')
     await selectFilterByLabel(page, 'Stage', 'sourced')
     const after = await table.locator('tbody tr').count()
     expect(after).toBeLessThanOrEqual(before)
@@ -48,9 +48,11 @@ test.describe('Pipeline (Candidates view)', () => {
   test('clicking a candidate row opens Candidate 360', async ({ page }) => {
     const table = page.locator('.ent-table')
     await expect(table).toBeVisible({ timeout: 15_000 })
-    const rows = table.locator('tbody tr')
-    test.skip((await rows.count()) === 0, 'No candidates')
+    // Exclude the colspan empty-state row (it still counts as a <tr>).
+    const dataRowCount = await getEntTableRowCount(page)
+    test.skip(dataRowCount === 0, 'No candidates')
 
+    const rows = table.locator('tbody tr')
     await rows.first().click()
     await expect(page).toHaveURL(/\/dashboard\/candidates\/[0-9a-f-]{36}/i, { timeout: 15_000 })
   })

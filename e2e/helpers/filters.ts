@@ -12,7 +12,15 @@ export async function waitForCandidatesApi(page: Page): Promise<Response> {
 export async function waitForCandidatesView(page: Page) {
   const table = page.locator('.ent-table').first()
   const empty = page.getByText(/No candidates found|Try clearing filters|No candidate rows/i).first()
-  await expect(table.or(empty)).toBeVisible({ timeout: 20_000 })
+  // `table` and the empty-state message can be simultaneously present.
+  // Avoid `table.or(empty)` since it may match multiple elements and trigger strict-mode violations.
+  await Promise.race([
+    table.waitFor({ state: 'visible', timeout: 20_000 }).then(() => 'table').catch(() => null),
+    empty.waitFor({ state: 'visible', timeout: 20_000 }).then(() => 'empty').catch(() => null),
+  ]).then((v) => {
+    // Both branches failed to become visible: surface a clear error.
+    if (!v) throw new Error('Candidates view failed to render (table and empty state both not visible)')
+  })
 }
 
 /** Count data rows in the first visible enterprise table (excludes empty-state row). */
