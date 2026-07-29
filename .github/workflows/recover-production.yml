@@ -1,0 +1,76 @@
+name: Recover Production (no rebuild)
+
+# Restores the already-built app/db containers after a stuck deploy.
+# Does NOT reset the database. Does NOT rebuild images. Does NOT delete uploads.
+on:
+  workflow_dispatch:
+
+jobs:
+  recover:
+    name: Bring app back online
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Restore containers via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          port: ${{ secrets.HETZNER_PORT || 22 }}
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            cd /opt/srp-smartrecruit-auth
+
+            echo "=== Clear stuck Docker build/compose processes (DB data untouched) ==="
+            # Cancel in-progress builds that hold the docker lock after CI timeouts
+            timeout 20 docker buildx stop 2>/dev/null || true
+            pkill -f '/usr/libexec/docker/cli-plugins/docker-buildx' 2>/dev/null || true
+            pkill -f 'docker compose build' 2>/dev/null || true
+            pkill -f 'docker-compose build' 2>/dev/null || true
+            pkill -f 'npm run build' 2>/dev/null || true
+            sleep 2
+
+            echo "=== Start existing images (no rebuild) ==="
+            timeout 120 docker compose up -d --no-build || timeout 180 docker compose up -d || true
+            sleep 8
+
+            echo "=== Container status ==="
+            docker compose ps || true
+
+            echo "=== Health loop ==="
+            HEALTHY=0
+            for i in $(seq 1 30); do
+              HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3010/api/health 2>/dev/null || echo "000")
+              if [ "$HTTP" = "200" ]; then
+                echo "Recovered — healthy on attempt $i"
+                HEALTHY=1
+                break
+              fi
+              echo "  attempt $i/30 HTTP=$HTTP"
+              sleep 4
+            done
+
+            if [ "$HEALTHY" != "1" ]; then
+              echo "Recovery failed — last app logs:"
+              docker logs srp-auth-app --tail 100 || true
+              exit 1
+            fi
+
+            sudo systemctl reload nginx 2>/dev/null || true
+            echo "=== Recovery complete (tenant data preserved) ==="
+
+      - name: Verify HTTPS health
+        run: |
+          for i in $(seq 1 20); do
+            CODE=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 20 https://recruit.srpailabs.com/api/health || echo 000)
+            echo "HTTPS health attempt $i => $CODE"
+            if [ "$CODE" = "200" ]; then
+              head -c 400 /tmp/health.json; echo
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "HTTPS health never returned 200"
+          exit 1

@@ -79,12 +79,21 @@ jobs:
             set -euo pipefail
             cd /opt/srp-smartrecruit-auth
 
-            echo "=== [0/5] If app is down, start existing image immediately ==="
-            HTTP_NOW=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3010/api/health 2>/dev/null || echo "000")
+            echo "=== [0/5] Clear stuck builds + ensure existing app is serving ==="
+            # Prior CI timeouts can leave docker compose/build holding the daemon lock
+            timeout 20 docker buildx stop 2>/dev/null || true
+            pkill -f 'docker compose build' 2>/dev/null || true
+            pkill -f 'docker-compose build' 2>/dev/null || true
+            pkill -f 'npm run build' 2>/dev/null || true
+            sleep 2
+
+            HTTP_NOW=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:3010/api/health 2>/dev/null || echo "000")
             if [ "$HTTP_NOW" != "200" ]; then
-              echo "Health is $HTTP_NOW ΓÇö bringing up existing containers (DB untouched)"
-              docker compose up -d || true
+              echo "Health is $HTTP_NOW — bringing up existing containers (no rebuild, DB untouched)"
+              timeout 120 docker compose up -d --no-build || timeout 180 docker compose up -d || true
               sleep 5
+            else
+              echo "App already healthy (HTTP 200)"
             fi
 
             echo "=== [1/5] Pull latest code (main) ==="
@@ -144,12 +153,13 @@ jobs:
               "SELECT email, is_active, (password_hash IS NOT NULL) AS has_password FROM auth_users WHERE email IN ('demo@srpailabs.com','pasikantishashank24@gmail.com','hareesh4u22@gmail.com','priyapasikanti0@gmail.com') ORDER BY email;"
 
             echo "=== [3/5] Build app image (DB stays up; keep serving until recreate) ==="
-            # Do NOT stop app before build ΓÇö previous timeout left site 502
-            docker compose build app
+            # Do NOT stop app before build — previous timeout left site 502
+            # Bound build so a hung daemon fails the step instead of eating the whole SSH session
+            timeout 55m docker compose build app
 
             echo "=== [4/5] Recreate app container only ==="
-            docker compose up -d --no-deps --force-recreate app
-            docker compose up -d
+            timeout 180 docker compose up -d --no-deps --force-recreate app
+            timeout 120 docker compose up -d --no-build || timeout 180 docker compose up -d
 
             echo "=== [5/5] Start & health-check ==="
             HEALTHY=0
