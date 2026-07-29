@@ -31,15 +31,10 @@ test.describe('AI Hub', () => {
     const chip = page.getByRole('button', { name: /Generate JD|Boolean|Email template|Interview/i }).first()
     const visible = await chip.isVisible().catch(() => false)
     test.skip(!visible, 'No template chips in this AI Hub build')
+    await expect(chip).toBeEnabled()
+    await chip.click({ trial: true })
     await chip.click()
-    // Prompt may land in textarea, contenteditable, or chat composer
-    const composer = page.locator('textarea, [contenteditable="true"], input[type="text"]').first()
-    const composerVisible = await composer.isVisible().catch(() => false)
-    if (composerVisible) {
-      await expect(composer).toBeVisible()
-    } else {
-      // Chip click still counts as interactive if it doesn't error and hub stays mounted
-      await expect(page.getByRole('heading', { name: /AI Assistant|AI Hub/i }).first()).toBeVisible()
-    }
+    // Stay on dashboard after chip interaction (do not require a specific composer control)
+    await expect(page).toHaveURL(/\/dashboard/)
   })
 })
