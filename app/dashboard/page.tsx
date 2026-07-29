@@ -416,7 +416,7 @@ function JDTab() {
         </button>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-sm font-extrabold text-slate-900">Channel posts</p>
-          <p className="text-xs text-slate-500 mt-1">Use <span className="font-semibold text-indigo-700">Generate Job Post</span> for LinkedIn, JobStreet, Indeed, and more.</p>
+          <p className="text-xs font-semibold text-slate-500 mt-1">Use <span className="font-black text-indigo-700">Generate Job Post</span> for LinkedIn, WhatsApp, Email, and Indeed.</p>
         </div>
       </div>
 
@@ -5302,11 +5302,11 @@ export default function DashboardPage() {
       {/* ── Generate Job Posts Modal ─────────────────────────────────────── */}
       {genPostOpen && (
         <div className="fixed inset-0 bg-slate-900/35 backdrop-blur-[2px] z-[70] overflow-y-auto flex items-start justify-center p-4">
-          <div className="glass-card rounded-2xl p-5 w-full max-w-2xl border border-slate-200 my-auto flex flex-col max-h-[92vh] overflow-hidden">
-            <div className="flex items-center justify-between mb-3 flex-shrink-0">
+          <div className="glass-card rounded-2xl w-full max-w-2xl border border-slate-200 my-4 sm:my-8 flex flex-col max-h-[min(92vh,900px)] overflow-hidden shadow-xl">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0 border-b border-slate-100">
               <div>
-                <h2 className="text-base font-bold text-slate-900">Generate Job Post</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <h2 className="text-base font-black text-slate-900">Generate Job Post</h2>
+                <p className="text-xs font-semibold text-slate-500 mt-0.5">
                   {genPostMode === 'existing' && genPostJob
                     ? <>{genPostJob.title}{genPostJob.company ? ` · ${genPostJob.company}` : ''}{genPostJob.short_id ? <> · <span className="font-mono bg-slate-100 px-1 py-0.5 rounded text-indigo-700">{genPostJob.short_id}</span></> : ''}</>
                     : 'Quick generate from JD text — no job required'}
@@ -5315,29 +5315,30 @@ export default function DashboardPage() {
               <button onClick={closeGenPostModal} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 mb-3 flex-shrink-0">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-5 py-4 gen-post-scroll">
+            <div className="grid grid-cols-2 gap-2 mb-3">
               <button type="button" onClick={() => setGenPostMode('existing')}
                 className={`rounded-xl border px-3 py-2.5 text-left transition-all ${genPostMode === 'existing' ? 'border-indigo-300 bg-indigo-50 shadow-sm' : 'border-slate-200 bg-white'}`}>
-                <p className="text-xs font-extrabold text-slate-900">From existing job</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Reuse JD and save posts to the job</p>
+                <p className="text-xs font-black text-slate-900">From existing job</p>
+                <p className="text-[10px] font-semibold text-slate-500 mt-0.5">Reuse JD and save posts to the job</p>
               </button>
               <button type="button" onClick={() => { setGenPostMode('quick'); setGenPostJob(null) }}
                 className={`rounded-xl border px-3 py-2.5 text-left transition-all ${genPostMode === 'quick' ? 'border-cyan-300 bg-cyan-50 shadow-sm' : 'border-slate-200 bg-white'}`}>
-                <p className="text-xs font-extrabold text-slate-900">Quick Generate</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Paste / upload JD — no job save</p>
+                <p className="text-xs font-black text-slate-900">Quick Generate</p>
+                <p className="text-[10px] font-semibold text-slate-500 mt-0.5">Paste / upload JD — no job save</p>
               </button>
             </div>
 
             {genPostMode === 'existing' ? (
-              <div className="mb-3 space-y-2 flex-shrink-0">
+              <div className="mb-3 space-y-2">
                 {!genPostJob ? (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 max-h-40 overflow-y-auto">
-                    <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">Select a job</p>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 max-h-48 overflow-y-auto gen-post-scroll">
+                    <p className="text-[10px] font-black uppercase text-slate-600 mb-2">Select a job</p>
                     {jobs.length === 0 ? (
-                      <p className="text-xs text-slate-500">No jobs yet — use Quick Generate or New Job.</p>
+                      <p className="text-xs font-semibold text-slate-500">No jobs yet — use Quick Generate or New Job.</p>
                     ) : jobs.slice(0, 40).map(j => (
                       <button key={j.id} type="button" onClick={() => openJobDetails(j)}
-                        className="w-full text-left px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-800 hover:bg-indigo-50 truncate">
+                        className="w-full text-left px-2 py-1.5 rounded-lg text-xs font-bold text-slate-800 hover:bg-indigo-50 truncate">
                         {j.title}{j.company ? ` · ${j.company}` : ''}
                       </button>
                     ))}
@@ -5346,34 +5347,34 @@ export default function DashboardPage() {
                   <div className="grid grid-cols-1 gap-2">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                       <div className="flex items-center justify-between mb-1">
-                        <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide">Job description</label>
+                        <label className="text-[10px] text-slate-600 font-black uppercase tracking-wide">Job description</label>
                         {Object.keys(generatedPosts).length > 0 && (
-                          <span className="text-[11px] text-emerald-700">Saved posts loaded — no AI cost unless you Regenerate</span>
+                          <span className="text-[11px] font-semibold text-emerald-700">Saved posts loaded — no AI cost unless you Regenerate</span>
                         )}
                       </div>
-                      <div className="max-h-24 overflow-auto whitespace-pre-wrap text-xs text-slate-700">
+                      <div className="max-h-32 overflow-y-auto whitespace-pre-wrap text-xs font-medium text-slate-700 gen-post-scroll">
                         {genPostJob.description?.trim() || 'No description saved for this job yet.'}
                       </div>
                     </div>
-                    <button type="button" className="text-[11px] font-bold text-indigo-700 self-start" onClick={() => { setGenPostJob(null); setGeneratedPosts({}) }}>
+                    <button type="button" className="text-[11px] font-black text-indigo-700 self-start" onClick={() => { setGenPostJob(null); setGeneratedPosts({}) }}>
                       Change job
                     </button>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="mb-3 space-y-2 flex-shrink-0">
+              <div className="mb-3 space-y-2">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <input value={quickTitle} onChange={e => setQuickTitle(e.target.value)} placeholder="Job title (optional)"
-                    className="px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                    className="px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold" />
                   <input value={quickCompany} onChange={e => setQuickCompany(e.target.value)} placeholder="Company"
-                    className="px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                    className="px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold" />
                   <input value={quickLocation} onChange={e => setQuickLocation(e.target.value)} placeholder="Location"
-                    className="px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                    className="px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold" />
                 </div>
-                <textarea value={quickJdText} onChange={e => setQuickJdText(e.target.value)} rows={5}
+                <textarea value={quickJdText} onChange={e => setQuickJdText(e.target.value)} rows={6}
                   placeholder="Paste full job description…"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm resize-none" />
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium resize-y min-h-[120px] max-h-56 overflow-y-auto gen-post-scroll" />
                 <LightFileUploadZone
                   label="Upload JD (PDF/DOC/DOCX/TXT)"
                   accept=".pdf,.docx,.doc,.txt"
@@ -5383,24 +5384,25 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <div className="mb-3 flex-shrink-0">
-              <label className="text-xs font-semibold text-slate-600 mb-1 block">Extra context / instructions (optional)</label>
+            <div className="mb-3">
+              <label className="text-xs font-black text-slate-800 mb-1 block">Extra context / instructions (optional)</label>
               <input value={genCustomPrompt} onChange={e => setGenCustomPrompt(e.target.value)}
                 placeholder="e.g. Highlight remote work, mention stipend…"
-                className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
+                className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
             </div>
 
-            <div className="mb-3 flex-shrink-0 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
+            <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3">
               <div className="flex items-center justify-between gap-2 mb-2">
-                <p className="text-xs font-bold text-indigo-900">Channels to generate</p>
+                <p className="text-xs font-black text-indigo-950">Channels to generate</p>
                 <button
                   type="button"
                   onClick={() => setGenPostPlatforms(prev => prev.length === JOB_POST_PLATFORMS.length ? ['linkedin'] : [...JOB_POST_PLATFORMS])}
-                  className="text-[11px] font-semibold text-indigo-700 hover:underline"
+                  className="text-[11px] font-bold text-indigo-700 hover:underline"
                 >
                   {genPostPlatforms.length === JOB_POST_PLATFORMS.length ? 'Clear all' : 'Select all'}
                 </button>
               </div>
+              <p className="text-[10px] font-semibold text-indigo-800/80 mb-2">LinkedIn · WhatsApp · Email · Indeed only</p>
               <div className="option-card-grid !gap-1.5">
                 {JOB_POST_PLATFORMS.map(p => {
                   const on = genPostPlatforms.includes(p)
@@ -5411,7 +5413,7 @@ export default function DashboardPage() {
                       onClick={() => setGenPostPlatforms(prev =>
                         prev.includes(p) ? (prev.length === 1 ? prev : prev.filter(x => x !== p)) : [...prev, p]
                       )}
-                      className={`!min-h-0 px-2.5 py-2 rounded-xl text-[11px] font-semibold border text-left transition-all ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                      className={`!min-h-0 px-2.5 py-2 rounded-xl text-[11px] font-black border text-left transition-all ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-800 border-slate-200'}`}
                       title={JOB_POST_PLATFORM_META[p].hint}
                     >
                       {JOB_POST_PLATFORM_META[p].label}
@@ -5421,7 +5423,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="mb-3 flex gap-2 flex-shrink-0">
+            <div className="mb-3 flex gap-2">
               <button
                 onClick={() => {
                   if (genPostMode === 'quick') void generateQuickPosts()
@@ -5429,7 +5431,7 @@ export default function DashboardPage() {
                   else setGenPostError('Select a job first.')
                 }}
                 disabled={generatingPosts || genPostPlatforms.length === 0 || (genPostMode === 'existing' && !genPostJob) || (genPostMode === 'quick' && !quickJdText.trim())}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 font-semibold text-sm text-white transition-all disabled:opacity-50">
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 font-black text-sm text-white transition-all disabled:opacity-50">
                 {generatingPosts
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
                   : Object.keys(generatedPosts).length > 0
@@ -5439,53 +5441,54 @@ export default function DashboardPage() {
               </button>
               {genPostMode === 'quick' && Object.keys(generatedPosts).length > 0 && (
                 <button type="button" onClick={() => void saveQuickAsJob()} disabled={generatingPosts}
-                  className="px-3 py-2.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 text-sm font-extrabold hover:bg-emerald-100 disabled:opacity-50">
+                  className="px-3 py-2.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 text-sm font-black hover:bg-emerald-100 disabled:opacity-50">
                   Save as Job
                 </button>
               )}
             </div>
 
             {genPostError && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs mb-3 flex-shrink-0">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs font-semibold mb-3">
                 <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {genPostError}
               </div>
             )}
 
             {Object.keys(generatedPosts).length > 0 ? (
-              <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
-                <div className="flex gap-1 flex-wrap mb-2 flex-shrink-0">
+              <div className="flex flex-col pb-2">
+                <div className="flex gap-1 flex-wrap mb-2">
                   {JOB_POST_PLATFORMS.map(p => (
                     generatedPosts[p] ? (
                       <button key={p} onClick={() => setGenPostTab(p)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${genPostTab === p ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        className={`px-2.5 py-1 rounded-full text-xs font-black transition-all ${genPostTab === p ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}>
                         {JOB_POST_PLATFORM_META[p].label}
                       </button>
                     ) : null
                   ))}
                 </div>
-                <div className="relative flex-1 min-h-0">
+                <div className="relative">
                   <textarea
                     readOnly
                     value={generatedPosts[genPostTab] ?? ''}
-                    rows={10}
-                    className="w-full h-full min-h-[180px] px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-800 resize-none focus:outline-none" />
+                    rows={12}
+                    className="w-full min-h-[220px] max-h-[360px] overflow-y-auto px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm font-medium text-slate-800 resize-y focus:outline-none gen-post-scroll" />
                   <button
                     onClick={() => copyPostContent(genPostTab, generatedPosts[genPostTab] ?? '')}
-                    className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs text-slate-700 transition-all border border-slate-200">
+                    className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition-all border border-slate-200">
                     {copiedPostKey === genPostTab ? <><Check className="w-3 h-3 text-emerald-600" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy</>}
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-                <p className="font-semibold mb-1">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 mb-1">
+                <p className="font-black mb-1">
                   {genPostMode === 'quick' ? 'Paste or upload a JD, then generate.' : 'No saved posts yet for this job.'}
                 </p>
-                <p className="text-xs text-amber-900/90">
-                  Generate once to create channel posts. Opening an existing job with saved posts will not spend AI tokens until you Generate Again.
+                <p className="text-xs font-semibold text-amber-900/90">
+                  Generate once to create LinkedIn, WhatsApp, Email, and Indeed posts. Opening an existing job with saved posts will not spend AI tokens until you Generate Again.
                 </p>
               </div>
             )}
+            </div>
           </div>
         </div>
       )}

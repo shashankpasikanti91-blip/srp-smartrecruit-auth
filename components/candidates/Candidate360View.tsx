@@ -105,8 +105,10 @@ export function Candidate360TabBar({
     <div className="flex flex-wrap border-b border-slate-200 gap-x-0.5 bg-white px-1 sticky top-0 z-10">
       {tabs.map(t => (
         <button key={t} type="button" onClick={() => onTabChange(t)}
-          className={`relative px-3 py-2.5 text-xs font-extrabold transition-all whitespace-nowrap ${
-            tab === t ? 'text-indigo-700 border-b-2 border-indigo-600' : 'text-slate-600 hover:text-slate-900'
+          className={`relative px-3 py-2.5 text-xs font-black tracking-tight transition-all whitespace-nowrap rounded-t-lg ${
+            tab === t
+              ? 'text-indigo-800 bg-indigo-50 border-b-2 border-indigo-600'
+              : 'text-slate-800 hover:text-indigo-900 hover:bg-slate-50'
           }`}>
           {TAB_LABELS[t]}
           {t === 'record' && recordWarn && (

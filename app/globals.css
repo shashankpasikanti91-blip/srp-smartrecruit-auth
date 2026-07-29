@@ -1486,6 +1486,40 @@ select.appearance-none,
   animation: srp-splash-in 0.28s ease-out;
 }
 
+/* Visible scrollbars for Generate Post modal / long JD panels */
+.gen-post-scroll {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #e2e8f0;
+}
+.gen-post-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.gen-post-scroll::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 999px;
+}
+.gen-post-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+  border: 2px solid #e2e8f0;
+}
+.gen-post-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Stronger nav / section emphasis across dashboard */
+.dashboard-root label,
+.dashboard-root .dash-section-head p,
+.dashboard-root .ui-section-label {
+  font-weight: 700;
+}
+.dashboard-root button.text-xs,
+.dashboard-root .nav-option {
+  letter-spacing: -0.01em;
+}
+
 .pagination-bar {
   display: flex;
   align-items: center;

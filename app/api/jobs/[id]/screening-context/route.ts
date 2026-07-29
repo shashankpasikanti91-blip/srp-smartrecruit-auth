@@ -19,7 +19,7 @@ export async function GET(
   let row: Record<string, unknown> | undefined
   try {
     const { rows } = await pool.query(
-      `SELECT id, short_id, title, company, client_name, location, status, type,
+      `SELECT id, short_id, title, company, location, status, type,
               employment_type, experience_min, experience_max,
               description, requirements, optional_requirements, raw_jd_text,
               skills_mandatory, skills_required, tags, screening_questions,
@@ -63,7 +63,7 @@ export async function GET(
       min: row.experience_min ?? null,
       max: row.experience_max ?? null,
     },
-    client: row.client_name || row.company || null,
+    client: row.company || null,
     employment_type: row.employment_type || row.type || null,
     screening_questions: row.screening_questions ?? null,
   })
