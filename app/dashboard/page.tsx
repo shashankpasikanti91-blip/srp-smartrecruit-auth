@@ -56,7 +56,7 @@ import {
   RefreshCw, AlertCircle, Layers, Brain, ChevronRight,
   MoreVertical, Send, Loader2, Download, Settings, User as UserIcon, CreditCard, Activity, Shield,
   Key, Pencil, Eye, EyeOff, Link2, Trash2, ToggleLeft, ToggleRight, ExternalLink, Info,
-  Bell, Award, Calendar, Building2
+  Bell, Award, Calendar, Building2, MessageSquare, PenLine, HelpCircle, BookOpen, UserCheck, ChevronUp
 } from 'lucide-react'
 
 type DashboardTab =
@@ -1481,12 +1481,78 @@ function IntegrationsTab() {
 // Communication Hub Tab
 // ─────────────────────────────────────────────────────────────────────────────
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
+
+/** Quick-access shortcuts into existing AI Hub / tool tabs (no new routes). */
+type AiShortcut = {
+  id: string
+  label: string
+  icon: typeof Sparkles
+  tooltip: string
+  tab: DashboardTab
+  badge?: string | null
+  templateId?: string
+}
+
+const AI_SHORTCUTS: AiShortcut[] = [
+  { id: 'hub', label: 'AI Hub', icon: Sparkles, tooltip: 'Central AI workspace', tab: 'coach', badge: 'AI' },
+  { id: 'screen', label: 'AI Screening', icon: Brain, tooltip: 'Score CVs against a job description', tab: 'screen', badge: 'AI' },
+  { id: 'boolean', label: 'Boolean Search', icon: Search, tooltip: 'Generate job-board Boolean strings', tab: 'boolean' },
+  { id: 'compose', label: 'AI Composer', icon: Mail, tooltip: 'Draft emails and messages', tab: 'compose' },
+  { id: 'jd', label: 'JD Writer', icon: FileText, tooltip: 'Create or optimize job descriptions', tab: 'jd' },
+  { id: 'assistant', label: 'AI Assistant', icon: MessageSquare, tooltip: 'Recruiter chat assistant', tab: 'coach' },
+  { id: 'resume-match', label: 'Resume Match', icon: Target, tooltip: 'Match resumes via AI Screening', tab: 'screen' },
+  { id: 'internal-match', label: 'Internal Talent Match', icon: UserCheck, tooltip: 'Open Jobs — use Internal Match on a job', tab: 'jobs' },
+  { id: 'gen-post', label: 'Generate Job Post', icon: PenLine, tooltip: 'Open Jobs — Generate Post from Job Hub', tab: 'jobs' },
+  { id: 'interview', label: 'Interview Questions', icon: HelpCircle, tooltip: 'Interview kit via AI Assistant', tab: 'coach', templateId: 'interview' },
+  { id: 'summary', label: 'Candidate Summary', icon: Layers, tooltip: 'Summarize a candidate via AI Assistant', tab: 'coach', templateId: 'summary' },
+  { id: 'coach', label: 'Recruiter Coach', icon: Award, tooltip: 'Guided recruiting coaching chat', tab: 'coach' },
+  { id: 'prompts', label: 'Prompt Library', icon: BookOpen, tooltip: 'Browse AI Assistant prompt templates', tab: 'coach', templateId: '__library__' },
+]
+
 export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
   const [activeTab, setActiveTab] = useState<DashboardTab>('workspace')
   const [settingsPanel, setSettingsPanel] = useState<'main' | 'integrations' | 'governance'>('main')
+  /** Expandable AI Tools sidebar (shortcuts into existing Hub tabs) */
+  const [aiNavExpanded, setAiNavExpanded] = useState(true)
+  const [aiNavQuery, setAiNavQuery] = useState('')
+  const [activeAiShortcutId, setActiveAiShortcutId] = useState<string | null>(null)
+  /** Optional coach template to apply when opening AI Assistant / Hub */
+  const [coachBootstrapTemplateId, setCoachBootstrapTemplateId] = useState<string | null>(null)
+
+  const filteredAiShortcuts = useMemo(() => {
+    const q = aiNavQuery.trim().toLowerCase()
+    if (!q) return AI_SHORTCUTS
+    return AI_SHORTCUTS.filter(s => s.label.toLowerCase().includes(q) || s.tooltip.toLowerCase().includes(q))
+  }, [aiNavQuery])
+
+  const openAiShortcut = useCallback((s: AiShortcut) => {
+    setActiveAiShortcutId(s.id)
+    setCoachBootstrapTemplateId(s.templateId ?? null)
+    setActiveTab(s.tab)
+    setMobileNavOpen(false)
+  }, [])
+
+  const isAiShortcutActive = useCallback((s: AiShortcut) => {
+    if (activeAiShortcutId) return activeAiShortcutId === s.id
+    if (s.tab !== activeTab) return false
+    if (s.tab === 'screen') return s.id === 'screen'
+    if (s.tab === 'compose') return s.id === 'compose'
+    if (s.tab === 'jd') return s.id === 'jd'
+    if (s.tab === 'boolean') return s.id === 'boolean'
+    if (s.tab === 'coach') return s.id === 'hub'
+    return false
+  }, [activeTab, activeAiShortcutId])
+
+  const goTab = useCallback((tab: DashboardTab) => {
+    setActiveAiShortcutId(null)
+    setCoachBootstrapTemplateId(null)
+    setActiveTab(tab)
+    setMobileNavOpen(false)
+  }, [])
+
   // Phase 3.2: collapse duplicate / hidden tabs into primary destinations
   // Keep `performance` reachable (My Performance) — do not redirect it to reports.
   useEffect(() => {
@@ -2555,8 +2621,7 @@ export default function DashboardPage() {
     { tab: 'documents', icon: FileText, label: 'Documents', badge: null, section: 'recruitment' },
     ...(canSeeReports ? [{ tab: 'reports' as const, icon: Download, label: 'Reports', badge: null, section: 'recruitment' as const }] : []),
     { tab: 'performance', icon: Target, label: 'My Performance', badge: null, section: 'recruitment' },
-    /* P6: single AI Hub entry — tools open inside coach workspace / tabs */
-    { tab: 'coach', icon: Sparkles, label: 'AI Hub', badge: 'AI', section: 'ai' },
+    /* AI section rendered as expandable shortcuts below — no single-item entry here */
     { tab: 'comms', icon: Mail, label: 'Communications', badge: null, section: 'ops' },
     ...(canSeeReports ? [{ tab: 'hrconfig' as const, icon: Shield, label: 'HRMS', badge: null, section: 'ops' as const }] : []),
     { tab: 'ess', icon: Building2, label: 'ESS', badge: null, section: 'ops' },
@@ -2614,9 +2679,9 @@ export default function DashboardPage() {
           />
         )}
 
-        {/* ── Sidebar — dark navy + primary blue active ───────────────────── */}
+        {/* ── Sidebar — dark navy + primary blue active (sticky on desktop) ─ */}
         <aside className={`w-56 flex-shrink-0 flex flex-col bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] shadow-md dash-sidebar z-50
-          fixed lg:static inset-y-0 left-0 transform transition-transform duration-200
+          fixed lg:sticky lg:top-0 lg:h-screen inset-y-0 left-0 transform transition-transform duration-200
           ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           <div className="px-4 py-4 border-b border-[var(--sidebar-border)] flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -2645,16 +2710,83 @@ export default function DashboardPage() {
             </button>
           )}
 
-          <nav className="flex-1 px-2 py-2.5 space-y-0.5 overflow-y-auto min-h-0">
+          <nav className="flex-1 px-2 py-2.5 space-y-0.5 overflow-y-auto min-h-0" aria-label="Main">
             {(['recruitment', 'ai', 'ops'] as const).map(section => {
+              if (section === 'ai') {
+                return (
+                  <div key="ai" className="mt-3 pt-2 border-t border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setAiNavExpanded(v => !v)}
+                      aria-expanded={aiNavExpanded}
+                      aria-controls="ai-tools-nav"
+                      className="w-full flex items-center gap-1 px-2.5 mb-1.5 rounded-md text-slate-400 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                    >
+                      <span className="flex-1 text-left text-[9px] font-extrabold uppercase tracking-widest">AI Tools</span>
+                      {aiNavExpanded
+                        ? <ChevronUp className="w-3 h-3 flex-shrink-0" aria-hidden />
+                        : <ChevronDown className="w-3 h-3 flex-shrink-0" aria-hidden />}
+                    </button>
+                    {aiNavExpanded && (
+                      <div id="ai-tools-nav" role="group" aria-label="AI tool shortcuts">
+                        <div className="px-1.5 mb-1.5">
+                          <label htmlFor="ai-nav-search" className="sr-only">Search AI tools</label>
+                          <div className="relative">
+                            <Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" aria-hidden />
+                            <input
+                              id="ai-nav-search"
+                              type="search"
+                              value={aiNavQuery}
+                              onChange={e => setAiNavQuery(e.target.value)}
+                              placeholder="Search AI…"
+                              autoComplete="off"
+                              className="w-full pl-7 pr-2 py-1.5 rounded-md text-[11px] bg-white/5 border border-white/10 text-slate-200 placeholder:text-slate-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+                            />
+                          </div>
+                        </div>
+                        {filteredAiShortcuts.map(s => {
+                          const active = isAiShortcutActive(s)
+                          const Icon = s.icon
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              title={s.tooltip}
+                              aria-current={active ? 'page' : undefined}
+                              onClick={() => openAiShortcut(s)}
+                              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-semibold transition-all duration-150 ${
+                                active
+                                  ? 'bg-[var(--sidebar-active)] text-white shadow-sm'
+                                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+                              }`}
+                            >
+                              <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${active ? 'text-white' : 'text-slate-400'}`} aria-hidden />
+                              <span className="flex-1 text-left truncate">{s.label}</span>
+                              {s.badge && (
+                                <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded flex-shrink-0 ${
+                                  active ? 'bg-white/25 text-white' : 'bg-teal-500/20 text-teal-200'
+                                }`}>{s.badge}</span>
+                              )}
+                            </button>
+                          )
+                        })}
+                        {filteredAiShortcuts.length === 0 && (
+                          <p className="px-2.5 py-2 text-[11px] text-slate-500">No matching tools</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
               const items = sidebarNavItems.filter(i => i.section === section)
               if (items.length === 0) return null
-              const sectionLabel = section === 'recruitment' ? 'Recruitment' : section === 'ai' ? 'AI' : 'Operations'
+              const sectionLabel = section === 'recruitment' ? 'Recruitment' : 'Operations'
               return (
                 <div key={section} className={section === 'recruitment' ? '' : 'mt-3 pt-2 border-t border-white/10'}>
                   <p className="px-2.5 mb-1.5 text-[9px] font-extrabold uppercase tracking-widest text-slate-400">{sectionLabel}</p>
                   {items.map(({ tab, icon: Icon, label, badge }) => (
-                    <button key={`${section}-${tab}-${label}`} onClick={() => { setActiveTab(tab); setMobileNavOpen(false) }}
+                    <button key={`${section}-${tab}-${label}`} type="button" onClick={() => goTab(tab)}
                       className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-semibold transition-all duration-150 ${
                         activeTab === tab
                           ? 'bg-[var(--sidebar-active)] text-white shadow-sm'
@@ -5032,7 +5164,24 @@ export default function DashboardPage() {
             {activeTab === 'reports' && <ReportsTab onNavigate={(tab) => setActiveTab(tab as DashboardTab)} />}
             {activeTab === 'hrconfig' && <HrConfigTab />}
             {activeTab === 'performance' && <MyPerformanceTab />}
-            {activeTab === 'coach' && <AiRecruiterWorkspace onNavigate={(tab) => setActiveTab(tab as DashboardTab)} />}
+            {activeTab === 'coach' && (
+              <AiRecruiterWorkspace
+                bootstrapTemplateId={coachBootstrapTemplateId}
+                onNavigate={(tab) => {
+                  const t = tab as DashboardTab
+                  const shortcutMap: Partial<Record<DashboardTab, string>> = {
+                    coach: 'hub',
+                    screen: 'screen',
+                    compose: 'compose',
+                    jd: 'jd',
+                    boolean: 'boolean',
+                  }
+                  setActiveAiShortcutId(shortcutMap[t] ?? null)
+                  setCoachBootstrapTemplateId(null)
+                  setActiveTab(t)
+                }}
+              />
+            )}
             {activeTab === 'settings' && settingsPanel === 'governance' && canSeeGovernance && (
               <div>
                 <button type="button" onClick={() => setSettingsPanel('main')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← Back to Settings</button>

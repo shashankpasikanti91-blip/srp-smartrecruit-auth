@@ -39,8 +39,24 @@ const TAB_FIELDS: Array<{
   {
     label: 'AI Hub',
     fields: [
-      { kind: 'text', name: /Screen|Boolean|Generate|Bulk|AI/i },
+      { kind: 'text', name: /Screen|Boolean|Generate|Bulk|AI|template|Welcome/i },
     ],
+  },
+  {
+    label: 'AI Screening',
+    fields: [{ kind: 'text', name: /Screen|Score|Upload|JD|Match/i }],
+  },
+  {
+    label: 'Boolean Search',
+    fields: [{ kind: 'text', name: /Boolean|LinkedIn|Naukri|Search/i }],
+  },
+  {
+    label: 'AI Composer',
+    fields: [{ kind: 'text', name: /Compose|Email|Draft|Message/i }],
+  },
+  {
+    label: 'JD Writer',
+    fields: [{ kind: 'text', name: /JD|Job Description|Writer|Generate/i }],
   },
   {
     label: 'Communications',

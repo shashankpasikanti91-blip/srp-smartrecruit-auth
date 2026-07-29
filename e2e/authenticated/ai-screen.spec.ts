@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { gotoDashboard, openTab } from '../helpers/dashboard'
 
 /**
- * AI Screening lives under AI Hub (coach workspace) after P6 consolidation.
+ * AI Hub + direct AI Screening sidebar shortcuts (existing tabs only).
  */
 async function openAiHub(page: Parameters<typeof openTab>[0]) {
   await gotoDashboard(page)
@@ -26,6 +26,14 @@ test.describe('AI Hub', () => {
     await expect(hubSignal).toBeVisible({ timeout: 15_000 })
   })
 
+  test('AI Screening sidebar shortcut opens existing screening tab', async ({ page }) => {
+    await gotoDashboard(page)
+    await openTab(page, 'AI Screening')
+    await expect(page.getByRole('heading', { name: /Screen|Match|AI/i }).first()).toBeVisible({
+      timeout: 15_000,
+    })
+  })
+
   test('template chips are interactive when present', async ({ page }) => {
     await openAiHub(page)
     const chip = page.getByRole('button', { name: /Generate JD|Boolean|Email template|Interview/i }).first()
@@ -34,7 +42,6 @@ test.describe('AI Hub', () => {
     await expect(chip).toBeEnabled()
     await chip.click({ trial: true })
     await chip.click()
-    // Stay on dashboard after chip interaction (do not require a specific composer control)
     await expect(page).toHaveURL(/\/dashboard/)
   })
 })

@@ -103,7 +103,14 @@ function renderMarkdownish(text: string) {
   })
 }
 
-export function AiRecruiterWorkspace({ onNavigate }: { onNavigate?: (tab: string) => void }) {
+export function AiRecruiterWorkspace({
+  onNavigate,
+  bootstrapTemplateId,
+}: {
+  onNavigate?: (tab: string) => void
+  /** Sidebar shortcut: fill input from a known template id, or scroll to templates (`__library__`). */
+  bootstrapTemplateId?: string | null
+}) {
   const [store, setStore] = useState<WorkspaceStore>({ sessions: [], pinnedIds: [], savedSearches: [], templates: DEFAULT_TEMPLATES })
   const [activeId, setActiveId] = useState<string | null>(null)
   const [input, setInput] = useState('')
@@ -112,6 +119,8 @@ export function AiRecruiterWorkspace({ onNavigate }: { onNavigate?: (tab: string
   const [context, setContext] = useState<CoachContext | null>(null)
   const [contextLoading, setContextLoading] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const templatesRef = useRef<HTMLDivElement>(null)
+  const lastBootstrapRef = useRef<string | null>(null)
 
   const persist = useCallback((next: WorkspaceStore) => {
     setStore(next)
@@ -199,6 +208,24 @@ export function AiRecruiterWorkspace({ onNavigate }: { onNavigate?: (tab: string
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [active?.messages, loading])
+
+  useEffect(() => {
+    if (!bootstrapTemplateId) {
+      lastBootstrapRef.current = null
+      return
+    }
+    if (lastBootstrapRef.current === bootstrapTemplateId) return
+    lastBootstrapRef.current = bootstrapTemplateId
+
+    if (bootstrapTemplateId === '__library__') {
+      templatesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      return
+    }
+
+    const templates = store.templates.length ? store.templates : DEFAULT_TEMPLATES
+    const match = templates.find(t => t.id === bootstrapTemplateId)
+    if (match) setInput(match.prompt)
+  }, [bootstrapTemplateId, store.templates])
 
   const updateSession = useCallback((sessionId: string, updater: (s: ChatSession) => ChatSession) => {
     setStore(prev => {
@@ -388,7 +415,7 @@ export function AiRecruiterWorkspace({ onNavigate }: { onNavigate?: (tab: string
             )}
           </div>
 
-          <div>
+          <div ref={templatesRef} id="ai-hub-templates">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 px-1 mb-1">Templates</p>
             <ul className="space-y-0.5">
               {store.templates.map(t => (
