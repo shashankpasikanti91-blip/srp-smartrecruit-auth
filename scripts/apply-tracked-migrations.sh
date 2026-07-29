@@ -34,6 +34,7 @@ FILES=(
   migrate_v31_enterprise.sql
   migrate_v32_platform.sql
   migrate_v33_security.sql
+  migrate_v34_jd_original.sql
 )
 
 echo "=== Applying tracked migrations (additive only) ==="

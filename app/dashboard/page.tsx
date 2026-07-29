@@ -271,9 +271,9 @@ function ShortIdBadge({ id }: { id: string }) {
   }
   return (
     <button onClick={doCopy} title="Click to copy ID"
-      className="inline-flex items-center gap-1 font-mono text-xs text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors">
+      className="inline-flex items-center gap-1 font-mono text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded border border-indigo-300 hover:bg-indigo-200 transition-colors">
       {id}
-      {copied ? <Check className="w-2.5 h-2.5 text-green-400" /> : <Copy className="w-2.5 h-2.5 opacity-40" />}
+      {copied ? <Check className="w-2.5 h-2.5 text-emerald-600" /> : <Copy className="w-2.5 h-2.5 opacity-60" />}
     </button>
   )
 }
@@ -3087,7 +3087,7 @@ export default function DashboardPage() {
 
                     {/* Skill */}
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Skill</span>
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide px-0.5">Skill</span>
                       <div className="relative">
                         <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-blue-400" />
                         <input value={filterSkill} onChange={e => setFilterSkill(e.target.value)}
@@ -3102,7 +3102,7 @@ export default function DashboardPage() {
 
                     {/* Stage */}
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Stage</span>
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide px-0.5">Stage</span>
                       <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
                         className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500">
                         <option value="">All</option>
@@ -3112,7 +3112,7 @@ export default function DashboardPage() {
 
                     {/* Match */}
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Match</span>
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide px-0.5">Match</span>
                       <select value={filterMatch} onChange={e => setFilterMatch(e.target.value)}
                         className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500">
                         <option value="">All</option>
@@ -3125,7 +3125,7 @@ export default function DashboardPage() {
 
                     {/* Job */}
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Job</span>
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide px-0.5">Job</span>
                       <select value={filterJob} onChange={e => setFilterJob(e.target.value)}
                         className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500 max-w-[150px]">
                         <option value="">All Jobs</option>
@@ -3135,7 +3135,7 @@ export default function DashboardPage() {
 
                     {/* Date */}
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Date</span>
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide px-0.5">Date</span>
                       <select value={filterDate} onChange={e => { setFilterDate(e.target.value); setCandPage(1) }}
                         className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500">
                         <option value="">All Time</option>
@@ -3151,7 +3151,7 @@ export default function DashboardPage() {
 
                     {/* Hire type */}
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Hire Type</span>
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide px-0.5">Hire Type</span>
                       <select value={filterHireType} onChange={e => { setFilterHireType(e.target.value); setCandPage(1) }}
                         className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500">
                         <option value="">All</option>
@@ -3161,7 +3161,7 @@ export default function DashboardPage() {
 
                     {/* Lifecycle */}
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Status</span>
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide px-0.5">Status</span>
                       <select value={filterLifecycle} onChange={e => { setFilterLifecycle(e.target.value); setCandPage(1) }}
                         className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500 max-w-[140px]">
                         <option value="">All</option>
@@ -3171,7 +3171,7 @@ export default function DashboardPage() {
 
                     {/* Recruiter */}
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Recruiter</span>
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide px-0.5">Recruiter</span>
                       <select value={filterRecruiter} onChange={e => { setFilterRecruiter(e.target.value); setCandPage(1) }}
                         className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500 max-w-[140px]">
                         <option value="">All</option>
@@ -3183,7 +3183,7 @@ export default function DashboardPage() {
 
                     {/* Client */}
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Client</span>
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide px-0.5">Client</span>
                       <input value={filterClient} onChange={e => { setFilterClient(e.target.value); setCandPage(1) }}
                         placeholder="Client name"
                         className="px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 w-28" />
@@ -3191,7 +3191,7 @@ export default function DashboardPage() {
 
                     {/* Visa */}
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Visa</span>
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide px-0.5">Visa</span>
                       <select value={filterVisa} onChange={e => { setFilterVisa(e.target.value); setCandPage(1) }}
                         className="appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-500 max-w-[130px]">
                         <option value="">All</option>
@@ -3201,7 +3201,7 @@ export default function DashboardPage() {
 
                     {/* Location */}
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Location</span>
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide px-0.5">Location</span>
                       <input value={filterLocation} onChange={e => { setFilterLocation(e.target.value); setCandPage(1) }}
                         placeholder="City"
                         className="px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 w-24" />
@@ -3209,7 +3209,7 @@ export default function DashboardPage() {
 
                     {/* Source */}
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Source</span>
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide px-0.5">Source</span>
                       <input value={filterSource} onChange={e => { setFilterSource(e.target.value); setCandPage(1) }}
                         placeholder="Source"
                         className="px-2 py-1.5 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 w-24" />
@@ -3334,7 +3334,7 @@ export default function DashboardPage() {
                           {showCandCol('name') && <th>Name</th>}
                           {showCandCol('email') && <th>Email</th>}
                           {showCandCol('phone') && <th>Phone</th>}
-                          {showCandCol('nric') && <th>NRIC</th>}
+                          {showCandCol('nric') && <th>National ID</th>}
                           {showCandCol('client') && <th>Client</th>}
                           {showCandCol('hire_type') && <th>Hire Type</th>}
                           {showCandCol('applying_for') && <th>Applying For</th>}
@@ -3379,8 +3379,8 @@ export default function DashboardPage() {
                             {showCandCol('name') && (
                             <td className="px-3 py-2.5 min-w-[140px] max-w-[180px]">
                               <p className="font-semibold text-[13px] text-gray-900 truncate">{c.candidate_name}</p>
-                              {!nric && !p.passport_number && (
-                                <span className="inline-flex mt-0.5 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800">No NRIC</span>
+                              {!nric && !p.passport_number && !p.id_document_reference && (
+                                <span className="inline-flex mt-0.5 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800">ID missing</span>
                               )}
                             </td>
                             )}
@@ -4122,19 +4122,19 @@ export default function DashboardPage() {
                   </div>
                   <div className="w-px h-5 bg-slate-200 flex-shrink-0" />
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Role</span>
+                    <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Role</span>
                     <input value={filterJobRole} onChange={e => setFilterJobRole(e.target.value)}
                       placeholder="Role or JOB-ID…"
                       className="pl-2 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 w-32" />
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Company</span>
+                    <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Company</span>
                     <input value={filterJobCompany} onChange={e => setFilterJobCompany(e.target.value)}
                       placeholder="Search company…"
                       className="pl-2 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 w-32" />
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Status</span>
+                    <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Status</span>
                     <select value={filterJobStatus} onChange={e => setFilterJobStatus(e.target.value)}
                       className="appearance-none pl-2 pr-6 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15">
                       <option value="">All</option>
@@ -4144,7 +4144,7 @@ export default function DashboardPage() {
                     </select>
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Job Type</span>
+                    <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Job Type</span>
                     <select value={filterJobType} onChange={e => setFilterJobType(e.target.value)}
                       className="appearance-none pl-2 pr-6 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15">
                       <option value="">All</option>

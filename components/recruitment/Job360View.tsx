@@ -50,11 +50,11 @@ const TAB_LABELS: Record<Job360Tab, string> = {
   timeline: 'Timeline',
 }
 
-const TAB_GROUPS: { label: string; tabs: Job360Tab[]; accent: string }[] = [
-  { label: 'Recruitment', tabs: ['overview', 'pipeline', 'submissions', 'interviews', 'offers'], accent: 'text-blue-700' },
-  { label: 'AI', tabs: ['internal_matches', 'ranking', 'posts'], accent: 'text-violet-700' },
-  { label: 'Documents', tabs: ['jd_document', 'notes', 'timeline'], accent: 'text-slate-600' },
-  { label: 'Insights', tabs: ['similar_jobs', 'market'], accent: 'text-teal-700' },
+const TAB_GROUPS: { label: string; tabs: Job360Tab[]; accent: string; chip: string }[] = [
+  { label: 'Recruitment', tabs: ['overview', 'pipeline', 'submissions', 'interviews', 'offers'], accent: 'text-blue-900', chip: 'bg-blue-100 border-blue-300' },
+  { label: 'AI', tabs: ['internal_matches', 'ranking', 'posts'], accent: 'text-violet-900', chip: 'bg-violet-100 border-violet-300' },
+  { label: 'Documents', tabs: ['jd_document', 'notes', 'timeline'], accent: 'text-slate-900', chip: 'bg-slate-200 border-slate-400' },
+  { label: 'Insights', tabs: ['similar_jobs', 'market'], accent: 'text-teal-900', chip: 'bg-teal-100 border-teal-300' },
 ]
 
 const TAB_ICONS: Partial<Record<Job360Tab, typeof LayoutDashboard>> = {
@@ -93,6 +93,9 @@ type Job360Job = {
   requirements?: string | null
   optional_requirements?: string | null
   raw_jd_text?: string | null
+  jd_original_path?: string | null
+  jd_original_name?: string | null
+  jd_original_mime?: string | null
   skills_mandatory?: string[] | null
   skills_required?: string[] | null
   tags?: string[] | null
@@ -481,7 +484,7 @@ export function Job360View({
                 {job?.type && <span className="ui-badge ui-badge--slate">{employmentLabel(job.type)}</span>}
                 {job?.contract_duration && <span className="ui-badge ui-badge--amber">{job.contract_duration}</span>}
                 {salary && <span className="ui-badge ui-badge--green">{salary}</span>}
-                {job?.short_id && <span className="ui-badge ui-badge--slate font-mono">{job.short_id}</span>}
+                {job?.short_id && <span className="ui-badge font-mono font-bold text-indigo-800 bg-indigo-100 border-indigo-300">{job.short_id}</span>}
               </div>
               <p className="text-[11px] font-medium text-slate-500 mt-1.5">
                 {[job?.open_date || job?.created_at ? `Open ${fmtDateShort(job.open_date || job.created_at)}` : null,
@@ -527,7 +530,7 @@ export function Job360View({
         <div className="border-b border-slate-200 bg-white px-2 py-2 sticky top-0 z-10 space-y-2">
           {TAB_GROUPS.map(group => (
             <div key={group.label} className="flex flex-wrap items-center gap-1">
-              <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 min-w-[5.25rem] ${group.accent.replace('text-', 'text-')}`}>
+              <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border min-w-[5.5rem] text-center ${group.chip} ${group.accent}`}>
                 {group.label}
               </span>
               {group.tabs.map(t => {
@@ -725,16 +728,64 @@ export function Job360View({
                 <div className="space-y-3">
                   <div className="flex items-start gap-3 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3">
                     <FileText className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-extrabold text-slate-900">Full raw JD document</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-extrabold text-slate-900">JD document</p>
                       <p className="text-xs font-medium text-slate-600 mt-0.5">
-                        Original pasted/uploaded job description stored with this job
+                        {job?.jd_original_path
+                          ? `Original file: ${job.jd_original_name || 'Uploaded JD'} · plus stored text extract`
+                          : 'Stored text extract from paste/upload (original binary is kept for new uploads going forward)'}
                         {hasRaw ? ` · ${rawText.length.toLocaleString()} characters` : ''}.
                       </p>
                     </div>
                   </div>
+                  {job?.jd_original_path && (
+                    <div className="flex flex-wrap gap-2">
+                      <a
+                        href={`/api/jobs/${jobId}/jd-file?inline=1`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-extrabold hover:bg-indigo-500"
+                      >
+                        <FileText className="w-3.5 h-3.5" /> Preview original
+                      </a>
+                      <a
+                        href={`/api/jobs/${jobId}/jd-file`}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-indigo-200 bg-white text-indigo-800 text-xs font-extrabold hover:bg-indigo-50"
+                      >
+                        Download original
+                      </a>
+                    </div>
+                  )}
                   {hasRaw ? (
                     <>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const blob = new Blob([rawText], { type: 'text/plain;charset=utf-8' })
+                            const url = URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = `${job?.short_id || 'job'}-jd.txt`
+                            a.click()
+                            URL.revokeObjectURL(url)
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs font-extrabold hover:bg-slate-50"
+                        >
+                          Download .txt
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(rawText).catch(() => {})
+                            setCopiedKey('raw_jd')
+                            setTimeout(() => setCopiedKey(null), 1500)
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs font-extrabold hover:bg-slate-50"
+                        >
+                          {copiedKey === 'raw_jd' ? <><Check className="w-3.5 h-3.5 text-emerald-600" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy text</>}
+                        </button>
+                      </div>
                       <pre className="whitespace-pre-wrap text-sm font-medium text-slate-800 leading-relaxed bg-white border border-slate-200 rounded-xl p-4 max-h-[60vh] overflow-auto">
                         {rawText}
                       </pre>
@@ -751,6 +802,30 @@ export function Job360View({
                   ) : (
                     <EmptyHint label="raw JD document" />
                   )}
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
+                    <p className="text-xs font-bold text-slate-700 mb-2">Upload / replace original JD file</p>
+                    <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-extrabold cursor-pointer hover:bg-emerald-500">
+                      <FileText className="w-3.5 h-3.5" /> Choose PDF / DOCX / TXT
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.txt"
+                        className="hidden"
+                        onChange={async e => {
+                          const f = e.target.files?.[0]
+                          e.target.value = ''
+                          if (!f) return
+                          const fd = new FormData()
+                          fd.append('file', f)
+                          const res = await fetch(`/api/jobs/${jobId}/jd-file`, { method: 'POST', body: fd })
+                          if (res.ok) load()
+                          else {
+                            const d = await res.json().catch(() => ({}))
+                            setGenError(d.error || 'JD file upload failed')
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
               )}
 

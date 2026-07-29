@@ -79,6 +79,7 @@ export function NewJobModal({
   const [skillDraft, setSkillDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [selectedPlatforms, setSelectedPlatforms] = useState<JobPostPlatform[]>([...JOB_POST_PLATFORMS])
+  const [pendingJdFile, setPendingJdFile] = useState<File | null>(null)
 
   const set = <K extends keyof JobForm>(key: K, value: JobForm[K]) =>
     setForm(p => ({ ...p, [key]: value }))
@@ -88,6 +89,7 @@ export function NewJobModal({
     setForm(emptyForm())
     setMsg(null)
     setError(null)
+    setPendingJdFile(null)
     setSelectedPlatforms([...JOB_POST_PLATFORMS])
     fetch('/api/clients').then(r => r.json()).then(d => setClients(d.clients ?? [])).catch(() => setClients([]))
   }, [open])
@@ -176,6 +178,7 @@ export function NewJobModal({
     setParsing(true)
     setError(null)
     setMsg(null)
+    setPendingJdFile(file)
     try {
       const fd = new FormData()
       fd.append('file', file)
@@ -277,6 +280,14 @@ export function NewJobModal({
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Create failed'); return }
+      const jobId = (data.job as { id?: string } | undefined)?.id
+      if (jobId && pendingJdFile) {
+        try {
+          const fd = new FormData()
+          fd.append('file', pendingJdFile)
+          await fetch(`/api/jobs/${jobId}/jd-file`, { method: 'POST', body: fd })
+        } catch { /* text JD already saved; binary is best-effort */ }
+      }
       onCreated(data.job, generatePosts, generatePosts ? selectedPlatforms : undefined)
       onClose()
     } catch {

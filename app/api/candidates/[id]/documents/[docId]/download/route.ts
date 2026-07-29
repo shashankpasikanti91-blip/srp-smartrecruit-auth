@@ -11,6 +11,50 @@ function getIpAddress(req: NextRequest) {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
 }
 
+async function resolveVersion(
+  id: string,
+  docId: string,
+  tenantId: string,
+  versionNo: number | null,
+) {
+  const { rows } = await pool.query(
+    `SELECT dv.storage_path, dv.file_name, dv.mime_type, dv.version_no
+     FROM document_versions dv
+     JOIN candidate_documents cd ON cd.id = dv.document_id
+     WHERE cd.id = $1 AND cd.resume_id = $2 AND cd.tenant_id = $3
+       ${versionNo ? 'AND dv.version_no = $4' : ''}
+     ORDER BY dv.version_no DESC
+     LIMIT 1`,
+    versionNo
+      ? [docId, id, tenantId, versionNo]
+      : [docId, id, tenantId]
+  )
+  return rows[0] as { storage_path: string; file_name: string; mime_type: string | null; version_no: number } | undefined
+}
+
+/** HEAD — probe whether the file exists on disk without streaming bytes. */
+export async function HEAD(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; docId: string }> }
+) {
+  const ctx = await requireTenant(req, 'candidates.read')
+  if (ctx instanceof NextResponse) return ctx
+  const { id, docId } = await params
+  if (!isValidUUID(id) || !isValidUUID(docId)) {
+    return new NextResponse(null, { status: 400 })
+  }
+  const versionParam = req.nextUrl.searchParams.get('version')
+  const versionNo = versionParam ? parseInt(versionParam, 10) : null
+  const row = await resolveVersion(id, docId, ctx.tenantId, versionNo)
+  if (!row) return new NextResponse(null, { status: 404 })
+  try {
+    await readStoredFile(row.storage_path)
+    return new NextResponse(null, { status: 200 })
+  } catch {
+    return new NextResponse(null, { status: 404 })
+  }
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; docId: string }> }
@@ -25,20 +69,7 @@ export async function GET(
   const versionParam = req.nextUrl.searchParams.get('version')
   const versionNo = versionParam ? parseInt(versionParam, 10) : null
 
-  const { rows } = await pool.query(
-    `SELECT dv.storage_path, dv.file_name, dv.mime_type, dv.version_no
-     FROM document_versions dv
-     JOIN candidate_documents cd ON cd.id = dv.document_id
-     WHERE cd.id = $1 AND cd.resume_id = $2 AND cd.tenant_id = $3
-       ${versionNo ? 'AND dv.version_no = $4' : ''}
-     ORDER BY dv.version_no DESC
-     LIMIT 1`,
-    versionNo
-      ? [docId, id, ctx.tenantId, versionNo]
-      : [docId, id, ctx.tenantId]
-  )
-
-  const row = rows[0] as { storage_path: string; file_name: string; mime_type: string | null; version_no: number } | undefined
+  const row = await resolveVersion(id, docId, ctx.tenantId, versionNo)
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   let buf: Buffer

@@ -20,7 +20,7 @@ export async function GET(
   try {
     const { rows } = await pool.query(
       `SELECT id, short_id, title, company, location, status, type,
-              employment_type, experience_min, experience_max,
+              experience_min, experience_max,
               description, requirements, optional_requirements, raw_jd_text,
               skills_mandatory, skills_required, tags, screening_questions,
               salary_min, salary_max, currency, department, priority
@@ -64,7 +64,7 @@ export async function GET(
       max: row.experience_max ?? null,
     },
     client: row.company || null,
-    employment_type: row.employment_type || row.type || null,
+    employment_type: row.type || null,
     screening_questions: row.screening_questions ?? null,
   })
 }

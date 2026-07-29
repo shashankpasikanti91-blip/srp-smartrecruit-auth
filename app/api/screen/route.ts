@@ -500,7 +500,7 @@ export async function POST(req: NextRequest) {
     let jdForModel = (jd_text ?? '').trim()
     if (job_post_id && isValidUUID(job_post_id)) {
       const jp = await pool.query(
-        `SELECT title, company, location, type, employment_type,
+        `SELECT title, company, location, type,
                 experience_min, experience_max, description, requirements,
                 optional_requirements, raw_jd_text, skills_mandatory, skills_required,
                 tags, screening_questions

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   Brain, Loader2, Mail, MessageCircle, Phone, FileText, User, Sparkles,
+  Pencil, Download, Eye, Save, X,
 } from 'lucide-react'
 import {
   Candidate360Panels,
@@ -92,11 +93,13 @@ function ownerLabel(owner: Header['owner']) {
   return owner.name || owner.email || '—'
 }
 
-function SummaryCard({ label, value }: { label: string; value: string | number }) {
+const KPI_TONES = ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g1', 'g4', 'g3'] as const
+
+function SummaryCard({ label, value, tone }: { label: string; value: string | number; tone: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
-      <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">{label}</p>
-      <p className="text-sm font-extrabold text-slate-900 mt-1 truncate">{value}</p>
+    <div className={`kpi-card kpi-card--gradient kpi-card--${tone} !min-h-[76px]`}>
+      <p className="kpi-card__label">{label}</p>
+      <p className="kpi-card__value text-lg truncate">{value}</p>
     </div>
   )
 }
@@ -118,6 +121,21 @@ export function Candidate360PageView({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Candidate360Tab>('profile')
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveErr, setSaveErr] = useState<string | null>(null)
+  const [resumeFileOk, setResumeFileOk] = useState<boolean | null>(null)
+  const [editForm, setEditForm] = useState({
+    candidate_email: '',
+    candidate_phone: '',
+    availability: '',
+    notice_period: '',
+    current_role: '',
+    current_employer: '',
+    location: '',
+    nationality: '',
+    linkedin_url: '',
+  })
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -139,6 +157,14 @@ export function Candidate360PageView({
 
   useEffect(() => { load() }, [load])
 
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/candidates/${candidateId}/resume-file`, { method: 'HEAD' })
+      .then(res => { if (!cancelled) setResumeFileOk(res.ok) })
+      .catch(() => { if (!cancelled) setResumeFileOk(false) })
+    return () => { cancelled = true }
+  }, [candidateId, data])
+
   const h = data?.header
   const s = data?.summary
   const c = data?.candidate
@@ -149,6 +175,72 @@ export function Candidate360PageView({
 
   const mailto = h?.email || c?.candidate_email
   const phone = h?.phone || c?.candidate_phone
+
+  const startEdit = () => {
+    setEditForm({
+      candidate_email: String(mailto || ''),
+      candidate_phone: String(phone || ''),
+      availability: String(h?.availability || profile.availability || ''),
+      notice_period: String(h?.notice_period || profile.notice_period || ''),
+      current_role: String(h?.current_role || profile.current_role || ''),
+      current_employer: String(h?.current_employer || profile.current_employer || ''),
+      location: String(h?.location || profile.current_location || profile.location || ''),
+      nationality: String(h?.nationality || profile.nationality || ''),
+      linkedin_url: String(profile.linkedin_url || ''),
+    })
+    setSaveErr(null)
+    setEditing(true)
+  }
+
+  const saveEdit = async () => {
+    setSaving(true)
+    setSaveErr(null)
+    try {
+      const res = await fetch(`/api/candidates/${candidateId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidate_email: editForm.candidate_email || null,
+          candidate_phone: editForm.candidate_phone || null,
+          candidate_profile: {
+            ...profile,
+            availability: editForm.availability || null,
+            notice_period: editForm.notice_period || null,
+            current_role: editForm.current_role || null,
+            current_employer: editForm.current_employer || null,
+            current_location: editForm.location || null,
+            location: editForm.location || null,
+            nationality: editForm.nationality || null,
+            linkedin_url: editForm.linkedin_url || null,
+          },
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setSaveErr(json.error || 'Could not save')
+        return
+      }
+      setEditing(false)
+      await load()
+    } catch {
+      setSaveErr('Network error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const kpis = [
+    { label: 'Profile', value: `${s?.profile_completion ?? 0}%` },
+    { label: 'AI Match', value: s?.ai_match_score != null ? String(s.ai_match_score) : '—' },
+    { label: 'Comms', value: s?.communication_status ?? '—' },
+    { label: 'Submission', value: String(s?.submission_status ?? '—') },
+    { label: 'Interview', value: String(s?.interview_status ?? '—') },
+    { label: 'Offer', value: String(s?.offer_status ?? '—') },
+    { label: 'Documents', value: s?.documents_count ?? 0 },
+    { label: 'Notes', value: s?.notes_count ?? 0 },
+    { label: 'Notice', value: h?.notice_period || '—' },
+    { label: 'Nationality', value: h?.nationality || '—' },
+  ]
 
   return (
     <div>
@@ -166,7 +258,7 @@ export function Candidate360PageView({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     {c?.short_id && (
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-300">
                         {c.short_id}
                       </span>
                     )}
@@ -182,10 +274,10 @@ export function Candidate360PageView({
                       </span>
                     )}
                   </div>
-                  <p className="text-xs font-semibold text-slate-500 mt-1">
+                  <p className="text-xs font-semibold text-slate-600 mt-1">
                     {[h?.current_role, h?.current_employer, h?.location].filter(Boolean).join(' · ') || '—'}
                   </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-[11px] font-medium text-slate-500 mt-0.5">
                     Owner: {ownerLabel(h?.owner)} · Updated {fmtWhen(h?.last_updated)}
                     {h?.ai_score != null ? ` · AI ${h.ai_score}` : ''}
                   </p>
@@ -215,13 +307,13 @@ export function Candidate360PageView({
                           html: html.replace(/\n/g, '<br/>'),
                         }),
                       })
-                      const data = await res.json().catch(() => ({}))
+                      const sendData = await res.json().catch(() => ({}))
                       if (!res.ok) {
-                        window.alert(data.error || 'Send failed — connect Gmail/Outlook in Settings, or use mailto.')
+                        window.alert(sendData.error || 'Send failed — connect Gmail/Outlook in Settings, or use mailto.')
                         window.location.href = `mailto:${mailto}?subject=${encodeURIComponent(subject)}`
                         return
                       }
-                      window.alert(`Sent via ${data.sent_via || 'email'}`)
+                      window.alert(`Sent via ${sendData.sent_via || 'email'}`)
                     }}
                     className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-xs font-extrabold text-slate-700 hover:bg-slate-50"
                   >
@@ -260,16 +352,9 @@ export function Candidate360PageView({
 
           {!loading && !error && (
             <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 border-b border-slate-100">
-              <SummaryCard label="Profile" value={`${s?.profile_completion ?? 0}%`} />
-              <SummaryCard label="AI Match" value={s?.ai_match_score != null ? String(s.ai_match_score) : '—'} />
-              <SummaryCard label="Comms" value={s?.communication_status ?? '—'} />
-              <SummaryCard label="Submission" value={String(s?.submission_status ?? '—')} />
-              <SummaryCard label="Interview" value={String(s?.interview_status ?? '—')} />
-              <SummaryCard label="Offer" value={String(s?.offer_status ?? '—')} />
-              <SummaryCard label="Documents" value={s?.documents_count ?? 0} />
-              <SummaryCard label="Notes" value={s?.notes_count ?? 0} />
-              <SummaryCard label="Notice" value={h?.notice_period || '—'} />
-              <SummaryCard label="Nationality" value={h?.nationality || '—'} />
+              {kpis.map((k, i) => (
+                <SummaryCard key={k.label} label={k.label} value={k.value} tone={KPI_TONES[i % KPI_TONES.length]} />
+              ))}
             </div>
           )}
 
@@ -292,44 +377,107 @@ export function Candidate360PageView({
             <>
               {tab === 'profile' && (
                 <div className="p-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-extrabold uppercase tracking-widest text-slate-700">Profile details</p>
+                    {!editing ? (
+                      <button
+                        type="button"
+                        onClick={startEdit}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-extrabold hover:bg-indigo-500"
+                      >
+                        <Pencil className="w-3.5 h-3.5" /> Edit profile
+                      </button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={saveEdit}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-extrabold disabled:opacity-50"
+                        >
+                          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditing(false)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-extrabold text-slate-700"
+                        >
+                          <X className="w-3.5 h-3.5" /> Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {saveErr && <p className="text-xs font-bold text-rose-600">{saveErr}</p>}
                   <div className="grid lg:grid-cols-3 gap-4">
                     <div className="lg:col-span-2 space-y-4">
-                      <div className="grid sm:grid-cols-2 gap-2.5">
-                        {[
-                          ['Email', mailto || '—'],
-                          ['Phone', phone || '—'],
-                          ['Availability', h?.availability || '—'],
-                          ['Notice period', h?.notice_period || '—'],
-                          ['Current role', h?.current_role || '—'],
-                          ['Employer', h?.current_employer || '—'],
-                          ['Location', h?.location || '—'],
-                          ['Nationality', h?.nationality || '—'],
-                          ['Lifecycle', h?.lifecycle || h?.stage || '—'],
-                          ['LinkedIn', String(profile.linkedin_url ?? '—')],
-                        ].map(([label, value]) => (
-                          <div key={label} className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
-                            <p className="text-[10px] font-extrabold uppercase text-slate-400">{label}</p>
-                            <p className="text-sm font-extrabold text-slate-900 mt-1 break-words">{value}</p>
-                          </div>
-                        ))}
-                      </div>
+                      {editing ? (
+                        <div className="grid sm:grid-cols-2 gap-2.5">
+                          {([
+                            ['candidate_email', 'Email'],
+                            ['candidate_phone', 'Phone'],
+                            ['availability', 'Availability'],
+                            ['notice_period', 'Notice period'],
+                            ['current_role', 'Current role'],
+                            ['current_employer', 'Employer'],
+                            ['location', 'Location'],
+                            ['nationality', 'Nationality'],
+                            ['linkedin_url', 'LinkedIn'],
+                          ] as const).map(([key, label]) => (
+                            <label key={key} className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-3 block">
+                              <span className="text-[10px] font-extrabold uppercase text-slate-700">{label}</span>
+                              <input
+                                className="mt-1 w-full text-sm font-bold text-slate-900 bg-white border border-slate-200 rounded-lg px-2 py-1.5"
+                                value={editForm[key]}
+                                onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid sm:grid-cols-2 gap-2.5">
+                          {[
+                            ['Email', mailto || '—'],
+                            ['Phone', phone || '—'],
+                            ['Availability', h?.availability || '—'],
+                            ['Notice period', h?.notice_period || '—'],
+                            ['Current role', h?.current_role || '—'],
+                            ['Employer', h?.current_employer || '—'],
+                            ['Location', h?.location || '—'],
+                            ['Nationality', h?.nationality || '—'],
+                            ['Lifecycle', h?.lifecycle || h?.stage || '—'],
+                            ['LinkedIn', String(profile.linkedin_url ?? '—')],
+                          ].map(([label, value]) => (
+                            <div key={label} className="rounded-xl border border-slate-300 bg-white p-3 shadow-sm">
+                              <p className="text-[10px] font-extrabold uppercase text-slate-600">{label}</p>
+                              <p className="text-sm font-extrabold text-slate-900 mt-1 break-words">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <OwnershipPanel
-                      entityType="candidate"
-                      entityId={candidateId}
-                      initialOwnership={data?.ownership ?? null}
-                      initialHistory={(data?.ownership_history as {
-                        id: string
-                        action: string
-                        reason?: string | null
-                        created_at: string
-                        from_name?: string | null
-                        to_name?: string | null
-                        actor_email?: string | null
-                      }[]) ?? []}
-                      teamMembers={teamMembers}
-                      canManage={canManageOwnership}
-                    />
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-600">
+                        Active recruiter owner for follow-up and transfer
+                      </p>
+                      <OwnershipPanel
+                        entityType="candidate"
+                        entityId={candidateId}
+                        compact
+                        initialOwnership={data?.ownership ?? null}
+                        initialHistory={(data?.ownership_history as {
+                          id: string
+                          action: string
+                          reason?: string | null
+                          created_at: string
+                          from_name?: string | null
+                          to_name?: string | null
+                          actor_email?: string | null
+                        }[]) ?? []}
+                        teamMembers={teamMembers}
+                        canManage={canManageOwnership}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -351,13 +499,59 @@ export function Candidate360PageView({
               )}
 
               {tab === 'resume' && (
-                <div className="p-5">
-                  {resumeText ? (
-                    <pre className="whitespace-pre-wrap text-xs font-medium text-slate-700 leading-relaxed max-h-[70vh] overflow-auto bg-slate-50 border border-slate-200 rounded-xl p-4">
-                      {resumeText}
-                    </pre>
+                <div className="p-5 space-y-4">
+                  {resumeFileOk === true ? (
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-2">
+                        <a
+                          href={`/api/candidates/${candidateId}/resume-file?inline=1`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-extrabold"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> Preview original
+                        </a>
+                        <a
+                          href={`/api/candidates/${candidateId}/resume-file`}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-xs font-extrabold text-slate-800"
+                        >
+                          <Download className="w-3.5 h-3.5" /> Download
+                        </a>
+                      </div>
+                      <iframe
+                        title="Resume preview"
+                        src={`/api/candidates/${candidateId}/resume-file?inline=1`}
+                        className="w-full h-[420px] rounded-xl border border-slate-200 bg-slate-50"
+                      />
+                    </div>
+                  ) : resumeFileOk === false ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
+                      <p className="text-sm font-extrabold text-amber-950">Original file missing on server</p>
+                      <p className="text-xs font-medium text-amber-900">
+                        Re-upload the PDF/DOC in the Documents tab. Extracted text below may still be available for search and screening.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setTab('documents')}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-700 text-white text-xs font-extrabold"
+                      >
+                        Open Documents
+                      </button>
+                    </div>
                   ) : (
-                    <p className="text-sm text-slate-400 text-center py-10 flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-2 text-slate-500 text-sm">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Checking original file…
+                    </div>
+                  )}
+                  {resumeText ? (
+                    <div>
+                      <p className="text-xs font-extrabold uppercase tracking-widest text-slate-700 mb-2">Extracted text</p>
+                      <pre className="whitespace-pre-wrap text-xs font-medium text-slate-700 leading-relaxed max-h-[50vh] overflow-auto bg-slate-50 border border-slate-200 rounded-xl p-4">
+                        {resumeText}
+                      </pre>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-400 text-center py-6 flex flex-col items-center gap-2">
                       <User className="w-5 h-5" /> No resume text on file. Check Documents for uploaded files.
                     </p>
                   )}
@@ -365,12 +559,16 @@ export function Candidate360PageView({
               )}
 
               {tab === 'record' && (
-                <div className="p-5">
-                  <p className="text-sm text-slate-600 mb-3">
-                    ATS record fields are editable from the Candidates list drawer. This page shows the live 360 summary and ownership.
+                <div className="p-5 space-y-3">
+                  <p className="text-sm text-slate-600">
+                    Edit core contact and profile fields here, or use the full ATS form from the Candidates list.
                   </p>
-                  <button type="button" onClick={onClose} className="text-xs font-extrabold text-indigo-700 hover:underline">
-                    Open list to edit ATS record →
+                  <button
+                    type="button"
+                    onClick={() => { setTab('profile'); startEdit() }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-extrabold"
+                  >
+                    <Pencil className="w-3.5 h-3.5" /> Edit profile details
                   </button>
                 </div>
               )}

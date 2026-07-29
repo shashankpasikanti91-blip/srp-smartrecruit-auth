@@ -71,21 +71,25 @@ export function DocsUploadPanel({
 
   useEffect(() => { load() }, [load])
 
-  const upload = async (slot: DocumentSlot, file: File) => {
+  const uploadMany = async (slot: DocumentSlot, files: FileList | File[]) => {
+    const list = Array.from(files)
+    if (!list.length) return
     setUploading(slot)
     setError('')
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('slot_type', slot)
-      const res = await fetch(`/api/candidates/${resumeId}/documents`, {
-        method: 'POST',
-        body: fd,
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(data.error ?? 'Upload failed')
-        return
+      for (const file of list) {
+        const fd = new FormData()
+        fd.append('file', file)
+        fd.append('slot_type', slot)
+        const res = await fetch(`/api/candidates/${resumeId}/documents`, {
+          method: 'POST',
+          body: fd,
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setError(data.error ?? `Upload failed for ${file.name}`)
+          break
+        }
       }
       await load()
       onUploaded?.()
@@ -131,12 +135,13 @@ export function DocsUploadPanel({
                   <input
                     ref={el => { inputRefs.current[slot] = el }}
                     type="file"
+                    multiple
                     className="hidden"
                     accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"
                     onChange={e => {
-                      const f = e.target.files?.[0]
+                      const files = e.target.files
                       e.target.value = ''
-                      if (f) upload(slot, f)
+                      if (files?.length) uploadMany(slot, files)
                     }}
                   />
                   <button
@@ -146,7 +151,7 @@ export function DocsUploadPanel({
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-extrabold border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50"
                   >
                     {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                    {latest ? 'Replace' : 'Upload'}
+                    {latest ? 'Add file(s)' : 'Upload'}
                   </button>
                 </div>
               )

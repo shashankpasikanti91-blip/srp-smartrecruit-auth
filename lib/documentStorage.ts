@@ -105,6 +105,10 @@ export function legacyResumesRoot() {
   return path.join(process.cwd(), 'uploads', 'candidate-resumes')
 }
 
+export function jobJdOriginalsRoot() {
+  return path.join(process.cwd(), 'uploads', 'job-jd-originals')
+}
+
 export function extFromFilename(name: string): string {
   const lower = (name || '').toLowerCase()
   for (const e of ALLOWED_EXT) {
@@ -194,4 +198,52 @@ export async function readStoredFile(relative: string): Promise<Buffer> {
   }
 
   throw new Error('File missing on disk')
+}
+
+/** Persist original JD binary for a job post. Returns relative path + mime. */
+export async function saveJobJdOriginalFile(
+  tenantId: string,
+  jobId: string,
+  file: File,
+): Promise<{ relative: string; ext: string; mime: string }> {
+  const ext = extFromFilename(file.name)
+  if (!ext) throw new Error('Unsupported type — use PDF, DOCX, DOC, or TXT')
+  const relative = path.join(tenantId, `${jobId}${ext}`)
+  const absDir = path.join(jobJdOriginalsRoot(), tenantId)
+  const absFile = path.join(jobJdOriginalsRoot(), relative)
+  await mkdir(absDir, { recursive: true })
+  const buf = Buffer.from(await file.arrayBuffer())
+  await writeFile(absFile, buf)
+  return {
+    relative: relative.replace(/\\/g, '/'),
+    ext,
+    mime: mimeForExt(ext),
+  }
+}
+
+export async function readJobJdOriginalFile(relative: string): Promise<Buffer> {
+  const normalized = path.normalize(relative).replace(/^[/\\]+/, '')
+  if (normalized.includes('..') || path.isAbsolute(relative)) {
+    throw new Error('Invalid storage path')
+  }
+  const abs = path.join(jobJdOriginalsRoot(), normalized)
+  if (!isPathInsideRoot(abs, jobJdOriginalsRoot())) {
+    throw new Error('Invalid storage path')
+  }
+  try {
+    await access(abs)
+    return await readFile(abs)
+  } catch {
+    throw new Error('File missing on disk')
+  }
+}
+
+/** Probe whether a stored candidate document path exists (no throw). */
+export async function storedFileExists(relative: string): Promise<boolean> {
+  try {
+    await readStoredFile(relative)
+    return true
+  } catch {
+    return false
+  }
 }
