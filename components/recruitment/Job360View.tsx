@@ -406,7 +406,7 @@ export function Job360View({
   ]
 
   const shellClass = variant === 'page'
-    ? 'min-h-screen bg-slate-100'
+    ? ''
     : 'drawer-overlay'
   const panelClass = variant === 'page'
     ? 'max-w-6xl mx-auto px-4 py-6'

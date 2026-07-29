@@ -151,7 +151,7 @@ export function Candidate360PageView({
   const phone = h?.phone || c?.candidate_phone
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div>
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-4">
         <div className="rounded-2xl bg-white border border-slate-200 shadow-sm">
           <div className="px-5 py-4 border-b border-slate-200">

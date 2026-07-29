@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertCircle, Bookmark, Brain, Briefcase, Clock, FileText, HelpCircle,
-  Layers, Loader2, Mail, MessageSquare, MessageSquarePlus, Pin, Plus,
+  Layers, Loader2, Mail, MessageSquare, MessageSquarePlus, PenLine, Pin, Plus,
   Search, Send, Sparkles, Target, Trash2, User, UserCheck, Zap,
 } from 'lucide-react'
 
@@ -105,6 +105,15 @@ const TOOL_CARDS = [
     shadow: 'shadow-orange-500/25',
     ring: 'ring-orange-300',
   },
+  {
+    id: 'gen-post',
+    label: 'Generate Job Post',
+    desc: 'Generate job social posts from your job hub',
+    icon: PenLine,
+    gradient: 'from-fuchsia-600 via-violet-500 to-indigo-500',
+    shadow: 'shadow-fuchsia-500/25',
+    ring: 'ring-fuchsia-300',
+  },
 ] as const
 
 const QUICK_ACTIONS = [
@@ -113,9 +122,6 @@ const QUICK_ACTIONS = [
   { id: 'boolean', label: 'Create Boolean', icon: Search, tab: 'boolean', prompt: null },
   { id: 'email', label: 'Generate Email', icon: Mail, tab: 'compose', prompt: null },
   { id: 'whatsapp', label: 'WhatsApp Message', icon: MessageSquare, tab: null, prompt: 'Draft a WhatsApp follow-up for a candidate awaiting client feedback.' },
-  { id: 'interview', label: 'Interview Questions', icon: HelpCircle, tab: null, prompt: 'Generate a structured interview kit with screening, technical, and culture questions for my priority role.' },
-  { id: 'internal', label: 'Internal Match', icon: UserCheck, tab: 'jobs', prompt: null },
-  { id: 'summary', label: 'Resume Summary', icon: Layers, tab: null, prompt: 'Summarize the top candidate in my pipeline with strengths, risks, and hire recommendation.' },
 ] as const
 
 const SUGGESTION_CHIPS = [

@@ -6,7 +6,8 @@ import { isValidUUID, sanitizeText } from '@/lib/validate'
 import { buildJdFromJobRow } from '@/lib/jobScreeningContext'
 import { assertFeatureEnabled, assertNotMaintenance } from '@/lib/featureFlags'
 
-export const maxDuration = 300
+// Allow background bulk screening to run up to ~15 minutes for 20–100 CV batches.
+export const maxDuration = 900
 
 type ResumeIn = { text: string; filename?: string; id?: string }
 
@@ -20,9 +21,30 @@ async function processBulkJob(
   cookieHeader: string,
   baseUrl: string,
 ) {
-  const { rows: items } = await pool.query<{ id: string; resume_text: string; file_name: string | null }>(
-    `SELECT id, resume_text, file_name FROM bulk_screening_items
-     WHERE bulk_job_id = $1 AND status = 'pending' ORDER BY created_at`,
+  // Reclaim items stuck in `processing` (e.g. worker crash) back to `pending`.
+  await pool.query(
+    `UPDATE bulk_screening_items
+     SET status = 'pending',
+         candidate_id = NULL,
+         result_json = NULL,
+         error = NULL,
+         updated_at = NOW()
+     WHERE bulk_job_id = $1
+       AND status = 'processing'
+       AND updated_at < NOW() - interval '20 minutes'`,
+    [bulkJobId],
+  )
+
+  const { rows: items } = await pool.query<{
+    id: string
+    resume_text: string
+    file_name: string | null
+    retry_count: number | null
+  }>(
+    `SELECT id, resume_text, file_name, retry_count
+     FROM bulk_screening_items
+     WHERE bulk_job_id = $1 AND status = 'pending'
+     ORDER BY created_at`,
     [bulkJobId],
   )
 
@@ -43,49 +65,76 @@ async function processBulkJob(
         )
         continue
       }
-      await pool.query(
-        `UPDATE bulk_screening_items SET status = 'processing', updated_at = NOW() WHERE id = $1`,
-        [item.id],
-      )
-      try {
-        const res = await fetch(`${baseUrl}/api/screen`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Cookie: cookieHeader,
-          },
-          body: JSON.stringify({
-            jd_text: jdText,
-            job_post_id: jobPostId || undefined,
-            resumes: [{ text: item.resume_text, filename: item.file_name || 'resume.pdf' }],
-          }),
-        })
-        if (!res.ok) {
-          const errText = await res.text()
-          throw new Error(errText.slice(0, 300) || `screen ${res.status}`)
+      const retryStart = item.retry_count ?? 0
+      const maxRetries = 2
+      const maxAttempts = 1 + Math.max(0, maxRetries - retryStart)
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+          await pool.query(
+            `UPDATE bulk_screening_items
+             SET status = 'processing',
+                 updated_at = NOW()${attempt > 0 ? ', retry_count = retry_count + 1' : ''}
+             WHERE id = $1`,
+            [item.id],
+          )
+
+          const res = await fetch(`${baseUrl}/api/screen`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Cookie: cookieHeader,
+            },
+            body: JSON.stringify({
+              jd_text: jdText,
+              job_post_id: jobPostId || undefined,
+              resumes: [{ text: item.resume_text, filename: item.file_name || 'resume.pdf' }],
+            }),
+          })
+          if (!res.ok) {
+            const errText = await res.text()
+            throw new Error(errText.slice(0, 300) || `screen ${res.status}`)
+          }
+          const data = await res.json() as { results?: { db_id?: string }[] }
+          const candId = data.results?.[0]?.db_id ?? null
+          if (!candId) throw new Error('screen returned no db_id')
+
+          await pool.query(
+            `UPDATE bulk_screening_items
+             SET status = 'done',
+                 candidate_id = $1,
+                 result_json = $2::jsonb,
+                 updated_at = NOW()
+             WHERE id = $3`,
+            [candId, JSON.stringify(data.results?.[0] ?? {}), item.id],
+          )
+          await pool.query(
+            `UPDATE bulk_screening_jobs SET completed = completed + 1, updated_at = NOW() WHERE id = $1`,
+            [bulkJobId],
+          )
+          break
+        } catch (e) {
+          const errMsg = e instanceof Error ? e.message : 'failed'
+          const isFinal = attempt >= maxAttempts - 1
+          if (isFinal) {
+            await pool.query(
+              `UPDATE bulk_screening_items
+               SET status = 'failed', error = $1, updated_at = NOW() WHERE id = $2`,
+              [errMsg, item.id],
+            )
+            await pool.query(
+              `UPDATE bulk_screening_jobs SET failed = failed + 1, updated_at = NOW() WHERE id = $1`,
+              [bulkJobId],
+            )
+          } else {
+            // Keep the item retryable without incrementing job-level counters yet.
+            await pool.query(
+              `UPDATE bulk_screening_items
+               SET status = 'processing', error = $1, updated_at = NOW() WHERE id = $2`,
+              [errMsg, item.id],
+            )
+          }
         }
-        const data = await res.json() as { results?: { db_id?: string }[] }
-        const candId = data.results?.[0]?.db_id ?? null
-        await pool.query(
-          `UPDATE bulk_screening_items
-           SET status = 'done', candidate_id = $1, result_json = $2::jsonb, updated_at = NOW()
-           WHERE id = $3`,
-          [candId, JSON.stringify(data.results?.[0] ?? {}), item.id],
-        )
-        await pool.query(
-          `UPDATE bulk_screening_jobs SET completed = completed + 1, updated_at = NOW() WHERE id = $1`,
-          [bulkJobId],
-        )
-      } catch (e) {
-        await pool.query(
-          `UPDATE bulk_screening_items
-           SET status = 'failed', error = $1, updated_at = NOW() WHERE id = $2`,
-          [e instanceof Error ? e.message : 'failed', item.id],
-        )
-        await pool.query(
-          `UPDATE bulk_screening_jobs SET failed = failed + 1, updated_at = NOW() WHERE id = $1`,
-          [bulkJobId],
-        )
       }
     }
   }
@@ -95,9 +144,21 @@ async function processBulkJob(
     [bulkJobId],
   )
   await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, items.length)) }, () => worker()))
-  await pool.query(
-    `UPDATE bulk_screening_jobs SET status = 'completed', updated_at = NOW() WHERE id = $1`,
+  const jobSummary = await pool.query<{ failed: string | number | null }>(
+    `SELECT failed FROM bulk_screening_jobs WHERE id = $1`,
     [bulkJobId],
+  )
+  const failedCount = Number(jobSummary.rows[0]?.failed ?? 0) || 0
+  await pool.query(
+    `UPDATE bulk_screening_jobs
+     SET status = 'completed',
+         error_summary = CASE
+           WHEN $2::int > 0 THEN CONCAT('Bulk screening finished with ', $2::int, ' failed item(s).')
+           ELSE NULL
+         END,
+         updated_at = NOW()
+     WHERE id = $1`,
+    [bulkJobId, failedCount],
   )
   void userId
   void userEmail
@@ -217,6 +278,20 @@ export async function GET(req: NextRequest) {
     [id, ctx.tenantId],
   )
   if (!job.rows[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // GET polling path also reclaims stuck `processing` rows to recover from worker crashes.
+  await pool.query(
+    `UPDATE bulk_screening_items
+     SET status = 'pending',
+         candidate_id = NULL,
+         result_json = NULL,
+         error = NULL,
+         updated_at = NOW()
+     WHERE bulk_job_id = $1
+       AND status = 'processing'
+       AND updated_at < NOW() - interval '20 minutes'`,
+    [id],
+  )
 
   const items = await pool.query(
     `SELECT id, file_name, status, candidate_id, error, retry_count, updated_at

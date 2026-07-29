@@ -13,6 +13,7 @@ import { CandidateBulkBar } from '@/components/recruitment/CandidateBulkBar'
 import { SubmissionsTab } from '@/components/recruitment/SubmissionsTab'
 import { InterviewsTab } from '@/components/recruitment/InterviewsTab'
 import { FollowUpsTab } from '@/components/recruitment/FollowUpsTab'
+import { InternalTalentPoolTab } from '@/components/recruitment/InternalTalentPoolTab'
 import { WorkspaceTab } from '@/components/recruitment/WorkspaceTab'
 import { AiRecruiterWorkspace } from '@/components/recruitment/AiRecruiterWorkspace'
 import { Job360View } from '@/components/recruitment/Job360View'
@@ -62,6 +63,7 @@ import {
 type DashboardTab =
   | 'workspace' | 'pipeline' | 'candidates' | 'submissions' | 'interviews' | 'followups' | 'selected'
   | 'performance' | 'coach' | 'clients' | 'recruiters' | 'documents' | 'reports' | 'governance'
+  | 'talent'
   | 'screen' | 'compose' | 'jobs' | 'analytics' | 'settings' | 'jd' | 'boolean' | 'import' | 'integrations' | 'comms' | 'ess'
   | 'hrconfig'
 
@@ -1499,14 +1501,7 @@ const AI_SHORTCUTS: AiShortcut[] = [
   { id: 'boolean', label: 'Boolean Search', icon: Search, tooltip: 'Generate job-board Boolean strings', tab: 'boolean' },
   { id: 'compose', label: 'AI Composer', icon: Mail, tooltip: 'Draft emails and messages', tab: 'compose' },
   { id: 'jd', label: 'JD Writer', icon: FileText, tooltip: 'Create or optimize job descriptions', tab: 'jd' },
-  { id: 'assistant', label: 'AI Assistant', icon: MessageSquare, tooltip: 'Recruiter chat assistant', tab: 'coach' },
-  { id: 'resume-match', label: 'Resume Match', icon: Target, tooltip: 'Match resumes via AI Screening', tab: 'screen' },
-  { id: 'internal-match', label: 'Internal Talent Match', icon: UserCheck, tooltip: 'Open Jobs — use Internal Match on a job', tab: 'jobs' },
   { id: 'gen-post', label: 'Generate Job Post', icon: PenLine, tooltip: 'Open Jobs — Generate Post from Job Hub', tab: 'jobs' },
-  { id: 'interview', label: 'Interview Questions', icon: HelpCircle, tooltip: 'Interview kit via AI Assistant', tab: 'coach', templateId: 'interview' },
-  { id: 'summary', label: 'Candidate Summary', icon: Layers, tooltip: 'Summarize a candidate via AI Assistant', tab: 'coach', templateId: 'summary' },
-  { id: 'coach', label: 'Recruiter Coach', icon: Award, tooltip: 'Guided recruiting coaching chat', tab: 'coach' },
-  { id: 'prompts', label: 'Prompt Library', icon: BookOpen, tooltip: 'Browse AI Assistant prompt templates', tab: 'coach', templateId: '__library__' },
 ]
 
 export default function DashboardPage() {
@@ -1521,6 +1516,8 @@ export default function DashboardPage() {
   const [activeAiShortcutId, setActiveAiShortcutId] = useState<string | null>(null)
   /** Optional coach template to apply when opening AI Assistant / Hub */
   const [coachBootstrapTemplateId, setCoachBootstrapTemplateId] = useState<string | null>(null)
+  /** Lightweight UI CTA hints (no new routes/APIs). */
+  const [pendingAiAction, setPendingAiAction] = useState<string | null>(null)
 
   const filteredAiShortcuts = useMemo(() => {
     const q = aiNavQuery.trim().toLowerCase()
@@ -1532,6 +1529,7 @@ export default function DashboardPage() {
     setActiveAiShortcutId(s.id)
     setCoachBootstrapTemplateId(s.templateId ?? null)
     setActiveTab(s.tab)
+    setPendingAiAction(s.id === 'gen-post' ? 'gen-post' : null)
     setMobileNavOpen(false)
   }, [])
 
@@ -1549,6 +1547,7 @@ export default function DashboardPage() {
   const goTab = useCallback((tab: DashboardTab) => {
     setActiveAiShortcutId(null)
     setCoachBootstrapTemplateId(null)
+    setPendingAiAction(null)
     setActiveTab(tab)
     setMobileNavOpen(false)
   }, [])
@@ -1574,7 +1573,7 @@ export default function DashboardPage() {
   }, [activeTab])
 
   const isWideTab = useMemo(
-    () => ['workspace', 'candidates', 'jobs', 'screen', 'compose', 'jd', 'boolean', 'submissions', 'interviews', 'followups', 'selected', 'clients', 'reports', 'performance', 'recruiters', 'documents', 'coach', 'comms', 'ess', 'hrconfig', 'settings', 'import'].includes(activeTab),
+    () => ['workspace', 'candidates', 'talent', 'jobs', 'screen', 'compose', 'jd', 'boolean', 'submissions', 'interviews', 'followups', 'selected', 'clients', 'reports', 'performance', 'recruiters', 'documents', 'coach', 'comms', 'ess', 'hrconfig', 'settings', 'import'].includes(activeTab),
     [activeTab],
   )
   const [jobs, setJobs] = useState<Job[]>([])
@@ -1669,10 +1668,21 @@ export default function DashboardPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
-    const tab = params.get('tab') as DashboardTab | null
+    const tab = params.get('tab')
     const jobId = params.get('job_post_id')
-    if (tab && ['screen', 'boolean', 'compose', 'jd', 'coach', 'jobs', 'candidates', 'submissions', 'interviews', 'selected'].includes(tab)) {
-      setActiveTab(tab)
+    const aiAction = params.get('ai_action')
+    const validTabs: DashboardTab[] = [
+      'workspace', 'pipeline', 'candidates', 'submissions', 'interviews', 'followups', 'selected',
+      'performance', 'coach', 'clients', 'recruiters', 'documents', 'reports', 'governance',
+      'screen', 'compose', 'jobs', 'analytics', 'settings', 'jd', 'boolean', 'import', 'integrations',
+      'comms', 'ess', 'hrconfig', 'talent',
+    ]
+    if (tab && validTabs.includes(tab as DashboardTab)) setActiveTab(tab as DashboardTab)
+
+    if (aiAction === 'gen-post' && (!tab || tab === 'jobs')) {
+      setPendingAiAction('gen-post')
+      setActiveAiShortcutId('gen-post')
+      setCoachBootstrapTemplateId(null)
     }
     if (jobId && (!tab || tab === 'screen')) {
       setScreenJobId(jobId)
@@ -2360,7 +2370,10 @@ export default function DashboardPage() {
         const bulkId = queueData.bulk_job_id as string
         setScreenProgress(`Queued ${resumes.length} CVs — processing in background…`)
         // Poll progress
-        for (let tick = 0; tick < 120; tick++) {
+        const etaSeconds = Math.ceil(resumes.length / 5) * 45
+        const pollBudgetSeconds = etaSeconds + 300 // buffer for slow screening / retries
+        const maxTicks = Math.min(900, Math.ceil(pollBudgetSeconds / 3))
+        for (let tick = 0; tick < maxTicks; tick++) {
           await new Promise(r => setTimeout(r, 3000))
           const st = await fetch(`/api/bulk-jobs?id=${bulkId}`)
           const stData = await st.json()
@@ -2370,7 +2383,18 @@ export default function DashboardPage() {
             `Bulk ${job.status}: ${job.completed}/${job.total} done · ${job.failed} failed · ${job.skipped} skipped`,
           )
           if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
-            setScreenError(job.failed > 0 ? `${job.failed} item(s) failed — retry from bulk job ${bulkId}` : '')
+            if (job.failed > 0) {
+              const items: Array<{ status?: string; error?: string | null }> = Array.isArray(stData.items) ? stData.items : []
+              const examples = items
+                .filter(i => i.status === 'failed' && (i.error ?? '').trim())
+                .slice(0, 3)
+                .map(i => String(i.error).trim())
+              setScreenError(
+                `${job.failed} item(s) failed. ${examples.length ? `Examples: ${examples.join(' | ')}` : `Retry from bulk job ${bulkId}`}`,
+              )
+            } else {
+              setScreenError('')
+            }
             await loadData()
             break
           }
@@ -2613,6 +2637,7 @@ export default function DashboardPage() {
     { tab: 'jobs', icon: Briefcase, label: 'Jobs', badge: null, section: 'recruitment' },
     { tab: 'candidates', icon: Users, label: 'Candidates', badge: null, section: 'recruitment' },
     ...(canSeeClients ? [{ tab: 'clients' as const, icon: Building2, label: 'Clients', badge: null, section: 'recruitment' as const }] : []),
+    { tab: 'talent' as const, icon: Search, label: 'Internal Talent Pool', badge: null, section: 'recruitment' as const },
     { tab: 'submissions', icon: Send, label: 'Submissions', badge: null, section: 'recruitment' },
     { tab: 'interviews', icon: Calendar, label: 'Interviews', badge: null, section: 'recruitment' },
     { tab: 'followups', icon: Clock, label: 'Follow-ups', badge: null, section: 'recruitment' },
@@ -4016,6 +4041,27 @@ export default function DashboardPage() {
                   </button>
                 </div>
 
+                {pendingAiAction === 'gen-post' && (
+                  <div className="mb-5 rounded-2xl border border-indigo-200/70 bg-indigo-50/40 p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-extrabold text-indigo-900">Generate Job Post</p>
+                        <p className="text-xs text-indigo-800 mt-1">
+                          Choose a job below, then click the <span className="font-bold">JD / Posts</span> action to open the existing generator.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="p-1.5 rounded-lg text-indigo-900/70 hover:text-indigo-900 hover:bg-indigo-200/40 transition-colors"
+                        aria-label="Dismiss"
+                        onClick={() => setPendingAiAction(null)}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* ── Filter Bar ── */}
                 <div className="flex items-center gap-3 mb-5 flex-wrap rounded-2xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-950/[0.02]">
                   <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -5149,6 +5195,9 @@ export default function DashboardPage() {
               }} />
             )}
 
+            {/* ── INTERNAL TALENT POOL ──────────────────────────────── */}
+            {activeTab === 'talent' && <InternalTalentPoolTab />}
+
             {activeTab === 'clients' && (
               <ClientsTab
                 canDirectDelete={isTenantAdminOrOwner || Boolean(tenantPermissions?.candidates?.delete)}
@@ -5168,6 +5217,14 @@ export default function DashboardPage() {
               <AiRecruiterWorkspace
                 bootstrapTemplateId={coachBootstrapTemplateId}
                 onNavigate={(tab) => {
+                  if (tab === 'gen-post') {
+                    setActiveAiShortcutId('gen-post')
+                    setCoachBootstrapTemplateId(null)
+                    setPendingAiAction('gen-post')
+                    setActiveTab('jobs')
+                    return
+                  }
+
                   const t = tab as DashboardTab
                   const shortcutMap: Partial<Record<DashboardTab, string>> = {
                     coach: 'hub',
@@ -5178,6 +5235,7 @@ export default function DashboardPage() {
                   }
                   setActiveAiShortcutId(shortcutMap[t] ?? null)
                   setCoachBootstrapTemplateId(null)
+                  setPendingAiAction(null)
                   setActiveTab(t)
                 }}
               />

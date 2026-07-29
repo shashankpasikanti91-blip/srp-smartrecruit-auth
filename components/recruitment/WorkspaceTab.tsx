@@ -183,6 +183,17 @@ export function WorkspaceTab({
     { label: 'Follow-ups overdue', value: kpi?.follow_ups_overdue ?? 0, sub: 'Needs attention', warn: (kpi?.follow_ups_overdue ?? 0) > 0, tone: 'kpi-card--g3' },
   ]
 
+  const MANAGEMENT_KPI_LABELS = new Set([
+    'Time To Hire',
+    'Offer Accept %',
+    'Fill Rate',
+    'Pipeline Conv. %',
+    'Interview Conv. %',
+  ])
+
+  const recruiterKpis = kpis.filter(c => !MANAGEMENT_KPI_LABELS.has(c.label))
+  const teamKpis = kpis.filter(c => MANAGEMENT_KPI_LABELS.has(c.label))
+
   const roleLabel =
     role === 'owner' || role === 'admin' ? 'Tenant Admin'
     : role === 'recruitment_head' ? 'Recruitment Head'
@@ -234,7 +245,7 @@ export function WorkspaceTab({
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-        {kpis.map(c => (
+        {recruiterKpis.map(c => (
           <button
             key={c.label}
             type="button"
@@ -258,6 +269,28 @@ export function WorkspaceTab({
           </button>
         ))}
       </div>
+
+      {isManager && teamKpis.length > 0 && (
+        <div className="mt-2">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Team KPIs</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-3">
+            {teamKpis.map(c => (
+              <button
+                key={c.label}
+                type="button"
+                onClick={() => onNavigate?.('analytics')}
+                className={`kpi-card kpi-card--gradient ${c.tone} text-left transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+              >
+                <p className="kpi-card__label">{c.label}</p>
+                <p className="kpi-card__value">{c.value}</p>
+                <p className="kpi-card__sub">{c.sub}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <DailyBriefingPanel onNavigate={onNavigate} />
 
