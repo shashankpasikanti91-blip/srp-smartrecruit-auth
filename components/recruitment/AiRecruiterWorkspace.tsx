@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  AlertCircle, Bookmark, Briefcase, Clock, Loader2, MessageSquarePlus,
-  Pin, Plus, Search, Send, Sparkles, Trash2, User, Zap,
+  AlertCircle, Bookmark, Brain, Briefcase, Clock, FileText, HelpCircle,
+  Layers, Loader2, Mail, MessageSquare, MessageSquarePlus, Pin, Plus,
+  Search, Send, Sparkles, Target, Trash2, User, UserCheck, Zap,
 } from 'lucide-react'
 
 const STORAGE_KEY = 'srp-ai-workspace-v1'
@@ -24,11 +25,14 @@ type ChatSession = {
   pinned?: boolean
 }
 type SavedSearch = { id: string; name: string; query: string }
+type TemplateItem = { id: string; label: string; prompt: string; group?: string }
 type WorkspaceStore = {
   sessions: ChatSession[]
   pinnedIds: string[]
   savedSearches: SavedSearch[]
-  templates: { id: string; label: string; prompt: string }[]
+  templates: TemplateItem[]
+  pinnedTemplateIds?: string[]
+  recentTemplateIds?: string[]
 }
 
 type CoachContext = {
@@ -40,20 +44,101 @@ type CoachContext = {
   recommendations?: { id: string; title: string; agent_type?: string }[]
 }
 
-const DEFAULT_TEMPLATES = [
-  { id: 'jd', label: 'Generate JD', prompt: 'Generate a full job description pack for my top open role including responsibilities, requirements, and nice-to-haves.' },
-  { id: 'boolean', label: 'Boolean search', prompt: 'Create Boolean search strings for LinkedIn, Naukri, and Indeed for my open roles.' },
-  { id: 'linkedin', label: 'LinkedIn search', prompt: 'Write an advanced LinkedIn Recruiter search string and filters for my priority role.' },
-  { id: 'email', label: 'Email template', prompt: 'Draft a professional candidate outreach email and a client submission email for my open role.' },
-  { id: 'whatsapp', label: 'WhatsApp template', prompt: 'Draft a WhatsApp follow-up for a candidate awaiting client feedback.' },
-  { id: 'interview', label: 'Interview questions', prompt: 'Generate a structured interview kit with screening, technical, and culture questions for my priority role.' },
-  { id: 'summary', label: 'Candidate summary', prompt: 'Summarize the top candidate in my pipeline with strengths, risks, and hire recommendation.' },
-  { id: 'offer', label: 'Offer letter', prompt: 'Draft an offer letter outline with compensation, start date placeholders, and next steps.' },
-  { id: 'salary', label: 'Salary negotiation', prompt: 'Give salary negotiation talking points for a candidate counter-offer on my open role.' },
-  { id: 'proposal', label: 'Client proposal', prompt: 'Write a short client proposal for filling this role including SLA and sourcing plan.' },
-  { id: 'sourcing', label: 'Sourcing strategy', prompt: 'Create a 7-day sourcing strategy with channels, Boolean queries, and outreach cadence.' },
-  { id: 'compare', label: 'Compare candidates', prompt: 'Compare top two candidates for my priority role with strengths, risks, and recommendation.' },
+const DEFAULT_TEMPLATES: TemplateItem[] = [
+  { id: 'jd', label: 'Generate JD', prompt: 'Generate a full job description pack for my top open role including responsibilities, requirements, and nice-to-haves.', group: 'Jobs' },
+  { id: 'boolean', label: 'Boolean search', prompt: 'Create Boolean search strings for LinkedIn, Naukri, and Indeed for my open roles.', group: 'Sourcing' },
+  { id: 'linkedin', label: 'LinkedIn search', prompt: 'Write an advanced LinkedIn Recruiter search string and filters for my priority role.', group: 'Sourcing' },
+  { id: 'email', label: 'Email template', prompt: 'Draft a professional candidate outreach email and a client submission email for my open role.', group: 'Outreach' },
+  { id: 'whatsapp', label: 'WhatsApp template', prompt: 'Draft a WhatsApp follow-up for a candidate awaiting client feedback.', group: 'Outreach' },
+  { id: 'interview', label: 'Interview questions', prompt: 'Generate a structured interview kit with screening, technical, and culture questions for my priority role.', group: 'Interview' },
+  { id: 'summary', label: 'Candidate summary', prompt: 'Summarize the top candidate in my pipeline with strengths, risks, and hire recommendation.', group: 'Candidates' },
+  { id: 'offer', label: 'Offer letter', prompt: 'Draft an offer letter outline with compensation, start date placeholders, and next steps.', group: 'Offer' },
+  { id: 'salary', label: 'Salary negotiation', prompt: 'Give salary negotiation talking points for a candidate counter-offer on my open role.', group: 'Offer' },
+  { id: 'proposal', label: 'Client proposal', prompt: 'Write a short client proposal for filling this role including SLA and sourcing plan.', group: 'Clients' },
+  { id: 'sourcing', label: 'Sourcing strategy', prompt: 'Create a 7-day sourcing strategy with channels, Boolean queries, and outreach cadence.', group: 'Sourcing' },
+  { id: 'compare', label: 'Compare candidates', prompt: 'Compare top two candidates for my priority role with strengths, risks, and recommendation.', group: 'Candidates' },
 ]
+
+const TOOL_CARDS = [
+  {
+    id: 'coach',
+    label: 'Chat',
+    desc: 'Recruitment AI Assistant',
+    icon: MessageSquare,
+    gradient: 'from-indigo-600 via-indigo-500 to-violet-500',
+    shadow: 'shadow-indigo-500/25',
+    ring: 'ring-indigo-300',
+  },
+  {
+    id: 'screen',
+    label: 'AI Screen',
+    desc: 'AI-powered candidate screening',
+    icon: Brain,
+    gradient: 'from-violet-600 via-purple-500 to-fuchsia-500',
+    shadow: 'shadow-violet-500/25',
+    ring: 'ring-violet-300',
+  },
+  {
+    id: 'compose',
+    label: 'Compose',
+    desc: 'Generate recruiter emails & messages',
+    icon: Mail,
+    gradient: 'from-sky-600 via-blue-500 to-cyan-500',
+    shadow: 'shadow-sky-500/25',
+    ring: 'ring-sky-300',
+  },
+  {
+    id: 'jd',
+    label: 'JD Writer',
+    desc: 'Create professional job descriptions',
+    icon: FileText,
+    gradient: 'from-emerald-600 via-teal-500 to-green-500',
+    shadow: 'shadow-emerald-500/25',
+    ring: 'ring-emerald-300',
+  },
+  {
+    id: 'boolean',
+    label: 'Boolean',
+    desc: 'Generate advanced Boolean searches',
+    icon: Search,
+    gradient: 'from-orange-500 via-amber-500 to-yellow-500',
+    shadow: 'shadow-orange-500/25',
+    ring: 'ring-orange-300',
+  },
+] as const
+
+const QUICK_ACTIONS = [
+  { id: 'screen', label: 'Screen Candidate', icon: Brain, tab: 'screen', prompt: null as string | null },
+  { id: 'jd', label: 'Generate JD', icon: FileText, tab: 'jd', prompt: null },
+  { id: 'boolean', label: 'Create Boolean', icon: Search, tab: 'boolean', prompt: null },
+  { id: 'email', label: 'Generate Email', icon: Mail, tab: 'compose', prompt: null },
+  { id: 'whatsapp', label: 'WhatsApp Message', icon: MessageSquare, tab: null, prompt: 'Draft a WhatsApp follow-up for a candidate awaiting client feedback.' },
+  { id: 'interview', label: 'Interview Questions', icon: HelpCircle, tab: null, prompt: 'Generate a structured interview kit with screening, technical, and culture questions for my priority role.' },
+  { id: 'internal', label: 'Internal Match', icon: UserCheck, tab: 'jobs', prompt: null },
+  { id: 'summary', label: 'Resume Summary', icon: Layers, tab: null, prompt: 'Summarize the top candidate in my pipeline with strengths, risks, and hire recommendation.' },
+] as const
+
+const SUGGESTION_CHIPS = [
+  { label: 'Screen candidates for my open role', prompt: 'Help me screen and rank candidates for my top open role.' },
+  { label: 'Write a follow-up email to a client', prompt: 'Draft a professional client follow-up email about candidate status.' },
+  { label: 'Create a JD for a senior role', prompt: 'Generate a full job description for a senior role on my pipeline.' },
+  { label: 'Build a Boolean search string', prompt: 'Create Boolean search strings for LinkedIn, Naukri, and Indeed for my open roles.' },
+]
+
+const TEMPLATE_ICON: Record<string, typeof Sparkles> = {
+  jd: FileText,
+  boolean: Search,
+  linkedin: Search,
+  email: Mail,
+  whatsapp: MessageSquare,
+  interview: HelpCircle,
+  summary: Layers,
+  offer: FileText,
+  salary: Target,
+  proposal: Briefcase,
+  sourcing: Zap,
+  compare: UserCheck,
+}
 
 function newId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -63,16 +148,18 @@ function newId() {
 function loadStore(): WorkspaceStore {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { sessions: [], pinnedIds: [], savedSearches: [], templates: DEFAULT_TEMPLATES }
+    if (!raw) return { sessions: [], pinnedIds: [], savedSearches: [], templates: DEFAULT_TEMPLATES, pinnedTemplateIds: [], recentTemplateIds: [] }
     const parsed = JSON.parse(raw) as Partial<WorkspaceStore>
     return {
       sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
       pinnedIds: Array.isArray(parsed.pinnedIds) ? parsed.pinnedIds : [],
       savedSearches: Array.isArray(parsed.savedSearches) ? parsed.savedSearches : [],
       templates: Array.isArray(parsed.templates) && parsed.templates.length ? parsed.templates : DEFAULT_TEMPLATES,
+      pinnedTemplateIds: Array.isArray(parsed.pinnedTemplateIds) ? parsed.pinnedTemplateIds : [],
+      recentTemplateIds: Array.isArray(parsed.recentTemplateIds) ? parsed.recentTemplateIds : [],
     }
   } catch {
-    return { sessions: [], pinnedIds: [], savedSearches: [], templates: DEFAULT_TEMPLATES }
+    return { sessions: [], pinnedIds: [], savedSearches: [], templates: DEFAULT_TEMPLATES, pinnedTemplateIds: [], recentTemplateIds: [] }
   }
 }
 
@@ -81,6 +168,7 @@ function saveStore(store: WorkspaceStore) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       ...store,
       sessions: store.sessions.slice(0, 40),
+      recentTemplateIds: (store.recentTemplateIds ?? []).slice(0, 12),
     }))
   } catch { /* quota */ }
 }
@@ -103,6 +191,36 @@ function renderMarkdownish(text: string) {
   })
 }
 
+function normalizeCoachContext(raw: Record<string, unknown>): CoachContext {
+  const cand = (raw.candidate ?? raw.candidate_context) as CoachContext['candidate'] | null | undefined
+  const job = (raw.job ?? raw.job_context) as CoachContext['job'] | null | undefined
+  const notes = String(raw.notes ?? raw.recruiter_notes ?? '')
+  const actionsRaw = (raw.suggested_actions ?? []) as Array<string | { id?: string; title?: string; rationale?: string }>
+  const followRaw = (raw.follow_ups ?? raw.upcoming_followups ?? []) as Array<{ id?: string; title?: string; due_at?: string }>
+  const recRaw = (raw.recommendations ?? raw.ai_recommendations ?? []) as Array<{ id?: string; title?: string; agent_type?: string }>
+
+  return {
+    candidate: cand ?? undefined,
+    job: job ?? undefined,
+    notes: notes || undefined,
+    suggested_actions: actionsRaw.map((a, i) => (
+      typeof a === 'string'
+        ? { id: `action-${i}`, title: a }
+        : { id: a.id ?? `action-${i}`, title: a.title ?? 'Action', rationale: a.rationale }
+    )).filter(a => a.title),
+    follow_ups: followRaw.map((f, i) => ({
+      id: f.id ?? `fu-${i}`,
+      title: f.title ?? 'Follow-up',
+      due_at: f.due_at,
+    })),
+    recommendations: recRaw.map((r, i) => ({
+      id: r.id ?? `rec-${i}`,
+      title: r.title ?? 'Recommendation',
+      agent_type: r.agent_type,
+    })),
+  }
+}
+
 export function AiRecruiterWorkspace({
   onNavigate,
   bootstrapTemplateId,
@@ -111,13 +229,14 @@ export function AiRecruiterWorkspace({
   /** Sidebar shortcut: fill input from a known template id, or scroll to templates (`__library__`). */
   bootstrapTemplateId?: string | null
 }) {
-  const [store, setStore] = useState<WorkspaceStore>({ sessions: [], pinnedIds: [], savedSearches: [], templates: DEFAULT_TEMPLATES })
+  const [store, setStore] = useState<WorkspaceStore>({ sessions: [], pinnedIds: [], savedSearches: [], templates: DEFAULT_TEMPLATES, pinnedTemplateIds: [], recentTemplateIds: [] })
   const [activeId, setActiveId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [context, setContext] = useState<CoachContext | null>(null)
   const [contextLoading, setContextLoading] = useState(true)
+  const [templateQuery, setTemplateQuery] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const templatesRef = useRef<HTMLDivElement>(null)
   const lastBootstrapRef = useRef<string | null>(null)
@@ -128,6 +247,8 @@ export function AiRecruiterWorkspace({
   }, [])
 
   const active = store.sessions.find(s => s.id === activeId) ?? store.sessions[0]
+  const isFreshChat = (active?.messages?.length ?? 0) <= 1
+    && (active?.messages?.[0]?.role === 'assistant')
 
   useEffect(() => {
     const local = loadStore()
@@ -141,7 +262,7 @@ export function AiRecruiterWorkspace({
           id: newId(),
           role: 'assistant',
           at: Date.now(),
-          content: 'Welcome to AI Hub.\n\nUse the mode chips for AI Screening, Compose, JD Writer, and Boolean Search — or ask anything about your pipeline.\n\nTip: open a Job Hub page to run Screening / Boolean / Generate Post with the JD already loaded.',
+          content: 'Welcome to AI Hub.\n\nUse the tool cards for AI Screening, Compose, JD Writer, and Boolean Search — or ask anything about your pipeline.\n\nTip: open a Job Hub page to run Screening / Boolean / Generate Post with the JD already loaded.',
         }],
       }
       sessions = [welcome]
@@ -171,13 +292,10 @@ export function AiRecruiterWorkspace({
     try {
       const res = await fetch('/api/coach/context')
       if (res.ok) {
-        const json = await res.json()
-        setContext(json)
+        const json = await res.json() as Record<string, unknown>
+        setContext(normalizeCoachContext(json))
         return
       }
-    } catch { /* fall through */ }
-
-    try {
       const [agentsRes, followRes] = await Promise.all([
         fetch('/api/agents?status=pending&limit=5'),
         fetch('/api/follow-ups?mine=1&bucket=today'),
@@ -198,7 +316,7 @@ export function AiRecruiterWorkspace({
         })),
       })
     } catch {
-      setContext(null)
+      setContext({})
     } finally {
       setContextLoading(false)
     }
@@ -273,6 +391,17 @@ export function AiRecruiterWorkspace({
     persist({ ...store, pinnedIds })
   }
 
+  const toggleTemplatePin = (id: string) => {
+    const pinned = store.pinnedTemplateIds ?? []
+    const pinnedTemplateIds = pinned.includes(id) ? pinned.filter(x => x !== id) : [...pinned, id]
+    persist({ ...store, pinnedTemplateIds })
+  }
+
+  const markTemplateUsed = (id: string) => {
+    const recent = [id, ...(store.recentTemplateIds ?? []).filter(x => x !== id)].slice(0, 12)
+    persist({ ...store, recentTemplateIds: recent })
+  }
+
   const send = async (promptText?: string) => {
     if (!active) return
     const userText = (promptText ?? input).trim()
@@ -335,14 +464,55 @@ export function AiRecruiterWorkspace({
     }
   }
 
+  const runTemplate = (t: TemplateItem) => {
+    markTemplateUsed(t.id)
+    void send(t.prompt)
+  }
+
+  const runQuickAction = (a: (typeof QUICK_ACTIONS)[number]) => {
+    if (a.tab && onNavigate) {
+      onNavigate(a.tab)
+      return
+    }
+    if (a.prompt) void send(a.prompt)
+  }
+
   const pinned = store.sessions.filter(s => store.pinnedIds.includes(s.id))
   const recent = store.sessions.filter(s => !store.pinnedIds.includes(s.id)).slice(0, 12)
 
+  const filteredTemplates = useMemo(() => {
+    const q = templateQuery.trim().toLowerCase()
+    const list = store.templates.length ? store.templates : DEFAULT_TEMPLATES
+    if (!q) return list
+    return list.filter(t => t.label.toLowerCase().includes(q) || (t.group ?? '').toLowerCase().includes(q))
+  }, [store.templates, templateQuery])
+
+  const pinnedTemplates = filteredTemplates.filter(t => (store.pinnedTemplateIds ?? []).includes(t.id))
+  const recentTemplates = (store.recentTemplateIds ?? [])
+    .map(id => filteredTemplates.find(t => t.id === id))
+    .filter(Boolean) as TemplateItem[]
+  const otherTemplates = filteredTemplates.filter(
+    t => !(store.pinnedTemplateIds ?? []).includes(t.id) && !(store.recentTemplateIds ?? []).includes(t.id),
+  )
+
+  const recentPrompts = useMemo(() => {
+    const prompts: string[] = []
+    for (const s of store.sessions) {
+      for (const m of s.messages ?? []) {
+        if (m.role === 'user' && m.content.trim()) prompts.push(m.content.trim())
+        if (prompts.length >= 4) return prompts
+      }
+    }
+    return prompts
+  }, [store.sessions])
+
   return (
-    <div>
+    <div className="space-y-4">
       <div className="dash-section-head">
         <div className="flex items-start gap-4">
-          <div className="dash-section-icon"><Sparkles className="w-5 h-5 text-white" /></div>
+          <div className="dash-section-icon bg-gradient-to-br from-indigo-600 to-violet-500 shadow-lg shadow-indigo-500/30">
+            <Sparkles className="w-5 h-5 text-white" />
+          </div>
           <div>
             <h1 className="page-title text-xl">AI Assistant</h1>
             <p className="desc-text mt-1">Chat, screen, compose, JD, and boolean tools in one place.</p>
@@ -350,35 +520,68 @@ export function AiRecruiterWorkspace({
         </div>
       </div>
 
+      {/* Premium AI tool cards — same navigation as before */}
       {onNavigate && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          {([
-            { id: 'coach', label: 'Chat' },
-            { id: 'screen', label: 'AI Screen' },
-            { id: 'compose', label: 'Compose' },
-            { id: 'jd', label: 'JD Writer' },
-            { id: 'boolean', label: 'Boolean' },
-          ] as const).map(m => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => onNavigate(m.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold border transition-colors ${
-                m.id === 'coach'
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200'
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+          {TOOL_CARDS.map(m => {
+            const Icon = m.icon
+            const activeTool = m.id === 'coach'
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => onNavigate(m.id)}
+                className={`group relative text-left rounded-2xl p-4 text-white overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus-visible:ring-2 ${m.ring} bg-gradient-to-br ${m.gradient} shadow-lg ${m.shadow} ${
+                  activeTool ? 'ring-2 ring-offset-2 ring-indigo-400 scale-[1.01]' : ''
+                }`}
+              >
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-white/10" />
+                <div className="relative flex flex-col gap-3 min-h-[108px]">
+                  <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-inner">
+                    <Icon className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-extrabold tracking-tight">{m.label}</p>
+                    <p className="text-[11px] font-medium text-white/85 mt-0.5 leading-snug">{m.desc}</p>
+                  </div>
+                  <span className="mt-auto text-[11px] font-bold text-white/90 group-hover:translate-x-0.5 transition-transform">
+                    Open {m.label} →
+                  </span>
+                </div>
+              </button>
+            )
+          })}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[14rem_1fr_18rem] gap-0 rounded-2xl border border-slate-200 bg-white overflow-hidden min-h-[560px] shadow-sm">
+      {/* Quick actions */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white/80 backdrop-blur-sm p-3 shadow-sm">
+        <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 px-1 mb-2">Quick actions</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2">
+          {QUICK_ACTIONS.map(a => {
+            const Icon = a.icon
+            return (
+              <button
+                key={a.id}
+                type="button"
+                disabled={loading && !a.tab}
+                onClick={() => runQuickAction(a)}
+                className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 px-2 py-3 text-center hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-md transition-all duration-150"
+              >
+                <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 text-white flex items-center justify-center shadow-sm">
+                  <Icon className="w-3.5 h-3.5" />
+                </span>
+                <span className="text-[10px] font-bold text-slate-700 leading-tight">{a.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[15rem_1fr_18rem] gap-0 rounded-2xl border border-slate-200 bg-white overflow-hidden min-h-[580px] shadow-md shadow-slate-900/5">
         {/* Left sidebar */}
-        <aside className="hidden lg:flex flex-col border-r border-slate-200 bg-slate-50/80 p-3 gap-3 min-h-0">
-          <button type="button" onClick={newChat} className="btn-primary w-full !justify-center !py-2">
+        <aside className="hidden lg:flex flex-col border-r border-slate-200 bg-gradient-to-b from-slate-50 to-white p-3 gap-3 min-h-0">
+          <button type="button" onClick={newChat} className="btn-primary w-full !justify-center !py-2.5 shadow-md shadow-indigo-500/20">
             <Plus className="w-4 h-4" /> New
           </button>
 
@@ -415,30 +618,109 @@ export function AiRecruiterWorkspace({
             )}
           </div>
 
-          <div ref={templatesRef} id="ai-hub-templates">
-            <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 px-1 mb-1">Templates</p>
-            <ul className="space-y-0.5">
-              {store.templates.map(t => (
-                <li key={t.id}>
-                  <button type="button" disabled={loading} onClick={() => send(t.prompt)} className="w-full text-left px-2 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 hover:bg-indigo-50 truncate">
-                    {t.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
+          <div ref={templatesRef} id="ai-hub-templates" className="min-h-0 flex flex-col gap-1.5">
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 px-1 mb-0.5">Templates</p>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
+              <input
+                value={templateQuery}
+                onChange={e => setTemplateQuery(e.target.value)}
+                placeholder="Search templates…"
+                className="w-full pl-7 pr-2 py-1.5 rounded-lg text-[11px] border border-slate-200 bg-white focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+              />
+            </div>
+            <div className="max-h-48 overflow-y-auto space-y-2 pr-0.5">
+              {pinnedTemplates.length > 0 && (
+                <TemplateGroup
+                  title="Pinned"
+                  templates={pinnedTemplates}
+                  pinnedIds={store.pinnedTemplateIds ?? []}
+                  loading={loading}
+                  onRun={runTemplate}
+                  onPin={toggleTemplatePin}
+                />
+              )}
+              {recentTemplates.length > 0 && (
+                <TemplateGroup
+                  title="Recently used"
+                  templates={recentTemplates}
+                  pinnedIds={store.pinnedTemplateIds ?? []}
+                  loading={loading}
+                  onRun={runTemplate}
+                  onPin={toggleTemplatePin}
+                />
+              )}
+              <TemplateGroup
+                title={pinnedTemplates.length || recentTemplates.length ? 'All' : 'Library'}
+                templates={otherTemplates.length ? otherTemplates : filteredTemplates}
+                pinnedIds={store.pinnedTemplateIds ?? []}
+                loading={loading}
+                onRun={runTemplate}
+                onPin={toggleTemplatePin}
+              />
+              {filteredTemplates.length === 0 && (
+                <p className="text-[10px] font-medium text-slate-400 px-1">No matching templates</p>
+              )}
+            </div>
           </div>
         </aside>
 
         {/* Center chat */}
-        <div className="flex flex-col min-h-0 min-w-0 border-r border-slate-100">
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-white">
+        <div className="flex flex-col min-h-0 min-w-0 border-r border-slate-100 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-50/40 via-white to-white">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {isFreshChat && (
+              <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-5 mb-2 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/30 shrink-0">
+                    <Sparkles className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-base font-extrabold text-slate-900 tracking-tight">How can I help you today?</p>
+                    <p className="text-xs font-medium text-slate-500 mt-1">Screen talent, draft outreach, write JDs, or build Boolean strings — grounded on your tenant data.</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {SUGGESTION_CHIPS.map(chip => (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => send(chip.prompt)}
+                      className="text-left rounded-xl border border-white/80 bg-white/90 px-3 py-2.5 text-xs font-semibold text-slate-700 shadow-sm hover:border-indigo-300 hover:text-indigo-800 hover:shadow-md transition-all"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+                {recentPrompts.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1.5">Recent prompts</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {recentPrompts.map(p => (
+                        <button
+                          key={p}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => send(p)}
+                          className="max-w-full truncate rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
+                          title={p}
+                        >
+                          {p.length > 48 ? `${p.slice(0, 48)}…` : p}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {(active?.messages ?? []).map(m => (
               <div
                 key={m.id}
-                className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm font-medium leading-relaxed ${
+                className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm font-medium leading-relaxed shadow-sm ${
                   m.role === 'user'
-                    ? 'ml-auto bg-indigo-600 text-white'
-                    : 'mr-auto bg-slate-50 border border-slate-200 text-slate-800 prose prose-sm max-w-none'
+                    ? 'ml-auto bg-gradient-to-br from-indigo-600 to-violet-600 text-white'
+                    : 'mr-auto bg-white border border-slate-200 text-slate-800'
                 }`}
               >
                 {m.role === 'user' ? m.content : renderMarkdownish(m.content)}
@@ -465,8 +747,14 @@ export function AiRecruiterWorkspace({
               </div>
             ))}
             {loading && (
-              <div className="mr-auto flex items-center gap-2 text-sm font-semibold text-slate-500 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3">
-                <Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> thinking…
+              <div className="mr-auto flex items-center gap-2.5 text-sm font-semibold text-slate-500 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+                <span className="flex gap-1" aria-hidden>
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-500 animate-bounce [animation-delay:300ms]" />
+                </span>
+                <span className="sr-only">AI is thinking</span>
+                <span aria-hidden>thinking…</span>
               </div>
             )}
             {error && (
@@ -478,14 +766,14 @@ export function AiRecruiterWorkspace({
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="p-3 border-t border-slate-200 bg-slate-50/50">
-            <div className="flex gap-2 items-end">
+          <div className="p-3 border-t border-slate-200/80 bg-white/90 backdrop-blur-sm">
+            <div className="flex gap-2 items-end rounded-2xl border border-slate-200 bg-slate-50/80 p-2 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-shadow">
               <textarea
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 rows={2}
-                placeholder="Ask about pipeline, candidates, JDs, or messaging…"
-                className="form-input flex-1 !min-h-[52px] resize-none"
+                placeholder="Ask me anything about recruitment…"
+                className="flex-1 !min-h-[52px] resize-none bg-transparent border-0 outline-none text-sm font-medium text-slate-800 placeholder:text-slate-400 px-2 py-1.5"
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
@@ -493,7 +781,13 @@ export function AiRecruiterWorkspace({
                   }
                 }}
               />
-              <button type="button" className="btn-ai !px-4 !py-3" disabled={loading} onClick={() => send()}>
+              <button
+                type="button"
+                className="shrink-0 w-11 h-11 rounded-full bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-transform disabled:opacity-60"
+                disabled={loading || !input.trim()}
+                onClick={() => send()}
+                aria-label="Send message"
+              >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </div>
@@ -504,7 +798,7 @@ export function AiRecruiterWorkspace({
         </div>
 
         {/* Right context */}
-        <aside className="hidden lg:flex flex-col p-3 gap-3 bg-slate-50/60 overflow-y-auto">
+        <aside className="hidden lg:flex flex-col p-3 gap-3 bg-gradient-to-b from-slate-50/90 to-white overflow-y-auto">
           <ContextBlock title="Candidate context" icon={User} loading={contextLoading}>
             {context?.candidate ? (
               <div className="text-xs font-semibold text-slate-700 space-y-0.5">
@@ -513,7 +807,7 @@ export function AiRecruiterWorkspace({
                 <p className="capitalize">{context.candidate.stage}</p>
               </div>
             ) : (
-              <p className="text-xs font-medium text-slate-400">No active candidate context</p>
+              <EmptyHint>No candidate selected. Select a candidate to see context.</EmptyHint>
             )}
           </ContextBlock>
 
@@ -524,12 +818,16 @@ export function AiRecruiterWorkspace({
                 <p>{context.job.company}</p>
               </div>
             ) : (
-              <p className="text-xs font-medium text-slate-400">No active job context</p>
+              <EmptyHint>No active job selected. Select a job to see context.</EmptyHint>
             )}
           </ContextBlock>
 
           <ContextBlock title="Recruiter notes" icon={Search} loading={contextLoading}>
-            <p className="text-xs font-medium text-slate-600 whitespace-pre-wrap">{context?.notes || '—'}</p>
+            {context?.notes?.trim() ? (
+              <p className="text-xs font-medium text-slate-600 whitespace-pre-wrap">{context.notes}</p>
+            ) : (
+              <EmptyHint>No recruiter notes yet.</EmptyHint>
+            )}
           </ContextBlock>
 
           <ContextBlock title="Suggested actions" icon={Zap} loading={contextLoading}>
@@ -542,7 +840,7 @@ export function AiRecruiterWorkspace({
                 ))}
               </ul>
             ) : (
-              <p className="text-xs font-medium text-slate-400">No actions queued</p>
+              <EmptyHint>No actions queued.</EmptyHint>
             )}
           </ContextBlock>
 
@@ -557,7 +855,7 @@ export function AiRecruiterWorkspace({
                 ))}
               </ul>
             ) : (
-              <p className="text-xs font-medium text-slate-400">Nothing due today</p>
+              <EmptyHint>No follow-ups scheduled.</EmptyHint>
             )}
           </ContextBlock>
 
@@ -571,11 +869,65 @@ export function AiRecruiterWorkspace({
                 ))}
               </ul>
             ) : (
-              <p className="text-xs font-medium text-slate-400">Run agent sweep for recommendations</p>
+              <EmptyHint>No recommendations available.</EmptyHint>
             )}
           </ContextBlock>
         </aside>
       </div>
+    </div>
+  )
+}
+
+function EmptyHint({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs font-medium text-slate-400 leading-relaxed">{children}</p>
+}
+
+function TemplateGroup({
+  title,
+  templates,
+  pinnedIds,
+  loading,
+  onRun,
+  onPin,
+}: {
+  title: string
+  templates: TemplateItem[]
+  pinnedIds: string[]
+  loading: boolean
+  onRun: (t: TemplateItem) => void
+  onPin: (id: string) => void
+}) {
+  if (!templates.length) return null
+  return (
+    <div>
+      <p className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 px-1 mb-0.5">{title}</p>
+      <ul className="space-y-0.5">
+        {templates.map(t => {
+          const Icon = TEMPLATE_ICON[t.id] ?? Sparkles
+          const pinned = pinnedIds.includes(t.id)
+          return (
+            <li key={`${title}-${t.id}`} className="group flex items-center gap-0.5">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => onRun(t)}
+                className="flex-1 flex items-center gap-1.5 text-left px-2 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 hover:bg-indigo-50 truncate transition-colors"
+              >
+                <Icon className="w-3 h-3 shrink-0 text-indigo-500" />
+                <span className="truncate">{t.label}</span>
+              </button>
+              <button
+                type="button"
+                title={pinned ? 'Unpin' : 'Pin'}
+                onClick={() => onPin(t.id)}
+                className="p-1 rounded text-slate-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <Pin className={`w-3 h-3 ${pinned ? 'fill-indigo-600 text-indigo-600 opacity-100' : ''}`} />
+              </button>
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }
@@ -603,8 +955,8 @@ function SessionList({
           <button
             type="button"
             onClick={() => onSelect(s.id)}
-            className={`flex-1 text-left px-2 py-1.5 rounded-lg text-xs font-semibold truncate ${
-              s.id === activeId ? 'bg-indigo-600 text-white' : 'text-slate-700 hover:bg-white border border-transparent hover:border-slate-200'
+            className={`flex-1 text-left px-2 py-1.5 rounded-lg text-xs font-semibold truncate transition-colors ${
+              s.id === activeId ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-700 hover:bg-white border border-transparent hover:border-slate-200'
             }`}
           >
             {s.title}
@@ -633,14 +985,19 @@ function ContextBlock({
   children: React.ReactNode
 }) {
   return (
-    <div className="ess-panel !shadow-none !p-0 overflow-hidden">
-      <div className="ess-panel__head !py-2 !px-3">
-        <p className="ess-panel__title !text-xs flex items-center gap-1.5">
+    <div className="rounded-xl border border-slate-200/90 bg-white/90 shadow-sm overflow-hidden">
+      <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/80">
+        <p className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
           <Icon className="w-3.5 h-3.5 text-indigo-600" /> {title}
         </p>
       </div>
-      <div className="px-3 pb-3">
-        {loading ? <Loader2 className="w-4 h-4 animate-spin text-slate-400" /> : children}
+      <div className="px-3 py-2.5 min-h-[2.5rem]">
+        {loading ? (
+          <div className="space-y-1.5 animate-pulse" aria-label="Loading">
+            <div className="h-2.5 rounded bg-slate-200 w-3/4" />
+            <div className="h-2.5 rounded bg-slate-100 w-1/2" />
+          </div>
+        ) : children}
       </div>
     </div>
   )
