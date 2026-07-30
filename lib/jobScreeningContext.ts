@@ -1,10 +1,15 @@
 /** Build complete JD text for AI Screening / Boolean / Posts from a job row. */
 
+import type { Pool } from 'pg'
+
 export type JobJdSource = {
+  id?: string
+  short_id?: string | null
   title?: string | null
   company?: string | null
   client_name?: string | null
   location?: string | null
+  status?: string | null
   type?: string | null
   employment_type?: string | null
   experience_min?: number | null
@@ -17,6 +22,11 @@ export type JobJdSource = {
   skills_required?: string[] | null
   tags?: string[] | null
   screening_questions?: unknown
+  salary_min?: number | null
+  salary_max?: number | null
+  currency?: string | null
+  department?: string | null
+  priority?: string | null
 }
 
 export function buildJdFromJobRow(row: JobJdSource): string {
@@ -63,4 +73,61 @@ export function buildJdFromJobRow(row: JobJdSource): string {
     }
   }
   return blocks.join('\n\n').trim()
+}
+
+/**
+ * Load a job for screening / JD context.
+ * Uses SELECT * so missing optional columns (screening_questions, skills_*, etc.)
+ * never crash screening — only present fields are used.
+ */
+export async function fetchJobJdSource(
+  db: Pool,
+  tenantId: string,
+  jobId: string,
+): Promise<JobJdSource | null> {
+  const { rows } = await db.query(
+    `SELECT * FROM job_posts WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    [jobId, tenantId],
+  )
+  const row = rows[0] as Record<string, unknown> | undefined
+  if (!row) return null
+
+  const asStringArray = (v: unknown): string[] | null => {
+    if (Array.isArray(v)) return v.map(x => String(x)).filter(Boolean)
+    if (typeof v === 'string') {
+      try {
+        const parsed = JSON.parse(v)
+        if (Array.isArray(parsed)) return parsed.map(x => String(x)).filter(Boolean)
+      } catch { /* ignore */ }
+    }
+    return null
+  }
+
+  return {
+    id: row.id != null ? String(row.id) : undefined,
+    short_id: (row.short_id as string) ?? null,
+    title: (row.title as string) ?? null,
+    company: (row.company as string) ?? null,
+    client_name: (row.client_name as string) ?? null,
+    location: (row.location as string) ?? null,
+    status: (row.status as string) ?? null,
+    type: (row.type as string) ?? null,
+    // Never read a non-existent employment_type column — SELECT * only returns real cols
+    employment_type: (row.employment_type as string) ?? (row.type as string) ?? null,
+    experience_min: row.experience_min != null ? Number(row.experience_min) : null,
+    experience_max: row.experience_max != null ? Number(row.experience_max) : null,
+    description: (row.description as string) ?? null,
+    requirements: (row.requirements as string) ?? null,
+    optional_requirements: (row.optional_requirements as string) ?? null,
+    raw_jd_text: (row.raw_jd_text as string) ?? null,
+    skills_mandatory: asStringArray(row.skills_mandatory),
+    skills_required: asStringArray(row.skills_required),
+    tags: asStringArray(row.tags),
+    screening_questions: row.screening_questions ?? null,
+    salary_min: row.salary_min != null ? Number(row.salary_min) : null,
+    salary_max: row.salary_max != null ? Number(row.salary_max) : null,
+    currency: (row.currency as string) ?? null,
+    department: (row.department as string) ?? null,
+    priority: (row.priority as string) ?? null,
+  }
 }

@@ -9,7 +9,7 @@ import { writeTimeline } from '@/lib/timelineEngine'
 import { createNotification } from '@/lib/notificationCenter'
 import { chatCompletionWithUsage } from '@/lib/aiClient'
 import { recordAiUsage } from '@/lib/aiUsage'
-import { buildJdFromJobRow } from '@/lib/jobScreeningContext'
+import { buildJdFromJobRow, fetchJobJdSource } from '@/lib/jobScreeningContext'
 import { advanceFromDomain } from '@/lib/lifecycle'
 import { assertFeatureEnabled, assertNotMaintenance } from '@/lib/featureFlags'
 
@@ -496,18 +496,11 @@ export async function POST(req: NextRequest) {
     }
     const resumes = normalizeResumeInputs(body as Record<string, unknown>)
 
-    // Resolve JD: explicit text and/or full job context (raw_jd_text preferred)
+    // Resolve JD: explicit text and/or full job context (raw_jd_text preferred).
+    // fetchJobJdSource uses SELECT * so missing optional columns never fail screening.
     let jdForModel = (jd_text ?? '').trim()
     if (job_post_id && isValidUUID(job_post_id)) {
-      const jp = await pool.query(
-        `SELECT title, company, location, type,
-                experience_min, experience_max, description, requirements,
-                optional_requirements, raw_jd_text, skills_mandatory, skills_required,
-                tags, screening_questions
-         FROM job_posts WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
-        [job_post_id, tenantId],
-      )
-      const row = jp.rows[0]
+      const row = await fetchJobJdSource(pool, tenantId, job_post_id)
       if (!row) {
         return NextResponse.json({ error: 'Invalid job_post_id' }, { status: 400 })
       }

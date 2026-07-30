@@ -1,0 +1,28 @@
+-- v35: Ensure enriched job_posts columns exist (additive; screening uses SELECT * so missing cols are safe)
+-- Ends whack-a-mole of "column X does not exist" on older production schemas.
+ALTER TABLE job_posts
+  ADD COLUMN IF NOT EXISTS optional_requirements TEXT,
+  ADD COLUMN IF NOT EXISTS raw_jd_text TEXT,
+  ADD COLUMN IF NOT EXISTS skills_mandatory TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS skills_required TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS screening_questions JSONB,
+  ADD COLUMN IF NOT EXISTS department TEXT,
+  ADD COLUMN IF NOT EXISTS experience_min INTEGER,
+  ADD COLUMN IF NOT EXISTS experience_max INTEGER,
+  ADD COLUMN IF NOT EXISTS contract_duration TEXT,
+  ADD COLUMN IF NOT EXISTS max_budget NUMERIC,
+  ADD COLUMN IF NOT EXISTS client_jr_no TEXT,
+  ADD COLUMN IF NOT EXISTS headcount INTEGER DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS candidate_type TEXT DEFAULT 'any',
+  ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'medium',
+  ADD COLUMN IF NOT EXISTS jd_received_date DATE,
+  ADD COLUMN IF NOT EXISTS target_cv_submissions INTEGER,
+  ADD COLUMN IF NOT EXISTS internal_sla_days INTEGER DEFAULT 10,
+  ADD COLUMN IF NOT EXISTS target_submission_date DATE,
+  ADD COLUMN IF NOT EXISTS share_jd_with_client BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS assigned_recruiter_ids UUID[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS assign_all_team BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS job_meta JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS jd_original_path TEXT,
+  ADD COLUMN IF NOT EXISTS jd_original_name TEXT,
+  ADD COLUMN IF NOT EXISTS jd_original_mime TEXT;

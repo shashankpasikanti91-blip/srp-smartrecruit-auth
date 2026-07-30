@@ -3,7 +3,7 @@ import { after } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import { isValidUUID, sanitizeText } from '@/lib/validate'
-import { buildJdFromJobRow } from '@/lib/jobScreeningContext'
+import { buildJdFromJobRow, fetchJobJdSource } from '@/lib/jobScreeningContext'
 import { assertFeatureEnabled, assertNotMaintenance } from '@/lib/featureFlags'
 
 // Allow background bulk screening to run up to ~15 minutes for 20–100 CV batches.
@@ -192,15 +192,9 @@ export async function POST(req: NextRequest) {
   let jobPostId = body.job_post_id && isValidUUID(body.job_post_id) ? body.job_post_id : null
 
   if (jobPostId) {
-    const jp = await pool.query(
-      `SELECT title, company, location, type,
-              experience_min, experience_max, description, requirements,
-              optional_requirements, raw_jd_text, skills_mandatory, skills_required, tags, screening_questions
-       FROM job_posts WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
-      [jobPostId, ctx.tenantId],
-    )
-    if (!jp.rows[0]) return NextResponse.json({ error: 'Invalid job_post_id' }, { status: 400 })
-    if (!jdText) jdText = buildJdFromJobRow(jp.rows[0])
+    const row = await fetchJobJdSource(pool, ctx.tenantId, jobPostId)
+    if (!row) return NextResponse.json({ error: 'Invalid job_post_id' }, { status: 400 })
+    if (!jdText) jdText = buildJdFromJobRow(row)
   }
 
   if (!jdText) {
