@@ -18,7 +18,7 @@ import { WorkspaceTab } from '@/components/recruitment/WorkspaceTab'
 import { AiRecruiterWorkspace } from '@/components/recruitment/AiRecruiterWorkspace'
 import { Job360View } from '@/components/recruitment/Job360View'
 import { AiFitScoreCard } from '@/components/recruitment/AiFitScoreCard'
-import { ScreeningReportView } from '@/components/recruitment/ScreeningReportView'
+import { ScreeningReportView, ScreeningReportErrorBoundary } from '@/components/recruitment/ScreeningReportView'
 import type { ScreenResult } from '@/lib/screeningTypes'
 import type { AiFitScores } from '@/lib/aiFitScore'
 import { SelectedPipelineTab } from '@/components/recruitment/SelectedPipelineTab'
@@ -5896,8 +5896,28 @@ function ScreenResultCard({
   const [open, setOpen] = useState(defaultOpen)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [screenedAt] = useState(() => fmtDate(r.screened_at ?? new Date().toISOString(), true))
+  const [screenedAt] = useState(() => {
+    try {
+      return fmtDate(r.screened_at ?? new Date().toISOString(), true)
+    } catch {
+      return new Date().toISOString()
+    }
+  })
   const isDraft = Boolean(r.draft || (!r.db_id && !r.persisted))
+  const score = Math.round(Number(r.score) || 0)
+  const jdMatch = r.jd_match?.match_percent
+  const briefLine = (() => {
+    const summary = typeof r.executive_summary === 'string' ? r.executive_summary.trim() : ''
+    if (summary) return summary.length > 160 ? `${summary.slice(0, 160)}…` : summary
+    const matched = Array.isArray(r.jd_match?.matching_skills) ? r.jd_match!.matching_skills!.slice(0, 3) : []
+    const missing = Array.isArray(r.jd_match?.missing_skills) ? r.jd_match!.missing_skills!.slice(0, 2) : []
+    if (matched.length || missing.length) {
+      const m = matched.map(x => (typeof x === 'string' ? x : String((x as { name?: string })?.name ?? ''))).filter(Boolean)
+      const g = missing.map(x => (typeof x === 'string' ? x : String((x as { name?: string })?.name ?? ''))).filter(Boolean)
+      return `${m.length ? `Strong: ${m.join(', ')}` : 'Limited matches'}${g.length ? ` · Gaps: ${g.join(', ')}` : ''}`
+    }
+    return r.decision ? `Decision: ${r.decision}` : 'Open details for the full AI audit.'
+  })()
 
   const saveCandidate = async () => {
     setSaving(true)
@@ -5926,10 +5946,28 @@ function ScreenResultCard({
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
       <div className="flex items-start gap-3 p-4 border-b border-gray-100 bg-slate-50/60">
+        <div className={`flex-shrink-0 w-14 h-14 rounded-xl border-2 flex flex-col items-center justify-center ${
+          score >= 70 ? 'bg-emerald-50 border-emerald-200' : score >= 60 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'
+        }`}>
+          <span className={`text-lg font-black leading-none ${
+            score >= 70 ? 'text-emerald-700' : score >= 60 ? 'text-amber-700' : 'text-red-700'
+          }`}>{score}</span>
+          <span className="text-[8px] font-bold text-gray-400 uppercase">score</span>
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-sm font-bold text-gray-900">{r.name || 'Unknown Candidate'}</h3>
             {r.short_id && <ShortIdBadge id={r.short_id} />}
+            {r.decision && (
+              <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${
+                String(r.decision).toLowerCase().includes('reject') ? 'bg-red-50 text-red-800 border-red-200'
+                  : String(r.decision).toLowerCase().includes('hold') ? 'bg-amber-50 text-amber-800 border-amber-200'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              }`}>{r.decision}</span>
+            )}
+            {jdMatch != null && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">JD {Math.round(Number(jdMatch))}%</span>
+            )}
             {isDraft ? (
               <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">Draft</span>
             ) : (
@@ -5939,6 +5977,7 @@ function ScreenResultCard({
           <p className="text-xs text-gray-500 mt-0.5 truncate">
             {[r.email, r.contact_number, r.current_company].filter(Boolean).join(' · ')}
           </p>
+          <p className="text-xs text-slate-600 mt-1.5 leading-snug line-clamp-2">{briefLine}</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {isDraft && (
@@ -5964,8 +6003,11 @@ function ScreenResultCard({
           {!isDraft && r.db_id && (
             <span className="text-[10px] text-emerald-700 font-medium px-2">Updated screening</span>
           )}
-          <button onClick={() => setOpen(v => !v)}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${open ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'}`}>
+          <button
+            type="button"
+            onClick={() => setOpen(v => !v)}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${open ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'}`}
+          >
             {open ? 'Collapse' : 'View Details'}
             <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
           </button>
@@ -5975,7 +6017,9 @@ function ScreenResultCard({
         <div className="px-4 py-2 text-xs text-red-700 bg-red-50 border-b border-red-100">{saveError}</div>
       )}
       {open && (
-        <ScreeningReportView data={r} variant="card" showHeader screenedAtLabel={screenedAt} />
+        <ScreeningReportErrorBoundary fallbackTitle="Screening details crashed — payload was unexpected">
+          <ScreeningReportView data={r} variant="card" showHeader={false} screenedAtLabel={screenedAt} briefFirst />
+        </ScreeningReportErrorBoundary>
       )}
     </div>
   )
@@ -5983,7 +6027,11 @@ function ScreenResultCard({
 
 // ── CandidateScreeningDetail — shared report inside candidate modal / C360 ──
 function CandidateScreeningDetail({ data: r }: { data: ScreenResult }) {
-  return <ScreeningReportView data={r} variant="compact" showHeader />
+  return (
+    <ScreeningReportErrorBoundary>
+      <ScreeningReportView data={r} variant="compact" showHeader briefFirst={false} />
+    </ScreeningReportErrorBoundary>
+  )
 }
 
 // KanbanCard removed in Phase 3.2 (Pipeline Kanban deleted)

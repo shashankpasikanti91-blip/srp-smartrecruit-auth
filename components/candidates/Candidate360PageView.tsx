@@ -12,7 +12,7 @@ import {
 } from '@/components/candidates/Candidate360View'
 import { OwnershipPanel } from '@/components/ownership/OwnershipPanel'
 import { EntityNotesTimeline } from '@/components/ui/EntityNotesTimeline'
-import { ScreeningReportView } from '@/components/recruitment/ScreeningReportView'
+import { ScreeningReportView, ScreeningReportErrorBoundary } from '@/components/recruitment/ScreeningReportView'
 import type { ScreenResult } from '@/lib/screeningTypes'
 
 type Header = {
@@ -495,7 +495,9 @@ export function Candidate360PageView({
                     <p className="text-xs font-extrabold uppercase tracking-widest">AI Screenings</p>
                   </div>
                   {c?.ai_screening_data && typeof c.ai_screening_data === 'object' ? (
-                    <ScreeningReportView data={c.ai_screening_data as ScreenResult} variant="compact" showHeader />
+                    <ScreeningReportErrorBoundary>
+                      <ScreeningReportView data={c.ai_screening_data as ScreenResult} variant="compact" showHeader briefFirst={false} />
+                    </ScreeningReportErrorBoundary>
                   ) : c?.ai_summary ? (
                     <pre className="whitespace-pre-wrap text-sm font-medium text-slate-700 leading-relaxed bg-violet-50/50 border border-violet-100 rounded-xl p-4">
                       {c.ai_summary}
