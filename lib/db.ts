@@ -372,25 +372,25 @@ export async function getResumes(userId: string, jobPostId?: string, tenantId?: 
   if (tenantId) {
     if (jobPostId) {
       const { rows } = await pool.query<Resume>(
-        'SELECT * FROM resumes WHERE tenant_id = $1 AND job_post_id = $2 ORDER BY ai_score DESC NULLS LAST',
+        'SELECT * FROM resumes WHERE tenant_id = $1 AND job_post_id = $2 ORDER BY created_at DESC',
         [tenantId, jobPostId]
       )
       return rows
     }
     const { rows } = await pool.query<Resume>(
-      'SELECT * FROM resumes WHERE tenant_id = $1 ORDER BY ai_score DESC NULLS LAST', [tenantId]
+      'SELECT * FROM resumes WHERE tenant_id = $1 ORDER BY created_at DESC', [tenantId]
     )
     return rows
   }
   if (jobPostId) {
     const { rows } = await pool.query<Resume>(
-      'SELECT * FROM resumes WHERE user_id = $1 AND job_post_id = $2 ORDER BY ai_score DESC NULLS LAST',
+      'SELECT * FROM resumes WHERE user_id = $1 AND job_post_id = $2 ORDER BY created_at DESC',
       [userId, jobPostId]
     )
     return rows
   }
   const { rows } = await pool.query<Resume>(
-    'SELECT * FROM resumes WHERE user_id = $1 ORDER BY ai_score DESC NULLS LAST', [userId]
+    'SELECT * FROM resumes WHERE user_id = $1 ORDER BY created_at DESC', [userId]
   )
   return rows
 }

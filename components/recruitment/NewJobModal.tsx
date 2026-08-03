@@ -256,6 +256,10 @@ export function NewJobModal({
         setError('Job title is required — paste/upload a JD and wait for parse, or type a title')
         return
       }
+      if (!working.client_id) {
+        setError('Select a client before creating the job')
+        return
+      }
       // Always keep the original pasted/uploaded JD alongside structured fields
       const payload = {
         ...working,

@@ -13,6 +13,7 @@ import { formatIsoDate } from '@/lib/opsList'
 type Submission = {
   id: string
   short_id: string
+  resume_id: string
   client_name: string | null
   client_project?: string | null
   applying_for: string | null
@@ -73,7 +74,7 @@ export function SubmissionsTab({
   onOpenCandidate,
   isManager = false,
 }: {
-  onOpenCandidate?: (shortId: string) => void
+  onOpenCandidate?: (idOrShortId: string) => void
   isManager?: boolean
 }) {
   const [rows, setRows] = useState<Submission[]>([])
@@ -261,14 +262,14 @@ export function SubmissionsTab({
                     <EntityIdLink
                       kind="candidate"
                       id={s.candidate_short_id}
-                      onClick={() => onOpenCandidate?.(s.candidate_short_id)}
+                      onClick={() => onOpenCandidate?.(s.resume_id || s.candidate_short_id)}
                     />
                   </td>
                   <td>
                     <button
                       type="button"
                       className="text-left text-indigo-700 hover:underline font-bold text-sm"
-                      onClick={() => onOpenCandidate?.(s.candidate_short_id)}
+                      onClick={() => onOpenCandidate?.(s.resume_id || s.candidate_short_id)}
                     >
                       {s.candidate_name}
                     </button>
@@ -311,7 +312,7 @@ export function SubmissionsTab({
                     <button type="button" onClick={() => openDetail(s)} className="inline-flex items-center gap-1 text-xs font-bold text-indigo-700 hover:underline">
                       <Eye className="w-3.5 h-3.5" /> Update feedback
                     </button>
-                    <button type="button" onClick={() => onOpenCandidate?.(s.candidate_short_id)} className="text-xs font-bold text-slate-600 hover:underline">
+                    <button type="button" onClick={() => onOpenCandidate?.(s.resume_id || s.candidate_short_id)} className="text-xs font-bold text-slate-600 hover:underline">
                       Open profile
                     </button>
                   </td>
@@ -332,7 +333,7 @@ export function SubmissionsTab({
                 <p className="text-sm font-bold text-slate-700 mt-0.5">{detail.candidate_name}</p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Cand. ID{' '}
-                  <EntityIdLink kind="candidate" id={detail.candidate_short_id} onClick={() => onOpenCandidate?.(detail.candidate_short_id)} />
+                  <EntityIdLink kind="candidate" id={detail.candidate_short_id} onClick={() => onOpenCandidate?.(detail.resume_id || detail.candidate_short_id)} />
                 </p>
               </div>
               <button type="button" onClick={() => setDetail(null)} className="p-2 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button>
@@ -393,7 +394,7 @@ export function SubmissionsTab({
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" className="btn-secondary !py-1.5 !px-3 text-xs" onClick={() => onOpenCandidate?.(detail.candidate_short_id)}>Open Candidate 360</button>
+                <button type="button" className="btn-secondary !py-1.5 !px-3 text-xs" onClick={() => onOpenCandidate?.(detail.resume_id || detail.candidate_short_id)}>Open Candidate 360</button>
               </div>
             </div>
           </div>

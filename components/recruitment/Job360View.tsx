@@ -174,10 +174,11 @@ function EntityList({
     <ul className="divide-y divide-slate-100">
       {items.map((item, i) => {
         const row = item as Record<string, unknown>
-        const id = String(row.id ?? row.resume_id ?? '')
-        const title = String(row[labelKey] ?? row.title ?? row.name ?? `Item ${i + 1}`)
+        // Prefer resume/candidate id — row.id is submission/interview/offer id
+        const id = String(row.resume_id ?? row.candidate_id ?? (row.candidate_uuid as string | undefined) ?? '')
+        const title = String(row[labelKey] ?? row.title ?? row.name ?? row.candidate_name ?? `Item ${i + 1}`)
         return (
-          <li key={id || i} className="py-3 flex items-center justify-between gap-2">
+          <li key={String(row.id ?? id ?? i)} className="py-3 flex items-center justify-between gap-2">
             <div>
               <p className="text-sm font-extrabold text-slate-900">{title}</p>
               {row.status != null && <p className="text-xs font-medium text-slate-500">{String(row.status)}</p>}

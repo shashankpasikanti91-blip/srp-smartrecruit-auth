@@ -12,6 +12,7 @@ import { recordAiUsage } from '@/lib/aiUsage'
 import { buildJdFromJobRow, fetchJobJdSource } from '@/lib/jobScreeningContext'
 import { advanceFromDomain } from '@/lib/lifecycle'
 import { assertFeatureEnabled, assertNotMaintenance } from '@/lib/featureFlags'
+import { normalizeDecisionBands } from '@/lib/screeningTypes'
 
 /** AI models sometimes return score as a string — DB ai_score must be numeric for match_category. */
 function normalizeScreeningScore(value: unknown): number | null {
@@ -28,172 +29,140 @@ function normalizeScreeningScore(value: unknown): number | null {
 export const maxDuration = 300
 
 const SCREEN_CONCURRENCY = 5
-const RESUME_MAX_CHARS = 10_000
+const RESUME_MAX_CHARS = 12_000
 const JD_MAX_CHARS = 8_000
-const AI_TIMEOUT_MS = 60_000
+const AI_TIMEOUT_MS = 90_000
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SCREENING SYSTEM PROMPT v2 — Senior Recruitment Auditor AI
-// Updated: 2025 — covers all industries, strict audit-grade evaluation
+// SCREENING SYSTEM PROMPT v2.0 — Enterprise Recruitment Intelligence Engine
 // ─────────────────────────────────────────────────────────────────────────────
-const SCREENING_SYSTEM_PROMPT = `You are a Senior Recruitment Auditor AI.
+const SCREENING_SYSTEM_PROMPT = `You are Smart Recruit AI Screening v2.0 — an Enterprise Recruitment Intelligence Engine.
 
-You function as a combination of:
-- Senior Recruiter
-- Hiring Manager
-- Background Verification Auditor
+You think as: Senior Recruiter + Hiring Manager + Background Verification Auditor + HR Manager + Technical Interview Panel + Talent Acquisition Lead.
 
-You evaluate candidates across ALL industries and roles, including:
-- Blue-collar jobs (technicians, drivers, operators)
-- Non-technical roles (customer service, BPO, sales, admin)
-- IT & software roles (developers, cloud, data, etc.)
-- Medical field (nurses, doctors, pharmacists, healthcare staff)
-- Leadership roles (managers, directors, CXO level)
+RULES:
+- Evidence-based only. Never invent facts not in the JD or resume.
+- If information is missing, mark it missing — do not assume.
+- First analyse the JD (JD Intelligence), then evaluate the resume against it.
+- Recent experience weighting: Current role 40%, Last role 25%, Previous 20%, Older 15%.
+- Skills listed only in a Skills section without experience evidence = Unverified.
 
----
+## SCORING WEIGHTS
+- JD Match: 25%
+- Recent Experience: 20%
+- Mandatory Skills: 20%
+- Strong Skills: 10%
+- Resume Quality: 10%
+- Education: 5%
+- Career Stability: 5%
+- Projects: 5%
 
-## CORE MINDSET
-- Be strict, analytical, and evidence-based
-- Do NOT assume missing information
-- If something is not clearly mentioned → treat it as missing
-- Focus on RECENT and VERIFIED experience only
-- Think like a hiring panel and auditor
+## DECISION BANDS (mandatory)
+- score >= 85 → decision "Excellent", classification "EXCELLENT", recommendation "Hire"
+- score 70–84 → decision "Shortlisted", classification "STRONG", recommendation "Hire"
+- score 60–69 → decision "Hold", classification "KAV", recommendation "Hold"
+- score < 60 → decision "Rejected", classification "REJECT", recommendation "Reject"
 
----
+## RISK
+risk_level must be one of: Low | Medium | High | Very High
 
-## CRITICAL RULE: EXPERIENCE ORDER & STRUCTURE
-Experience MUST be in DESCENDING ORDER (latest job first, older jobs below).
-If NOT in this format → Flag: "INCORRECT EXPERIENCE ORDER"
+## REASONING
+evaluation.justification AND hiring_reasoning must each be detailed recruiter prose (minimum 250 words combined across both; prefer hiring_reasoning >= 250 words). Cover match reasons, fail reasons, business/technical risks, interview and hiring recommendation, future suitability.
 
----
-
-## MANDATORY DATE FORMAT RULE
-ALL experience and education entries MUST include Month + Year (e.g., Jan 2022 – Mar 2024).
-If ONLY year is mentioned → Flag: "INCOMPLETE DATE FORMAT"
-Reason: Year-only format hides actual duration.
-
----
-
-## EXPERIENCE VALIDATION
-1. Extract Claimed Total Experience from resume text
-2. Calculate Actual Experience from Month-Year timelines
-3. If mismatch → Flag: EXPERIENCE INFLATION, mention exact missing duration
-
----
-
-## GAP & MISSING TENURE ANALYSIS
-Identify: Gaps > 6 months, missing time between jobs, after education → first job, last job → present.
-Mark: "UNACCOUNTED TENURE: X months/years"
-
----
-
-## CURRENT ROLE PRIORITY RULE
-The MOST RECENT job carries the HIGHEST weight.
-If candidate claims a skill but it is not used in current/recent role → Mark as: "OUTDATED / LOW RELEVANCE SKILL"
-
----
-
-## ROLE-SPECIFIC ADAPTATION
-1. Blue-collar: stability, practical experience, employment continuity
-2. Customer service / BPO: communication roles, tenure stability, role consistency
-3. IT / Technical: recent tech stack usage, project relevance
-4. Medical: certifications, clinical experience, practice continuity
-5. Leadership: career progression, team size / impact
-
----
-
-## SKILL AUTHENTICITY CHECK
-Skills must be backed by RECENT experience. If not → "UNVERIFIED SKILL CLAIM"
-
----
-
-## EDUCATION VALIDATION
-Each entry must include degree, institution, year of passout (preferably Month + Year).
-If missing → Flag: "INCOMPLETE EDUCATION DETAILS"
-
----
-
-## EVALUATION WEIGHTAGE
-- JD Relevance: 25%
-- Recent Role Strength: 20%
-- Experience Consistency & Gaps: 20%
-- Skill Authenticity: 10%
-- Education Completeness: 10%
-- Resume Structure & Format: 15%
-
----
-
-## SCORING SYSTEM
-- > 70 → STRONG (Hire-ready)
-- 60–70 → KAV (Needs improvement / clarification)
-- < 55 → REJECT (High risk / low fit)
-
----
-
-## FINAL DECISION RULE
-- score >= 70 → decision = "Shortlisted", classification = "STRONG", recommendation = "Hire"
-- score 60–69 → decision = "Hold", classification = "KAV", recommendation = "Hold"
-- score < 60 → decision = "Rejected", classification = "REJECT", recommendation = "Reject"
-
----
-
-## OUTPUT FORMAT (STRICT — JSON ONLY)
-Respond ONLY with valid JSON. No explanations, markdown, or extra text outside the JSON.
-Do NOT change field names. All fields are required.
+## OUTPUT — JSON ONLY (no markdown). Keep ALL legacy fields AND fill new v2 fields.
 
 {
   "name": "",
   "email": "",
   "contact_number": "",
   "current_company": "",
+  "current_designation": "",
   "score": 0,
+  "resume_score": 0,
+  "interview_probability": 0,
+  "offer_probability": 0,
   "classification": "STRONG",
   "decision": "Shortlisted",
   "recommendation": "Hire",
   "executive_summary": "",
+  "hiring_reasoning": "",
+  "jd_intelligence": {
+    "job_summary": "",
+    "job_title": "",
+    "industry": "",
+    "department": "",
+    "employment_type": "",
+    "seniority": "",
+    "minimum_experience": "",
+    "education_requirement": "",
+    "mandatory": [],
+    "strong": [],
+    "preferred": [],
+    "soft_skills": [],
+    "business_responsibilities": []
+  },
+  "mandatory_requirements": [
+    { "name": "", "tier": "mandatory", "status": "matched|missing|partial", "confidence": 0, "evidence": "" }
+  ],
+  "strong_skills": [],
+  "preferred_skills": [],
+  "skill_evidence": [
+    { "skill": "", "company": "", "role": "", "dates": "", "quote": "", "verified": true }
+  ],
   "experience_audit": {
     "claimed_years": 0,
     "calculated_years": 0,
     "difference_years": 0,
-    "verdict": "Match"
+    "verdict": "Match|Mismatch",
+    "recent": true,
+    "chronological": true,
+    "current_employer": "",
+    "current_role": ""
   },
-  "date_format_check": {
-    "month_year_used": true,
-    "year_only_entries": []
-  },
-  "experience_order": {
-    "proper_descending": true,
-    "flag": ""
-  },
-  "gap_analysis": {
-    "total_missing_months": 0,
-    "gaps": []
-  },
+  "date_format_check": { "month_year_used": true, "year_only_entries": [] },
+  "experience_order": { "proper_descending": true, "flag": "" },
+  "gap_analysis": { "total_missing_months": 0, "gaps": [] },
   "jd_match": {
     "match_percent": 0,
     "matching_skills": [],
     "missing_skills": [],
     "optional_skills_match": []
   },
-  "skill_authenticity": {
-    "verified": [],
-    "unverified": [],
-    "outdated": []
-  },
+  "skill_authenticity": { "verified": [], "unverified": [], "outdated": [] },
   "education_check": {
+    "degree_present": true,
     "passout_year_present": true,
     "month_available": false,
     "flag": ""
   },
+  "resume_audit": {
+    "experience_order_ok": true,
+    "date_format_ok": true,
+    "grammar_ok": true,
+    "formatting_ok": true,
+    "education_complete": true,
+    "quantified_achievements": false,
+    "technical_detail_ok": true,
+    "resume_length_ok": true,
+    "overall_quality_score": 0,
+    "notes": []
+  },
   "red_flags": [],
   "required_actions": [],
+  "required_improvements": [],
+  "recruiter_recommendation": {
+    "suitable_roles": [],
+    "interview_recommendation": "",
+    "hiring_recommendation": "",
+    "training_recommendation": ""
+  },
   "evaluation": {
     "candidate_strengths": [],
     "high_match_skills": [],
     "medium_match_skills": [],
     "low_or_missing_match_skills": [],
     "candidate_weaknesses": [],
-    "risk_level": "",
+    "risk_level": "Medium",
     "risk_explanation": "",
     "reward_level": "",
     "reward_explanation": "",
@@ -209,8 +178,9 @@ async function callAI(messages: { role: string; content: string }[], timeoutMs =
     return await chatCompletionWithUsage({
       messages,
       temperature: 0.2,
-      max_tokens: 2000,
+      max_tokens: 4500,
       signal: controller.signal,
+      response_format: { type: 'json_object' },
     })
   } finally {
     clearTimeout(timer)
@@ -269,19 +239,23 @@ async function processOneResume(
     jobPostId?: string
     candidateId?: string
     force?: boolean
+    /** When false, skip INSERT for new candidates (Save/Discard preview). Existing IDs still update. */
+    persist?: boolean
   },
 ): Promise<Record<string, unknown>> {
   if (!resume.text?.trim()) {
     return { error: 'empty resume', filename: resume.filename, screened_at: new Date().toISOString() }
   }
 
+  // Existing candidates always update in place. New uploads persist only when explicitly requested.
   const resumeId = resume.id ?? opts.candidateId
+  const persist = Boolean(resumeId) || opts.persist === true
 
   // Cache hit: return existing screening unless force
   if (!opts.force && resumeId) {
     try {
       const { rows } = await pool.query(
-        `SELECT id, short_id, candidate_name, ai_score, ai_summary, ai_skills, ai_screening_data, updated_at
+        `SELECT id, short_id, candidate_name, ai_score, ai_summary, ai_skills, ai_screening_data, updated_at, raw_text
          FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
         [resumeId, opts.tenantId],
       )
@@ -297,7 +271,10 @@ async function processOneResume(
           candidate_name: existing.candidate_name,
           score: existing.ai_score ?? data.score,
           filename: resume.filename,
+          raw_text: existing.raw_text ?? resume.text,
           cached: true,
+          persisted: true,
+          draft: false,
           generation: {
             status: 'completed',
             generated_at: existing.updated_at,
@@ -335,7 +312,13 @@ async function processOneResume(
 
   if (!parsed.error && typeof parsed === 'object' && parsed !== null) {
     const coerced = normalizeScreeningScore(parsed.score)
-    if (coerced != null) parsed.score = coerced
+    if (coerced != null) {
+      parsed.score = coerced
+      const bands = normalizeDecisionBands(coerced)
+      if (!parsed.decision) parsed.decision = bands.decision
+      if (!parsed.classification) parsed.classification = bands.classification
+      if (!parsed.recommendation) parsed.recommendation = bands.recommendation
+    }
   }
 
   await recordAiUsage({
@@ -343,8 +326,37 @@ async function processOneResume(
     tenantId: opts.tenantId,
     operation: 'ai_screen',
     result: ai,
-    metadata: { resume_id: resumeId ?? null, job_post_id: opts.jobPostId ?? null, force: Boolean(opts.force) },
+    metadata: {
+      resume_id: resumeId ?? null,
+      job_post_id: opts.jobPostId ?? null,
+      force: Boolean(opts.force),
+      persist,
+    },
   })
+
+  // Preview-only for brand-new uploads (no resume id)
+  if (!parsed.error && !persist && !resumeId) {
+    const extracted = extractResumeFields(resumeText, resume.filename)
+    if (!(parsed.name as string)?.trim() && extracted.name) parsed.name = extracted.name
+    if (!(parsed.email as string)?.trim() && extracted.email) parsed.email = extracted.email
+    if (!(parsed.contact_number as string)?.trim() && extracted.phone) parsed.contact_number = extracted.phone
+    return {
+      ...parsed,
+      filename: resume.filename,
+      raw_text: resumeText,
+      screened_at: new Date().toISOString(),
+      cached: false,
+      persisted: false,
+      draft: true,
+      generation: {
+        status: 'completed',
+        generated_at: new Date().toISOString(),
+        model: ai.model,
+        tokens: ai.total_tokens,
+        duration_ms: ai.duration_ms,
+      },
+    }
+  }
 
   if (!parsed.error) {
     try {
@@ -361,9 +373,15 @@ async function processOneResume(
       const skills: string[] = [
         ...((jdMatch?.matching_skills as string[]) ?? []),
         ...((evalData?.high_match_skills as string[]) ?? []),
+        ...((p.strong_skills as string[]) ?? []),
       ].filter((s, i, a) => s && a.indexOf(s) === i).slice(0, 50)
-      const summary = ((evalData?.justification as string) || (p.executive_summary as string)) ?? ''
-      const stage = decision === 'Shortlisted' ? 'screening' : 'applied'
+      const summary = (
+        (p.hiring_reasoning as string)
+        || (evalData?.justification as string)
+        || (p.executive_summary as string)
+        || ''
+      )
+      const stage = decision === 'Shortlisted' || decision === 'Excellent' ? 'screening' : 'applied'
       const resolvedResumeId = resume.id ?? opts.candidateId
 
       const resolvedName = ((p.name as string)?.trim()
@@ -371,12 +389,23 @@ async function processOneResume(
         || resume.filename?.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ')
         || 'Unknown Candidate').slice(0, 200)
 
+      const profilePatch = {
+        current_title: p.current_designation ?? null,
+        current_company: p.current_company ?? null,
+        total_experience: (p.experience_audit as { calculated_years?: number } | undefined)?.calculated_years != null
+          ? String((p.experience_audit as { calculated_years: number }).calculated_years)
+          : null,
+      }
+
       if (resolvedResumeId) {
         const existing = await pool.query(
-          'SELECT id FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1',
+          'SELECT id, candidate_profile FROM resumes WHERE id = $1 AND tenant_id = $2 LIMIT 1',
           [resolvedResumeId, opts.tenantId]
         )
         if (existing.rows.length) {
+          const prevProf = typeof existing.rows[0].candidate_profile === 'object' && existing.rows[0].candidate_profile
+            ? existing.rows[0].candidate_profile as Record<string, unknown>
+            : {}
           await pool.query(
             `UPDATE resumes SET
               ai_score = $1, ai_summary = $2,
@@ -386,19 +415,21 @@ async function processOneResume(
               candidate_email = COALESCE(NULLIF($7::text, ''), candidate_email),
               candidate_phone = COALESCE(NULLIF($8::text, ''), candidate_phone),
               job_post_id = COALESCE($9::uuid, job_post_id),
+              candidate_profile = COALESCE(candidate_profile, '{}'::jsonb) || $12::jsonb,
               status = 'reviewed', updated_at = NOW()
             WHERE id = $10 AND tenant_id = $11`,
-            [score, summary.slice(0, 2000), skills, stage,
+            [score, summary.slice(0, 4000), skills, stage,
              JSON.stringify(p),
              resolvedName,
              ((p.email as string) || extracted.email || null),
              ((p.contact_number as string) || extracted.phone || null),
              opts.jobPostId && isValidUUID(opts.jobPostId) ? opts.jobPostId : null,
-             resolvedResumeId, opts.tenantId]
+             resolvedResumeId, opts.tenantId,
+             JSON.stringify({ ...prevProf, ...profilePatch })]
           )
-          parsed = { ...parsed, db_id: resolvedResumeId }
+          parsed = { ...parsed, db_id: resolvedResumeId, persisted: true, draft: false }
         }
-      } else {
+      } else if (persist) {
         const candidateEmail = ((p.email as string | null) || extracted.email || null)
         let existingId: string | null = null
         if (candidateEmail?.trim()) {
@@ -416,16 +447,18 @@ async function processOneResume(
                 candidate_name = $6,
                 candidate_phone = COALESCE(NULLIF($7::text, ''), candidate_phone),
                 job_post_id = COALESCE($8::uuid, job_post_id),
+                candidate_profile = COALESCE(candidate_profile, '{}'::jsonb) || $11::jsonb,
                 updated_at = NOW()
               WHERE id = $9 AND tenant_id = $10`,
-              [score, summary.slice(0, 2000), skills, stage,
+              [score, summary.slice(0, 4000), skills, stage,
                JSON.stringify(p),
                resolvedName,
                ((p.contact_number as string) || extracted.phone || null),
                opts.jobPostId && isValidUUID(opts.jobPostId) ? opts.jobPostId : null,
-               existingId, opts.tenantId]
+               existingId, opts.tenantId,
+               JSON.stringify(profilePatch)]
             )
-            parsed = { ...parsed, db_id: existingId, is_duplicate: true }
+            parsed = { ...parsed, db_id: existingId, is_duplicate: true, persisted: true, draft: false }
           }
         }
 
@@ -433,8 +466,9 @@ async function processOneResume(
           const insertRes = await pool.query<{ id: string; short_id: string }>(
             `INSERT INTO resumes
               (tenant_id, user_id, job_post_id, candidate_name, candidate_email, candidate_phone,
-               file_name, raw_text, ai_score, ai_summary, ai_skills, ai_screening_data, pipeline_stage, status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'reviewed')
+               file_name, raw_text, ai_score, ai_summary, ai_skills, ai_screening_data, candidate_profile,
+               pipeline_stage, status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'reviewed')
              RETURNING id, short_id`,
             [opts.tenantId, opts.userId,
              opts.jobPostId || null,
@@ -444,12 +478,19 @@ async function processOneResume(
              resume.filename?.slice(0, 255) || null,
              resumeText.slice(0, 100000),
              score,
-             summary.slice(0, 2000),
+             summary.slice(0, 4000),
              skills,
              JSON.stringify(p),
+             JSON.stringify(profilePatch),
              stage]
           )
-          parsed = { ...parsed, db_id: insertRes.rows[0]?.id, short_id: insertRes.rows[0]?.short_id }
+          parsed = {
+            ...parsed,
+            db_id: insertRes.rows[0]?.id,
+            short_id: insertRes.rows[0]?.short_id,
+            persisted: true,
+            draft: false,
+          }
         }
       }
     } catch (dbSaveErr) {
@@ -461,8 +502,11 @@ async function processOneResume(
   return {
     ...parsed,
     filename: resume.filename,
+    raw_text: resumeText,
     screened_at: new Date().toISOString(),
     cached: false,
+    persisted: Boolean(parsed.db_id),
+    draft: !parsed.db_id,
     generation: {
       status: 'completed',
       generated_at: new Date().toISOString(),
@@ -486,13 +530,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { jd_text, candidate_id, job_post_id, force } = body as {
+    const { jd_text, candidate_id, job_post_id, force, persist } = body as {
       jd_text?: string
       resumes?: ResumeInput[]
       candidates?: ResumeInput[]
       candidate_id?: string
       job_post_id?: string
       force?: boolean
+      /** Explicit save for new uploads. Existing resume ids always update in place. */
+      persist?: boolean
     }
     const resumes = normalizeResumeInputs(body as Record<string, unknown>)
 
@@ -546,6 +592,7 @@ export async function POST(req: NextRequest) {
         jobPostId: job_post_id,
         candidateId: candidate_id,
         force: Boolean(force),
+        persist: persist === true,
       }),
     )
 

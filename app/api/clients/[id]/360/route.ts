@@ -98,16 +98,19 @@ export async function GET(
     contracts: docs.rows.filter((d: { doc_type?: string }) => d.doc_type === 'contract'),
     timeline,
     submissions: submissions.rows,
-    ai_insights: [
-      activeJobs.length === 0
-        ? 'No active jobs for this client — consider a business development follow-up.'
-        : `${activeJobs.length} active job(s) open.`,
-      placements.length
-        ? `${placements.length} placement(s) recorded in offer pipeline.`
-        : 'No placements yet — review submission conversion.',
-      recruiters.rows.length
-        ? `Top recruiter activity: ${(recruiters.rows[0] as { name?: string }).name ?? '—'}`
-        : 'No recruiter submission activity tagged to this client name.',
-    ],
+    ai_insights: {
+      summary: 'Client health snapshot from live jobs, placements, and recruiter activity.',
+      items: [
+        activeJobs.length === 0
+          ? 'No active jobs for this client — consider a business development follow-up.'
+          : `${activeJobs.length} active job(s) open.`,
+        placements.length
+          ? `${placements.length} placement(s) recorded in offer pipeline.`
+          : 'No placements yet — review submission conversion.',
+        recruiters.rows.length
+          ? `Top recruiter activity: ${(recruiters.rows[0] as { name?: string }).name ?? '—'}`
+          : 'No recruiter submission activity tagged to this client name.',
+      ],
+    },
   })
 }

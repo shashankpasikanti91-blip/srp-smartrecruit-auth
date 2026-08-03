@@ -12,6 +12,8 @@ import {
 } from '@/components/candidates/Candidate360View'
 import { OwnershipPanel } from '@/components/ownership/OwnershipPanel'
 import { EntityNotesTimeline } from '@/components/ui/EntityNotesTimeline'
+import { ScreeningReportView } from '@/components/recruitment/ScreeningReportView'
+import type { ScreenResult } from '@/lib/screeningTypes'
 
 type Header = {
   name?: string
@@ -65,6 +67,7 @@ type Cand360 = {
     candidate_phone?: string | null
     candidate_profile?: Record<string, unknown>
     ai_summary?: string | null
+    ai_screening_data?: ScreenResult | null
     raw_text?: string | null
     resume_text?: string | null
     job_post_id?: string | null
@@ -182,8 +185,8 @@ export function Candidate360PageView({
       candidate_phone: String(phone || ''),
       availability: String(h?.availability || profile.availability || ''),
       notice_period: String(h?.notice_period || profile.notice_period || ''),
-      current_role: String(h?.current_role || profile.current_role || ''),
-      current_employer: String(h?.current_employer || profile.current_employer || ''),
+      current_role: String(h?.current_role || profile.current_title || profile.current_role || ''),
+      current_employer: String(h?.current_employer || profile.current_company || profile.current_employer || ''),
       location: String(h?.location || profile.current_location || profile.location || ''),
       nationality: String(h?.nationality || profile.nationality || ''),
       linkedin_url: String(profile.linkedin_url || ''),
@@ -206,6 +209,9 @@ export function Candidate360PageView({
             ...profile,
             availability: editForm.availability || null,
             notice_period: editForm.notice_period || null,
+            // Canonical keys used by 360 header builder
+            current_title: editForm.current_role || null,
+            current_company: editForm.current_employer || null,
             current_role: editForm.current_role || null,
             current_employer: editForm.current_employer || null,
             current_location: editForm.location || null,
@@ -361,7 +367,7 @@ export function Candidate360PageView({
           <Candidate360TabBar
             tab={tab}
             onTabChange={setTab}
-            hasAiData={Boolean(c?.ai_summary) || tab === 'ai'}
+             hasAiData={Boolean(c?.ai_summary || c?.ai_screening_data) || tab === 'ai'}
           />
         </div>
 
@@ -486,14 +492,16 @@ export function Candidate360PageView({
                 <div className="p-5 space-y-3">
                   <div className="flex items-center gap-2 text-violet-700">
                     <Brain className="w-4 h-4" />
-                    <p className="text-xs font-extrabold uppercase tracking-widest">AI Summary</p>
+                    <p className="text-xs font-extrabold uppercase tracking-widest">AI Screenings</p>
                   </div>
-                  {c?.ai_summary ? (
+                  {c?.ai_screening_data && typeof c.ai_screening_data === 'object' ? (
+                    <ScreeningReportView data={c.ai_screening_data as ScreenResult} variant="compact" showHeader />
+                  ) : c?.ai_summary ? (
                     <pre className="whitespace-pre-wrap text-sm font-medium text-slate-700 leading-relaxed bg-violet-50/50 border border-violet-100 rounded-xl p-4">
                       {c.ai_summary}
                     </pre>
                   ) : (
-                    <p className="text-sm text-slate-400 text-center py-10">No AI summary yet. Run screening from AI Hub.</p>
+                    <p className="text-sm text-slate-400 text-center py-10">No AI screening yet. Run screening from AI Hub.</p>
                   )}
                 </div>
               )}

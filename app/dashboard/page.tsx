@@ -18,6 +18,8 @@ import { WorkspaceTab } from '@/components/recruitment/WorkspaceTab'
 import { AiRecruiterWorkspace } from '@/components/recruitment/AiRecruiterWorkspace'
 import { Job360View } from '@/components/recruitment/Job360View'
 import { AiFitScoreCard } from '@/components/recruitment/AiFitScoreCard'
+import { ScreeningReportView } from '@/components/recruitment/ScreeningReportView'
+import type { ScreenResult } from '@/lib/screeningTypes'
 import type { AiFitScores } from '@/lib/aiFitScore'
 import { SelectedPipelineTab } from '@/components/recruitment/SelectedPipelineTab'
 import { ESSTab } from '@/components/ess/ESSTab'
@@ -134,43 +136,7 @@ interface CandDupExisting {
 
 interface StageCounts { [stage: string]: number }
 
-interface ScreenResult {
-  name: string; email: string; contact_number?: string; current_company?: string
-  score: number; decision: string
-  // ── New Senior Audit AI fields (v2 schema) ──
-  classification?: 'STRONG' | 'KAV' | 'REJECT'
-  recommendation?: 'Hire' | 'Hold' | 'Reject'
-  executive_summary?: string
-  experience_audit?: {
-    claimed_years?: number; calculated_years?: number
-    difference_years?: number; verdict?: string
-  }
-  gap_analysis?: {
-    total_missing_months?: number
-    gaps?: Array<{ from?: string; to?: string; months?: number; reason?: string }>
-  }
-  jd_match?: {
-    match_percent?: number; matching_skills?: string[]; missing_skills?: string[]
-    optional_skills_match?: string[]
-  }
-  skill_authenticity?: { verified?: string[]; unverified?: string[]; outdated?: string[] }
-  red_flags?: string[]
-  required_actions?: string[]
-  // ── Legacy evaluation block (v1 schema — kept for backward compat) ──
-  evaluation?: {
-    candidate_strengths?: string[]; candidate_weaknesses?: string[]
-    low_or_missing_match_skills?: string[]; high_match_skills?: string[]
-    medium_match_skills?: string[]; risk_level?: string; risk_explanation?: string
-    justification?: string; overall_fit_rating?: number
-    strengths?: string[]; weaknesses?: string[]; missing_skills?: string[]
-  }
-  // set by server after DB insert
-  db_id?: string; short_id?: string
-  candidate_id?: string
-  screened_at?: string
-  /** Bulk upload filename — used to reattach original file after screening */
-  filename?: string
-}
+// ScreenResult imported from @/lib/screeningTypes (v2.0 additive schema)
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const PIPELINE_STAGES = [
@@ -2359,7 +2325,13 @@ export default function DashboardPage() {
         const res = await fetch('/api/screen', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jd_text: jdText, resumes, job_post_id: screenJobId || undefined }),
+          body: JSON.stringify({
+            jd_text: jdText,
+            resumes,
+            job_post_id: screenJobId || undefined,
+            // New uploads stay draft until Save Candidate; existing candidates update in place
+            persist: screenMode === 'existing',
+          }),
           signal: controller.signal,
         })
         clearTimeout(timer)
@@ -2379,7 +2351,18 @@ export default function DashboardPage() {
         if (!res.ok) { setScreenError(data.error ?? `Server error (${res.status}). Please try again.`); return }
         const results = data.results ?? []
         const failed = results.filter(r => r && typeof r === 'object' && 'error' in r && r.error)
-        const successResults = results.filter(r => !(r && typeof r === 'object' && 'error' in r && r.error))
+        // Enrich by original index BEFORE filtering failures (avoids wrong CV text on Save)
+        const enriched = results.map((r, idx) => {
+          const source = resumes[idx]
+          if (!r || typeof r !== 'object') return r
+          return {
+            ...r,
+            raw_text: (r as ScreenResult).raw_text || source?.text || (screenMode === 'single' ? resumeText : '') || '',
+            filename: (r as ScreenResult).filename || source?.filename,
+            _draftKey: `${source?.filename || (r as ScreenResult).filename || 'resume'}-${idx}`,
+          }
+        })
+        const successResults = enriched.filter(r => !(r && typeof r === 'object' && 'error' in r && (r as ScreenResult).error)) as ScreenResult[]
         setScreenResults(successResults)
         if (failed.length > 0 && successResults.length > 0) {
           setScreenError(`${failed.length} resume(s) could not be screened. Showing ${successResults.length} successful result(s).`)
@@ -2388,22 +2371,37 @@ export default function DashboardPage() {
           setScreenProgress('')
           return
         }
-        setScreenProgress(successResults.length ? `Completed — ${successResults.length} result${successResults.length === 1 ? '' : 's'} saved` : '')
+        const drafts = successResults.filter(r => r.draft || (!r.db_id && !r.persisted))
+        const saved = successResults.filter(r => r.db_id || r.persisted)
+        setScreenProgress(
+          successResults.length
+            ? drafts.length && !saved.length
+              ? `Completed — ${drafts.length} preview${drafts.length === 1 ? '' : 's'} ready (Save to keep)`
+              : saved.length && !drafts.length
+                ? `Completed — ${saved.length} result${saved.length === 1 ? '' : 's'} updated`
+                : `Completed — ${saved.length} saved, ${drafts.length} draft${drafts.length === 1 ? '' : 's'}`
+            : '',
+        )
         if (successResults.length > 0) {
+          // Attach original files only when already persisted (existing-candidate re-screen)
           const attachJobs: Promise<unknown>[] = []
-          if (screenMode === 'single') {
-            const id = successResults[0]?.db_id
-            if (id && screenSingleFile) {
-              const fd = new FormData()
-              fd.append('file', screenSingleFile)
-              attachJobs.push(
-                fetch(`/api/candidates/${id}/resume-file`, { method: 'POST', body: fd }).then(async up => {
-                  if (!up.ok) console.warn('[screen] attach original resume failed', id, await up.text().catch(() => ''))
-                })
-              )
-            }
-          } else if (screenMode === 'bulk') {
+          if (screenMode === 'existing') {
             for (const result of successResults) {
+              const id = result?.db_id
+              if (!id) continue
+              // no local file for existing mode
+            }
+          } else if (screenMode === 'single' && saved[0]?.db_id && screenSingleFile) {
+            const id = saved[0].db_id
+            const fd = new FormData()
+            fd.append('file', screenSingleFile)
+            attachJobs.push(
+              fetch(`/api/candidates/${id}/resume-file`, { method: 'POST', body: fd }).then(async up => {
+                if (!up.ok) console.warn('[screen] attach original resume failed', id, await up.text().catch(() => ''))
+              }),
+            )
+          } else if (screenMode === 'bulk') {
+            for (const result of saved) {
               const id = result?.db_id
               const file = bulkTexts.find(b => b.filename === result.filename)?.file
               if (!id || !file) continue
@@ -2412,7 +2410,7 @@ export default function DashboardPage() {
               attachJobs.push(
                 fetch(`/api/candidates/${id}/resume-file`, { method: 'POST', body: fd }).then(async up => {
                   if (!up.ok) console.warn('[screen] attach original resume failed', id, await up.text().catch(() => ''))
-                })
+                }),
               )
             }
           }
@@ -2421,14 +2419,20 @@ export default function DashboardPage() {
           } catch (e) {
             console.warn('[screen] resume file attach error', e)
           }
-          setScreenSingleFile(null)
-          await loadData()
-          const n = successResults.length
-          setWorkspaceBanner(
-            n === 1
-              ? 'AI screening complete — candidate saved to your workspace.'
-              : `AI screening complete — ${n} candidates saved to your workspace.`
-          )
+          if (saved.length) await loadData()
+          if (drafts.length && !saved.length) {
+            setWorkspaceBanner(
+              drafts.length === 1
+                ? 'AI screening preview ready — Save Candidate to store in your workspace, or Discard.'
+                : `${drafts.length} screening previews ready — Save each candidate to keep, or Discard.`,
+            )
+          } else if (saved.length) {
+            setWorkspaceBanner(
+              saved.length === 1
+                ? 'AI screening complete — candidate updated in your workspace.'
+                : `AI screening complete — ${saved.length} candidates updated.`,
+            )
+          }
         }
       } catch (fetchErr) {
         clearTimeout(timer)
@@ -3754,16 +3758,63 @@ export default function DashboardPage() {
 
                 {screenResults.length > 0 && (
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-sm font-semibold text-gray-700">{screenResults.length} result{screenResults.length > 1 ? 's' : ''} — saved to Candidates</h2>
-                      <button onClick={() => setActiveTab('candidates')}
-                        className="text-xs text-blue-600 hover:text-blue-800 underline underline-offset-2">
-                        View in Candidates →
-                      </button>
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <h2 className="text-sm font-semibold text-gray-700">
+                        {screenResults.length} result{screenResults.length > 1 ? 's' : ''}
+                        {screenResults.some(r => r.draft || (!r.db_id && !r.persisted))
+                          ? ' — preview (Save to keep)'
+                          : ' — saved to Candidates'}
+                      </h2>
+                      <div className="flex items-center gap-3">
+                        {screenResults.some(r => r.draft || (!r.db_id && !r.persisted)) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setScreenResults([])
+                              setScreenSingleFile(null)
+                              setWorkspaceBanner('Screening drafts discarded.')
+                            }}
+                            className="text-xs text-red-600 hover:text-red-800 font-semibold"
+                          >
+                            Discard all drafts
+                          </button>
+                        )}
+                        <button onClick={() => setActiveTab('candidates')}
+                          className="text-xs text-blue-600 hover:text-blue-800 underline underline-offset-2">
+                          View in Candidates →
+                        </button>
+                      </div>
                     </div>
-                    {screenResults.map((r, i) => (
-                      <ScreenResultCard key={i} result={r} onAddCandidate={(cid) => { loadData() }} defaultOpen={screenResults.length === 1} />
-                    ))}
+                    {screenResults.map((r, i) => {
+                      const draftKey = (r as ScreenResult & { _draftKey?: string })._draftKey || r.db_id || r.filename || String(i)
+                      return (
+                      <ScreenResultCard
+                        key={draftKey}
+                        result={r}
+                        jobPostId={screenJobId || undefined}
+                        originalFile={
+                          screenMode === 'single' && screenSingleFile && (r.filename === screenSingleFile.name || screenResults.length === 1)
+                            ? screenSingleFile
+                            : bulkTexts.find(b => b.filename === r.filename)?.file
+                        }
+                        onSaved={(updated) => {
+                          setScreenResults(prev => prev.map(row => {
+                            const key = (row as ScreenResult & { _draftKey?: string })._draftKey || row.db_id || row.filename
+                            return key === draftKey ? { ...updated, _draftKey: draftKey } as ScreenResult : row
+                          }))
+                          loadData()
+                          setWorkspaceBanner('Candidate saved — Resume and Screenings are ready in Candidate 360.')
+                        }}
+                        onDiscard={() => {
+                          setScreenResults(prev => prev.filter(row => {
+                            const key = (row as ScreenResult & { _draftKey?: string })._draftKey || row.db_id || row.filename
+                            return key !== draftKey
+                          }))
+                        }}
+                        defaultOpen={screenResults.length === 1}
+                      />
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -5166,21 +5217,31 @@ export default function DashboardPage() {
             {activeTab === 'submissions' && (
               <SubmissionsTab
                 isManager={isTenantAdminOrOwner}
-                onOpenCandidate={(shortId) => {
-                const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === shortId.toUpperCase() || x.id === shortId)
-                if (c) router.push(`/dashboard/candidates/${c.id}`)
-                else { setSearchQ(shortId); setActiveTab('candidates') }
-              }} />
+                onOpenCandidate={(idOrShort) => {
+                  const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idOrShort)
+                  if (uuidLike) {
+                    router.push(`/dashboard/candidates/${idOrShort}`)
+                    return
+                  }
+                  const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === idOrShort.toUpperCase() || x.id === idOrShort)
+                  if (c) router.push(`/dashboard/candidates/${c.id}`)
+                  else { setSearchQ(idOrShort); setActiveTab('candidates') }
+                }} />
             )}
 
             {/* ── INTERVIEWS ────────────────────────────────────────────────── */}
             {activeTab === 'interviews' && (
               <InterviewsTab
                 isManager={isTenantAdminOrOwner}
-                onOpenCandidate={(shortId) => {
-                  const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === shortId.toUpperCase() || x.id === shortId)
+                onOpenCandidate={(idOrShort) => {
+                  const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idOrShort)
+                  if (uuidLike) {
+                    router.push(`/dashboard/candidates/${idOrShort}`)
+                    return
+                  }
+                  const c = candidates.find(x => (x.short_id ?? '').toUpperCase() === idOrShort.toUpperCase() || x.id === idOrShort)
                   if (c) router.push(`/dashboard/candidates/${c.id}`)
-                  else { setSearchQ(shortId); setActiveTab('candidates') }
+                  else { setSearchQ(idOrShort); setActiveTab('candidates') }
                 }}
               />
             )}
@@ -5817,504 +5878,112 @@ function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
 }
 
 // ── ScreenResultCard ──────────────────────────────────────────────────────────
-function ScreenResultCard({ result: r, onAddCandidate, defaultOpen = true }: { result: ScreenResult; onAddCandidate: (id?: string) => void; defaultOpen?: boolean }) {
+function ScreenResultCard({
+  result: r,
+  jobPostId,
+  originalFile,
+  onSaved,
+  onDiscard,
+  defaultOpen = true,
+}: {
+  result: ScreenResult
+  jobPostId?: string
+  originalFile?: File
+  onSaved: (updated: ScreenResult) => void
+  onDiscard: () => void
+  defaultOpen?: boolean
+}) {
   const [open, setOpen] = useState(defaultOpen)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [screenedAt] = useState(() => fmtDate(r.screened_at ?? new Date().toISOString(), true))
+  const isDraft = Boolean(r.draft || (!r.db_id && !r.persisted))
 
-  const ev = r.evaluation
-
-  // Skills — prefer new jd_match fields, fall back to legacy evaluation
-  const matchedSkills  = r.jd_match?.matching_skills ?? [...(ev?.high_match_skills ?? []), ...(ev?.medium_match_skills ?? [])]
-  const missingSkills  = r.jd_match?.missing_skills  ?? ev?.low_or_missing_match_skills ?? ev?.missing_skills ?? []
-  const optionalMatched = r.jd_match?.optional_skills_match ?? []
-  const strengths      = ev?.candidate_strengths ?? ev?.strengths ?? []
-  const weaknesses     = ev?.candidate_weaknesses ?? ev?.weaknesses ?? []
-  // Red flags — prefer explicit red_flags array, fall back to weaknesses
-  const redFlags = (r.red_flags && r.red_flags.length > 0) ? r.red_flags : weaknesses.slice(0, 3)
-
-  const score = Math.round(Number(r.score) || 0)
-
-  // Classification badge config (new AI schema)
-  const classConfig: Record<string, { bg: string; text: string; border: string }> = {
-    STRONG: { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300' },
-    KAV:    { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-300' },
-    REJECT: { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-300' },
+  const saveCandidate = async () => {
+    setSaving(true)
+    setSaveError('')
+    try {
+      const fd = new FormData()
+      fd.append('result', JSON.stringify(r))
+      fd.append('raw_text', r.raw_text || '')
+      fd.append('filename', r.filename || originalFile?.name || 'resume.txt')
+      if (jobPostId) fd.append('job_post_id', jobPostId)
+      if (originalFile) fd.append('file', originalFile)
+      const res = await fetch('/api/screen/save', { method: 'POST', body: fd })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setSaveError(data.error || 'Could not save candidate')
+        return
+      }
+      onSaved((data.result as ScreenResult) ?? { ...r, db_id: data.db_id, short_id: data.short_id, draft: false, persisted: true })
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
   }
-  const cc = r.classification ? (classConfig[r.classification] ?? classConfig.REJECT) : null
-
-  const scoreGrade =
-    score >= 71 ? { label: 'Strong',   color: '#10b981', bg: 'bg-emerald-50', border: 'border-emerald-200', ring: 'ring-emerald-300' } :
-    score >= 60 ? { label: 'KAV',      color: '#f59e0b', bg: 'bg-amber-50',   border: 'border-amber-200',   ring: 'ring-amber-300' } :
-    score >= 45 ? { label: 'Average',  color: '#3b82f6', bg: 'bg-blue-50',    border: 'border-blue-200',    ring: 'ring-blue-300' } :
-                  { label: 'Reject',   color: '#ef4444', bg: 'bg-red-50',     border: 'border-red-200',     ring: 'ring-red-300' }
-
-  const decisionConfig: Record<string, { bg: string; text: string; border: string; dot: string }> = {
-    'Shortlisted': { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300', dot: 'bg-emerald-500' },
-    'On Hold':     { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-300',   dot: 'bg-amber-500' },
-    'Rejected':    { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-300',     dot: 'bg-red-500' },
-  }
-  const dc = decisionConfig[r.decision] ?? decisionConfig['Rejected']
-
-  const jdMatch   = r.jd_match?.match_percent ?? ev?.overall_fit_rating
-  const riskLevel = ev?.risk_level
-
-  // Experience audit — show if difference is notable
-  const expAudit = r.experience_audit
-  const expDiff  = expAudit?.difference_years != null ? Math.abs(expAudit.difference_years) : 0
-  const showExpAudit = expAudit && (expDiff > 0.5 || expAudit.verdict === 'Mismatch')
-
-  // Gap analysis
-  const gaps = r.gap_analysis?.gaps ?? []
-  const totalMissingMonths = r.gap_analysis?.total_missing_months ?? 0
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-
-      {/* ── Card Header ─── */}
-      <div className="flex items-start gap-4 p-5">
-
-        {/* Score Badge */}
-        <div className={`flex-shrink-0 flex flex-col items-center justify-center w-[72px] h-[72px] rounded-2xl border-2 ${scoreGrade.bg} ${scoreGrade.border} shadow-sm`}>
-          <span className="text-2xl font-black leading-none" style={{ color: scoreGrade.color }}>{score}</span>
-          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">/ 100</span>
-          <span className="text-[9px] font-semibold mt-0.5" style={{ color: scoreGrade.color }}>{scoreGrade.label}</span>
-        </div>
-
-        {/* Info */}
+      <div className="flex items-start gap-3 p-4 border-b border-gray-100 bg-slate-50/60">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <h3 className="text-base font-bold text-gray-900">{r.name || 'Unknown Candidate'}</h3>
-            {r.short_id && <ShortIdBadge id={r.short_id} />}
-          </div>
-          <p className="text-xs text-gray-500 mb-2.5">
-            {r.email}
-            {r.contact_number ? <span className="text-gray-300"> · </span> : null}
-            {r.contact_number}
-            {r.current_company ? <><span className="text-gray-300"> · </span><span className="font-medium text-gray-600">{r.current_company}</span></> : null}
-          </p>
-
-          {/* Status pills */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${dc.bg} ${dc.text} ${dc.border}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${dc.dot}`} />
-              {r.decision}
-            </span>
-            {/* Classification badge (new AI schema) */}
-            {cc && r.classification && (
-              <span className={`text-xs font-bold px-3 py-1 rounded-full border ${cc.bg} ${cc.text} ${cc.border}`}>
-                {r.classification === 'KAV' ? 'Keep An Eye' : r.classification}
-              </span>
-            )}
-            {/* Recommendation badge */}
-            {r.recommendation && (
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
-                r.recommendation === 'Hire'  ? 'bg-green-50  text-green-700  border-green-200' :
-                r.recommendation === 'Hold'  ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                               'bg-gray-100  text-gray-600   border-gray-200'
-              }`}>Rec: {r.recommendation}</span>
-            )}
-            {jdMatch != null && (
-              <span className="text-xs font-semibold px-3 py-1 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
-                JD Match: {jdMatch}%
-              </span>
-            )}
-            {riskLevel && (
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
-                riskLevel.toLowerCase() === 'high'   ? 'bg-red-50    text-red-700    border-red-200' :
-                riskLevel.toLowerCase() === 'medium' ? 'bg-amber-50  text-amber-700  border-amber-200' :
-                                                       'bg-green-50  text-green-700  border-green-200'
-              }`}>⚠ Risk: {riskLevel}</span>
+            <h3 className="text-sm font-bold text-gray-900">{r.name || 'Unknown Candidate'}</h3>
+            {r.short_id && <ShortIdBadge id={r.short_id} />}
+            {isDraft ? (
+              <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">Draft</span>
+            ) : (
+              <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">Saved</span>
             )}
           </div>
-          <p className="text-[10px] text-gray-400 font-mono mt-2">Screened: {screenedAt}</p>
+          <p className="text-xs text-gray-500 mt-0.5 truncate">
+            {[r.email, r.contact_number, r.current_company].filter(Boolean).join(' · ')}
+          </p>
         </div>
-
-        <button onClick={() => setOpen(v => !v)}
-          className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all mt-0.5 ${open ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'}`}>
-          {open ? 'Collapse' : 'View Details'}
-          <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {isDraft && (
+            <>
+              <button
+                type="button"
+                onClick={saveCandidate}
+                disabled={saving}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save Candidate'}
+              </button>
+              <button
+                type="button"
+                onClick={onDiscard}
+                disabled={saving}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-100"
+              >
+                Discard
+              </button>
+            </>
+          )}
+          {!isDraft && r.db_id && (
+            <span className="text-[10px] text-emerald-700 font-medium px-2">Updated screening</span>
+          )}
+          <button onClick={() => setOpen(v => !v)}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${open ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'}`}>
+            {open ? 'Collapse' : 'View Details'}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
       </div>
-
+      {saveError && (
+        <div className="px-4 py-2 text-xs text-red-700 bg-red-50 border-b border-red-100">{saveError}</div>
+      )}
       {open && (
-        <>
-          {/* ── Executive Summary (new AI schema) ─── */}
-          {r.executive_summary && (
-            <div className="px-5 pb-4 border-t border-gray-100 bg-indigo-50/30">
-              <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-wide mt-3 mb-1.5 flex items-center gap-1.5">
-                <Brain className="w-3.5 h-3.5" /> Executive Summary
-              </p>
-              <p className="text-sm text-gray-700 leading-relaxed">{r.executive_summary}</p>
-            </div>
-          )}
-
-          {/* ── 3-Column Skills Grid ─── */}
-          {(matchedSkills.length > 0 || missingSkills.length > 0 || redFlags.length > 0) && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 border-t border-gray-100">
-
-              {/* Matched Skills */}
-              <div className="p-4 border-r border-gray-100">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                  <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Matched Skills</p>
-                  {matchedSkills.length > 0 && (
-                    <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">{matchedSkills.length}</span>
-                  )}
-                </div>
-                {matchedSkills.length === 0
-                  ? <p className="text-xs text-gray-400 italic">None detected</p>
-                  : <div className="flex flex-wrap gap-1.5">
-                      {matchedSkills.map(s => (
-                        <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">{s}</span>
-                      ))}
-                    </div>
-                }
-              </div>
-
-              {/* Missing Skills */}
-              <div className="p-4 border-r border-gray-100">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
-                  <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Missing Skills</p>
-                  {missingSkills.length > 0 && (
-                    <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">{missingSkills.length}</span>
-                  )}
-                </div>
-                {missingSkills.length === 0
-                  ? <p className="text-xs text-gray-400 italic">None detected</p>
-                  : <div className="flex flex-wrap gap-1.5">
-                      {missingSkills.map(s => (
-                        <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 font-medium">{s}</span>
-                      ))}
-                    </div>
-                }
-              </div>
-
-              {/* Red Flags */}
-              <div className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500 flex-shrink-0" />
-                  <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Red Flags</p>
-                  {redFlags.length > 0 && (
-                    <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{redFlags.length}</span>
-                  )}
-                </div>
-                {redFlags.length === 0
-                  ? <p className="text-xs text-gray-400 italic">None detected</p>
-                  : <ul className="space-y-1.5">
-                      {redFlags.map((f, i) => (
-                        <li key={i} className="text-xs text-amber-800 flex items-start gap-1.5">
-                          <span className="text-amber-500 flex-shrink-0 mt-0.5">⚠</span>
-                          <span>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
-                }
-              </div>
-            </div>
-          )}
-
-          {optionalMatched.length > 0 && (
-            <div className="px-5 py-4 border-t border-gray-100 bg-cyan-50/40">
-              <p className="text-[11px] font-bold text-cyan-800 uppercase tracking-wide mb-2">Nice-to-have matched</p>
-              <div className="flex flex-wrap gap-1.5">
-                {optionalMatched.map(s => (
-                  <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800 border border-cyan-200 font-medium">{s}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ── Experience Audit + Gap Analysis (new AI schema) ─── */}
-          {(showExpAudit || totalMissingMonths > 0) && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 border-t border-gray-100 bg-orange-50/20">
-              {showExpAudit && expAudit && (
-                <div className="p-4 border-r border-gray-100">
-                  <p className="text-[11px] font-bold text-orange-700 uppercase tracking-wide mb-2.5 flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5" /> Experience Audit
-                  </p>
-                  <div className="space-y-1 text-xs text-gray-700">
-                    <div className="flex justify-between"><span className="text-gray-500">Claimed:</span><span className="font-semibold">{expAudit.claimed_years ?? '—'} yrs</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Calculated:</span><span className="font-semibold">{expAudit.calculated_years ?? '—'} yrs</span></div>
-                    {expDiff > 0 && (
-                      <div className="flex justify-between"><span className="text-gray-500">Difference:</span>
-                        <span className={`font-bold ${expDiff > 1 ? 'text-red-600' : 'text-amber-600'}`}>{expDiff > 0 ? '+' : ''}{expAudit.difference_years} yrs</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between"><span className="text-gray-500">Verdict:</span>
-                      <span className={`font-bold ${expAudit.verdict === 'Match' ? 'text-green-600' : 'text-red-600'}`}>{expAudit.verdict ?? '—'}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {totalMissingMonths > 0 && (
-                <div className="p-4">
-                  <p className="text-[11px] font-bold text-orange-700 uppercase tracking-wide mb-2.5 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" /> Employment Gaps
-                  </p>
-                  <p className="text-xs text-gray-600 mb-2"><span className="font-bold text-orange-700">{totalMissingMonths}</span> month{totalMissingMonths !== 1 ? 's' : ''} unexplained</p>
-                  {gaps.length > 0 && (
-                    <ul className="space-y-1">
-                      {gaps.slice(0, 3).map((g, i) => (
-                        <li key={i} className="text-xs text-gray-600 flex items-start gap-1.5">
-                          <span className="text-orange-500 font-bold flex-shrink-0 mt-0.5">•</span>
-                          <span>{g.from} → {g.to}{g.months ? ` (${g.months}mo)` : ''}{g.reason ? `: ${g.reason}` : ''}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Required Actions (new AI schema) ─── */}
-          {(r.required_actions?.length ?? 0) > 0 && (
-            <div className="p-4 border-t border-gray-100 bg-blue-50/30">
-              <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <CheckCircle className="w-3.5 h-3.5" /> Required Actions
-              </p>
-              <ul className="space-y-1.5">
-                {r.required_actions!.map((a, i) => (
-                  <li key={i} className="text-xs text-blue-800 flex items-start gap-1.5">
-                    <span className="text-blue-400 font-bold flex-shrink-0 mt-px">{i + 1}.</span>
-                    <span>{a}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* ── Strengths & Weaknesses Table ─── */}
-          {(strengths.length > 0 || weaknesses.length > 0) && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 border-t border-gray-100">
-              {strengths.length > 0 && (
-                <div className="p-4 border-r border-gray-100 bg-emerald-50/30">
-                  <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide mb-2.5 flex items-center gap-1.5">
-                    <CheckCircle className="w-3.5 h-3.5" /> Strengths
-                  </p>
-                  <ul className="space-y-2">
-                    {strengths.map((s, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
-                        <span className="text-emerald-500 font-bold flex-shrink-0 mt-px">✓</span>
-                        <span>{s}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {weaknesses.length > 0 && (
-                <div className="p-4 bg-red-50/20">
-                  <p className="text-[11px] font-bold text-red-700 uppercase tracking-wide mb-2.5 flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5" /> Gaps & Weaknesses
-                  </p>
-                  <ul className="space-y-2">
-                    {weaknesses.map((w, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
-                        <span className="text-red-400 font-bold flex-shrink-0 mt-px">×</span>
-                        <span>{w}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── AI Reasoning ─── */}
-          {ev?.justification && (
-            <div className="p-4 border-t border-gray-100 bg-gray-50">
-              <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <Brain className="w-3.5 h-3.5 text-indigo-500" /> AI Reasoning
-              </p>
-              <p className="text-sm text-gray-600 leading-relaxed">{ev?.justification}</p>
-            </div>
-          )}
-
-          {/* ── Risk Note ─── */}
-          {ev?.risk_explanation && (
-            <div className="px-4 pb-4 bg-gray-50 border-t border-gray-100">
-              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 mt-0">
-                <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-800"><span className="font-semibold">Risk Note: </span>{ev?.risk_explanation}</p>
-              </div>
-            </div>
-          )}
-        </>
+        <ScreeningReportView data={r} variant="card" showHeader screenedAtLabel={screenedAt} />
       )}
     </div>
   )
 }
 
-// ── CandidateScreeningDetail — renders saved AI screening data inside modal ──
+// ── CandidateScreeningDetail — shared report inside candidate modal / C360 ──
 function CandidateScreeningDetail({ data: r }: { data: ScreenResult }) {
-  const ev = r.evaluation
-  const matchedSkills  = r.jd_match?.matching_skills ?? [...(ev?.high_match_skills ?? []), ...(ev?.medium_match_skills ?? [])]
-  const missingSkills  = r.jd_match?.missing_skills  ?? ev?.low_or_missing_match_skills ?? ev?.missing_skills ?? []
-  const optionalMatched = r.jd_match?.optional_skills_match ?? []
-  const strengths      = ev?.candidate_strengths ?? ev?.strengths ?? []
-  const weaknesses     = ev?.candidate_weaknesses ?? ev?.weaknesses ?? []
-  const redFlags = (r.red_flags && r.red_flags.length > 0) ? r.red_flags : weaknesses.slice(0, 3)
-  const score = Math.round(Number(r.score) || 0)
-  const jdMatch = r.jd_match?.match_percent ?? ev?.overall_fit_rating
-  const expAudit = r.experience_audit
-  const expDiff  = expAudit?.difference_years != null ? Math.abs(expAudit.difference_years) : 0
-  const showExpAudit = expAudit && (expDiff > 0.5 || expAudit.verdict === 'Mismatch')
-  const gaps = r.gap_analysis?.gaps ?? []
-  const totalMissingMonths = r.gap_analysis?.total_missing_months ?? 0
-
-  const scoreGrade =
-    score >= 71 ? { label: 'Strong',   color: '#10b981', bg: 'bg-emerald-500/20', border: 'border-emerald-500/30' } :
-    score >= 60 ? { label: 'KAV',      color: '#f59e0b', bg: 'bg-amber-500/20',   border: 'border-amber-500/30' } :
-    score >= 45 ? { label: 'Average',  color: '#3b82f6', bg: 'bg-blue-500/20',    border: 'border-blue-500/30' } :
-                  { label: 'Reject',   color: '#ef4444', bg: 'bg-red-500/20',     border: 'border-red-500/30' }
-
-  const decisionConfig: Record<string, { bg: string; text: string; border: string; dot: string }> = {
-    'Shortlisted': { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-200', dot: 'bg-emerald-600' },
-    'On Hold':     { bg: 'bg-amber-100',   text: 'text-amber-900',   border: 'border-amber-200',   dot: 'bg-amber-600' },
-    'Rejected':    { bg: 'bg-red-100',     text: 'text-red-800',     border: 'border-red-200',     dot: 'bg-red-600' },
-  }
-  const dc = decisionConfig[r.decision] ?? decisionConfig['Rejected']
-
-  return (
-    <div className="space-y-5 text-slate-800">
-      {/* Score header */}
-      <div className="flex items-center gap-4">
-        <div className={`flex-shrink-0 flex flex-col items-center justify-center w-16 h-16 rounded-xl border-2 ${scoreGrade.bg} ${scoreGrade.border}`}>
-          <span className="text-2xl font-black leading-none" style={{ color: scoreGrade.color }}>{score}</span>
-          <span className="text-[9px] font-semibold mt-0.5" style={{ color: scoreGrade.color }}>{scoreGrade.label}</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${dc.bg} ${dc.text} ${dc.border}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${dc.dot}`} />{r.decision}
-          </span>
-          {r.classification && (
-            <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
-              r.classification === 'STRONG' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
-              r.classification === 'KAV'    ? 'bg-amber-100 text-amber-800 border-amber-200' :
-                                              'bg-red-100 text-red-800 border-red-200'
-            }`}>{r.classification === 'KAV' ? 'Keep An Eye' : r.classification}</span>
-          )}
-          {r.recommendation && (
-            <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
-              r.recommendation === 'Hire' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
-              r.recommendation === 'Hold' ? 'bg-amber-100 text-amber-800 border-amber-200' :
-                                            'bg-slate-100 text-slate-700 border-slate-200'
-            }`}>Rec: {r.recommendation}</span>
-          )}
-          {jdMatch != null && (
-            <span className="text-xs font-semibold px-3 py-1 rounded-full border bg-blue-50 text-blue-800 border-blue-200">JD Match: {jdMatch}%</span>
-          )}
-        </div>
-      </div>
-
-      {/* Executive summary */}
-      {r.executive_summary && (
-        <div>
-          <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-            <Brain className="w-3.5 h-3.5" /> Executive Summary
-          </p>
-          <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-3 border border-slate-200">{r.executive_summary}</p>
-        </div>
-      )}
-
-      {/* Skills grid */}
-      {(matchedSkills.length > 0 || missingSkills.length > 0 || redFlags.length > 0) && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-emerald-50/80 rounded-xl border border-emerald-200 p-3">
-            <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wide mb-2">✓ Matched</p>
-            {matchedSkills.length === 0 ? <p className="text-xs text-slate-500 italic">None</p> :
-              <div className="flex flex-wrap gap-1">{matchedSkills.map(s => <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-white text-emerald-800 border border-emerald-200">{s}</span>)}</div>}
-          </div>
-          <div className="bg-red-50/80 rounded-xl border border-red-200 p-3">
-            <p className="text-[10px] font-bold text-red-800 uppercase tracking-wide mb-2">✗ Missing</p>
-            {missingSkills.length === 0 ? <p className="text-xs text-slate-500 italic">None</p> :
-              <div className="flex flex-wrap gap-1">{missingSkills.map(s => <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-white text-red-800 border border-red-200">{s}</span>)}</div>}
-          </div>
-          <div className="bg-amber-50/80 rounded-xl border border-amber-200 p-3">
-            <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wide mb-2">⚠ Red Flags</p>
-            {redFlags.length === 0 ? <p className="text-xs text-slate-500 italic">None</p> :
-              <ul className="space-y-1">{redFlags.map((f, i) => <li key={i} className="text-[10px] text-amber-900 flex gap-1"><span>•</span><span>{f}</span></li>)}</ul>}
-          </div>
-        </div>
-      )}
-
-      {optionalMatched.length > 0 && (
-        <div className="bg-cyan-50 rounded-xl border border-cyan-200 p-3">
-          <p className="text-[10px] font-bold text-cyan-900 uppercase tracking-wide mb-2">Nice-to-have / optional skills matched</p>
-          <div className="flex flex-wrap gap-1">
-            {optionalMatched.map(s => (
-              <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-white text-cyan-900 border border-cyan-200">{s}</span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Experience audit + gaps */}
-      {(showExpAudit || totalMissingMonths > 0) && (
-        <div className="grid grid-cols-2 gap-3">
-          {showExpAudit && expAudit && (
-            <div className="bg-orange-50 rounded-xl border border-orange-200 p-3">
-              <p className="text-[10px] font-bold text-orange-800 uppercase tracking-wide mb-2 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Experience Audit</p>
-              <div className="space-y-1 text-xs text-slate-600">
-                <div className="flex justify-between"><span>Claimed:</span><span className="font-semibold text-slate-900">{expAudit.claimed_years ?? '—'} yrs</span></div>
-                <div className="flex justify-between"><span>Calculated:</span><span className="font-semibold text-slate-900">{expAudit.calculated_years ?? '—'} yrs</span></div>
-                {expDiff > 0 && <div className="flex justify-between"><span>Difference:</span><span className={`font-bold ${expDiff > 1 ? 'text-red-600' : 'text-amber-700'}`}>{expAudit.difference_years} yrs</span></div>}
-                <div className="flex justify-between"><span>Verdict:</span><span className={`font-bold ${expAudit.verdict === 'Match' ? 'text-emerald-700' : 'text-red-600'}`}>{expAudit.verdict ?? '—'}</span></div>
-              </div>
-            </div>
-          )}
-          {totalMissingMonths > 0 && (
-            <div className="bg-orange-50 rounded-xl border border-orange-200 p-3">
-              <p className="text-[10px] font-bold text-orange-800 uppercase tracking-wide mb-2 flex items-center gap-1"><Clock className="w-3 h-3" /> Employment Gaps</p>
-              <p className="text-xs text-slate-600 mb-1.5"><span className="font-bold text-orange-800">{totalMissingMonths}</span> month{totalMissingMonths !== 1 ? 's' : ''} unexplained</p>
-              <ul className="space-y-1">{gaps.slice(0, 3).map((g, i) => <li key={i} className="text-[10px] text-slate-600">{g.from} → {g.to}{g.months ? ` (${g.months}mo)` : ''}</li>)}</ul>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Strengths & weaknesses */}
-      {(strengths.length > 0 || weaknesses.length > 0) && (
-        <div className="grid grid-cols-2 gap-3">
-          {strengths.length > 0 && (
-            <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-3">
-              <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wide mb-2">Strengths</p>
-              <ul className="space-y-1.5">{strengths.map((s, i) => <li key={i} className="text-xs text-slate-700 flex gap-1.5"><span className="text-emerald-600 flex-shrink-0">✓</span><span>{s}</span></li>)}</ul>
-            </div>
-          )}
-          {weaknesses.length > 0 && (
-            <div className="bg-red-50 rounded-xl border border-red-200 p-3">
-              <p className="text-[10px] font-bold text-red-800 uppercase tracking-wide mb-2">Gaps & Weaknesses</p>
-              <ul className="space-y-1.5">{weaknesses.map((w, i) => <li key={i} className="text-xs text-slate-700 flex gap-1.5"><span className="text-red-600 flex-shrink-0">×</span><span>{w}</span></li>)}</ul>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Required actions */}
-      {(r.required_actions?.length ?? 0) > 0 && (
-        <div className="bg-blue-50 rounded-xl border border-blue-200 p-3">
-          <p className="text-[10px] font-bold text-blue-800 uppercase tracking-wide mb-2">Required Actions</p>
-          <ul className="space-y-1.5">{r.required_actions!.map((a, i) => <li key={i} className="text-xs text-slate-700 flex gap-1.5"><span className="text-blue-700 font-bold flex-shrink-0">{i + 1}.</span><span>{a}</span></li>)}</ul>
-        </div>
-      )}
-
-      {/* AI Reasoning */}
-      {ev?.justification && (
-        <div>
-          <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1.5 flex items-center gap-1.5"><Brain className="w-3 h-3 text-indigo-600" /> AI Reasoning</p>
-          <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-3 border border-slate-200">{ev.justification}</p>
-        </div>
-      )}
-      {ev?.risk_explanation && (
-        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
-          <AlertCircle className="w-3.5 h-3.5 text-amber-700 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-950"><span className="font-semibold">Risk Note: </span>{ev.risk_explanation}</p>
-        </div>
-      )}
-    </div>
-  )
+  return <ScreeningReportView data={r} variant="compact" showHeader />
 }
 
 // KanbanCard removed in Phase 3.2 (Pipeline Kanban deleted)

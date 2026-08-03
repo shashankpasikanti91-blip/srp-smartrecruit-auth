@@ -50,7 +50,7 @@ export function InterviewsTab({
   onOpenCandidate,
   isManager = false,
 }: {
-  onOpenCandidate?: (shortId: string) => void
+  onOpenCandidate?: (idOrShortId: string) => void
   isManager?: boolean
 }) {
   const [rows, setRows] = useState<Interview[]>([])
@@ -316,7 +316,7 @@ export function InterviewsTab({
                       <EntityIdLink
                         kind="candidate"
                         id={iv.candidate_short_id}
-                        onClick={iv.candidate_short_id ? () => onOpenCandidate?.(iv.candidate_short_id!) : undefined}
+                        onClick={iv.resume_id || iv.candidate_short_id ? () => onOpenCandidate?.(iv.resume_id || iv.candidate_short_id!) : undefined}
                       />
                       <p className="text-[10px] font-mono text-slate-400 mt-0.5">
                         <EntityIdLink kind="interview" id={iv.short_id} onClick={() => openEdit(iv)} />
@@ -330,7 +330,7 @@ export function InterviewsTab({
                       <button
                         type="button"
                         className="text-left font-bold text-sm text-indigo-700 hover:underline"
-                        onClick={() => iv.candidate_short_id && onOpenCandidate?.(iv.candidate_short_id)}
+                        onClick={() => (iv.resume_id || iv.candidate_short_id) && onOpenCandidate?.(iv.resume_id || iv.candidate_short_id!)}
                       >
                         {iv.candidate_name}
                       </button>

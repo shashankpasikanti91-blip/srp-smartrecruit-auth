@@ -77,7 +77,7 @@ export async function GET(
      LEFT JOIN document_versions dv ON dv.document_id = cd.id
      WHERE cd.tenant_id = $1 AND cd.resume_id = $2
      GROUP BY cd.id
-     ORDER BY cd.slot_type`,
+     ORDER BY cd.updated_at DESC NULLS LAST, cd.slot_type`,
     [ctx.tenantId, id]
   )
 

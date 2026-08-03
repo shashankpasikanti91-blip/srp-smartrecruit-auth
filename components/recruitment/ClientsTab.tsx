@@ -15,6 +15,19 @@ type Client = {
   contact_email: string | null
   contact_phone: string | null
   notes: string | null
+  hiring_manager?: string | null
+  country_code?: string | null
+}
+
+const EMPTY_FORM = {
+  name: '',
+  industry: '',
+  contact_name: '',
+  contact_email: '',
+  contact_phone: '',
+  notes: '',
+  hiring_manager: '',
+  country_code: '',
 }
 
 export function ClientsTab({
@@ -26,16 +39,26 @@ export function ClientsTab({
 }) {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', industry: '', contact_name: '', contact_email: '', contact_phone: '', notes: '' })
+  const [form, setForm] = useState(EMPTY_FORM)
 
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadError('')
     try {
       const res = await fetch('/api/clients')
-      const data = await res.json()
-      setClients(data.clients ?? [])
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setLoadError(data.error || `Could not load clients (${res.status})`)
+        return
+      }
+      setClients(Array.isArray(data.clients) ? data.clients : [])
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'Network error loading clients')
     } finally {
       setLoading(false)
     }
@@ -44,16 +67,36 @@ export function ClientsTab({
   useEffect(() => { load() }, [load])
 
   const create = async () => {
-    if (!form.name.trim()) return
-    const res = await fetch('/api/clients', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
-    if (res.ok) {
+    if (!form.name.trim()) {
+      setSaveError('Client name is required')
+      return
+    }
+    setSaving(true)
+    setSaveError('')
+    try {
+      const res = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setSaveError(data.error || `Save failed (${res.status})`)
+        return
+      }
+      const created = data.client as Client | undefined
+      if (created?.id) {
+        setClients(prev => [created, ...prev.filter(c => c.id !== created.id)])
+      } else {
+        await load()
+      }
       setShowForm(false)
-      setForm({ name: '', industry: '', contact_name: '', contact_email: '', contact_phone: '', notes: '' })
-      load()
+      setForm(EMPTY_FORM)
+      if (created?.id) setSelectedClientId(created.id)
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Network error — could not save')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -68,7 +111,11 @@ export function ClientsTab({
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500">
+          <button
+            type="button"
+            onClick={() => { setShowForm(true); setSaveError('') }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500"
+          >
             <Plus className="w-4 h-4" /> Add Client
           </button>
           <button
@@ -82,11 +129,17 @@ export function ClientsTab({
           >
             <Download className="w-4 h-4" /> Export Excel
           </button>
-          <button onClick={load} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50">
+          <button type="button" onClick={load} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm border border-slate-200 hover:bg-slate-50">
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>
       </div>
+
+      {loadError && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 font-medium">
+          {loadError}
+        </div>
+      )}
 
       {showForm && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 mb-4 grid sm:grid-cols-2 gap-3">
@@ -94,11 +147,30 @@ export function ClientsTab({
           <input placeholder="Industry" value={form.industry} onChange={e => setForm(f => ({ ...f, industry: e.target.value }))} className="px-3 py-2 rounded-lg border text-sm" />
           <input placeholder="Contact name" value={form.contact_name} onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))} className="px-3 py-2 rounded-lg border text-sm" />
           <input placeholder="Contact email" value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} className="px-3 py-2 rounded-lg border text-sm" />
-          <input placeholder="Contact phone" value={form.contact_phone} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} className="px-3 py-2 rounded-lg border text-sm sm:col-span-2" />
+          <input placeholder="Contact phone" value={form.contact_phone} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} className="px-3 py-2 rounded-lg border text-sm" />
+          <input placeholder="Hiring manager" value={form.hiring_manager} onChange={e => setForm(f => ({ ...f, hiring_manager: e.target.value }))} className="px-3 py-2 rounded-lg border text-sm" />
+          <input placeholder="Country code (e.g. MY, IN)" value={form.country_code} onChange={e => setForm(f => ({ ...f, country_code: e.target.value }))} className="px-3 py-2 rounded-lg border text-sm sm:col-span-2" />
           <textarea placeholder="Notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} className="px-3 py-2 rounded-lg border text-sm sm:col-span-2" />
+          {saveError && (
+            <p className="sm:col-span-2 text-sm text-red-700 font-medium">{saveError}</p>
+          )}
           <div className="sm:col-span-2 flex gap-2">
-            <button onClick={create} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold">Save</button>
-            <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg border text-sm">Cancel</button>
+            <button
+              type="button"
+              onClick={create}
+              disabled={saving}
+              className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2"
+            >
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : 'Save Client'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowForm(false); setSaveError('') }}
+              disabled={saving}
+              className="px-4 py-2 rounded-lg border text-sm"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -158,6 +230,9 @@ export function ClientsTab({
         <Client360View
           clientId={selectedClientId}
           onClose={() => setSelectedClientId(null)}
+          onSaved={(updated) => {
+            setClients(prev => prev.map(c => (c.id === updated.id ? { ...c, ...updated } : c)))
+          }}
         />
       )}
     </div>

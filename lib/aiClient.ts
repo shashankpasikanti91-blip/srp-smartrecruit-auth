@@ -22,11 +22,21 @@ export function getAIConfig(): AIConfig | null {
   const provider: AIConfig['provider'] = baseUrl.includes('openrouter.ai') ? 'openrouter' : 'openai'
 
   let model = (process.env.OPENAI_MODEL || '').trim()
+  // Quality lock: never silently fall back to cheaper mini models.
+  const QUALITY_MODEL_OR = 'openai/gpt-4.1-mini'
+  const QUALITY_MODEL_OA = 'gpt-4.1-mini'
   if (!model) {
-    model = provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'
+    model = provider === 'openrouter' ? QUALITY_MODEL_OR : QUALITY_MODEL_OA
   } else if (provider === 'openrouter' && !model.includes('/')) {
     // OpenRouter requires provider/model format for most models
     model = `openai/${model}`
+  }
+
+  // Soft-upgrade known cheaper defaults if someone left an old env value
+  const cheaper = new Set(['gpt-4o-mini', 'openai/gpt-4o-mini', 'gpt-3.5-turbo', 'openai/gpt-3.5-turbo'])
+  if (cheaper.has(model.toLowerCase())) {
+    console.warn(`[aiClient] Refusing cheaper model "${model}" — upgrading to ${provider === 'openrouter' ? QUALITY_MODEL_OR : QUALITY_MODEL_OA}`)
+    model = provider === 'openrouter' ? QUALITY_MODEL_OR : QUALITY_MODEL_OA
   }
 
   return { apiKey, baseUrl, model, provider }
@@ -58,26 +68,43 @@ export function estimateTokenCostUsd(promptTokens: number, completionTokens: num
 
 export async function chatCompletionWithUsage(opts: ChatCompletionOptions): Promise<ChatCompletionResult> {
   const cfg = getAIConfig()
-  if (!cfg) throw new Error('AI not configured — set OPENAI_API_KEY in .env')
+  if (!cfg) {
+    const msg = 'AI not configured — set OPENAI_API_KEY in .env'
+    void import('@/lib/notifications').then(m => m.notifyError({
+      message: msg,
+      severity: 'critical',
+    })).catch(() => null)
+    throw new Error(msg)
+  }
 
   const started = Date.now()
-  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${cfg.apiKey}`,
-      'HTTP-Referer': 'https://recruit.srpailabs.com',
-      'X-Title': 'SRP SmartRecruit',
-    },
-    body: JSON.stringify({
-      model: cfg.model,
-      messages: opts.messages,
-      temperature: opts.temperature ?? 0.35,
-      max_tokens: opts.max_tokens ?? 2048,
-      ...(opts.response_format ? { response_format: opts.response_format } : {}),
-    }),
-    signal: opts.signal,
-  })
+  let res: Response
+  try {
+    res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cfg.apiKey}`,
+        'HTTP-Referer': 'https://recruit.srpailabs.com',
+        'X-Title': 'SRP SmartRecruit',
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages: opts.messages,
+        temperature: opts.temperature ?? 0.35,
+        max_tokens: opts.max_tokens ?? 2048,
+        ...(opts.response_format ? { response_format: opts.response_format } : {}),
+      }),
+      signal: opts.signal,
+    })
+  } catch (netErr) {
+    const message = netErr instanceof Error ? netErr.message : String(netErr)
+    void import('@/lib/notifications').then(m => m.notifyError({
+      message: `AI network failure (${cfg.model}): ${message}`,
+      severity: 'critical',
+    })).catch(() => null)
+    throw netErr
+  }
 
   if (!res.ok) {
     const errText = await res.text()
@@ -86,6 +113,25 @@ export async function chatCompletionWithUsage(opts: ChatCompletionOptions): Prom
       const parsed = JSON.parse(errText) as { error?: { message?: string } }
       message = parsed.error?.message || errText
     } catch { /* use raw */ }
+
+    const lower = message.toLowerCase()
+    const billing =
+      res.status === 402 ||
+      res.status === 429 ||
+      lower.includes('quota') ||
+      lower.includes('billing') ||
+      lower.includes('insufficient') ||
+      lower.includes('credit') ||
+      lower.includes('rate limit') ||
+      lower.includes('token')
+
+    void import('@/lib/notifications').then(m => m.notifyError({
+      message: billing
+        ? `AI billing/quota alert (${res.status}, ${cfg.model}): ${message.slice(0, 400)}. Owner: top up credits — do not downgrade model.`
+        : `AI API ${res.status} (${cfg.model}): ${message.slice(0, 400)}`,
+      severity: 'critical',
+    })).catch(() => null)
+
     throw new Error(`AI API ${res.status}: ${message}`)
   }
 

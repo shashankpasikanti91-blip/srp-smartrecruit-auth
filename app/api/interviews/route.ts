@@ -108,7 +108,10 @@ export async function GET(req: NextRequest) {
        ) AS expected_salary
      ${fromSql}
      WHERE ${where}
-     ORDER BY i.scheduled_at ASC
+     ORDER BY
+       CASE WHEN LOWER(COALESCE(i.status, '')) IN ('completed', 'cancelled', 'canceled', 'no_show', 'noshow') THEN 1 ELSE 0 END ASC,
+       CASE WHEN LOWER(COALESCE(i.status, '')) IN ('completed', 'cancelled', 'canceled', 'no_show', 'noshow') THEN i.scheduled_at END DESC NULLS LAST,
+       i.scheduled_at ASC NULLS LAST
      LIMIT $${p} OFFSET $${p + 1}`,
     [...params, limit, offset]
   )

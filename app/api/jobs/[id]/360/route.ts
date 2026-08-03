@@ -29,7 +29,7 @@ export async function GET(
   const [pipeline, submissions, interviews, offers, similar, candidates, timeline] = await Promise.all([
     pool.query(
       `SELECT COALESCE(pipeline_stage,'sourced') AS stage, COUNT(*)::int AS n
-       FROM resumes WHERE tenant_id = $1 AND job_posts_id = $2
+       FROM resumes WHERE tenant_id = $1 AND job_post_id = $2
        GROUP BY 1`,
       [ctx.tenantId, id]
     ).catch(async () => {
