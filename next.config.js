@@ -1,14 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  // File uploads (PDF/DOCX) go through proxy.ts + App Router. Defaults are ~10MB and
-  // produce HTML 413/502 pages that the screening dropzone then fails to JSON.parse.
-  serverActions: {
-    bodySizeLimit: '25mb',
-  },
+  // File uploads (PDF/DOCX): raise Next 16 proxy body buffer so CVs are not truncated
+  // into HTML error pages that screening then fails to JSON.parse.
   experimental: {
     proxyClientMaxBodySize: '25mb',
-    middlewareClientMaxBodySize: '25mb',
   },
   // Force standalone output to bundle these runtime-require()'d packages
   outputFileTracingIncludes: {
