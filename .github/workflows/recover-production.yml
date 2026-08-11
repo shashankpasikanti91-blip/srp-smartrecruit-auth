@@ -23,6 +23,18 @@ jobs:
             set -euo pipefail
             cd /opt/srp-smartrecruit-auth
 
+            echo "=== Free disk (logs + dangling images + this app's old images). No Docker daemon restart. ==="
+            df -h / || true
+            sudo find /var/lib/docker/containers -name '*-json.log' -size +20M -exec truncate -s 0 {} \; 2>/dev/null || true
+            docker image prune -f || true
+            docker builder prune -af || true
+            if [ -d /opt/backups/srp-smartrecruit ]; then
+              sudo find /opt/backups/srp-smartrecruit -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} + || true
+            fi
+            sudo journalctl --vacuum-size=80M >/dev/null 2>&1 || true
+            docker images 'srp-smartrecruit-auth' --format '{{.ID}} {{.Tag}}' | awk '$2 != "latest" {print $1}' | sort -u | xargs -r docker rmi -f || true
+            df -h / || true
+
             echo "=== Recover ONLY srp-auth-db + srp-auth-app (never restart Docker daemon) ==="
             # FORBIDDEN: systemctl restart docker — Wellora / SRP site / n8n / mediflow share this host.
             docker start srp-auth-db 2>/dev/null || docker compose up -d --no-build db || true

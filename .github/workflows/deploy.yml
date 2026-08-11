@@ -79,6 +79,23 @@ jobs:
             set -euo pipefail
             cd /opt/srp-smartrecruit-auth
 
+            echo "=== [0a] Free disk for SmartRecruit only (never restart Docker; never touch other projects) ==="
+            df -h / || true
+            # Truncate large Docker JSON logs (running Wellora/SRP site containers stay up)
+            sudo find /var/lib/docker/containers -name '*-json.log' -size +20M -exec truncate -s 0 {} \; 2>/dev/null || true
+            # Dangling images + build cache only. Does NOT remove images used by running containers.
+            docker image prune -f || true
+            docker builder prune -af || true
+            # Old SmartRecruit backups only (path is this product; 7-day keep when disk is critical)
+            if [ -d /opt/backups/srp-smartrecruit ]; then
+              sudo find /opt/backups/srp-smartrecruit -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} + || true
+            fi
+            sudo journalctl --vacuum-size=80M >/dev/null 2>&1 || true
+            rm -rf /tmp/srp-deploy 2>/dev/null || true
+            # Unused images for THIS app only (keep :latest if present)
+            docker images 'srp-smartrecruit-auth' --format '{{.ID}} {{.Tag}}' | awk '$2 != "latest" {print $1}' | sort -u | xargs -r docker rmi -f || true
+            df -h / || true
+
             echo "=== [0/5] Ensure ONLY srp-auth containers (never restart Docker daemon) ==="
             # FORBIDDEN on this host: systemctl restart docker / docker restart
             # Other stacks share the daemon: Wellora, SRP marketing site, n8n, mediflow, srp-ats.
