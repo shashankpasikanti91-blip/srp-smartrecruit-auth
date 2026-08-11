@@ -22,7 +22,8 @@ RUN mkdir -p public
 
 # Stage 3: Production runner
 FROM node:22-alpine AS runner
-RUN apk add --no-cache tini
+# poppler-utils = pdftotext (this image only; does not affect other host projects)
+RUN apk add --no-cache tini poppler-utils
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -42,6 +43,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/public           ./public
 COPY --from=deps    --chown=nextjs:nodejs /app/node_modules/pdf-parse     ./node_modules/pdf-parse
 COPY --from=deps    --chown=nextjs:nodejs /app/node_modules/mammoth       ./node_modules/mammoth
 COPY --from=deps    --chown=nextjs:nodejs /app/node_modules/node-ensure   ./node_modules/node-ensure
+COPY --from=deps    --chown=nextjs:nodejs /app/node_modules/word-extractor ./node_modules/word-extractor
 
 # Upload directory (writable by nextjs user)
 RUN mkdir -p /app/uploads/resumes && chown -R nextjs:nodejs /app/uploads

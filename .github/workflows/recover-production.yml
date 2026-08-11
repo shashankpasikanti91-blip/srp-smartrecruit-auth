@@ -23,15 +23,20 @@ jobs:
             set -euo pipefail
             cd /opt/srp-smartrecruit-auth
 
-            echo "=== Restart Docker daemon to clear stuck build locks (volumes/DB preserved) ==="
-            # Do NOT use pkill -f against strings that appear in this bash -c script
-            # (that kills the recovery SSH session itself).
-            sudo systemctl restart docker
-            sleep 10
-
-            echo "=== Start existing images (no rebuild) ==="
-            docker compose up -d --no-build
-            sleep 10
+            echo "=== Recover ONLY srp-auth-db + srp-auth-app (never restart Docker daemon) ==="
+            # FORBIDDEN: systemctl restart docker — Wellora / SRP site / n8n / mediflow share this host.
+            docker start srp-auth-db 2>/dev/null || docker compose up -d --no-build db || true
+            for i in $(seq 1 30); do
+              if docker exec srp-auth-db pg_isready -U srp_auth -d srp_auth >/dev/null 2>&1; then
+                echo "srp-auth-db ready (attempt $i)"
+                break
+              fi
+              echo "  waiting for srp-auth-db $i/30"
+              sleep 4
+            done
+            echo "=== Start existing app image (no rebuild, no other compose projects) ==="
+            docker start srp-auth-app 2>/dev/null || docker compose up -d --no-build --no-deps app || true
+            sleep 5
 
             echo "=== Container status ==="
             docker compose ps || true

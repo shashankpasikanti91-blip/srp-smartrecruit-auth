@@ -32,6 +32,19 @@ test.describe('AI Hub', () => {
     await expect(page.getByRole('heading', { name: /Screen|Match|AI/i }).first()).toBeVisible({
       timeout: 15_000,
     })
+    await expect(page.getByText(/Unexpected token/i)).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /Run AI Screening/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Single CV/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Bulk CVs/i })).toBeVisible()
+  })
+
+  test('Bulk CVs mode shows multi-upload dropzone without parser crash', async ({ page }) => {
+    await gotoDashboard(page)
+    await openTab(page, 'AI Screening')
+    await page.getByRole('button', { name: /Bulk CVs/i }).click()
+    await expect(page.getByText(/Upload multiple CVs/i)).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText(/Unexpected token/i)).toHaveCount(0)
+    await expect(page.getByText(/is not valid JSON/i)).toHaveCount(0)
   })
 
   test('template chips are interactive when present', async ({ page }) => {

@@ -141,9 +141,11 @@ export const authOptions: AuthOptions = {
             success: true,
             role: dbUser.role,
           })
-          await notifyLogin({ name: user.name ?? null, email: user.email! })
           ;(user as unknown as Record<string, unknown>)._tenantId = tenantId
-        } catch { /* non-fatal */ }
+        } catch { /* activity log non-fatal */ }
+        try {
+          await notifyLogin({ name: user.name ?? null, email: user.email! })
+        } catch { /* owner Telegram non-fatal */ }
         return true
       }
       if (account?.provider !== 'google') return false
@@ -180,15 +182,19 @@ export const authOptions: AuthOptions = {
             provider: 'google',
           }).catch(() => {})
         } else {
-          const tenantId = await resolvePrimaryTenantId(dbUser.id)
-          await logLogin({
-            userId: dbUser.id,
-            email: user.email!,
-            tenantId: tenantId ?? undefined,
-            success: true,
-            role: dbUser.role,
-          })
-          await notifyLogin({ name: user.name ?? null, email: user.email! })
+          try {
+            const tenantId = await resolvePrimaryTenantId(dbUser.id)
+            await logLogin({
+              userId: dbUser.id,
+              email: user.email!,
+              tenantId: tenantId ?? undefined,
+              success: true,
+              role: dbUser.role,
+            })
+          } catch { /* activity log non-fatal */ }
+          try {
+            await notifyLogin({ name: user.name ?? null, email: user.email! })
+          } catch { /* owner Telegram non-fatal */ }
         }
 
         return true

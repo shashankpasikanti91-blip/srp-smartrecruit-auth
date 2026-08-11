@@ -122,12 +122,11 @@ export async function POST(req: NextRequest) {
     || filename.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ')
     || 'Unknown Candidate').slice(0, 200)
   const candidateEmail = ((p.email as string | null) || extracted.email || null)?.toLowerCase() ?? null
+  const audit = p.experience_audit as { current_employer?: string; current_role?: string; calculated_years?: number } | undefined
   const profilePatch = {
-    current_title: p.current_designation ?? null,
-    current_company: p.current_company ?? null,
-    total_experience: (p.experience_audit as { calculated_years?: number } | undefined)?.calculated_years != null
-      ? String((p.experience_audit as { calculated_years: number }).calculated_years)
-      : null,
+    current_title: String(p.current_designation || audit?.current_role || '').trim() || null,
+    current_company: String(p.current_company || audit?.current_employer || '').trim() || null,
+    total_experience: audit?.calculated_years != null ? String(audit.calculated_years) : null,
   }
 
   let dbId: string | undefined

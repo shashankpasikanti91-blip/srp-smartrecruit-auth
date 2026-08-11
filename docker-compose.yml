@@ -31,8 +31,8 @@ services:
       test: ["CMD-SHELL", "pg_isready -U srp_auth -d srp_auth"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 12
+      start_period: 40s
     deploy:
       resources:
         limits:
@@ -58,8 +58,10 @@ services:
       PORT: "3000"
     networks:
       - srp_auth_net
-    mem_limit: 256m
-    mem_reservation: 96m
+    # PDF parse OOMs at 256m → nginx HTML 502 → screening "Unexpected token '<'".
+    # Limit applies only to srp-auth-app (not Wellora / other SRP sites).
+    mem_limit: 512m
+    mem_reservation: 128m
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/api/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))\""]
       interval: 30s

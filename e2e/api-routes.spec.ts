@@ -41,4 +41,24 @@ test.describe('Public API routes', () => {
     const res = await request.get('/api/profile')
     expect(res.status()).toBe(401)
   })
+
+  test('GET /api/parse returns JSON (never HTML)', async ({ request }) => {
+    const res = await request.get('/api/parse')
+    expect(res.status()).toBe(200)
+    const ct = res.headers()['content-type'] || ''
+    expect(ct).toMatch(/json/i)
+    const body = await res.json()
+    expect(body).toMatchObject({ ok: true })
+  })
+
+  test('POST /api/parse without session returns JSON 401 (never HTML)', async ({ request }) => {
+    const res = await request.post('/api/parse', { multipart: { file: { name: 'x.txt', mimeType: 'text/plain', buffer: Buffer.from('hello resume text here') } } })
+    expect([401, 403]).toContain(res.status())
+    const ct = res.headers()['content-type'] || ''
+    expect(ct).toMatch(/json/i)
+    const text = await res.text()
+    expect(text.trimStart().startsWith('<')).toBeFalsy()
+    const body = JSON.parse(text) as { error?: string }
+    expect(body).toHaveProperty('error')
+  })
 })

@@ -4,6 +4,7 @@ import { extractResumeFields } from '@/lib/resumeExtract'
 import { extractTextFromUpload } from '@/lib/extractFileText'
 import { notifyError } from '@/lib/notifications'
 
+export const runtime = 'nodejs'
 export const maxDuration = 60
 
 export async function GET() {

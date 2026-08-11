@@ -5,8 +5,12 @@
 import nodemailer from 'nodemailer'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!
-const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID!
+function telegramConfig(): { token: string; chatId: string } {
+  return {
+    token: (process.env.TELEGRAM_BOT_TOKEN ?? '').trim(),
+    chatId: (process.env.TELEGRAM_CHAT_ID ?? '').trim(),
+  }
+}
 const OWNER_EMAIL        = process.env.OWNER_EMAIL ?? 'pasikantishashank24@gmail.com'
 const SMTP_HOST          = process.env.SMTP_HOST ?? 'smtp.gmail.com'
 const SMTP_PORT          = parseInt(process.env.SMTP_PORT ?? '587')
@@ -17,17 +21,18 @@ const SMTP_PASS          = (process.env.SMTP_PASS ?? process.env.SMTP_Pass ?? ''
 // ─── Telegram ─────────────────────────────────────────────────────────────────
 
 export async function sendTelegram(message: string): Promise<void> {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+  const { token, chatId } = telegramConfig()
+  if (!token || !chatId) {
     console.warn('[notify] Telegram env vars not set — skipping')
     return
   }
   try {
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`
+    const url = `https://api.telegram.org/bot${token}/sendMessage`
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_id: TELEGRAM_CHAT_ID,
+        chat_id: chatId,
         text: message,
         parse_mode: 'HTML',
       }),

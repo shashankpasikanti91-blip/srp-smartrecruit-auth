@@ -8,6 +8,7 @@ import { extractResumeFields } from '@/lib/resumeExtract'
 import { writeTimeline } from '@/lib/timelineEngine'
 import { createNotification } from '@/lib/notificationCenter'
 import { chatCompletionWithUsage } from '@/lib/aiClient'
+import { notifyError } from '@/lib/notifications'
 import { recordAiUsage } from '@/lib/aiUsage'
 import { buildJdFromJobRow, fetchJobJdSource } from '@/lib/jobScreeningContext'
 import { advanceFromDomain } from '@/lib/lifecycle'
@@ -389,12 +390,11 @@ async function processOneResume(
         || resume.filename?.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ')
         || 'Unknown Candidate').slice(0, 200)
 
+      const audit = p.experience_audit as { current_employer?: string; current_role?: string; calculated_years?: number } | undefined
       const profilePatch = {
-        current_title: p.current_designation ?? null,
-        current_company: p.current_company ?? null,
-        total_experience: (p.experience_audit as { calculated_years?: number } | undefined)?.calculated_years != null
-          ? String((p.experience_audit as { calculated_years: number }).calculated_years)
-          : null,
+        current_title: String(p.current_designation || audit?.current_role || '').trim() || null,
+        current_company: String(p.current_company || audit?.current_employer || '').trim() || null,
+        total_experience: audit?.calculated_years != null ? String(audit.calculated_years) : null,
       }
 
       if (resolvedResumeId) {
@@ -663,6 +663,11 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Server error'
     console.error('[api/screen]', err)
+    void notifyError({
+      message: `AI Screening failed: ${msg}`,
+      email: undefined,
+      severity: 'critical',
+    }).catch(() => null)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

@@ -41,6 +41,11 @@ server {
         return 413 '{"error":"File too large (max 25 MB). Export a smaller PDF or paste the text."}';
     }
 
+    location @json_bad_gateway {
+        default_type application/json;
+        return 502 '{"error":"SmartRecruit is restarting. Wait 15 seconds and upload again, or paste the text."}';
+    }
+
     # ── NextAuth + Next.js auth routes --> Next.js :3010
     location ~ ^/api/auth/(providers|session|csrf|callback|signin|signout|error|forgot-password|reset-password|signup)(/.*)?$ {
         proxy_pass http://127.0.0.1:3010;
@@ -64,6 +69,24 @@ server {
         proxy_read_timeout 120s;
     }
 
+    # Resume/JD uploads — stream body, JSON errors (never HTML that screening JSON.parse fails on)
+    location = /api/parse {
+        limit_req zone=ats_api burst=40 nodelay;
+        client_max_body_size 25M;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_pass http://127.0.0.1:3010;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 180s;
+        proxy_connect_timeout 15s;
+        error_page 413 = @json_413;
+        error_page 502 503 504 = @json_bad_gateway;
+    }
+
     # ── ALL other /api/* --> Next.js SmartRecruit (:3010)
     # This fixes AI Assistant (/api/coach), insights, analytics, offers, ESS, etc.
     location /api/ {
@@ -77,6 +100,8 @@ server {
         proxy_read_timeout 180s;
         proxy_connect_timeout 15s;
         client_max_body_size 25M;
+        error_page 413 = @json_413;
+        error_page 502 503 504 = @json_bad_gateway;
     }
 
     location /health {

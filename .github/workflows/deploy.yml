@@ -79,19 +79,22 @@ jobs:
             set -euo pipefail
             cd /opt/srp-smartrecruit-auth
 
-            echo "=== [0/5] Clear stuck builds + ensure existing app is serving ==="
-            # Prior CI timeouts can leave docker holding a build lock.
-            # Avoid pkill -f patterns that also appear in this bash -c script (self-kill).
-            HTTP_NOW=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:3010/api/health 2>/dev/null || echo "000")
-            if [ "$HTTP_NOW" != "200" ]; then
-              echo "Health is $HTTP_NOW — restarting Docker then starting existing images (DB volumes untouched)"
-              sudo systemctl restart docker
-              sleep 10
-              docker compose up -d --no-build
-              sleep 5
-            else
-              echo "App already healthy (HTTP 200)"
-            fi
+            echo "=== [0/5] Ensure ONLY srp-auth containers (never restart Docker daemon) ==="
+            # FORBIDDEN on this host: systemctl restart docker / docker restart
+            # Other stacks share the daemon: Wellora, SRP marketing site, n8n, mediflow, srp-ats.
+            # This compose project is only srp-auth-db + srp-auth-app.
+            docker start srp-auth-db 2>/dev/null || docker compose up -d --no-build db || true
+            for i in $(seq 1 30); do
+              if docker exec srp-auth-db pg_isready -U srp_auth -d srp_auth >/dev/null 2>&1; then
+                echo "srp-auth-db ready (attempt $i)"
+                break
+              fi
+              echo "  waiting for srp-auth-db $i/30"
+              sleep 4
+            done
+            docker start srp-auth-app 2>/dev/null || docker compose up -d --no-build --no-deps app || true
+            HTTP_NOW=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:3010/api/health || true)
+            echo "App health before deploy: ${HTTP_NOW:-000}"
 
             echo "=== [1/5] Pull latest code (main) ==="
             git fetch origin
@@ -174,18 +177,36 @@ jobs:
             sudo systemctl reload nginx 2>/dev/null || true
             docker image prune -f 2>/dev/null || true
 
-            echo "=== [5b/5] Update nginx config ==="
-            # Push latest nginx config so auth routes are correctly proxied to Next.js
+            echo "=== [5b/5] Update nginx config (recruit.srpailabs.com vhost only) ==="
             NGINX_CONF="/etc/nginx/sites-available/recruit.srpailabs.com"
             if [ -f "$NGINX_CONF" ]; then
-              cp /opt/srp-smartrecruit-auth/deployment/recruit.srpailabs.com.nginx "$NGINX_CONF"
-              nginx -t 2>&1 && sudo systemctl reload nginx && echo "╬ô┬ú├á Nginx config updated" \
-                || echo "╬ô├£├íΓê⌐Γòò├à Nginx config test failed ╬ô├ç├╢ keeping old config"
+              sudo cp /opt/srp-smartrecruit-auth/deployment/recruit.srpailabs.com.nginx "$NGINX_CONF"
+              if sudo nginx -t 2>&1; then
+                sudo systemctl reload nginx
+                echo "Nginx recruit.srpailabs.com vhost updated"
+              else
+                echo "Nginx config test failed — keeping previous vhost"
+              fi
             else
-              echo "╬ô├£├íΓê⌐Γòò├à Nginx site config not found at $NGINX_CONF ╬ô├ç├╢ skipping update"
+              echo "Nginx site config not found at $NGINX_CONF — skipping"
             fi
 
-            echo "╬ô┬ú├á Frontend deploy complete"
+            echo "=== [5c/5] Owner Telegram: deploy live ==="
+            ENVF=/opt/srp-smartrecruit-auth/.env
+            if [ -f "$ENVF" ]; then
+              TOKEN=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$ENVF" | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '\r')
+              CHAT=$(grep -E '^TELEGRAM_CHAT_ID=' "$ENVF" | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '\r')
+              if [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
+                curl -sS -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+                  --data-urlencode "chat_id=${CHAT}" \
+                  --data-urlencode "text=SmartRecruit LIVE: AI Screening parse/single/bulk fix deployed. Other Docker projects were not touched. https://recruit.srpailabs.com" \
+                  >/dev/null || echo "Telegram notify skipped"
+              else
+                echo "Telegram env not set in .env — owner will not get deploy ping"
+              fi
+            fi
+
+            echo "Frontend deploy complete"
 
       # ╬ô├╢├ç╬ô├╢├ç E2E: HTTP checks against live HTTPS domain (no SSH needed) ╬ô├╢├ç╬ô├╢├ç
       - name: Run HTTPS E2E checks
@@ -198,7 +219,7 @@ jobs:
           failures = []
 
           def get(path, expect):
-              code = None; err = None
+              code = None; err = None; body = b""
               for attempt in range(3):
                   try:
                       req = urllib.request.Request(
@@ -206,9 +227,12 @@ jobs:
                       )
                       with urllib.request.urlopen(req, context=CTX, timeout=15) as r:
                           code = r.status
+                          body = r.read(240)
                       break
                   except urllib.error.HTTPError as e:
-                      code = e.code; break
+                      code = e.code
+                      body = e.read(240)
+                      break
                   except Exception as e:
                       err = str(e)
                       if attempt < 2: time.sleep(3); continue
@@ -219,6 +243,10 @@ jobs:
               print(f"  [{'PASS' if ok else 'FAIL'}] {path} <- HTTP {code}")
               if not ok:
                   failures.append(f"{path} (got {code}, expected {expected})")
+                  return
+              if path.startswith("/api") and body.lstrip()[:1] == b"<":
+                  print(f"  [FAIL] {path} returned HTML instead of JSON")
+                  failures.append(f"{path} HTML body")
 
           print("\n=== SRP SmartRecruit HTTPS E2E ===")
           get("/health",                200)
@@ -229,6 +257,7 @@ jobs:
           get("/api/auth/providers",    200)
           get("/api/auth/me",           [400, 401, 403, 405])
           get("/api/health",            200)
+          get("/api/parse",             200)
           get("/api/jobs",              [401, 403])
           get("/api/jd",                [401, 403])
           # Legacy FastAPI paths may 404 when nginx routes /api to Next.js

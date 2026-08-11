@@ -80,16 +80,29 @@ export async function parseUploadedFile(file: File): Promise<ParsedUpload> {
     return { text: text.slice(0, 40_000), filename: file.name }
   }
 
-  const fd = new FormData()
-  fd.append('file', file)
+  const postOnce = async (): Promise<Response> => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return fetch('/api/parse', { method: 'POST', body: fd })
+  }
+
   let res: Response
   try {
-    res = await fetch('/api/parse', { method: 'POST', body: fd })
+    res = await postOnce()
   } catch {
     throw new Error('Could not reach the file parser. Check your connection, or paste the text.')
   }
 
-  const { data, error } = await readResponseJson(res)
+  let { data, error } = await readResponseJson(res)
+  if (error && res.status >= 500) {
+    await new Promise(r => setTimeout(r, 1200))
+    try {
+      res = await postOnce()
+      ;({ data, error } = await readResponseJson(res))
+    } catch {
+      /* keep first error */
+    }
+  }
   if (error) throw new Error(error)
   const text = typeof data?.text === 'string' ? data.text.trim() : ''
   if (!text) throw new Error('Parser returned no text. Paste the contents instead.')

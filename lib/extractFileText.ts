@@ -14,7 +14,35 @@ function fail(message: string, status: number): never {
   throw Object.assign(new Error(message), { status })
 }
 
+async function extractPdfWithPoppler(buffer: Buffer): Promise<string> {
+  const fs = await import('fs/promises')
+  const os = await import('os')
+  const path = await import('path')
+  const { execFile } = await import('child_process')
+  const { promisify } = await import('util')
+  const execFileAsync = promisify(execFile)
+  const inPath = path.join(os.tmpdir(), `srp-pdf-${process.pid}-${Date.now()}.pdf`)
+  try {
+    await fs.writeFile(inPath, buffer)
+    const { stdout } = await execFileAsync(
+      'pdftotext',
+      ['-layout', '-enc', 'UTF-8', '-q', inPath, '-'],
+      { timeout: 25_000, maxBuffer: 2 * 1024 * 1024 },
+    )
+    return (typeof stdout === 'string' ? stdout : Buffer.from(stdout).toString('utf8')).trim()
+  } finally {
+    await fs.unlink(inPath).catch(() => undefined)
+  }
+}
+
 async function extractPdf(buffer: Buffer): Promise<string> {
+  try {
+    const poppler = await extractPdfWithPoppler(buffer)
+    if (poppler.length >= 10) return poppler
+  } catch {
+    // pdftotext missing on local Windows — fall through to pdf-parse
+  }
+
   let pdfParse: (buf: Buffer, opts?: object) => Promise<{ text: string }>
   try {
     // Prefer inner path (Docker standalone-safe — avoids pdf-parse test PDF crash)

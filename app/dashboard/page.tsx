@@ -5845,7 +5845,7 @@ function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
       onDrop={e => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) parseFiles(e.dataTransfer.files) }}
       onClick={() => ref.current?.click()}>
       <input ref={ref} type="file" accept={accept} multiple={multiple} className="hidden"
-        onChange={e => { if (e.target.files?.length) parseFiles(e.target.files) }} />
+        onChange={e => { if (e.target.files?.length) parseFiles(e.target.files); if (ref.current) ref.current.value = '' }} />
       {parsing ? (
         <div className="flex items-center justify-center gap-2 text-sm text-indigo-700 font-bold">
           <Loader2 className="w-5 h-5 animate-spin" /> Parsing…
