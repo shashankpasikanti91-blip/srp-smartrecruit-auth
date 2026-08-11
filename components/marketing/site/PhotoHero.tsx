@@ -9,25 +9,25 @@ import { HERO } from '@/content/marketing/homepage'
 import { PHOTOS } from '@/content/marketing/photos'
 
 function WordsPullUp({ text, className = '' }: { text: string; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLSpanElement>(null)
   const isInView = useInView(ref, { once: true })
   const words = text.split(' ')
 
   return (
-    <div ref={ref} className={`inline-flex flex-wrap ${className}`}>
+    <span ref={ref} className={`inline-flex flex-wrap max-w-full ${className}`}>
       {words.map((word, i) => (
         <motion.span
           key={`${word}-${i}`}
-          initial={{ y: 24, opacity: 0 }}
+          initial={{ y: 16, opacity: 0 }}
           animate={isInView ? { y: 0, opacity: 1 } : {}}
           transition={{ duration: 0.6, delay: i * 0.08, ease: [0.16, 1, 0.3, 1] }}
-          className="inline-block"
+          className="inline-block max-w-full [overflow-wrap:normal] [word-break:keep-all]"
           style={{ marginRight: i === words.length - 1 ? 0 : '0.12em' }}
         >
           {word}
         </motion.span>
       ))}
-    </div>
+    </span>
   )
 }
 
@@ -46,15 +46,18 @@ export default function PhotoHero() {
         />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0B1F14] via-[#0B1F14]/45 to-[#0B1F14]/25" />
 
-        <div className="absolute bottom-0 left-0 right-0 px-5 sm:px-8 md:px-10 pb-8 sm:pb-10">
-          <div className="grid grid-cols-12 items-end gap-6 max-w-7xl mx-auto">
-            <div className="col-span-12 lg:col-span-8">
-              <p className="text-[11px] tracking-[0.22em] uppercase text-[#F97316] font-semibold mb-3">{HERO.kicker}</p>
-              <h1 className="font-display font-medium leading-[0.9] tracking-[-0.04em] text-[16vw] sm:text-[12vw] lg:text-[9vw] text-[#FCFCFA]">
+        <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-8 md:px-10 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-10">
+          <div className="grid grid-cols-12 items-end gap-4 sm:gap-6 max-w-7xl mx-auto min-w-0">
+            <div className="col-span-12 lg:col-span-8 min-w-0 [container-type:inline-size]">
+              <p className="text-[11px] tracking-[0.14em] sm:tracking-[0.22em] uppercase text-[#F97316] font-semibold mb-2 sm:mb-3">{HERO.kicker}</p>
+              <h1
+                className="font-display font-bold leading-[1.08] sm:leading-[0.95] tracking-[-0.03em] text-[#FCFCFA] max-w-full whitespace-nowrap text-[2.35rem] sm:text-6xl lg:text-[7vw]"
+                style={{ fontSize: 'clamp(2.2rem, 14cqi, 7.5rem)' }}
+              >
                 <WordsPullUp text={HERO.title} />
               </h1>
             </div>
-            <div className="col-span-12 flex flex-col gap-5 pb-2 lg:col-span-4 lg:pb-6">
+            <div className="col-span-12 flex flex-col gap-4 sm:gap-5 pb-1 lg:col-span-4 lg:pb-6 min-w-0">
               <motion.p
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
