@@ -20,6 +20,7 @@ import { Job360View } from '@/components/recruitment/Job360View'
 import { AiFitScoreCard } from '@/components/recruitment/AiFitScoreCard'
 import { ScreeningReportView, ScreeningReportErrorBoundary } from '@/components/recruitment/ScreeningReportView'
 import type { ScreenResult } from '@/lib/screeningTypes'
+import { parseUploadedFile } from '@/lib/parseFileClient'
 import type { AiFitScores } from '@/lib/aiFitScore'
 import { SelectedPipelineTab } from '@/components/recruitment/SelectedPipelineTab'
 import { ESSTab } from '@/components/ess/ESSTab'
@@ -2123,12 +2124,8 @@ export default function DashboardPage() {
     setCandResumeText('')
     setCandResumeParsing(true)
     try {
-      const fd = new FormData(); fd.append('file', file)
-      const res = await fetch('/api/parse', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok) { setCandResumeError(data.error ?? 'Failed to parse resume'); return }
+      const data = await parseUploadedFile(file)
       setCandResumeText(data.text ?? '')
-      // Auto-fill from structured extract (avoids mistaking job titles for names)
       setNewCand(p => ({
         ...p,
         candidate_name: p.candidate_name || data.name || '',
@@ -2138,7 +2135,9 @@ export default function DashboardPage() {
       if (!data.name && !data.email) {
         setCandResumeError('Resume parsed, but name/email were not detected — please fill them manually before saving.')
       }
-    } catch { setCandResumeError('Network error — please try again') }
+    } catch (e) {
+      setCandResumeError(e instanceof Error ? e.message : 'Could not read this resume — paste the text instead')
+    }
     finally { setCandResumeParsing(false) }
   }
 
@@ -5742,17 +5741,17 @@ function LightFileUploadZone({ label, accept, onText, disabled }: {
 
   const parseFile = async (file: File) => {
     setParsing(true); setParseError(''); setFileName('')
-    const fd = new FormData(); fd.append('file', file)
     try {
-      const res = await fetch('/api/parse', { method: 'POST', body: fd })
-      const d = await res.json()
-      if (res.ok && d.text) {
+      const d = await parseUploadedFile(file)
+      if (d.text) {
         setFileName(file.name)
         onText(d.text)
       } else {
-        setParseError(d.error ?? `Failed to parse ${file.name}`)
+        setParseError(`Failed to parse ${file.name}`)
       }
-    } catch { setParseError('Network error') }
+    } catch (e) {
+      setParseError(e instanceof Error ? e.message : 'Could not read this file — paste the text instead')
+    }
     finally { setParsing(false) }
   }
 
@@ -5816,17 +5815,15 @@ function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
     const results: Array<{ text: string; filename: string; file?: File }> = []
     let lastError = ''
     for (const file of fileArray) {
-      const fd = new FormData(); fd.append('file', file)
       try {
-        const res = await fetch('/api/parse', { method: 'POST', body: fd })
-        const d = await res.json()
-        if (res.ok && d.text) {
+        const d = await parseUploadedFile(file)
+        if (d.text) {
           results.push({ text: d.text, filename: file.name, file })
         } else {
-          lastError = d.error ?? `Failed to parse ${file.name}`
+          lastError = `Failed to parse ${file.name}`
         }
       } catch (e) {
-        lastError = `Network error: ${String(e)}`
+        lastError = e instanceof Error ? e.message : `Could not read ${file.name}`
       }
     }
     setParsing(false)

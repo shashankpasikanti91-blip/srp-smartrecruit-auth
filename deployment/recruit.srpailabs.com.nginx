@@ -33,6 +33,13 @@ server {
     add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'" always;
     client_max_body_size 25M;
+    # Return JSON (not HTML) when nginx rejects oversized uploads
+    error_page 413 = @json_413;
+
+    location @json_413 {
+        default_type application/json;
+        return 413 '{"error":"File too large (max 25 MB). Export a smaller PDF or paste the text."}';
+    }
 
     # ── NextAuth + Next.js auth routes --> Next.js :3010
     location ~ ^/api/auth/(providers|session|csrf|callback|signin|signout|error|forgot-password|reset-password|signup)(/.*)?$ {

@@ -89,5 +89,8 @@ export default withAuth(
 )
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/owner/:path*', '/api/:path*'],
+  // Do NOT match file-upload APIs. Next 16 proxy buffers /api/* bodies and
+  // returns HTML when PDFs exceed the default limit — screening then shows
+  // "Unexpected token '<' ... is not valid JSON".
+  matcher: ['/dashboard/:path*', '/owner/:path*'],
 }

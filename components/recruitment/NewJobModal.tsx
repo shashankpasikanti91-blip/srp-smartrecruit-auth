@@ -7,6 +7,7 @@ import {
   JOB_POST_PLATFORM_META,
   type JobPostPlatform,
 } from '@/lib/jobPostPlatforms'
+import { parseUploadedFile } from '@/lib/parseFileClient'
 
 type Client = { id: string; name: string }
 type JobForm = {
@@ -180,11 +181,7 @@ export function NewJobModal({
     setMsg(null)
     setPendingJdFile(file)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/parse', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Could not read file'); return }
+      const data = await parseUploadedFile(file)
       const text = String(data.text || '')
       setForm(p => ({ ...p, raw_jd_text: text }))
       if (text.trim().length < 40) {

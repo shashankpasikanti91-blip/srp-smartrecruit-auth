@@ -1,12 +1,22 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  // File uploads (PDF/DOCX) go through proxy.ts + App Router. Defaults are ~10MB and
+  // produce HTML 413/502 pages that the screening dropzone then fails to JSON.parse.
+  serverActions: {
+    bodySizeLimit: '25mb',
+  },
+  experimental: {
+    proxyClientMaxBodySize: '25mb',
+    middlewareClientMaxBodySize: '25mb',
+  },
   // Force standalone output to bundle these runtime-require()'d packages
   outputFileTracingIncludes: {
     '/api/parse': [
       './node_modules/pdf-parse/**/*',
       './node_modules/mammoth/**/*',
       './node_modules/node-ensure/**/*',
+      './node_modules/word-extractor/**/*',
     ],
   },
   images: {

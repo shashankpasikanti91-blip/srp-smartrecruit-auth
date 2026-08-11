@@ -17,12 +17,21 @@ function fail(message: string, status: number): never {
 async function extractPdf(buffer: Buffer): Promise<string> {
   let pdfParse: (buf: Buffer, opts?: object) => Promise<{ text: string }>
   try {
-    // Prefer inner path (Docker standalone-safe)
+    // Prefer inner path (Docker standalone-safe — avoids pdf-parse test PDF crash)
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    pdfParse = require('pdf-parse/lib/pdf-parse')
+    pdfParse = require('pdf-parse/lib/pdf-parse.js')
   } catch {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    pdfParse = require('pdf-parse')
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      pdfParse = require('pdf-parse/lib/pdf-parse')
+    } catch {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        pdfParse = require('pdf-parse')
+      } catch {
+        fail('PDF parser is not available on the server. Export as DOCX or TXT, or paste the text.', 503)
+      }
+    }
   }
 
   // Prefer first pages for speed; fall back to full parse if empty
