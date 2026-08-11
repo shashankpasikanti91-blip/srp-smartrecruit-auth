@@ -153,7 +153,7 @@ export function GlobalSearchPalette() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="hidden md:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-700 text-[12px] font-semibold mr-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+        className="hidden md:inline-flex items-center gap-2 min-h-[44px] px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-[#166534]/40 hover:text-[#166534] text-[12px] font-semibold mr-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#166534]"
         title="Search (Ctrl+K)"
         aria-label="Open global search"
       >
@@ -164,7 +164,7 @@ export function GlobalSearchPalette() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="md:hidden p-2 rounded-lg border border-slate-200 bg-white text-slate-700 mr-auto"
+        className="md:hidden inline-flex items-center justify-center p-2 min-h-[44px] min-w-[44px] rounded-lg border border-slate-200 bg-white text-slate-700 mr-auto"
         aria-label="Search"
       >
         <Search className="w-4 h-4" />

@@ -77,7 +77,7 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => { setOpen(o => !o); if (!open) load() }}
-        className="relative p-2 rounded-lg hover:bg-slate-100 text-slate-700 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+        className="relative inline-flex items-center justify-center p-2 min-h-[44px] min-w-[44px] rounded-lg hover:bg-slate-100 text-slate-700 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#166534]"
         aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -96,7 +96,7 @@ export function NotificationBell() {
           <div
             role="dialog"
             aria-label="Notifications panel"
-            className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl border border-slate-200 bg-white shadow-xl z-50 overflow-hidden"
+            className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-1.5rem))] sm:w-96 max-w-[calc(100vw-1.5rem)] rounded-xl border border-slate-200 bg-white shadow-xl z-50 overflow-hidden"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50 gap-2">
               <p className="text-sm font-extrabold text-slate-900" id="notif-panel-title">Notifications</p>

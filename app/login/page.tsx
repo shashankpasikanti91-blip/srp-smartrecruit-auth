@@ -97,7 +97,7 @@ function LoginContent() {
   const activeError = formError ?? oauthError
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-[#FCFCFA]">
+    <div className="min-h-dvh flex flex-col lg:flex-row bg-[#FCFCFA] overflow-x-clip">
       {/* Left — brand panel */}
       <aside className="relative lg:w-[48%] xl:w-[46%] bg-[#0B1F14] text-white px-6 sm:px-10 py-8 lg:py-12 flex flex-col overflow-hidden">
         <div
@@ -294,7 +294,7 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#FCFCFA]" />}>
+    <Suspense fallback={<div className="min-h-dvh bg-[#FCFCFA]" />}>
       <LoginContent />
     </Suspense>
   )

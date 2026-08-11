@@ -60,7 +60,7 @@ function MobileCard({
     <section id={id} className="ess-panel mb-4">
       <div className="ess-panel__head">
         <p className="ess-panel__title flex items-center gap-2">
-          <Icon className="w-4 h-4 text-indigo-600" /> {title}
+          <Icon className="w-4 h-4 text-[#166534]" /> {title}
         </p>
         {action}
       </div>
@@ -168,7 +168,7 @@ export default function MobileManagerPage() {
   if (status === 'loading' || status === 'unauthenticated') {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+        <Loader2 className="w-6 h-6 animate-spin text-[#166534]" />
       </div>
     )
   }
@@ -177,7 +177,7 @@ export default function MobileManagerPage() {
   const kpis = [
     { label: 'Pending docs', value: insights?.pending_docs ?? pendingDocs.length, tone: 'text-amber-700' },
     { label: 'Offer accept %', value: insights?.offer_acceptance_rate != null ? `${Math.round(insights.offer_acceptance_rate)}%` : '—', tone: 'text-emerald-700' },
-    { label: 'Avg time to hire', value: insights?.time_to_hire_avg_days != null ? `${insights.time_to_hire_avg_days}d` : '—', tone: 'text-indigo-700' },
+    { label: 'Avg time to hire', value: insights?.time_to_hire_avg_days != null ? `${insights.time_to_hire_avg_days}d` : '—', tone: 'text-[#166534]' },
   ]
 
   return (
@@ -202,11 +202,11 @@ export default function MobileManagerPage() {
       )}
 
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-indigo-600" /></div>
+        <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-[#166534]" /></div>
       ) : (
         <>
           <MobileCard title="Dashboard KPIs" icon={TrendingUp} action={
-            <Link href="/dashboard" className="text-[10px] font-extrabold text-indigo-700">Open →</Link>
+            <Link href="/dashboard" className="text-[10px] font-extrabold text-[#166534]">Open →</Link>
           }>
             <div className="grid grid-cols-3 gap-2">
               {kpis.map(k => (
@@ -218,7 +218,7 @@ export default function MobileManagerPage() {
             </div>
             <Link
               href="/dashboard"
-              className="mt-3 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-extrabold"
+              className="mt-3 flex items-center justify-center gap-2 w-full min-h-[44px] py-2.5 rounded-xl bg-[#F97316] text-white text-xs font-extrabold"
             >
               <BarChart3 className="w-4 h-4" /> Full dashboard
             </Link>
@@ -239,7 +239,7 @@ export default function MobileManagerPage() {
                       type="button"
                       disabled={!!acting}
                       onClick={() => approveOffer(o.id)}
-                      className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50"
+                      className="shrink-0 inline-flex items-center gap-1 min-h-[44px] px-3 py-1.5 rounded-lg text-xs font-extrabold text-white bg-[#166534] hover:bg-[#14532d] disabled:opacity-50"
                     >
                       {acting === o.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                       Approve
@@ -259,7 +259,7 @@ export default function MobileManagerPage() {
                   <li key={d.resume_id} className="rounded-xl border border-slate-200 p-3">
                     <p className="text-sm font-extrabold text-slate-900">{d.candidate_name ?? 'Candidate'}</p>
                     <p className="text-[10px] font-semibold text-amber-700 mt-0.5">{d.n ?? 'Multiple'} missing</p>
-                    <Link href="/dashboard" className="text-[10px] font-extrabold text-indigo-700 mt-1 inline-block">Review in dashboard →</Link>
+                    <Link href="/dashboard" className="text-[10px] font-extrabold text-[#166534] mt-1 inline-block">Review in dashboard →</Link>
                   </li>
                 ))}
               </ul>
@@ -296,7 +296,7 @@ export default function MobileManagerPage() {
                       type="button"
                       disabled={!!acting}
                       onClick={() => approveAttendance(a.id)}
-                      className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-extrabold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50"
+                      className="shrink-0 inline-flex items-center gap-1 min-h-[44px] px-3 py-1.5 rounded-lg text-xs font-extrabold text-white bg-[#F97316] hover:bg-[#ea580c] disabled:opacity-50"
                     >
                       {acting === `att-${a.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                       Approve

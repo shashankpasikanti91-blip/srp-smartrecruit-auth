@@ -27,8 +27,10 @@ import {
   Zap,
   TrendingUp,
   Brain,
+  Layers,
 } from 'lucide-react'
 import { BrandMark } from '@/components/ui/BrandMark'
+import { InstallAppButton } from '@/components/pwa/PwaInstall'
 
 type DashboardTab =
   | 'workspace' | 'pipeline' | 'candidates' | 'submissions' | 'interviews' | 'followups' | 'selected'
@@ -146,8 +148,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen dashboard-root bg-[#FCFCFA]">
-      <div className="flex h-screen overflow-hidden">
+    <div className="min-h-dvh dashboard-root bg-[#FCFCFA] overflow-x-clip">
+      <div className="flex h-dvh overflow-hidden">
         {mobileNavOpen && (
           <button
             type="button"
@@ -160,7 +162,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         {/* Sidebar */}
         <aside
           className={`w-56 flex-shrink-0 flex flex-col bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] shadow-md dash-sidebar z-50
-          fixed lg:sticky lg:top-0 lg:h-screen inset-y-0 left-0 transform transition-transform duration-200
+          fixed lg:sticky lg:top-0 h-dvh inset-y-0 left-0 transform transition-transform duration-200
           ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
         >
           <div className="px-4 py-4 border-b border-[var(--sidebar-border)] flex items-center justify-between gap-2">
@@ -308,7 +310,21 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         </aside>
 
         {/* Main */}
-        <main className="flex-1 overflow-y-auto dashboard-main min-h-0 bg-[var(--dash-bg)]">
+        <main className="flex-1 overflow-y-auto overflow-x-clip dashboard-main min-h-0 min-w-0 bg-[var(--dash-bg)]">
+          <div className="sticky top-0 z-10 lg:hidden border-b border-slate-200 bg-white/95 backdrop-blur-md px-3 py-2 flex items-center gap-2 safe-top min-w-0">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center p-2 min-h-[44px] min-w-[44px] rounded-lg border border-slate-200 bg-white text-slate-700"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open menu"
+            >
+              <Layers className="w-4 h-4" />
+            </button>
+            <p className="flex-1 min-w-0 truncate text-sm font-extrabold text-[#0B1F14]" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>
+              SRP SmartRecruit
+            </p>
+            <InstallAppButton compact />
+          </div>
           {children}
         </main>
       </div>

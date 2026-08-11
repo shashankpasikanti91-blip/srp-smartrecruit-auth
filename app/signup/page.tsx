@@ -107,7 +107,7 @@ function SignupForm() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FCFCFA] relative overflow-hidden">
+    <div className="min-h-dvh flex flex-col bg-[#FCFCFA] relative overflow-hidden overflow-x-clip">
       <div className="pointer-events-none absolute -top-20 -left-20 w-96 h-96 rounded-full bg-[#166534]/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-10 -right-10 w-72 h-72 rounded-full bg-[#F97316]/10 blur-3xl" />
 

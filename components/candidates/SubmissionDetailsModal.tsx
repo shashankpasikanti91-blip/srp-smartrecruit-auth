@@ -292,8 +292,8 @@ export function SubmissionDetailsModal({
   )
 
   return (
-    <div className="fixed inset-0 z-[85] flex items-center justify-center bg-slate-950/45 p-3 sm:p-6" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="w-full max-w-3xl max-h-[92vh] overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-200 flex flex-col">
+    <div className="fixed inset-0 z-[85] flex items-center justify-center bg-slate-950/45 p-2 sm:p-6 overflow-x-clip" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="w-full max-w-3xl max-h-[min(92vh,100dvh)] overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-200 flex flex-col min-w-0">
         <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Submission Details</h2>

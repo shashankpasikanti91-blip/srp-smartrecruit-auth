@@ -297,7 +297,7 @@ export function AddCandidateFlow({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-50 overflow-y-auto flex items-start justify-center p-4">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-50 overflow-y-auto overflow-x-clip flex items-start justify-center p-2 sm:p-4">
       {showDupModal && dupMatches.length > 0 && (
         <DuplicateCandidateModal
           duplicates={dupMatches}
@@ -311,7 +311,7 @@ export function AddCandidateFlow({
           }}
         />
       )}
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-4 flex flex-col border border-slate-200" style={{ maxHeight: '94vh' }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-2 sm:my-4 flex flex-col border border-slate-200 min-w-0" style={{ maxHeight: 'min(94vh, calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)))' }}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 flex-shrink-0">
           <div>
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">

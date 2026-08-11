@@ -51,7 +51,7 @@ export default function FeatureShowcase() {
         </div>
 
         <div className="md:col-span-6">
-          <div className="relative overflow-hidden h-[520px] min-h-[360px]">
+          <div className="relative overflow-hidden h-[52vh] max-h-[420px] sm:h-[480px] sm:max-h-none md:h-[520px] min-h-[220px]">
             <Tabs defaultValue="screen" className="relative h-full w-full">
               <div className="relative h-full w-full overflow-hidden">
                 {TABS.map((t, idx) => (

@@ -33,7 +33,7 @@ function WordsPullUp({ text, className = '' }: { text: string; className?: strin
 
 export default function PhotoHero() {
   return (
-    <section className="relative h-[100svh] w-full pt-16 px-3 pb-3">
+    <section className="relative h-dvh w-full pt-16 px-3 pb-3 overflow-x-clip">
       <div className="relative h-full w-full overflow-hidden rounded-[1.75rem] sm:rounded-[2rem] group">
         <Image
           src={PHOTOS.hero.src}

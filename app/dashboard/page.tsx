@@ -37,6 +37,7 @@ import { DeleteActionButton } from '@/components/recruitment/DeleteActionButton'
 import { DeleteApprovalsPanel } from '@/components/recruitment/DeleteApprovalsPanel'
 import { NotificationBell } from '@/components/dashboard/NotificationBell'
 import { GlobalSearchPalette } from '@/components/dashboard/GlobalSearchPalette'
+import { InstallAppButton } from '@/components/pwa/PwaInstall'
 import { GovernanceTab } from '@/components/governance/GovernanceTab'
 import { SecurityCenterTab } from '@/components/security/SecurityCenterTab'
 import { EmailCalendarHub } from '@/components/security/EmailCalendarHub'
@@ -62,7 +63,8 @@ import {
   RefreshCw, AlertCircle, Layers, Brain, ChevronRight,
   MoreVertical, Send, Loader2, Download, Settings, User as UserIcon, CreditCard, Activity, Shield,
   Key, Pencil, Eye, EyeOff, Link2, Trash2, ToggleLeft, ToggleRight, ExternalLink, Info,
-  Bell, Award, Calendar, Building2, MessageSquare, PenLine, HelpCircle, BookOpen, UserCheck, ChevronUp
+  Bell, Award, Calendar, Building2, MessageSquare, PenLine, HelpCircle, BookOpen, UserCheck, ChevronUp,
+  Smartphone
 } from 'lucide-react'
 
 type DashboardTab =
@@ -2660,7 +2662,7 @@ export default function DashboardPage() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+      <div className="min-h-dvh bg-slate-100 flex items-center justify-center overflow-x-clip">
         <AppSplash />
       </div>
     )
@@ -2736,8 +2738,8 @@ export default function DashboardPage() {
   })()
 
   return (
-    <div className="min-h-screen dashboard-root bg-[#FCFCFA]">
-      <div className="flex h-screen overflow-hidden">
+    <div className="min-h-dvh dashboard-root bg-[#FCFCFA] overflow-x-clip">
+      <div className="flex h-dvh overflow-hidden">
 
         {/* Mobile nav backdrop */}
         {mobileNavOpen && (
@@ -2751,7 +2753,7 @@ export default function DashboardPage() {
 
         {/* ── Sidebar — dark navy + primary blue active (sticky on desktop) ─ */}
         <aside className={`w-56 flex-shrink-0 flex flex-col bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] shadow-md dash-sidebar z-50
-          fixed lg:sticky lg:top-0 lg:h-screen inset-y-0 left-0 transform transition-transform duration-200
+          fixed lg:sticky lg:top-0 h-dvh inset-y-0 left-0 transform transition-transform duration-200
           ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           <div className="px-4 py-4 border-b border-[var(--sidebar-border)] flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -2903,7 +2905,7 @@ export default function DashboardPage() {
         </aside>
 
         {/* ── Main ─────────────────────────────────────────────────────────── */}
-        <main ref={mainScrollRef} className="flex-1 overflow-y-auto dashboard-main min-h-0 bg-[var(--dash-bg)]">
+        <main ref={mainScrollRef} className="flex-1 overflow-y-auto overflow-x-clip dashboard-main min-h-0 min-w-0 bg-[var(--dash-bg)]">
           {/* Subscription expiry alert banner */}
           {subAlert && !subAlertDismissed && (
             <div className={`border-b ${
@@ -2971,31 +2973,35 @@ export default function DashboardPage() {
           )}
 
           {/* Compact action bar — header KPI boxes removed per product request */}
-          <div className="sticky top-0 z-10 border-b border-slate-200/90 bg-white/95 backdrop-blur-md shadow-sm shadow-slate-900/5">
-            <div className="dash-page-shell py-2 flex items-center justify-end gap-1.5 flex-wrap">
+          <div className="sticky top-0 z-10 border-b border-slate-200/90 bg-white/95 backdrop-blur-md shadow-sm shadow-slate-900/5 safe-top">
+            <div className="dash-page-shell py-2 flex items-center justify-end gap-1.5 flex-wrap min-w-0">
               <button
                 type="button"
-                className="lg:hidden p-2 rounded-lg border border-slate-200 bg-white text-slate-700"
+                className="lg:hidden inline-flex items-center justify-center p-2 min-h-[44px] min-w-[44px] rounded-lg border border-slate-200 bg-white text-slate-700"
                 onClick={() => setMobileNavOpen(true)}
                 aria-label="Open menu"
               >
                 <Layers className="w-4 h-4" />
               </button>
               <GlobalSearchPalette />
+              <InstallAppButton compact />
               <a
                 href="/m"
-                className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold border border-[#166534]/25 text-[#166534] bg-[#ecfdf3] hover:bg-[#d1fae5]"
+                className="inline-flex items-center justify-center gap-1 min-h-[44px] min-w-[44px] px-2.5 rounded-lg text-[11px] font-extrabold border border-[#166534]/25 text-[#166534] bg-[#ecfdf3] hover:bg-[#d1fae5]"
               >
-                Mobile
+                <Smartphone className="w-4 h-4 shrink-0" />
+                <span className="hidden sm:inline">Mobile</span>
               </a>
               <NotificationBell />
               <button onClick={() => setShowNewCandidate(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white hover:bg-[#ecfdf3] border-2 border-[#166534] text-[12px] text-[#166534] font-bold transition-colors shadow-sm hover:shadow-md">
-                <Plus className="w-3.5 h-3.5" /> Add Candidate
+                className="inline-flex items-center justify-center gap-1 min-h-[44px] px-2.5 sm:px-3 rounded-lg bg-white hover:bg-[#ecfdf3] border-2 border-[#166534] text-[12px] text-[#166534] font-bold transition-colors shadow-sm hover:shadow-md">
+                <Plus className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Add Candidate</span>
               </button>
               <button onClick={() => setShowNewJob(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12px] font-bold text-white transition-colors bg-[#F97316] hover:bg-[#ea580c] shadow-sm">
-                <Plus className="w-3.5 h-3.5" /> New Job
+                className="inline-flex items-center justify-center gap-1 min-h-[44px] px-2.5 sm:px-3 rounded-lg text-[12px] font-bold text-white transition-colors bg-[#F97316] hover:bg-[#ea580c] shadow-sm">
+                <Plus className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">New Job</span>
               </button>
             </div>
           </div>
@@ -3075,7 +3081,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
                     {/* Search */}
-                    <div className="relative flex-1 min-w-[200px]">
+                    <div className="relative flex-1 min-w-0 w-full sm:min-w-[200px]">
                       <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                       <input value={searchQ} onChange={e => {
                           const v = e.target.value

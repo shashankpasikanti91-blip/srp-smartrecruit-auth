@@ -34,7 +34,7 @@ export function ConfirmDialog({
     : 'bg-[#F97316] hover:bg-[#ea580c]'
 
   return (
-    <div className="fixed inset-0 z-[80] bg-slate-900/45 backdrop-blur-[1px] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[80] bg-slate-900/45 backdrop-blur-[1px] flex items-center justify-center p-3 sm:p-4 overflow-x-clip">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
         <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100">
           <div>

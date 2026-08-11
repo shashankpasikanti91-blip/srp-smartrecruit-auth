@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import './marketing.css'
 import Providers from './providers'
@@ -28,9 +28,17 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
   alternates: { canonical: SITE },
   manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'SmartRecruit',
+  },
   icons: {
-    icon: [{ url: '/icon.svg?v=4', type: 'image/svg+xml' }],
-    apple: [{ url: '/apple-touch-icon.svg?v=4', type: 'image/svg+xml' }],
+    icon: [
+      { url: '/icon.svg?v=4', type: 'image/svg+xml' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
   },
   openGraph: {
     title: TITLE,
@@ -67,6 +75,14 @@ const jsonLd = {
     price: '0',
     priceCurrency: 'INR',
   },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: 'cover',
+  themeColor: '#166534',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -315,8 +315,8 @@ export function NewJobModal({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-50 overflow-y-auto flex items-start justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-4 flex flex-col border border-slate-200" style={{ maxHeight: '94vh' }}>
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-50 overflow-y-auto overflow-x-clip flex items-start justify-center p-2 sm:p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-2 sm:my-4 flex flex-col border border-slate-200 min-w-0" style={{ maxHeight: 'min(94vh, calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)))' }}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-[#166534] flex items-center justify-center">

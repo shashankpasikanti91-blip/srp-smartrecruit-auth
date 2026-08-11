@@ -6,6 +6,7 @@ import { Menu, X } from 'lucide-react'
 import { useSession, signOut } from 'next-auth/react'
 import { HEADER_NAV, MARKETING_ROUTES } from '@/content/marketing/navigation'
 import { BrandMark } from '@/components/ui/BrandMark'
+import { InstallAppButton } from '@/components/pwa/PwaInstall'
 
 export default function CleanMarketingHeader() {
   const [open, setOpen] = useState(false)
@@ -15,10 +16,10 @@ export default function CleanMarketingHeader() {
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-[#E5E7EB] bg-[#FCFCFA]/95 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <Link href={MARKETING_ROUTES.home} className="flex items-center gap-2 shrink-0 group min-h-[44px]">
+          <Link href={MARKETING_ROUTES.home} className="flex items-center gap-2 shrink-0 group min-h-[44px] min-w-0">
             <BrandMark size={32} />
             <span
-              className="font-bold text-[#111827] text-lg tracking-tight"
+              className="font-bold text-[#111827] text-base sm:text-lg tracking-tight truncate"
               style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}
             >
               SRP <span className="text-[#F97316]">SmartRecruit</span>
@@ -56,9 +57,12 @@ export default function CleanMarketingHeader() {
             )}
           </div>
 
-          <button type="button" className="lg:hidden p-2 text-[#4B5563] hover:text-[#0B1F14] min-h-[44px] min-w-[44px]" onClick={() => setOpen(!open)} aria-label="Toggle menu">
-            {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+          <div className="flex items-center gap-1 lg:hidden shrink-0">
+            <InstallAppButton compact />
+            <button type="button" className="p-2 text-[#4B5563] hover:text-[#0B1F14] min-h-[44px] min-w-[44px]" onClick={() => setOpen(!open)} aria-label="Toggle menu">
+              {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
       </div>
 
