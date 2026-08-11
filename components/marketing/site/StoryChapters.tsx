@@ -22,7 +22,7 @@ function Module({
   kicker: string
   title: string
   lede: string
-  points: { title: string; text: string }[]
+  points: readonly { title: string; text: string }[]
   cta?: { label: string; href: string }
 }) {
   return (
