@@ -231,11 +231,12 @@ export function ScreeningReportView({
     mandatoryMatched, criticalMissing, briefWhy,
   } = model
 
-  const pad = variant === 'compact' ? 'p-3' : 'p-4'
-  const sectionTitle = 'text-[11px] font-bold uppercase tracking-wide mb-2 flex items-center gap-1.5'
+  const pad = variant === 'compact' ? 'p-4' : 'p-5'
+  const sectionTitle = 'text-xs font-extrabold uppercase tracking-[0.06em] mb-2.5 flex items-center gap-1.5'
+  const bodyText = 'text-[15px] font-medium text-slate-800 leading-[1.7] tracking-[-0.01em]'
 
   return (
-    <div className={variant === 'compact' ? 'space-y-4 text-slate-800' : 'space-y-0'}>
+    <div className={`srp-prose ${variant === 'compact' ? 'space-y-4 text-slate-800' : 'space-y-0'}`}>
       {showHeader && (
         <div className={`flex items-start gap-4 ${variant === 'card' ? 'px-5 pb-4' : ''}`}>
           <div className={`flex-shrink-0 flex flex-col items-center justify-center w-[72px] h-[72px] rounded-2xl border-2 ${grade.bg} ${grade.border} shadow-sm`}>
@@ -245,7 +246,7 @@ export function ScreeningReportView({
           </div>
           <div className="flex-1 min-w-0">
             {asText(r.name) && (
-              <h3 className="text-base font-bold text-gray-900 mb-1 truncate">{asText(r.name)}</h3>
+              <h3 className="text-lg font-extrabold text-slate-900 mb-1 truncate tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', Inter, sans-serif" }}>{asText(r.name)}</h3>
             )}
             <div className="flex flex-wrap gap-2">
               <Badge className={`${dc.bg} ${dc.text} ${dc.border}`}>
@@ -300,7 +301,7 @@ export function ScreeningReportView({
         <p className={`${sectionTitle} text-indigo-700`}>
           <Brain className="w-3.5 h-3.5" /> What AI found
         </p>
-        <p className="text-sm text-gray-700 leading-relaxed">{briefWhy}</p>
+        <p className={bodyText}>{briefWhy}</p>
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <p className="text-[10px] font-bold uppercase text-emerald-700 mb-1.5">Matched</p>
@@ -328,7 +329,7 @@ export function ScreeningReportView({
           {summary && summary !== briefWhy && (
             <div className={`${pad} ${variant === 'card' ? 'border-t border-gray-100' : 'rounded-xl border border-slate-200'}`}>
               <p className={`${sectionTitle} text-slate-700`}>Executive Summary</p>
-              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{summary}</p>
+              <p className={`${bodyText} whitespace-pre-wrap`}>{summary}</p>
             </div>
           )}
 
@@ -366,7 +367,7 @@ export function ScreeningReportView({
               <p className={`${sectionTitle} text-amber-900`}>Red Flags</p>
               <ul className="space-y-1.5">
                 {redFlags.map((f, i) => (
-                  <li key={i} className="text-xs text-amber-900 flex gap-1.5">
+                  <li key={i} className="text-[14px] font-medium text-amber-950 leading-6 flex gap-2">
                     <span className="text-amber-500 flex-shrink-0">⚠</span>
                     <span>{f}</span>
                   </li>
@@ -466,7 +467,7 @@ export function ScreeningReportView({
                   <p className={`${sectionTitle} text-emerald-800`}><CheckCircle className="w-3.5 h-3.5" /> Strengths</p>
                   <ul className="space-y-1.5">
                     {strengths.map((s, i) => (
-                      <li key={i} className="text-xs text-gray-700 flex gap-1.5"><span className="text-emerald-600">✓</span><span>{s}</span></li>
+                      <li key={i} className="text-[14px] font-medium text-slate-800 leading-6 flex gap-2"><span className="text-emerald-600">✓</span><span>{s}</span></li>
                     ))}
                   </ul>
                 </div>
@@ -476,7 +477,7 @@ export function ScreeningReportView({
                   <p className={`${sectionTitle} text-red-800`}><AlertCircle className="w-3.5 h-3.5" /> Gaps & Weaknesses</p>
                   <ul className="space-y-1.5">
                     {weaknesses.map((w, i) => (
-                      <li key={i} className="text-xs text-gray-700 flex gap-1.5"><span className="text-red-500">×</span><span>{w}</span></li>
+                      <li key={i} className="text-[14px] font-medium text-slate-800 leading-6 flex gap-2"><span className="text-red-500">×</span><span>{w}</span></li>
                     ))}
                   </ul>
                 </div>
@@ -489,14 +490,14 @@ export function ScreeningReportView({
               <p className={`${sectionTitle} text-gray-700`}>
                 <Brain className="w-3.5 h-3.5 text-indigo-500" /> AI Reasoning
               </p>
-              <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{reasoning}</p>
+              <p className={`${bodyText} whitespace-pre-wrap`}>{reasoning}</p>
             </div>
           )}
 
           {r.recruiter_recommendation && typeof r.recruiter_recommendation === 'object' && (
             <div className={`${pad} ${variant === 'card' ? 'border-t border-gray-100 bg-violet-50/40' : 'rounded-xl border border-violet-200 bg-violet-50'}`}>
               <p className={`${sectionTitle} text-violet-800`}>Recruiter Recommendation</p>
-              <div className="space-y-1.5 text-xs text-violet-950">
+              <div className="space-y-2 text-[15px] font-medium text-slate-800 leading-7">
                 {asText(r.recruiter_recommendation.interview_recommendation) && (
                   <p><span className="font-semibold">Interview:</span> {asText(r.recruiter_recommendation.interview_recommendation)}</p>
                 )}
@@ -520,7 +521,7 @@ export function ScreeningReportView({
               </p>
               <ul className="space-y-1.5">
                 {improvements.map((a, i) => (
-                  <li key={i} className="text-xs text-blue-900 flex gap-1.5">
+                  <li key={i} className="text-[15px] font-medium text-slate-800 leading-7 flex gap-2">
                     <span className="font-bold text-blue-500">{i + 1}.</span>
                     <span>{a}</span>
                   </li>
@@ -533,7 +534,7 @@ export function ScreeningReportView({
             <div className={`${pad} ${variant === 'card' ? 'border-t border-gray-100 bg-gray-50' : ''}`}>
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
                 <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-900"><span className="font-semibold">Risk Note: </span>{asText(ev?.risk_explanation)}</p>
+                <p className="text-[15px] font-medium text-slate-800 leading-7"><span className="font-extrabold text-amber-800">Risk Note: </span>{asText(ev?.risk_explanation)}</p>
               </div>
             </div>
           )}

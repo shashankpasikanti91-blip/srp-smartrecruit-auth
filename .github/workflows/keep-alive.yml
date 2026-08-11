@@ -1,0 +1,70 @@
+name: SmartRecruit keep-alive (no rebuild)
+
+# Health + disk only. NEVER restarts the Docker daemon.
+# NEVER deletes Wellora, SRP website, SmartRecruit, or n8n.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      remove_leftovers:
+        description: "Stop leftover containers (mediflow/cadvisor only). Never Wellora / SRP website / SmartRecruit / n8n."
+        type: boolean
+        default: false
+
+jobs:
+  keep-alive:
+    name: Watchdog + inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: SSH keep-alive (srp-auth only)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          port: ${{ secrets.HETZNER_PORT || 22 }}
+          command_timeout: 15m
+          script: |
+            set -u
+            echo "=== HOST INVENTORY (read-only first) ==="
+            df -h / || true
+            echo "--- docker disk ---"
+            docker system df || true
+            echo "--- all containers (other products listed, not stopped) ---"
+            docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' || true
+            echo "--- compose projects ---"
+            docker ps -a --format '{{.Label "com.docker.compose.project"}}' | sort -u || true
+
+            echo "=== Install keep-alive cron (SmartRecruit only) ==="
+            cd /opt/srp-smartrecruit-auth
+            git fetch origin main --depth 1 || true
+            git checkout origin/main -- scripts/srp-keep-alive.sh || true
+            if [ -f /opt/srp-smartrecruit-auth/scripts/srp-keep-alive.sh ]; then
+              sudo cp /opt/srp-smartrecruit-auth/scripts/srp-keep-alive.sh /usr/local/bin/srp-keep-alive
+            fi
+            sudo chmod +x /usr/local/bin/srp-keep-alive 2>/dev/null || true
+            printf '%s\n' '*/5 * * * * root /usr/local/bin/srp-keep-alive >/var/log/srp-keep-alive.log 2>&1' | sudo tee /etc/cron.d/srp-keep-alive >/dev/null
+            sudo chmod 644 /etc/cron.d/srp-keep-alive
+
+            echo "=== Run keep-alive now ==="
+            export SRP_REMOVE_UNPROTECTED=0
+            if [ "${{ github.event.inputs.remove_leftovers }}" = "true" ]; then
+              export SRP_REMOVE_UNPROTECTED=1
+              echo "Will remove leftover mediflow/cadvisor only — n8n stays"
+            fi
+            sudo -E /usr/local/bin/srp-keep-alive || /usr/local/bin/srp-keep-alive || true
+
+            echo "=== Health after watchdog ==="
+            curl -s -o /dev/null -w "local:%{http_code}\n" --max-time 8 http://127.0.0.1:3010/api/health || true
+            df -h / || true
+            echo "Protected forever: SmartRecruit, Wellora, SRP website, n8n."
+            echo "Forbidden: systemctl restart docker"
+
+      - name: Public HTTPS health
+        run: |
+          CODE=$(curl -s -o /tmp/h.json -w "%{http_code}" --max-time 20 https://recruit.srpailabs.com/api/health || echo 000)
+          echo "HTTPS /api/health => $CODE"
+          head -c 300 /tmp/h.json; echo
+          test "$CODE" = "200"

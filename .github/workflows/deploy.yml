@@ -3,6 +3,13 @@ name: Deploy Frontend (Next.js Auth)
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "e2e/**"
+      - "*.md"
+      - ".github/workflows/keep-alive.yml"
+      - ".github/workflows/recover-production.yml"
+      - "scripts/srp-keep-alive.sh"
   workflow_dispatch:
 
 jobs:
@@ -223,6 +230,15 @@ jobs:
               fi
             fi
 
+            echo "=== [5d/5] Install keep-alive cron (never restarts Docker daemon) ==="
+            if [ -f /opt/srp-smartrecruit-auth/scripts/srp-keep-alive.sh ]; then
+              sudo cp /opt/srp-smartrecruit-auth/scripts/srp-keep-alive.sh /usr/local/bin/srp-keep-alive
+              sudo chmod +x /usr/local/bin/srp-keep-alive
+              printf '%s\n' '*/5 * * * * root /usr/local/bin/srp-keep-alive >/var/log/srp-keep-alive.log 2>&1' | sudo tee /etc/cron.d/srp-keep-alive >/dev/null
+              sudo chmod 644 /etc/cron.d/srp-keep-alive
+              echo "Keep-alive cron installed (every 5 min, srp-auth only)"
+            fi
+
             echo "Frontend deploy complete"
 
       # ╬ô├╢├ç╬ô├╢├ç E2E: HTTP checks against live HTTPS domain (no SSH needed) ╬ô├╢├ç╬ô├╢├ç
@@ -261,7 +277,8 @@ jobs:
               if not ok:
                   failures.append(f"{path} (got {code}, expected {expected})")
                   return
-              if path.startswith("/api") and body.lstrip()[:1] == b"<":
+              # Next.js HTML 404 for removed FastAPI paths is fine. Real APIs must be JSON.
+              if path.startswith("/api") and code != 404 and body.lstrip()[:1] == b"<":
                   print(f"  [FAIL] {path} returned HTML instead of JSON")
                   failures.append(f"{path} HTML body")
 

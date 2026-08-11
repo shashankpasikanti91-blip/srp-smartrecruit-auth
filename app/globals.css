@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -84,18 +84,21 @@
 
 html {
   scroll-behavior: smooth;
-  /* Slightly smaller root than 16px so 100% browser zoom fits more UI (tables, KPIs, pipeline). */
-  font-size: 15px;
+  font-size: 16px;
 }
 
 body {
-  font-family: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
   background-color: var(--dash-bg);
   color: var(--dash-text);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  font-size: 0.95rem;
-  line-height: 1.5;
+  /* auto = sharp on Windows light UI; antialiased thins Inter and looks blurry */
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+  text-rendering: optimizeLegibility;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: -0.011em;
 }
 
 h1, h2, h3, h4, .dash-page-title, .dash-section-head h1, .page-title {
@@ -113,11 +116,20 @@ h1, h2, h3, h4, .dash-page-title, .dash-section-head h1, .page-title {
   color: var(--dash-heading);
 }
 
-/* Dashboard: subtle scale on wide screens only — stacks with html font-size for comfortable 100% zoom */
-@media (min-width: 1280px) {
-  .dashboard-root {
-    zoom: 0.94;
-  }
+/* Do not use CSS zoom on the dashboard — it makes fonts blurry on Windows. */
+
+.srp-prose {
+  font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.7;
+  color: #1e293b;
+  letter-spacing: -0.01em;
+}
+
+.srp-prose p,
+.srp-prose li {
+  color: #1e293b;
 }
 
 /* Mobile: prevent clipped AI tabs / sticky bottom CTA space */

@@ -2736,7 +2736,7 @@ export default function DashboardPage() {
   })()
 
   return (
-    <div className="min-h-screen dashboard-root bg-slate-100">
+    <div className="min-h-screen dashboard-root bg-[#F8FAFC]">
       <div className="flex h-screen overflow-hidden">
 
         {/* Mobile nav backdrop */}

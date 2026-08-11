@@ -5,7 +5,7 @@
 # Installed by CI as /usr/local/bin/srp-backup from this file.
 # Backs up Auth DB (required), ATS DB (best-effort), and uploads.
 #
-# LOCAL:  /opt/backups/srp-smartrecruit/ — 30-day retention
+# LOCAL:  /opt/backups/srp-smartrecruit/ — 7-day retention (30d dumps filled the disk and 502'd screening)
 # ONLINE: Supabase Storage bucket "srp-backups" when credentials present
 #
 # Never deletes tenant data, never truncates DBs, never wipes uploads.
@@ -13,7 +13,7 @@
 set -euo pipefail
 
 BACKUP_ROOT="/opt/backups/srp-smartrecruit"
-KEEP_DAYS=30
+KEEP_DAYS=7
 DATE=$(date -u '+%Y-%m-%d_%H%M%S')
 BACKUP_DIR="${BACKUP_ROOT}/${DATE}"
 LOG_PREFIX="[SRP-BACKUP ${DATE}]"
