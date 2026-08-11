@@ -28,13 +28,13 @@ export default function PageHero({
   return (
     <MarketingSection variant={variant} padding="hero" className="overflow-hidden relative">
       <div className={`absolute inset-0 pointer-events-none ${centered ? '' : ''}`} aria-hidden>
-        <div className="absolute top-0 right-0 w-[480px] h-[480px] bg-cyan-500/8 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-[360px] h-[360px] bg-violet-600/8 rounded-full blur-3xl" />
+        <div className="absolute top-0 right-0 w-[480px] h-[480px] bg-[#166534]/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-[360px] h-[360px] bg-[#F97316]/10 rounded-full blur-3xl" />
       </div>
 
       <div className={`relative z-10 grid grid-cols-1 ${visual ? 'lg:grid-cols-2' : ''} gap-12 items-center`}>
         <div className={centered && !visual ? 'max-w-3xl mx-auto text-center' : 'max-w-xl'}>
-          <p className="inline-flex items-center gap-2 px-3 py-1 rounded-full marketing-glass text-xs font-semibold text-cyan-300/90 mb-5">
+          <p className="inline-flex items-center gap-2 px-3 py-1 rounded-full marketing-glass text-xs font-semibold text-[#F97316] mb-5">
             {eyebrow}
           </p>
           <h1 className={`font-display text-4xl sm:text-5xl lg:text-[3.25rem] font-extrabold text-white leading-[1.1] tracking-tight ${centered && !visual ? '' : ''}`}>
@@ -48,7 +48,7 @@ export default function PageHero({
               {cta && (
                 <Link
                   href={cta.href}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-600 text-white font-bold text-sm btn-glow focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 min-h-[44px] rounded-xl bg-[#F97316] text-[#0B1F14] font-bold text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]"
                 >
                   {cta.label}
                   <ArrowRight className="w-4 h-4" aria-hidden />
@@ -57,7 +57,7 @@ export default function PageHero({
               {secondaryCta && (
                 <Link
                   href={secondaryCta.href}
-                  className="inline-flex items-center justify-center px-6 py-3 rounded-xl marketing-glass text-white font-semibold text-sm hover:border-cyan-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                  className="inline-flex items-center justify-center px-6 py-3 min-h-[44px] rounded-xl marketing-glass text-white font-semibold text-sm hover:border-[#F97316]/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]"
                 >
                   {secondaryCta.label}
                 </Link>

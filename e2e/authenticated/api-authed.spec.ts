@@ -24,4 +24,25 @@ test.describe('Authenticated API (session cookies)', () => {
     expect(body).toHaveProperty('user')
     expect(body.user).toHaveProperty('email')
   })
+
+  test('POST /api/parse TXT returns JSON text (single CV path)', async ({ request }) => {
+    const res = await request.post('/api/parse', {
+      multipart: {
+        file: {
+          name: 'jane_doe_resume.txt',
+          mimeType: 'text/plain',
+          buffer: Buffer.from(
+            'Jane Doe\nSenior Engineer\nEmail: jane.doe@example.com\nPhone: +65 8123 4567\n\nExperience at Acme Corp building APIs.',
+          ),
+        },
+      },
+    })
+    const ct = res.headers()['content-type'] || ''
+    expect(ct).toMatch(/json/i)
+    const text = await res.text()
+    expect(text.trimStart().startsWith('<')).toBeFalsy()
+    expect(res.ok(), text).toBeTruthy()
+    const body = JSON.parse(text) as { text?: string; name?: string; email?: string }
+    expect((body.text || '').length).toBeGreaterThan(20)
+  })
 })

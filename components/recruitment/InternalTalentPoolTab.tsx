@@ -83,7 +83,7 @@ export function InternalTalentPoolTab({}: {}) {
             <Users className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Internal Talent Pool</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>Internal Talent Pool</h1>
             <p className="text-sm text-slate-500 mt-0.5">
               {total ? `${rows.length} of ${total}` : rows.length} candidate{rows.length === 1 ? '' : 's'}
             </p>
@@ -94,8 +94,8 @@ export function InternalTalentPoolTab({}: {}) {
 
       <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm shadow-slate-900/5 mb-5 ring-1 ring-slate-950/[0.02]">
         <div className="flex items-center gap-2 mb-3">
-          <Filter className="w-3.5 h-3.5 text-indigo-600" aria-hidden />
-          <span className="text-xs font-extrabold uppercase tracking-wide text-indigo-700">Search</span>
+          <Filter className="w-3.5 h-3.5 text-[#166534]" aria-hidden />
+          <span className="text-xs font-extrabold uppercase tracking-wide text-[#166534]">Search</span>
         </div>
 
         <div className="relative mb-3">
@@ -105,7 +105,7 @@ export function InternalTalentPoolTab({}: {}) {
             onChange={e => setQ(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') onSearch() }}
             placeholder="Search name, skill keywords, or role…"
-            className="w-full pl-12 pr-4 py-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 shadow-inner"
+            className="w-full pl-12 pr-4 py-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15 shadow-inner"
           />
         </div>
 
@@ -117,8 +117,8 @@ export function InternalTalentPoolTab({}: {}) {
               onClick={() => setSkill(prev => prev === chip ? '' : chip)}
               className={`px-3 py-1.5 rounded-full text-xs font-extrabold border transition-all ${
                 skill === chip
-                  ? 'bg-violet-600 text-white border-violet-600'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'
+                  ? 'bg-[#166534] text-white border-[#166534]'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-[#166534]/40'
               }`}
             >
               {chip}
@@ -137,22 +137,22 @@ export function InternalTalentPoolTab({}: {}) {
 
         <div className="flex items-end gap-3 flex-wrap">
           <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Skill filter</span>
+            <span className="text-[10px] font-bold text-[#166534] uppercase tracking-wide px-0.5">Skill filter</span>
             <input
               value={skill}
               onChange={e => setSkill(e.target.value)}
               placeholder="e.g. React"
-              className="w-40 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
+              className="w-40 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15"
             />
           </div>
 
           <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Location</span>
+            <span className="text-[10px] font-bold text-[#c2410c] uppercase tracking-wide px-0.5">Location</span>
             <input
               value={location}
               onChange={e => setLocation(e.target.value)}
               placeholder="e.g. Bangalore"
-              className="w-40 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
+              className="w-40 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15"
             />
           </div>
 
@@ -161,7 +161,7 @@ export function InternalTalentPoolTab({}: {}) {
               type="button"
               onClick={onSearch}
               disabled={loading}
-              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20 disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors bg-[#F97316] hover:bg-[#ea580c] shadow-md shadow-orange-900/15 disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Search'}
             </button>
@@ -176,7 +176,7 @@ export function InternalTalentPoolTab({}: {}) {
       )}
 
       {preview && (
-        <div className="mb-4 rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-4 shadow-sm">
+        <div className="mb-4 rounded-2xl border border-[#166534]/25 bg-gradient-to-br from-[#ecfdf3] to-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-extrabold text-slate-900">{preview.candidate_name}</p>
@@ -210,7 +210,7 @@ export function InternalTalentPoolTab({}: {}) {
 
       {loading ? (
         <div className="flex items-center justify-center h-40">
-          <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+          <Loader2 className="w-6 h-6 animate-spin text-[#166534]" />
         </div>
       ) : rows.length === 0 ? (
         <div className="ui-empty h-60">
@@ -254,7 +254,7 @@ export function InternalTalentPoolTab({}: {}) {
                 const status = c.pipeline_stage ?? c.status ?? '—'
 
                 return (
-                  <tr key={c.id} className="hover:bg-indigo-50/30 transition-colors cursor-pointer" onClick={() => setPreviewId(c.id)}>
+                  <tr key={c.id} className="hover:bg-[#ecfdf3]/80 transition-colors cursor-pointer" onClick={() => setPreviewId(c.id)}>
                     <td>
                       <div className="flex flex-col">
                         <p className="font-semibold text-gray-900 text-sm">{c.candidate_name}</p>
@@ -285,7 +285,7 @@ export function InternalTalentPoolTab({}: {}) {
                         <button
                           type="button"
                           onClick={() => window.location.assign(`/dashboard/candidates/${c.id}`)}
-                          className="px-2 py-1 rounded-lg text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 border border-indigo-200"
+                          className="px-2 py-1 rounded-lg text-xs font-semibold text-[#166534] hover:text-[#14532d] bg-[#ecfdf3] border border-[#166534]/20"
                         >
                           View Profile
                         </button>
@@ -308,7 +308,7 @@ export function InternalTalentPoolTab({}: {}) {
                         <button
                           type="button"
                           onClick={() => window.location.assign(`/dashboard/candidates/${c.id}`)}
-                          className="px-2 py-1 rounded-lg text-xs font-semibold text-violet-700 hover:text-violet-900 bg-violet-50 border border-violet-200"
+                          className="px-2 py-1 rounded-lg text-xs font-semibold text-[#c2410c] hover:text-[#9a3412] bg-[#fff7ed] border border-[#F97316]/30"
                           title="Create submission (complete submission fields in Candidate 360 record)."
                         >
                           Submit

@@ -34,13 +34,34 @@ export const authOptions: AuthOptions = {
         if (!credentials?.email || !credentials?.password) return null
         const email = credentials.email.toLowerCase()
         try {
-          const { rows } = await pool.query(
-            `SELECT id, name, email, image, role, product_access, is_active, password_hash,
-                    locked_until, failed_login_count, mfa_enabled
-             FROM auth_users WHERE email = $1`,
-            [email]
-          )
-          const user = rows[0]
+          let user: {
+            id: string
+            name: string | null
+            email: string
+            image: string | null
+            role?: string
+            product_access?: unknown
+            is_active: boolean
+            password_hash: string | null
+          } | undefined
+          try {
+            const full = await pool.query(
+              `SELECT id, name, email, image, role, product_access, is_active, password_hash,
+                      locked_until, failed_login_count, mfa_enabled
+               FROM auth_users WHERE email = $1`,
+              [email]
+            )
+            user = full.rows[0]
+          } catch (colErr) {
+            const msg = colErr instanceof Error ? colErr.message : String(colErr)
+            if (!/locked_until|failed_login_count|mfa_enabled/.test(msg)) throw colErr
+            const slim = await pool.query(
+              `SELECT id, name, email, image, role, product_access, is_active, password_hash
+               FROM auth_users WHERE email = $1`,
+              [email]
+            )
+            user = slim.rows[0]
+          }
           if (!user || !user.password_hash || !user.is_active) {
             await logLogin({
               userId: user?.id ?? null,

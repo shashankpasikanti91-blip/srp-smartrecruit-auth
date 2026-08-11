@@ -97,9 +97,9 @@ function LoginContent() {
   const activeError = formError ?? oauthError
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-slate-50">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-[#FCFCFA]">
       {/* Left — brand panel */}
-      <aside className="relative lg:w-[48%] xl:w-[46%] bg-[#0A192F] text-white px-6 sm:px-10 py-8 lg:py-12 flex flex-col overflow-hidden">
+      <aside className="relative lg:w-[48%] xl:w-[46%] bg-[#0B1F14] text-white px-6 sm:px-10 py-8 lg:py-12 flex flex-col overflow-hidden">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.12]"
           style={{
@@ -108,8 +108,8 @@ function LoginContent() {
             backgroundSize: '28px 28px',
           }}
         />
-        <div className="pointer-events-none absolute -top-24 -left-16 w-72 h-72 rounded-full bg-blue-600/30 blur-3xl" />
-        <div className="pointer-events-none absolute bottom-0 right-0 w-80 h-80 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -top-24 -left-16 w-72 h-72 rounded-full bg-[#166534]/40 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 right-0 w-80 h-80 rounded-full bg-[#F97316]/20 blur-3xl" />
 
         <div className="relative z-10 flex flex-col h-full max-w-lg mx-auto lg:mx-0 w-full">
           <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white transition-colors w-fit">
@@ -119,16 +119,16 @@ function LoginContent() {
           <div className="mt-8 lg:mt-12 flex items-center gap-3">
             <BrandMark size={44} />
             <div>
-              <p className="text-xl font-extrabold tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', Inter, sans-serif" }}>
+              <p className="text-xl font-extrabold tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>
                 SRP SmartRecruit
               </p>
-              <p className="text-sm text-blue-200/90 font-medium">Powered by SRP AI Labs</p>
+              <p className="text-sm text-[#F97316] font-medium">Powered by SRP AI Labs</p>
             </div>
           </div>
 
           <h1
             className="mt-8 lg:mt-12 text-3xl sm:text-4xl font-extrabold leading-tight tracking-tight text-white"
-            style={{ fontFamily: "'Plus Jakarta Sans', Inter, sans-serif" }}
+            style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}
           >
             AI-powered Recruitment Operating System
           </h1>
@@ -139,8 +139,8 @@ function LoginContent() {
           <ul className="mt-8 lg:mt-10 space-y-5">
             {features.map(({ icon: Icon, title, desc }) => (
               <li key={title} className="flex gap-3.5">
-                <span className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-500/15 border border-blue-400/25 flex items-center justify-center">
-                  <Icon className="w-5 h-5 text-blue-300" />
+                <span className="flex-shrink-0 w-10 h-10 rounded-md bg-[#166534] border border-[#F97316]/40 flex items-center justify-center">
+                  <Icon className="w-5 h-5 text-[#F97316]" />
                 </span>
                 <div>
                   <p className="font-bold text-white text-sm sm:text-base">{title}</p>
@@ -157,11 +157,11 @@ function LoginContent() {
       </aside>
 
       {/* Right — form */}
-      <main className="flex-1 flex items-center justify-center px-4 sm:px-8 py-10 lg:py-12 bg-[#F8FAFC]">
+      <main className="flex-1 flex items-center justify-center px-4 sm:px-8 py-10 lg:py-12 bg-[#FCFCFA]">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-[0_8px_30px_rgba(17,24,39,0.06)] p-6 sm:p-8">
             <div className="mb-6">
-              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', Inter, sans-serif" }}>
+              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>
                 Sign in
               </h2>
               <p className="mt-1.5 text-sm text-slate-500">Welcome back — enter your workspace credentials.</p>
@@ -184,14 +184,14 @@ function LoginContent() {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="you@company.com"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-colors"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15 transition-colors"
                 />
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Password</label>
-                  <Link href="/forgot-password" className="text-xs font-semibold text-blue-600 hover:underline">Forgot password?</Link>
+                  <Link href="/forgot-password" className="text-xs font-semibold text-[#166534] hover:underline">Forgot password?</Link>
                 </div>
                 <div className="relative">
                   <input
@@ -201,7 +201,7 @@ function LoginContent() {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-11 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-colors"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-11 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15 transition-colors"
                   />
                   <button
                     type="button"
@@ -220,7 +220,7 @@ function LoginContent() {
                   type="button"
                   onClick={() => setRemember(v => !v)}
                   className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                    remember ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'
+                    remember ? 'bg-[#166534] border-[#166534]' : 'border-slate-300 bg-white'
                   }`}
                   aria-pressed={remember}
                 >
@@ -232,7 +232,7 @@ function LoginContent() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold transition-colors flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(37,99,235,0.28)]"
+                className="w-full py-3.5 min-h-[44px] rounded-xl bg-[#F97316] hover:bg-[#ea580c] disabled:opacity-60 text-[#0B1F14] text-sm font-bold transition-colors flex items-center justify-center gap-2"
               >
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 {loading ? 'Signing in…' : 'Sign in to SmartRecruit'}
@@ -262,14 +262,14 @@ function LoginContent() {
 
             <p className="mt-6 text-center text-sm text-slate-500">
               No account?{' '}
-              <Link href="/signup" className="text-blue-600 hover:underline font-bold">Create workspace</Link>
+              <Link href="/signup" className="text-[#166534] hover:underline font-bold">Create workspace</Link>
             </p>
 
             <p className="mt-4 text-xs text-center text-slate-400 leading-relaxed">
               By signing in you agree to our{' '}
-              <Link href="/legal/terms" className="text-blue-600 hover:underline">Terms of Service</Link>
+              <Link href="/legal/terms" className="text-[#166534] hover:underline">Terms of Service</Link>
               {' '}and{' '}
-              <Link href="/legal/privacy" className="text-blue-600 hover:underline">Privacy Policy</Link>.
+              <Link href="/legal/privacy" className="text-[#166534] hover:underline">Privacy Policy</Link>.
             </p>
           </div>
 
@@ -294,7 +294,7 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#F8FAFC]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#FCFCFA]" />}>
       <LoginContent />
     </Suspense>
   )

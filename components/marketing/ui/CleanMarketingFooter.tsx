@@ -1,6 +1,7 @@
 import Link from 'next/link'
-import { Zap, Linkedin, Mail } from 'lucide-react'
+import { Linkedin, Mail } from 'lucide-react'
 import { FOOTER_COMPANY, FOOTER_LEGAL, FOOTER_PRODUCT, MARKETING_ROUTES } from '@/content/marketing/navigation'
+import { BrandMark } from '@/components/ui/BrandMark'
 
 const FOOTER_COLUMNS = [
   { title: 'Product', links: FOOTER_PRODUCT },
@@ -17,13 +18,16 @@ export default function CleanMarketingFooter() {
         <div className="marketing-footer-top">
           <div className="marketing-footer-brand">
             <Link href={MARKETING_ROUTES.home} className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-white" aria-hidden />
-              </div>
-              <span className="font-bold text-white">SRP Recruit AI</span>
+              <BrandMark size={32} />
+              <span
+                className="font-bold text-white"
+                style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}
+              >
+                SRP SmartRecruit
+              </span>
             </Link>
-            <p className="text-slate-500 text-sm leading-relaxed">
-              AI-assisted recruitment intelligence for agencies — screen, rank, explain, and prepare client-ready shortlists with recruiter oversight.
+            <p className="text-slate-400 text-sm leading-relaxed">
+              A recruitment workspace from SRP AI Labs. Built for the desk — not for a demo reel.
             </p>
             <div className="flex gap-2 mt-4">
               <a
@@ -31,14 +35,14 @@ export default function CleanMarketingFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="LinkedIn"
-                className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-500 hover:text-cyan-400 transition-colors"
+                className="w-11 h-11 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:text-[#F97316] transition-colors"
               >
                 <Linkedin className="w-4 h-4" />
               </a>
               <a
                 href="mailto:support@srpailabs.com"
                 aria-label="Email"
-                className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-500 hover:text-cyan-400 transition-colors"
+                className="w-11 h-11 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:text-[#F97316] transition-colors"
               >
                 <Mail className="w-4 h-4" />
               </a>
@@ -52,7 +56,7 @@ export default function CleanMarketingFooter() {
                 <ul className="space-y-2">
                   {col.links.map((l) => (
                     <li key={l.href}>
-                      <Link href={l.href} className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
+                      <Link href={l.href} className="text-sm text-slate-400 hover:text-[#F97316] transition-colors">
                         {l.label}
                       </Link>
                     </li>
@@ -65,7 +69,7 @@ export default function CleanMarketingFooter() {
 
         <div className="marketing-footer-bottom">
           <p>© {year} SRP AI Labs. All rights reserved.</p>
-          <Link href={MARKETING_ROUTES.contact} className="hover:text-slate-400 transition-colors">
+          <Link href={MARKETING_ROUTES.contact} className="hover:text-[#F97316] transition-colors">
             Book a demo →
           </Link>
         </div>

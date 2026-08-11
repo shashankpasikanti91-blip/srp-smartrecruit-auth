@@ -27,7 +27,7 @@ async function extractPdfWithPoppler(buffer: Buffer): Promise<string> {
     const { stdout } = await execFileAsync(
       'pdftotext',
       ['-layout', '-enc', 'UTF-8', '-q', inPath, '-'],
-      { timeout: 25_000, maxBuffer: 2 * 1024 * 1024 },
+      { timeout: 8_000, maxBuffer: 2 * 1024 * 1024 },
     )
     return (typeof stdout === 'string' ? stdout : Buffer.from(stdout).toString('utf8')).trim()
   } finally {
@@ -36,13 +36,6 @@ async function extractPdfWithPoppler(buffer: Buffer): Promise<string> {
 }
 
 async function extractPdf(buffer: Buffer): Promise<string> {
-  try {
-    const poppler = await extractPdfWithPoppler(buffer)
-    if (poppler.length >= 10) return poppler
-  } catch {
-    // pdftotext missing on local Windows — fall through to pdf-parse
-  }
-
   let pdfParse: (buf: Buffer, opts?: object) => Promise<{ text: string }>
   try {
     // Prefer inner path (Docker standalone-safe — avoids pdf-parse test PDF crash)
@@ -62,14 +55,23 @@ async function extractPdf(buffer: Buffer): Promise<string> {
     }
   }
 
-  // Prefer first pages for speed; fall back to full parse if empty
+  // Fast path first (pdf-parse). Poppler only if that returns too little text.
   let text = ''
   try {
-    const result = await pdfParse(buffer, { max: 12 })
+    const result = await pdfParse(buffer, { max: 8 })
     text = result.text ?? ''
   } catch {
     text = ''
   }
+  if (text.trim().length >= 40) return text
+
+  try {
+    const poppler = await extractPdfWithPoppler(buffer)
+    if (poppler.length >= 10) return poppler
+  } catch {
+    // pdftotext missing or slow — continue
+  }
+
   if (!text.trim()) {
     try {
       const result = await pdfParse(buffer)

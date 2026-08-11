@@ -56,7 +56,7 @@ function ModuleMiniVisual({ type }: { type: VisualType }) {
       <div className="flex gap-1.5 h-10 items-end" aria-hidden>
         {['Screen', 'Review', 'Submit', 'Placed'].map((s, i) => (
           <div key={s} className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full rounded bg-cyan-500/30" style={{ height: `${40 + i * 12}%` }} />
+            <div className="w-full rounded bg-[#F97316]/40" style={{ height: `${40 + i * 12}%` }} />
             <span className="text-[8px] text-slate-600">{s}</span>
           </div>
         ))}
@@ -67,7 +67,7 @@ function ModuleMiniVisual({ type }: { type: VisualType }) {
     return (
       <div className="flex items-end gap-1 h-10" aria-hidden>
         {[35, 55, 45, 70, 50].map((h, i) => (
-          <div key={i} className="flex-1 rounded-t bg-violet-500/35" style={{ height: `${h}%` }} />
+          <div key={i} className="flex-1 rounded-t bg-[#166534]/70" style={{ height: `${h}%` }} />
         ))}
       </div>
     )
@@ -85,7 +85,7 @@ function ModuleHub() {
     <div className="agency-module-hub" aria-hidden>
       <div className="agency-module-hub-glow" />
       <div className="agency-module-hub-core">
-        <p className="text-[10px] uppercase tracking-widest text-cyan-400 mb-2">Agency command view</p>
+        <p className="text-[10px] uppercase tracking-widest text-[#F97316] mb-2">Agency command view</p>
         <div className="flex items-center gap-4 mb-3">
           <ScoreRing score={91} size={64} />
           <div>
@@ -124,11 +124,11 @@ export default function PremiumBentoGrid() {
       <div ref={ref} className={`max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 marketing-reveal ${isVisible ? 'is-visible' : ''}`}>
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-12 lg:mb-16">
           <div className="max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400 mb-3">{MODULES_SECTION.eyebrow}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#F97316] mb-3">{MODULES_SECTION.eyebrow}</p>
             <h2 className="font-display text-display-lg font-extrabold text-white text-balance">{MODULES_SECTION.title}</h2>
             <p className="mt-4 text-lg text-slate-400 leading-relaxed">{MODULES_SECTION.subtitle}</p>
           </div>
-          <Link href="/features" className="inline-flex items-center gap-2 text-sm font-semibold text-cyan-400 hover:text-cyan-300 shrink-0">
+          <Link href="/#product" className="inline-flex items-center gap-2 text-sm font-semibold text-[#F97316] hover:text-orange-300 shrink-0">
             All capabilities <ArrowRight className="w-4 h-4" aria-hidden />
           </Link>
         </div>

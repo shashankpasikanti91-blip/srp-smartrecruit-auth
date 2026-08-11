@@ -67,15 +67,22 @@ function formatRequirements(items: string[]): string {
 }
 
 async function callAI(system: string, user: string) {
-  return chatCompletionWithUsage({
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: user },
-    ],
-    temperature: 0.2,
-    max_tokens: 1800,
-    response_format: { type: 'json_object' },
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 45_000)
+  try {
+    return await chatCompletionWithUsage({
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      temperature: 0.2,
+      max_tokens: 1800,
+      response_format: { type: 'json_object' },
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** POST /api/jobs/parse — Parse JD text into simple recruiter job fields. Always keeps raw JD. */
@@ -165,7 +172,10 @@ export async function POST(req: NextRequest) {
       message: 'Parsed for recruiters: About Role, Responsibilities, Requirements, Skills, Location, Type & Budget. Raw JD kept.',
     })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Parse failed'
+    const aborted = e instanceof Error && (e.name === 'AbortError' || /aborted/i.test(e.message))
+    const msg = aborted
+      ? 'JD parse timed out. Retry Parse with AI, or fill fields from the raw JD.'
+      : e instanceof Error ? e.message : 'Parse failed'
     return NextResponse.json({
       mode: 'fallback',
       error: msg,

@@ -287,7 +287,7 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
             onClick={() => setSection(s.key as HubSection)}
             className={`px-3.5 py-2 rounded-xl text-sm font-semibold transition-all border inline-flex items-center gap-1.5 ${
               section === s.key
-                ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20'
+                ? 'bg-[#166534] text-white border-transparent shadow-md shadow-green-900/15'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >

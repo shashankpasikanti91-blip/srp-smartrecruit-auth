@@ -134,15 +134,23 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = buildJobPostSystemPrompt(platforms)
 
-    const ai = await chatCompletionWithUsage({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Generate job posts for:\n${jobContext}` },
-      ],
-      temperature: 0.7,
-      max_tokens: 6000,
-      response_format: { type: 'json_object' },
-    })
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 50_000)
+    let ai
+    try {
+      ai = await chatCompletionWithUsage({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Generate job posts for:\n${jobContext}` },
+        ],
+        temperature: 0.7,
+        max_tokens: 3500,
+        response_format: { type: 'json_object' },
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+    }
     const parsed = JSON.parse(ai.content) as Record<string, string>
 
     const posts: Partial<Record<JobPostPlatform, string>> = {}

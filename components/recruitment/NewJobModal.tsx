@@ -59,8 +59,8 @@ const emptyForm = (): JobForm => {
   }
 }
 
-const inputCls = 'w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white'
-const labelCls = 'text-xs font-extrabold text-slate-800 mb-1.5 block'
+const inputCls = 'w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15 bg-white'
+const labelCls = 'text-xs font-extrabold text-[#166534] mb-1.5 block'
 
 export function NewJobModal({
   open,
@@ -143,11 +143,25 @@ export function NewJobModal({
       if (!opts?.silent) setError('Paste the JD text first')
       return null
     }
-    const res = await fetch('/api/jobs/parse', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, mode }),
-    })
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 50_000)
+    let res: Response
+    try {
+      res = await fetch('/api/jobs/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, mode }),
+        signal: controller.signal,
+      })
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        if (!opts?.silent) setError('JD parse timed out. Try again, or fill fields manually.')
+        return null
+      }
+      throw e
+    } finally {
+      clearTimeout(timer)
+    }
     const data = await res.json()
     if (!res.ok && !data.fields) {
       if (!opts?.silent) setError(data.error ?? 'Parse failed')
@@ -305,7 +319,7 @@ export function NewJobModal({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-4 flex flex-col border border-slate-200" style={{ maxHeight: '94vh' }}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-teal-500 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-[#166534] flex items-center justify-center">
               <Briefcase className="w-4 h-4 text-white" />
             </div>
             <div>
@@ -322,11 +336,11 @@ export function NewJobModal({
 
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Job Title <span className="text-red-500">*</span></label>
+              <label className={labelCls}>Job Title <span className="text-[#F97316]">*</span></label>
               <input className={inputCls} value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Senior Software Engineer" />
             </div>
             <div>
-              <label className={labelCls}>Client <span className="text-red-500">*</span></label>
+              <label className={labelCls}>Client <span className="text-[#F97316]">*</span></label>
               <select className={inputCls} value={form.client_id}
                 onChange={e => {
                   const id = e.target.value
@@ -361,11 +375,11 @@ export function NewJobModal({
           <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
             <div className="flex gap-2">
               <button type="button" onClick={() => setJdMode('text')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold border ${jdMode === 'text' ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-white text-slate-700 border-slate-200'}`}>
+                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold border ${jdMode === 'text' ? 'bg-[#166534] text-white border-[#14532d]' : 'bg-white text-slate-700 border-slate-200'}`}>
                 Plain text
               </button>
               <button type="button" onClick={() => setJdMode('file')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold border ${jdMode === 'file' ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-white text-slate-700 border-slate-200'}`}>
+                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold border ${jdMode === 'file' ? 'bg-[#166534] text-white border-[#14532d]' : 'bg-white text-slate-700 border-slate-200'}`}>
                 Upload file(s)
               </button>
             </div>
@@ -374,7 +388,7 @@ export function NewJobModal({
                 onChange={e => set('raw_jd_text', e.target.value)}
                 placeholder="Paste the full job description here…" />
             ) : (
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 rounded-xl bg-white py-8 cursor-pointer hover:bg-indigo-50/40">
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-[#166534]/30 rounded-xl bg-white py-8 cursor-pointer hover:bg-[#ecfdf3]">
                 <input type="file" accept=".pdf,.doc,.docx,.txt" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f) }} />
                 <p className="text-sm font-bold text-slate-700">Drop JD — PDF / DOC / DOCX / TXT</p>
@@ -383,7 +397,7 @@ export function NewJobModal({
             )}
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={parsing} onClick={() => parseJd('ai')}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold disabled:opacity-50">
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#F97316] hover:bg-[#ea580c] text-white text-sm font-extrabold disabled:opacity-50">
                 {parsing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                 Parse with AI
               </button>
@@ -468,15 +482,15 @@ export function NewJobModal({
 
           {/* Delivery & Timeline */}
           <div className="rounded-xl border border-slate-200 bg-amber-50/30 p-4 space-y-3">
-            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-800">Delivery & Timeline</p>
+            <p className="text-xs font-extrabold uppercase tracking-widest text-[#166534]">Delivery & Timeline</p>
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>JD received date <span className="text-red-500">*</span></label>
+                <label className={labelCls}>JD received date <span className="text-[#F97316]">*</span></label>
                 <input type="date" className={inputCls} value={form.jd_received_date} onChange={e => set('jd_received_date', e.target.value)} />
                 <p className="text-[10px] font-medium text-slate-500 mt-1">When the client JD landed</p>
               </div>
               <div>
-                <label className={labelCls}>Priority <span className="text-red-500">*</span></label>
+                <label className={labelCls}>Priority <span className="text-[#F97316]">*</span></label>
                 <select className={inputCls} value={form.priority} onChange={e => set('priority', e.target.value)}>
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -493,7 +507,7 @@ export function NewJobModal({
                 <input type="number" min={1} className={inputCls} value={form.internal_sla_days} onChange={e => set('internal_sla_days', e.target.value)} />
               </div>
               <div>
-                <label className={labelCls}>Target submission date <span className="text-red-500">*</span></label>
+                <label className={labelCls}>Target submission date <span className="text-[#F97316]">*</span></label>
                 <input type="date" className={inputCls} value={form.target_submission_date} onChange={e => set('target_submission_date', e.target.value)} />
               </div>
               <div>
@@ -509,7 +523,7 @@ export function NewJobModal({
 
           {/* Assignment */}
           <div className="rounded-xl border border-slate-200 p-4 space-y-2">
-            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-800">Who will work on this JD?</p>
+            <p className="text-xs font-extrabold uppercase tracking-widest text-[#166534]">Who will work on this JD?</p>
             <p className="text-xs font-medium text-slate-500">Choose all team members on this client, or pick specific recruiters.</p>
             {!form.client_id && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
@@ -524,7 +538,7 @@ export function NewJobModal({
 
           {/* Skills */}
           <div className="space-y-2">
-            <p className="text-xs font-extrabold uppercase tracking-widest text-slate-800">Key Skills</p>
+            <p className="text-xs font-extrabold uppercase tracking-widest text-[#166534]">Key Skills</p>
             <p className="text-[11px] font-medium text-slate-500">Must-have hard skills for screening (Java, Spring, SQL…)</p>
             <div className="flex flex-wrap gap-1.5">
               {form.skills_mandatory.map(s => (
@@ -552,7 +566,7 @@ export function NewJobModal({
                   setForm(p => ({ ...p, skills_mandatory: [...p.skills_mandatory, s] }))
                   setSkillDraft('')
                 }
-              }} className="px-3 py-2 rounded-lg text-sm font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-100 whitespace-nowrap">
+              }} className="px-3 py-2 rounded-lg text-sm font-extrabold text-[#166534] bg-[#ecfdf3] border border-[#166534]/20 whitespace-nowrap">
                 <Plus className="w-4 h-4 inline" /> Add Skill
               </button>
             </div>
@@ -579,18 +593,18 @@ export function NewJobModal({
             />
           </div>
 
-          <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-2">
+          <div className="rounded-xl border border-[#166534]/20 bg-[#ecfdf3]/60 p-4 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-xs font-extrabold uppercase tracking-widest text-indigo-900">Channel posts (Create & Generate)</p>
-                <p className="text-[11px] font-medium text-indigo-700/80 mt-0.5">
+                <p className="text-xs font-extrabold uppercase tracking-widest text-[#166534]">Channel posts (Create & Generate)</p>
+                <p className="text-[11px] font-medium text-[#14532d]/80 mt-0.5">
                   Email letter · LinkedIn hashtags · WhatsApp group msg · Indeed ATS — each uses a different prompt
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedPlatforms(prev => prev.length === JOB_POST_PLATFORMS.length ? ['linkedin'] : [...JOB_POST_PLATFORMS])}
-                className="text-[11px] font-bold text-indigo-700 hover:underline whitespace-nowrap"
+                className="text-[11px] font-bold text-[#166534] hover:underline whitespace-nowrap"
               >
                 {selectedPlatforms.length === JOB_POST_PLATFORMS.length ? 'Clear all' : 'Select all'}
               </button>
@@ -602,7 +616,7 @@ export function NewJobModal({
                 return (
                   <label
                     key={p}
-                    className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 cursor-pointer bg-white ${on ? 'border-indigo-300' : 'border-slate-200 opacity-80'}`}
+                    className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 cursor-pointer bg-white ${on ? 'border-[#F97316]' : 'border-slate-200 opacity-80'}`}
                   >
                     <input type="checkbox" checked={on} onChange={() => togglePlatform(p)} className="mt-0.5" />
                     <span className="min-w-0">
@@ -619,11 +633,11 @@ export function NewJobModal({
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex-shrink-0">
           <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-extrabold text-slate-700">Cancel</button>
           <button type="button" disabled={saving || !form.title} onClick={() => save(false)}
-            className="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-extrabold disabled:opacity-50">
+            className="px-5 py-2.5 rounded-lg bg-[#F97316] hover:bg-[#ea580c] text-white text-sm font-extrabold disabled:opacity-50">
             {saving ? 'Creating…' : 'Create Job'}
           </button>
           <button type="button" disabled={saving || !form.title} onClick={() => save(true)}
-            className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-teal-600 to-indigo-600 text-white text-sm font-extrabold disabled:opacity-50">
+            className="px-5 py-2.5 rounded-lg bg-[#166534] hover:bg-[#14532d] text-white text-sm font-extrabold disabled:opacity-50">
             Create & Generate Posts
           </button>
         </div>

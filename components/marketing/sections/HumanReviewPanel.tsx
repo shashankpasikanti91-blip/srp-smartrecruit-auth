@@ -26,7 +26,7 @@ export default function HumanReviewPanel() {
         />
         <div className="grid md:grid-cols-3 gap-6 mt-12">
           {HUMAN_REVIEW.points.map((p) => (
-            <div key={p.title} className="border-l-2 border-violet-500/40 pl-5">
+            <div key={p.title} className="border-l-2 border-[#F97316]/50 pl-5">
               <h3 className="font-semibold text-white text-sm">{p.title}</h3>
               <p className="text-sm text-slate-500 mt-2 leading-relaxed">{p.description}</p>
             </div>

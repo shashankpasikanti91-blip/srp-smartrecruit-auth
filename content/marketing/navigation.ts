@@ -1,15 +1,15 @@
-/** Shared marketing navigation — single source for header/footer. */
+/** Shared marketing navigation — one-page hash links on `/`. */
 
 export const MARKETING_ROUTES = {
   home: '/',
-  product: '/features',
-  features: '/features',
-  platform: '/platform',
-  solutions: '/solutions',
-  pricing: '/pricing',
+  product: '/#showcase',
+  features: '/#showcase',
+  platform: '/#showcase',
+  solutions: '/#week',
+  pricing: '/#pricing',
   security: '/legal/security',
-  contact: '/support/contact',
-  about: '/company/about',
+  contact: '/#cta',
+  about: '/#showcase',
   privacy: '/legal/privacy',
   terms: '/legal/terms',
   login: '/login',
@@ -17,25 +17,23 @@ export const MARKETING_ROUTES = {
 } as const
 
 export const HEADER_NAV = [
-  { label: 'Product', href: MARKETING_ROUTES.product },
-  { label: 'Platform', href: MARKETING_ROUTES.platform },
-  { label: 'Solutions', href: MARKETING_ROUTES.solutions },
-  { label: 'Pricing', href: MARKETING_ROUTES.pricing },
-  { label: 'Security', href: MARKETING_ROUTES.security },
-  { label: 'Contact', href: MARKETING_ROUTES.contact },
+  { label: 'The desk', href: '/#desk' },
+  { label: 'The week', href: '/#week' },
+  { label: 'Sign-off', href: '/#signoff' },
+  { label: 'Pricing', href: '/#pricing' },
 ] as const
 
 export const FOOTER_PRODUCT = [
-  { label: 'Resume Screening', href: '/features#bulk-screening' },
-  { label: 'AI Matching', href: '/features#matching' },
-  { label: 'Candidate Pipeline', href: '/platform#pipeline-board' },
-  { label: 'Reports', href: '/platform#analytics' },
+  { label: 'Resume Screening', href: '/#desk' },
+  { label: 'AI Matching', href: '/#two' },
+  { label: 'Job posts', href: '/#jobs' },
+  { label: 'How it works', href: '/#showcase' },
 ] as const
 
 export const FOOTER_COMPANY = [
-  { label: 'About', href: MARKETING_ROUTES.about },
-  { label: 'Contact', href: MARKETING_ROUTES.contact },
-  { label: 'Pricing', href: MARKETING_ROUTES.pricing },
+  { label: 'About', href: '/#showcase' },
+  { label: 'Contact', href: '/#cta' },
+  { label: 'Pricing', href: '/#pricing' },
 ] as const
 
 export const FOOTER_LEGAL = [

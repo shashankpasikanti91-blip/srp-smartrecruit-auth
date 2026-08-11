@@ -83,13 +83,22 @@ export async function parseUploadedFile(file: File): Promise<ParsedUpload> {
   const postOnce = async (): Promise<Response> => {
     const fd = new FormData()
     fd.append('file', file)
-    return fetch('/api/parse', { method: 'POST', body: fd })
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 45_000)
+    try {
+      return await fetch('/api/parse', { method: 'POST', body: fd, signal: controller.signal })
+    } finally {
+      clearTimeout(timer)
+    }
   }
 
   let res: Response
   try {
     res = await postOnce()
-  } catch {
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error('File parser timed out. Try a smaller PDF, or paste the text.')
+    }
     throw new Error('Could not reach the file parser. Check your connection, or paste the text.')
   }
 

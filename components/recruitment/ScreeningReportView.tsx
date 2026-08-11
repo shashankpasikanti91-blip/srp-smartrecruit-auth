@@ -113,7 +113,7 @@ function PillList({ items, tone }: { items: string[]; tone: 'green' | 'red' | 'a
   const cls =
     tone === 'green' ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
       : tone === 'red' ? 'bg-red-100 text-red-800 border-red-200'
-        : tone === 'cyan' ? 'bg-cyan-100 text-cyan-900 border-cyan-200'
+        : tone === 'cyan' ? 'bg-[#ecfdf3] text-[#166534] border-[#166534]/20'
           : 'bg-amber-100 text-amber-900 border-amber-200'
   if (!items.length) return <p className="text-xs text-gray-400 italic">None detected</p>
   return (
@@ -232,7 +232,7 @@ export function ScreeningReportView({
   } = model
 
   const pad = variant === 'compact' ? 'p-4' : 'p-5'
-  const sectionTitle = 'text-xs font-extrabold uppercase tracking-[0.06em] mb-2.5 flex items-center gap-1.5'
+  const sectionTitle = 'text-xs font-extrabold uppercase tracking-[0.06em] mb-2.5 flex items-center gap-1.5 font-display'
   const bodyText = 'text-[15px] font-medium text-slate-800 leading-[1.7] tracking-[-0.01em]'
 
   return (
@@ -246,7 +246,7 @@ export function ScreeningReportView({
           </div>
           <div className="flex-1 min-w-0">
             {asText(r.name) && (
-              <h3 className="text-lg font-extrabold text-slate-900 mb-1 truncate tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', Inter, sans-serif" }}>{asText(r.name)}</h3>
+              <h3 className="text-lg font-extrabold text-slate-900 mb-1 truncate tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>{asText(r.name)}</h3>
             )}
             <div className="flex flex-wrap gap-2">
               <Badge className={`${dc.bg} ${dc.text} ${dc.border}`}>
@@ -274,19 +274,19 @@ export function ScreeningReportView({
                 </Badge>
               )}
               {jdMatch != null && (
-                <Badge className="bg-blue-50 text-blue-800 border-blue-200">JD Match: {jdMatch}%</Badge>
+                <Badge className="bg-[#ecfdf3] text-[#166534] border-[#166534]/20">JD Match: {jdMatch}%</Badge>
               )}
               {r.resume_score != null && !Number.isNaN(Number(r.resume_score)) && (
-                <Badge className="bg-indigo-50 text-indigo-800 border-indigo-200">Resume: {Math.round(Number(r.resume_score))}%</Badge>
+                <Badge className="bg-[#ecfdf3] text-[#166534] border-[#166534]/20">Resume: {Math.round(Number(r.resume_score))}%</Badge>
               )}
               {riskLevel && (
                 <Badge className={riskTone(riskLevel)}>Risk: {riskLevel}</Badge>
               )}
               {r.interview_probability != null && !Number.isNaN(Number(r.interview_probability)) && (
-                <Badge className="bg-violet-50 text-violet-800 border-violet-200">Interview {Math.round(Number(r.interview_probability))}%</Badge>
+                <Badge className="bg-[#fff7ed] text-[#c2410c] border-[#F97316]/30">Interview {Math.round(Number(r.interview_probability))}%</Badge>
               )}
               {r.offer_probability != null && !Number.isNaN(Number(r.offer_probability)) && (
-                <Badge className="bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200">Offer {Math.round(Number(r.offer_probability))}%</Badge>
+                <Badge className="bg-[#fff7ed] text-[#c2410c] border-[#F97316]/30">Offer {Math.round(Number(r.offer_probability))}%</Badge>
               )}
             </div>
             {screenedAtLabel && (
@@ -297,8 +297,8 @@ export function ScreeningReportView({
       )}
 
       {/* Brief “what we got” — always visible, crash-safe */}
-      <div className={`${pad} ${variant === 'card' ? 'border-t border-gray-100 bg-indigo-50/40' : 'bg-indigo-50/50 rounded-xl border border-indigo-100'}`}>
-        <p className={`${sectionTitle} text-indigo-700`}>
+      <div className={`${pad} ${variant === 'card' ? 'border-t border-gray-100 bg-[#ecfdf3]/60' : 'bg-[#ecfdf3]/70 rounded-xl border border-[#166534]/15'}`}>
+        <p className={`${sectionTitle} text-[#166534]`}>
           <Brain className="w-3.5 h-3.5" /> What AI found
         </p>
         <p className={bodyText}>{briefWhy}</p>
@@ -316,7 +316,7 @@ export function ScreeningReportView({
           <button
             type="button"
             onClick={() => setShowFull(v => !v)}
-            className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-indigo-700 hover:text-indigo-900"
+            className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-[#166534] hover:text-[#14532d]"
           >
             {showFull ? 'Hide full audit' : 'Show full audit'}
             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFull ? 'rotate-180' : ''}`} />
@@ -377,8 +377,8 @@ export function ScreeningReportView({
           )}
 
           {preferredSkills.length > 0 && (
-            <div className={`${pad} ${variant === 'card' ? 'border-t border-gray-100 bg-cyan-50/40' : 'rounded-xl border border-cyan-200 bg-cyan-50'}`}>
-              <p className={`${sectionTitle} text-cyan-900`}>Preferred / Nice-to-have ★★★</p>
+            <div className={`${pad} ${variant === 'card' ? 'border-t border-gray-100 bg-[#ecfdf3]/50' : 'rounded-xl border border-[#166534]/20 bg-[#ecfdf3]'}`}>
+              <p className={`${sectionTitle} text-[#166534]`}>Preferred / Nice-to-have ★★★</p>
               <PillList items={preferredSkills} tone="cyan" />
             </div>
           )}
@@ -488,15 +488,15 @@ export function ScreeningReportView({
           {reasoning && (
             <div className={`${pad} ${variant === 'card' ? 'border-t border-gray-100 bg-gray-50' : 'rounded-xl border border-slate-200 bg-slate-50'}`}>
               <p className={`${sectionTitle} text-gray-700`}>
-                <Brain className="w-3.5 h-3.5 text-indigo-500" /> AI Reasoning
+                <Brain className="w-3.5 h-3.5 text-[#166534]" /> AI Reasoning
               </p>
               <p className={`${bodyText} whitespace-pre-wrap`}>{reasoning}</p>
             </div>
           )}
 
           {r.recruiter_recommendation && typeof r.recruiter_recommendation === 'object' && (
-            <div className={`${pad} ${variant === 'card' ? 'border-t border-gray-100 bg-violet-50/40' : 'rounded-xl border border-violet-200 bg-violet-50'}`}>
-              <p className={`${sectionTitle} text-violet-800`}>Recruiter Recommendation</p>
+            <div className={`${pad} ${variant === 'card' ? 'border-t border-gray-100 bg-[#fff7ed]/60' : 'rounded-xl border border-[#F97316]/25 bg-[#fff7ed]'}`}>
+              <p className={`${sectionTitle} text-[#c2410c]`}>Recruiter Recommendation</p>
               <div className="space-y-2 text-[15px] font-medium text-slate-800 leading-7">
                 {asText(r.recruiter_recommendation.interview_recommendation) && (
                   <p><span className="font-semibold">Interview:</span> {asText(r.recruiter_recommendation.interview_recommendation)}</p>

@@ -20,12 +20,12 @@ export default function FullBleedImageTransition() {
             />
           </div>
           <div className="order-1 lg:order-2 max-w-lg">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-400 mb-4">{SCROLL_STORY.eyebrow}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#F97316] mb-4">{SCROLL_STORY.eyebrow}</p>
             <h2 className="font-display text-display-lg font-extrabold text-white">{SCROLL_STORY.title}</h2>
             <p className="mt-6 text-lg text-slate-400 leading-relaxed">{SCROLL_STORY.subtitle}</p>
             <ul className="mt-8 space-y-4">
               {SCROLL_STORY.points.map((p) => (
-                <li key={p} className="text-sm text-slate-300 pl-4 border-l-2 border-cyan-500/40">{p}</li>
+                <li key={p} className="text-sm text-slate-300 pl-4 border-l-2 border-[#F97316]/50">{p}</li>
               ))}
             </ul>
           </div>

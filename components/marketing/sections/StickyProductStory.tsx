@@ -10,10 +10,10 @@ export default function StickyProductStory() {
   const step = STICKY_STORY.steps[activeStep]
 
   return (
-    <CinematicSection id="product-story" variant="stage" className="py-16 lg:py-20">
+    <CinematicSection id="product" variant="stage" className="py-16 lg:py-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-10 lg:mb-12">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400 mb-3">{STICKY_STORY.eyebrow}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#F97316] mb-3">{STICKY_STORY.eyebrow}</p>
           <h2 className="font-display text-display-lg font-extrabold text-white max-w-2xl">{STICKY_STORY.title}</h2>
         </div>
 
@@ -26,12 +26,12 @@ export default function StickyProductStory() {
                 onClick={() => setActiveStep(i)}
                 className={`shrink-0 lg:shrink lg:w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all ${
                   activeStep === i
-                    ? 'bg-gradient-to-r from-cyan-500/15 to-violet-600/15 text-white border border-cyan-500/30'
+                    ? 'bg-[#166534]/40 text-white border border-[#F97316]/40'
                     : 'text-slate-500 border border-transparent hover:text-slate-300 hover:border-white/10'
                 }`}
                 aria-current={activeStep === i ? 'step' : undefined}
               >
-                <span className="text-[10px] text-slate-600 block mb-0.5">0{i + 1}</span>
+                <span className="text-[10px] text-[#F97316] block mb-0.5">{i + 1}</span>
                 {s.label}
               </button>
             ))}

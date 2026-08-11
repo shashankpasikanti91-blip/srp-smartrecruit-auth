@@ -15,7 +15,7 @@ export default function LegalPageShell({ eyebrow, title, subtitle, children }: L
     <>
       <PageHero eyebrow={eyebrow} title={title} subtitle={subtitle ?? ''} variant="gradient" />
       <MarketingSection variant="mid" padding="compact">
-        <article className="max-w-3xl mx-auto prose prose-invert prose-slate prose-headings:font-display prose-headings:text-white prose-p:text-slate-400 prose-li:text-slate-400 prose-a:text-cyan-400">
+        <article className="max-w-3xl mx-auto prose prose-invert prose-slate prose-headings:font-display prose-headings:text-white prose-p:text-slate-400 prose-li:text-slate-400 prose-a:text-[#F97316]">
           {children}
         </article>
       </MarketingSection>

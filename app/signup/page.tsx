@@ -107,16 +107,16 @@ function SignupForm() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0a0a0f] relative overflow-hidden">
-      <div className="orb w-96 h-96 bg-indigo-600 -top-20 -left-20 opacity-20" />
-      <div className="orb w-72 h-72 bg-purple-700 -bottom-10 -right-10 opacity-15" style={{ animationDelay: '-3s' }} />
+    <div className="min-h-screen flex flex-col bg-[#FCFCFA] relative overflow-hidden">
+      <div className="pointer-events-none absolute -top-20 -left-20 w-96 h-96 rounded-full bg-[#166534]/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-10 -right-10 w-72 h-72 rounded-full bg-[#F97316]/10 blur-3xl" />
 
       {/* Nav */}
       <div className="relative z-10 p-6">
         <Link href="/" className="inline-flex items-center gap-2 group">
           <BrandMark size={32} />
-          <span className="font-bold text-white text-base tracking-tight">
-            SRP <span className="gradient-text">SmartRecruit</span>
+          <span className="font-bold text-[#111827] text-base tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>
+            SRP <span className="text-[#F97316]">SmartRecruit</span>
           </span>
         </Link>
       </div>
@@ -124,7 +124,7 @@ function SignupForm() {
       {/* Card */}
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
-          <div className="glass-card-dark rounded-2xl p-8 shadow-2xl border border-white/10">
+          <div className="bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgba(17,24,39,0.06)] border border-[#E5E7EB]">
 
             <div className="flex justify-center mb-5">
               <BrandMark size={56} animated />
@@ -132,8 +132,8 @@ function SignupForm() {
 
             {/* Invite banner */}
             {inviteToken && invite && (
-              <div className="mb-5 flex items-start gap-3 px-4 py-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-sm">
-                <Users className="w-4 h-4 flex-shrink-0 mt-0.5 text-indigo-400" />
+              <div className="mb-5 flex items-start gap-3 px-4 py-3 rounded-lg bg-[#ecfdf3] border border-[#166534]/20 text-[#166534] text-sm">
+                <Users className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#166534]" />
                 <span>
                   You&apos;re joining <strong>{invite.tenantName}</strong> as <strong>{invite.role}</strong>.
                   Set a password to complete your account.
@@ -148,7 +148,7 @@ function SignupForm() {
             )}
 
             <div className="text-center mb-6">
-              <h1 className="text-2xl font-extrabold text-white">
+              <h1 className="text-2xl font-extrabold text-[#111827]" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>
                 {inviteToken ? 'Complete registration' : 'Create account'}
               </h1>
               <p className="mt-1.5 text-sm text-gray-500">
@@ -167,36 +167,36 @@ function SignupForm() {
 
               {/* Full name */}
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1.5">Full name</label>
+                <label className="block text-xs font-medium text-[#4B5563] mb-1.5">Full name</label>
                 <input
                   type="text" autoComplete="name" required
                   value={name} onChange={e => setName(e.target.value)}
                   placeholder="Your name"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+                  className="w-full bg-[#FCFCFA] border border-[#E5E7EB] rounded-xl px-4 py-3 text-sm text-[#111827] placeholder-slate-400 focus:outline-none focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316] transition-colors"
                 />
               </div>
 
               {/* Email — locked to invite email if present */}
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1.5">Email address</label>
+                <label className="block text-xs font-medium text-[#4B5563] mb-1.5">Email address</label>
                 <input
                   type="email" autoComplete="email" required
                   value={email} onChange={e => !inviteToken && setEmail(e.target.value)}
                   readOnly={!!inviteToken}
                   placeholder="you@company.com"
-                  className={`w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors ${inviteToken ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  className={`w-full bg-[#FCFCFA] border border-[#E5E7EB] rounded-xl px-4 py-3 text-sm text-[#111827] placeholder-slate-400 focus:outline-none focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316] transition-colors ${inviteToken ? 'opacity-70 cursor-not-allowed' : ''}`}
                 />
               </div>
 
               {/* Password */}
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1.5">Password</label>
+                <label className="block text-xs font-medium text-[#4B5563] mb-1.5">Password</label>
                 <div className="relative">
                   <input
                     type={showPw ? 'text' : 'password'} autoComplete="new-password" required
                     value={password} onChange={e => setPassword(e.target.value)}
                     placeholder="Min. 8 characters"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pr-11 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+                    className="w-full bg-[#FCFCFA] border border-[#E5E7EB] rounded-xl px-4 py-3 pr-11 text-sm text-[#111827] placeholder-slate-400 focus:outline-none focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316] transition-colors"
                   />
                   <button type="button" tabIndex={-1} onClick={() => setShowPw(v => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors">
@@ -218,18 +218,18 @@ function SignupForm() {
 
               {/* Confirm password */}
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1.5">Confirm password</label>
+                <label className="block text-xs font-medium text-[#4B5563] mb-1.5">Confirm password</label>
                 <div className="relative">
                   <input
                     type={showCf ? 'text' : 'password'} autoComplete="new-password" required
                     value={confirm} onChange={e => setConfirm(e.target.value)}
                     placeholder="Repeat password"
-                    className={`w-full bg-white/5 border rounded-xl px-4 py-3 pr-11 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-1 transition-colors ${
+                    className={`w-full bg-[#FCFCFA] border rounded-xl px-4 py-3 pr-11 text-sm text-[#111827] placeholder-slate-400 focus:outline-none focus:ring-1 transition-colors ${
                       confirm && !pwMatch
                         ? 'border-red-500/50 focus:border-red-500 focus:ring-red-500'
                         : pwMatch
-                        ? 'border-emerald-500/50 focus:border-emerald-500 focus:ring-emerald-500'
-                        : 'border-white/10 focus:border-indigo-500 focus:ring-indigo-500'
+                        ? 'border-[#166534]/50 focus:border-[#166534] focus:ring-[#166534]'
+                        : 'border-[#E5E7EB] focus:border-[#F97316] focus:ring-[#F97316]'
                     }`}
                   />
                   <button type="button" tabIndex={-1} onClick={() => setShowCf(v => !v)}
@@ -244,14 +244,14 @@ function SignupForm() {
 
               {/* Submit */}
               <button type="submit" disabled={loading || (!!inviteToken && !!inviteError)}
-                className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                className="w-full py-3 min-h-[44px] rounded-xl bg-[#F97316] hover:bg-[#ea580c] disabled:opacity-60 text-[#0B1F14] text-sm font-bold transition-colors flex items-center justify-center gap-2">
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 {loading ? 'Creating account…' : inviteToken ? 'Accept invite & sign up' : 'Create account'}
               </button>
 
               <p className="text-center text-xs text-gray-600">
                 Already have an account?{' '}
-                <Link href="/login" className="text-indigo-400 hover:underline font-medium">Sign in</Link>
+                <Link href="/login" className="text-[#166534] hover:underline font-medium">Sign in</Link>
               </p>
             </form>
 
@@ -298,8 +298,8 @@ function SignupForm() {
 export default function SignupPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f]">
-        <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+      <div className="min-h-screen flex items-center justify-center bg-[#FCFCFA]">
+        <Loader2 className="w-6 h-6 animate-spin text-[#166534]" />
       </div>
     }>
       <SignupForm />

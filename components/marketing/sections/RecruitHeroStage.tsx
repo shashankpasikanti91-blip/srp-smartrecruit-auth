@@ -13,7 +13,7 @@ export default function RecruitHeroStage() {
       <GlowStage />
       <div className="relative z-10 max-w-[1400px] mx-auto w-full px-4 sm:px-6 lg:px-10 xl:px-12 py-10 lg:py-16 grid lg:grid-cols-[minmax(0,48fr)_minmax(0,52fr)] gap-8 xl:gap-14 items-center min-h-[calc(100vh-4rem)]">
         <div className="min-w-0 lg:pr-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400/90 mb-5 lg:mb-6">{HERO.eyebrow}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#F97316] mb-5 lg:mb-6">{HERO.eyebrow}</p>
           <h1 className="hero-title font-display font-extrabold text-white">
             <span className="hidden lg:block">
               {HERO.titleLines.desktop.map((line) => (
@@ -28,10 +28,10 @@ export default function RecruitHeroStage() {
           </h1>
           <p className="mt-5 lg:mt-6 text-base lg:text-lg text-slate-400 leading-relaxed max-w-xl xl:max-w-2xl">{HERO.subtitle}</p>
           <div className="mt-8 lg:mt-10 flex flex-col sm:flex-row gap-3">
-            <Link href={HERO.ctaPrimary.href} className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-600 text-white font-bold text-sm btn-glow">
+            <Link href={HERO.ctaPrimary.href} className="inline-flex items-center justify-center gap-2 px-8 py-4 min-h-[44px] rounded-xl bg-[#F97316] text-[#0B1F14] font-bold text-sm">
               {HERO.ctaPrimary.label} <ArrowRight className="w-4 h-4" aria-hidden />
             </Link>
-            <Link href={HERO.ctaSecondary.href} className="inline-flex items-center justify-center px-8 py-4 rounded-xl border border-white/15 text-white font-semibold text-sm hover:bg-white/5">
+            <Link href={HERO.ctaSecondary.href} className="inline-flex items-center justify-center px-8 py-4 min-h-[44px] rounded-xl border border-[#F97316] text-white font-semibold text-sm hover:bg-white/5">
               {HERO.ctaSecondary.label}
             </Link>
           </div>

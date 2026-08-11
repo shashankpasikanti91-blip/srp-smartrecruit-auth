@@ -4,8 +4,8 @@
   "description": "AI-powered Recruitment Operating System",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#0b1f3a",
-  "theme_color": "#3b5bdb",
+  "background_color": "#0B1F14",
+  "theme_color": "#166534",
   "icons": [
     {
       "src": "/icon.svg",

@@ -20,7 +20,7 @@ export function PageHeader({
         <div className="min-w-0">
           <h1
             className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight"
-            style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
+            style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}
           >
             {title}
           </h1>
@@ -45,7 +45,7 @@ export function StatCard({
 }) {
   const tones = {
     neutral: 'border-slate-200 bg-slate-50/80',
-    primary: 'border-indigo-200 bg-indigo-50/60',
+    primary: 'border-[#166534]/25 bg-[#ecfdf3]',
     success: 'border-emerald-200 bg-emerald-50/60',
     warning: 'border-amber-200 bg-amber-50/60',
     danger: 'border-rose-200 bg-rose-50/60',

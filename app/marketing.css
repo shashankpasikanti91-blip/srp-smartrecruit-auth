@@ -1,38 +1,38 @@
 /* ── SRP Recruit AI — Marketing-only styles ─────────────────────────────── */
 
 :root {
-  --marketing-black: #020308;
-  --marketing-navy: #050810;
-  --marketing-navy-mid: #0a0f1c;
-  --marketing-navy-light: #0f1628;
-  --marketing-cyan: #22d3ee;
-  --marketing-violet: #8b5cf6;
-  --marketing-emerald: #34d399;
-  --marketing-glow-cyan: rgba(34, 211, 238, 0.35);
-  --marketing-glow-violet: rgba(139, 92, 246, 0.3);
+  --marketing-black: #0B1F14;
+  --marketing-navy: #0B1F14;
+  --marketing-navy-mid: #102418;
+  --marketing-navy-light: #163022;
+  --marketing-cyan: #F97316;
+  --marketing-violet: #166534;
+  --marketing-emerald: #22C55E;
+  --marketing-glow-cyan: rgba(249, 115, 22, 0.28);
+  --marketing-glow-violet: rgba(22, 101, 52, 0.28);
 }
 
 /* Cinematic stage */
 .cinematic-stage {
   background-color: var(--marketing-black);
   background-image:
-    radial-gradient(ellipse 100% 80% at 50% 0%, rgba(139, 92, 246, 0.12), transparent 55%),
-    radial-gradient(ellipse 60% 40% at 80% 60%, rgba(34, 211, 238, 0.06), transparent 50%);
+    radial-gradient(ellipse 100% 80% at 50% 0%, rgba(22, 101, 52, 0.35), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 80% 60%, rgba(249, 115, 22, 0.08), transparent 50%);
 }
 
 .glow-orbit-bg {
   background:
-    radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.15) 0%, transparent 45%),
-    radial-gradient(circle at 30% 70%, rgba(34, 211, 238, 0.08) 0%, transparent 40%);
+    radial-gradient(circle at 50% 50%, rgba(22, 101, 52, 0.22) 0%, transparent 45%),
+    radial-gradient(circle at 30% 70%, rgba(249, 115, 22, 0.08) 0%, transparent 40%);
 }
 
 /* Shortlist studio hero — desk depth, not orbital */
 .shortlist-studio-bg {
   background-color: var(--marketing-navy-mid);
   background-image:
-    linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, transparent 40%),
-    linear-gradient(225deg, rgba(34, 211, 238, 0.06) 0%, transparent 45%),
-    radial-gradient(ellipse 80% 60% at 70% 20%, rgba(139, 92, 246, 0.1), transparent 50%);
+    linear-gradient(135deg, rgba(22, 101, 52, 0.18) 0%, transparent 40%),
+    linear-gradient(225deg, rgba(249, 115, 22, 0.08) 0%, transparent 45%),
+    radial-gradient(ellipse 80% 60% at 70% 20%, rgba(22, 101, 52, 0.16), transparent 50%);
 }
 
 /* Homepage hero title */
@@ -341,10 +341,12 @@
 
 /* Marketing gradient text */
 .marketing-gradient-text {
-  background: linear-gradient(135deg, #22d3ee 0%, #8b5cf6 50%, #34d399 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: #F97316;
+  background: none;
+  -webkit-text-fill-color: unset;
+}
+section[id] {
+  scroll-margin-top: 5.5rem;
 }
 
 /* Section reveal */

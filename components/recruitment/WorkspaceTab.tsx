@@ -220,7 +220,7 @@ export function WorkspaceTab({
               <h1 className="page-title text-xl sm:text-2xl">
                 {isManager ? `${roleLabel} Dashboard` : 'Recruiter Dashboard'}
               </h1>
-              <span className="text-[10px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200">
+              <span className="text-[10px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full bg-[#ecfdf3] text-[#166534] border border-[#166534]/25">
                 {roleLabel}
               </span>
             </div>
@@ -236,7 +236,7 @@ export function WorkspaceTab({
 
       {isManager && insights?.leaderboard && insights.leaderboard.length > 0 && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-3">Team performance</p>
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#166534] mb-3">Team performance</p>
           <ul className="divide-y divide-slate-100">
             {insights.leaderboard.slice(0, 5).map((row, i) => (
               <li key={row.email || i} className="py-2 flex items-center justify-between gap-3 text-sm">
@@ -283,7 +283,7 @@ export function WorkspaceTab({
       {isManager && teamKpis.length > 0 && (
         <div className="mt-2">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Team KPIs</p>
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#166534]">Team KPIs</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {teamKpis.map(c => (
@@ -524,7 +524,7 @@ export function WorkspaceTab({
                 <div key={a.bucket} className="flex items-center gap-3">
                   <span className="w-14 text-xs font-extrabold text-slate-700">{a.bucket}</span>
                   <div className="flex-1 h-3 rounded-full bg-slate-100 overflow-hidden">
-                    <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-teal-400" style={{ width: `${(a.n / max) * 100}%` }} />
+                    <div className="h-full rounded-full bg-[#166534]" style={{ width: `${(a.n / max) * 100}%` }} />
                   </div>
                   <span className="text-xs font-extrabold text-slate-800 w-8 text-right">{a.n}</span>
                 </div>

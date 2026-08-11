@@ -1,34 +1,32 @@
 /** Homepage content — single source of truth for anchors, copy, and pricing. */
 
 export const HOMEPAGE_ANCHORS = {
-  painPoints: 'agency-ops',
-  workflow: 'workflow',
-  modules: 'modules',
-  preview: 'command-center',
-  agentic: 'human-review',
-  trust: 'trust',
+  painPoints: 'desk',
+  workflow: 'week',
+  modules: 'product',
+  preview: 'product',
+  agentic: 'signoff',
+  trust: 'signoff',
   pricing: 'pricing',
-  features: 'modules',
-  howItWorks: 'product-story',
+  features: 'product',
+  howItWorks: 'week',
 } as const
 
 export const HERO = {
-  eyebrow: 'AI Recruitment Intelligence for Agencies',
-  title: 'From hundreds of CVs to a shortlist recruiters can trust.',
+  kicker: 'SRP AI Labs',
+  title: 'SmartRecruit',
   titleLines: {
-    desktop: ['From hundreds of CVs', 'to a shortlist recruiters', 'can trust.'],
-    mobile: ['From hundreds of CVs to', 'a shortlist recruiters can trust.'],
+    desktop: ['SmartRecruit'],
+    mobile: ['SmartRecruit'],
   },
+  lede:
+    'Screen CVs against the job brief, keep the reason on the record, and send only the names you will stand behind.',
+  ctaPrimary: { label: 'Open workspace', href: '/login' },
+  ctaSecondary: { label: 'See pricing', href: '/#pricing' },
+  eyebrow: 'SRP AI Labs',
   subtitle:
-    'SRP Recruit AI helps recruitment agencies screen CVs, compare candidates, explain fit, and prepare client-ready shortlists with recruiter oversight.',
-  ctaPrimary: { label: 'Start Screening', href: '/login' },
-  ctaSecondary: { label: 'Book Demo', href: '/support/contact' },
-  trustChips: [
-    'Bulk CV Screening',
-    'Match Explanations',
-    'Duplicate Checks',
-    'Client-Ready Shortlists',
-  ],
+    'Screen CVs against the job brief, keep the reason on the record, and send only the names you will stand behind.',
+  trustChips: [] as readonly string[],
 } as const
 
 export const SCROLL_STORY = {

@@ -31,7 +31,7 @@ export function ConfirmDialog({
   const confirmCls =
     tone === 'danger' ? 'bg-rose-600 hover:bg-rose-500'
     : tone === 'warning' ? 'bg-amber-600 hover:bg-amber-500'
-    : 'bg-indigo-600 hover:bg-indigo-500'
+    : 'bg-[#F97316] hover:bg-[#ea580c]'
 
   return (
     <div className="fixed inset-0 z-[80] bg-slate-900/45 backdrop-blur-[1px] flex items-center justify-center p-4">

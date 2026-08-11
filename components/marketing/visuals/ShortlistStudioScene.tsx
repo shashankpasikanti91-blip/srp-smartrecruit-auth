@@ -16,8 +16,8 @@ const RANKED = [
 ]
 
 const KANBAN = [
-  { stage: 'Screening', count: 48, color: 'bg-cyan-500/30' },
-  { stage: 'Review', count: 12, color: 'bg-violet-500/30' },
+  { stage: 'Screening', count: 48, color: 'bg-[#F97316]/40' },
+  { stage: 'Review', count: 12, color: 'bg-[#166534]/60' },
   { stage: 'Shortlist', count: 5, color: 'bg-emerald-500/30' },
 ]
 
@@ -43,7 +43,7 @@ export default function ShortlistStudioScene() {
                 <div className="w-8 h-10 rounded bg-gradient-to-b from-slate-600/80 to-slate-800/80 border border-white/10 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-[11px] font-medium text-slate-200 truncate">{cv.name}</p>
-                  <p className="text-[10px] text-cyan-400/80">{cv.client}</p>
+                  <p className="text-[10px] text-[#F97316]/80">{cv.client}</p>
                 </div>
               </div>
             </div>
@@ -52,7 +52,7 @@ export default function ShortlistStudioScene() {
 
         <div className={`${use3d ? 'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-52 lg:w-60 xl:w-64' : 'mx-auto max-w-sm'}`}>
           <div className={`marketing-glass rounded-xl p-4 rotate-1 ${use3d ? 'marketing-float-slow' : ''}`}>
-            <p className="text-[10px] uppercase tracking-widest text-violet-400 mb-2">Shortlist studio</p>
+            <p className="text-[10px] uppercase tracking-widest text-[#F97316] mb-2">Shortlist studio</p>
             <div className="h-1.5 w-full pipeline-beam-animated rounded-full mb-3" />
             <div className="flex gap-2 mb-3">
               {KANBAN.map((col) => (
@@ -95,7 +95,7 @@ export default function ShortlistStudioScene() {
       <div className="relative z-10 flex flex-wrap justify-center gap-2 text-[10px] text-slate-500 pb-4 pt-1">
         {['Incoming CVs', 'Shortlist Studio', 'Ranked Candidates', 'Client Pack'].map((s, i, arr) => (
           <span key={s} className="flex items-center gap-2">
-            <span className="text-cyan-400/90 font-medium">{s}</span>
+            <span className="text-[#F97316] font-medium">{s}</span>
             {i < arr.length - 1 && <span aria-hidden>→</span>}
           </span>
         ))}

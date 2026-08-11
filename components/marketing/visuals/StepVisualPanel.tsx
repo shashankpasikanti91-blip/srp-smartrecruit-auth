@@ -17,14 +17,14 @@ export default function StepVisualPanel({ stepId, description }: StepVisualPanel
         {stepId === 'upload' && (
           <div className="flex gap-3 flex-wrap" aria-hidden>
             {['CV_batch_01.pdf', 'Resume_42.docx', 'Profiles.zip'].map((f) => (
-              <div key={f} className="px-4 py-3 rounded-xl border border-cyan-500/25 bg-cyan-500/5 text-xs text-cyan-300 marketing-float-gentle">{f}</div>
+              <div key={f} className="px-4 py-3 rounded-xl border border-[#F97316]/30 bg-[#F97316]/10 text-xs text-[#F97316] marketing-float-gentle">{f}</div>
             ))}
           </div>
         )}
         {stepId === 'parse' && (
           <div className="space-y-2" aria-hidden>
             {['React', 'Node.js', '8 yrs exp', 'AWS'].map((s) => (
-              <span key={s} className="inline-block mr-2 px-3 py-1 rounded-full text-xs bg-violet-500/15 text-violet-300 border border-violet-500/25">{s}</span>
+              <span key={s} className="inline-block mr-2 px-3 py-1 rounded-full text-xs bg-[#166534]/40 text-[#F97316] border border-[#F97316]/30">{s}</span>
             ))}
           </div>
         )}

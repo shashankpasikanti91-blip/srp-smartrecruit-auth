@@ -18,7 +18,7 @@ export default function PremiumPricingSection({ showAllPlans = true }: PremiumPr
     <CinematicSection id="pricing" variant="mid" className="py-24 lg:py-32">
       <div ref={ref} className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 marketing-reveal ${isVisible ? 'is-visible' : ''}`}>
         <div className="text-center max-w-2xl mx-auto mb-14">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400 mb-3">{PRICING.eyebrow}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#F97316] mb-3">{PRICING.eyebrow}</p>
           <h2 className="font-display text-display-lg font-extrabold text-white">{PRICING.title}</h2>
           <p className="mt-4 text-slate-400">{PRICING.subtitle}</p>
         </div>
@@ -28,12 +28,12 @@ export default function PremiumPricingSection({ showAllPlans = true }: PremiumPr
               key={plan.name}
               className={`relative rounded-2xl p-6 flex flex-col h-full ${
                 plan.highlighted
-                  ? 'bg-gradient-to-b from-cyan-500/10 to-violet-600/10 border-2 border-cyan-500/40 shadow-cinematic-glow scale-[1.02]'
+                  ? 'bg-[#166534]/20 border-2 border-[#F97316]/50 shadow-cinematic-glow scale-[1.02]'
                   : 'border border-white/10 bg-white/[0.02]'
               }`}
             >
               {plan.highlighted && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase bg-gradient-to-r from-cyan-500 to-violet-600 text-white">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#F97316] text-[#0B1F14]">
                   Best for agencies
                 </span>
               )}
@@ -50,7 +50,7 @@ export default function PremiumPricingSection({ showAllPlans = true }: PremiumPr
               <Link
                 href={plan.ctaHref}
                 className={`block text-center py-3 rounded-xl font-semibold text-sm ${
-                  plan.highlighted ? 'bg-gradient-to-r from-cyan-500 to-violet-600 text-white btn-glow' : 'border border-white/15 text-white hover:bg-white/5'
+                  plan.highlighted ? 'bg-[#F97316] text-[#0B1F14]' : 'border border-white/15 text-white hover:bg-white/5'
                 }`}
               >
                 {plan.cta}
@@ -60,7 +60,7 @@ export default function PremiumPricingSection({ showAllPlans = true }: PremiumPr
         </div>
         {!showAllPlans && (
           <p className="text-center mt-8">
-            <Link href="/pricing" className="text-sm font-semibold text-cyan-400 hover:text-cyan-300">Compare all plans →</Link>
+            <Link href="/#pricing" className="text-sm font-semibold text-[#F97316] hover:text-orange-300">Compare all plans →</Link>
           </p>
         )}
       </div>

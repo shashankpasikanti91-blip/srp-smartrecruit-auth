@@ -5,12 +5,12 @@ import { JOURNEY } from '@/content/marketing/homepage'
 import { useInViewReveal } from '@/components/marketing/hooks/useInViewReveal'
 
 const STAGE_COLORS = [
-  'from-cyan-400 to-cyan-500',
-  'from-cyan-400 to-violet-500',
-  'from-violet-400 to-violet-500',
-  'from-violet-400 to-emerald-400',
-  'from-emerald-400 to-emerald-500',
-  'from-emerald-400 to-emerald-500',
+  'from-[#166534] to-[#14532d]',
+  'from-[#166534] to-[#F97316]',
+  'from-[#F97316] to-[#ea580c]',
+  'from-[#166534] to-[#22C55E]',
+  'from-[#14532d] to-[#166534]',
+  'from-[#0B1F14] to-[#166534]',
 ]
 
 export default function AgencyWorkflowJourney() {
@@ -20,7 +20,7 @@ export default function AgencyWorkflowJourney() {
     <CinematicSection id="workflow" variant="mid" className="py-16 lg:py-20">
       <div ref={ref} className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 marketing-reveal ${isVisible ? 'is-visible' : ''}`}>
         <div className="text-center max-w-2xl mx-auto mb-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-400 mb-3">{JOURNEY.eyebrow}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#F97316] mb-3">{JOURNEY.eyebrow}</p>
           <h2 className="font-display text-3xl md:text-4xl font-extrabold text-white">{JOURNEY.title}</h2>
         </div>
 

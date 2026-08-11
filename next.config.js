@@ -15,6 +15,19 @@ const nextConfig = {
       './node_modules/word-extractor/**/*',
     ],
   },
+  async redirects() {
+    return [
+      { source: '/features', destination: '/#desk', permanent: true },
+      { source: '/features/:path*', destination: '/#desk', permanent: true },
+      { source: '/platform', destination: '/#product', permanent: true },
+      { source: '/platform/:path*', destination: '/#product', permanent: true },
+      { source: '/solutions', destination: '/#week', permanent: true },
+      { source: '/solutions/:path*', destination: '/#week', permanent: true },
+      { source: '/pricing', destination: '/#pricing', permanent: true },
+      { source: '/company/:path*', destination: '/#product', permanent: true },
+      { source: '/support/contact', destination: '/#cta', permanent: true },
+    ]
+  },
   images: {
     remotePatterns: [
       {

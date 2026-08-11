@@ -13,16 +13,16 @@ export type KpiItem = {
 }
 
 const TONES: Record<NonNullable<KpiItem['tone']>, { bg: string; border: string; text: string; stroke: string; fill: string }> = {
-  indigo:  { bg: 'bg-indigo-50',  border: 'border-indigo-200',  text: 'text-indigo-800',  stroke: '#4f46e5', fill: 'rgba(79,70,229,0.18)' },
+  indigo:  { bg: 'bg-[#ecfdf3]',  border: 'border-[#166534]/25',  text: 'text-[#166534]',  stroke: '#166534', fill: 'rgba(22,101,52,0.18)' },
   slate:   { bg: 'bg-slate-50',   border: 'border-slate-200',   text: 'text-slate-800',   stroke: '#64748b', fill: 'rgba(100,116,139,0.18)' },
-  amber:   { bg: 'bg-amber-50',   border: 'border-amber-200',  text: 'text-amber-800',   stroke: '#d97706', fill: 'rgba(217,119,6,0.18)' },
-  violet:  { bg: 'bg-violet-50',  border: 'border-violet-200',  text: 'text-violet-800',  stroke: '#7c3aed', fill: 'rgba(124,58,237,0.18)' },
-  emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-800', stroke: '#059669', fill: 'rgba(5,150,105,0.18)' },
-  green:   { bg: 'bg-green-50',   border: 'border-green-200',   text: 'text-green-800',   stroke: '#16a34a', fill: 'rgba(22,163,74,0.18)' },
-  sky:     { bg: 'bg-sky-50',     border: 'border-sky-200',     text: 'text-sky-800',     stroke: '#0284c7', fill: 'rgba(2,132,199,0.18)' },
+  amber:   { bg: 'bg-[#fff7ed]',  border: 'border-[#F97316]/30',  text: 'text-[#c2410c]',   stroke: '#F97316', fill: 'rgba(249,115,22,0.18)' },
+  violet:  { bg: 'bg-[#fff7ed]',  border: 'border-[#F97316]/30',  text: 'text-[#c2410c]',  stroke: '#ea580c', fill: 'rgba(234,88,12,0.18)' },
+  emerald: { bg: 'bg-[#ecfdf3]', border: 'border-[#166534]/25', text: 'text-[#166534]', stroke: '#166534', fill: 'rgba(22,101,52,0.18)' },
+  green:   { bg: 'bg-[#ecfdf3]',   border: 'border-[#166534]/25',   text: 'text-[#14532d]',   stroke: '#14532d', fill: 'rgba(20,83,45,0.18)' },
+  sky:     { bg: 'bg-[#fff7ed]',     border: 'border-[#F97316]/25',     text: 'text-[#c2410c]',     stroke: '#F97316', fill: 'rgba(249,115,22,0.18)' },
 }
 
-const CHART_PALETTE = ['#4f46e5', '#0ea5e9', '#059669', '#d97706', '#e11d48', '#7c3aed', '#64748b', '#14b8a6']
+const CHART_PALETTE = ['#166534', '#F97316', '#14532d', '#ea580c', '#22C55E', '#0B1F14', '#c2410c', '#166534']
 
 function SparkWave({ series, stroke, fill }: { series: number[]; stroke: string; fill: string }) {
   const w = 72

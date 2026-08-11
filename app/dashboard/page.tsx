@@ -142,15 +142,15 @@ interface StageCounts { [stage: string]: number }
 // ── Constants ──────────────────────────────────────────────────────────────────
 const PIPELINE_STAGES = [
   { key: 'sourced',       label: 'Sourced',        color: 'bg-slate-700',      text: 'text-slate-300',   bar: 'bg-slate-400',      icon: Inbox },
-  { key: 'applied',       label: 'Applied',        color: 'bg-blue-900/60',    text: 'text-blue-300',    bar: 'bg-blue-500',       icon: Briefcase },
-  { key: 'screening',     label: 'Screening',      color: 'bg-purple-900/60',  text: 'text-purple-300',  bar: 'bg-purple-500',     icon: Target },
-  { key: 'submitted',     label: 'Submitted',      color: 'bg-indigo-900/60',  text: 'text-indigo-300',  bar: 'bg-indigo-500',     icon: Briefcase },
+  { key: 'applied',       label: 'Applied',        color: 'bg-[#14532d]',      text: 'text-emerald-200', bar: 'bg-[#166534]',     icon: Briefcase },
+  { key: 'screening',     label: 'Screening',      color: 'bg-[#9a3412]',      text: 'text-orange-200',  bar: 'bg-[#F97316]',     icon: Target },
+  { key: 'submitted',     label: 'Submitted',      color: 'bg-[#0B1F14]',      text: 'text-emerald-100', bar: 'bg-[#14532d]',     icon: Briefcase },
   { key: 'interview',     label: 'Interview',      color: 'bg-amber-900/60',   text: 'text-amber-300',   bar: 'bg-amber-500',      icon: Clock },
-  { key: 'offer',         label: 'Offer',          color: 'bg-emerald-900/60', text: 'text-emerald-300', bar: 'bg-emerald-500',    icon: CheckCircle },
-  { key: 'hr_onboarding', label: 'HR / Onboarding', color: 'bg-cyan-900/60',   text: 'text-cyan-300',    bar: 'bg-cyan-500',       icon: CheckCircle },
-  { key: 'joined',        label: 'Joined',         color: 'bg-green-900/60',   text: 'text-green-300',   bar: 'bg-green-500',      icon: Star },
-  { key: 'employee',      label: 'Employee',       color: 'bg-teal-900/60',    text: 'text-teal-300',    bar: 'bg-teal-500',       icon: Star },
-  { key: 'on_hold',       label: 'On Hold',        color: 'bg-orange-900/60',  text: 'text-orange-300',  bar: 'bg-orange-500',     icon: Clock },
+  { key: 'offer',         label: 'Offer',          color: 'bg-emerald-900/60', text: 'text-emerald-300', bar: 'bg-[#22C55E]',     icon: CheckCircle },
+  { key: 'hr_onboarding', label: 'HR / Onboarding', color: 'bg-[#14532d]',     text: 'text-emerald-200', bar: 'bg-[#166534]',     icon: CheckCircle },
+  { key: 'joined',        label: 'Joined',         color: 'bg-[#0B1F14]',      text: 'text-emerald-200', bar: 'bg-[#22C55E]',     icon: Star },
+  { key: 'employee',      label: 'Employee',       color: 'bg-[#0B1F14]',      text: 'text-emerald-200', bar: 'bg-[#166534]',     icon: Star },
+  { key: 'on_hold',       label: 'On Hold',        color: 'bg-[#9a3412]/80',   text: 'text-orange-200',  bar: 'bg-[#F97316]',     icon: Clock },
   { key: 'rejected',      label: 'Rejected',       color: 'bg-red-900/60',     text: 'text-red-300',     bar: 'bg-red-500',        icon: X },
   { key: 'withdrawn',     label: 'Withdrawn',      color: 'bg-rose-900/60',    text: 'text-rose-300',    bar: 'bg-rose-500',       icon: X },
 ]
@@ -158,15 +158,15 @@ const PIPELINE_STAGES = [
 // Light variants for white-bg contexts (candidates table, job rows etc.)
 const STAGE_LIGHT: Record<string, { bg: string; text: string; border: string }> = {
   sourced:       { bg: 'bg-slate-100',  text: 'text-slate-600',   border: 'border-slate-200' },
-  applied:       { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
-  screening:     { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200' },
-  submitted:     { bg: 'bg-indigo-50',  text: 'text-indigo-700',  border: 'border-indigo-200' },
+  applied:       { bg: 'bg-[#ecfdf3]',  text: 'text-[#166534]',   border: 'border-[#166534]/20' },
+  screening:     { bg: 'bg-[#fff7ed]',  text: 'text-[#c2410c]',   border: 'border-[#F97316]/30' },
+  submitted:     { bg: 'bg-[#ecfdf3]',  text: 'text-[#14532d]',   border: 'border-[#166534]/25' },
   interview:     { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
   offer:         { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-  hr_onboarding: { bg: 'bg-cyan-50',    text: 'text-cyan-700',    border: 'border-cyan-200' },
-  joined:        { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' },
-  hired:         { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' }, // legacy alias
-  employee:      { bg: 'bg-teal-50',    text: 'text-teal-700',    border: 'border-teal-200' },
+  hr_onboarding: { bg: 'bg-[#ecfdf3]',  text: 'text-[#166534]',   border: 'border-[#166534]/20' },
+  joined:        { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  hired:         { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  employee:      { bg: 'bg-[#ecfdf3]',  text: 'text-[#166534]',   border: 'border-[#166534]/20' },
   on_hold:       { bg: 'bg-orange-50',  text: 'text-orange-700',  border: 'border-orange-200' },
   rejected:      { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200' },
   withdrawn:     { bg: 'bg-rose-50',    text: 'text-rose-700',    border: 'border-rose-200' },
@@ -182,7 +182,7 @@ const MATCH_CONFIG = {
 // Light variants for white-bg contexts
 const MATCH_LIGHT = {
   best:    { label: 'Best Match',    bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-  good:    { label: 'Good Match',    bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
+  good:    { label: 'Good Match',    bg: 'bg-[#ecfdf3]',    text: 'text-[#166534]',    border: 'border-[#166534]/25' },
   partial: { label: 'Partial Match', bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
   poor:    { label: 'Low Match',     bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200' },
 }
@@ -358,7 +358,7 @@ function JDTab() {
             <FileText className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>JD Writer</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>JD Writer</h1>
             <p className="text-sm text-slate-500 mt-0.5">Generate a professional job description — channel posts live under Generate Job Post</p>
           </div>
         </div>
@@ -461,7 +461,7 @@ function JDTab() {
             {error && <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>}
 
             <button onClick={() => submit(false)} disabled={loading || (mode === 'generate' ? !jobTitle.trim() : !analyzeText.trim())}
-              className="mt-4 w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20">
+              className="mt-4 w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 bg-[#F97316] hover:bg-[#ea580c] shadow-md shadow-orange-900/15">
               {loading
                 ? <><Loader2 className="w-4 h-4 animate-spin" />Processing…</>
                 : <><Sparkles className="w-4 h-4" />{mode === 'generate' ? 'Generate Job Description' : 'Analyze JD'}</>}
@@ -645,11 +645,11 @@ function BooleanTab() {
           <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm ring-1 ring-slate-950/[0.02]">
             <div className="flex gap-2 mb-4 flex-wrap">
               <button onClick={() => setMode('simple')}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'simple' ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'simple' ? 'bg-[#166534] text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
                 From Title + Skills
               </button>
               <button onClick={() => setMode('fromjd')}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'fromjd' ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'fromjd' ? 'bg-[#166534] text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
                 From JD Text
               </button>
             </div>
@@ -690,7 +690,7 @@ function BooleanTab() {
             {error && <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>}
 
             <button onClick={() => submit(false)} disabled={loading || (mode === 'simple' ? !jobTitle.trim() : !jdText.trim())}
-              className="mt-4 w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20">
+              className="mt-4 w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 bg-[#F97316] hover:bg-[#ea580c] shadow-md shadow-orange-900/15">
               {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : <><Sparkles className="w-4 h-4" />Generate Boolean Strings</>}
             </button>
           </div>
@@ -891,7 +891,7 @@ function ImportTab() {
         )}
 
         <button onClick={upload} disabled={!file || uploading}
-          className="mt-4 flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:bg-blue-700 bg-blue-600">
+          className="mt-4 flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 hover:bg-[#14532d] bg-[#166534]">
           {uploading ? <><Loader2 className="w-4 h-4 animate-spin" />Uploading…</> : <><Upload className="w-4 h-4" />Start Import</>}
         </button>
       </div>
@@ -1103,7 +1103,7 @@ function IntegrationsTab() {
             <Link2 className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Integrations</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>Integrations</h1>
             <p className="text-sm text-slate-500 mt-0.5">Connect tools to this workspace only — credentials and toggles never leave your tenant</p>
           </div>
         </div>
@@ -1123,7 +1123,7 @@ function IntegrationsTab() {
       {/* How to use guide */}
       <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/90 to-slate-50 p-5 shadow-sm ring-1 ring-slate-950/[0.02]">
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <div className="w-8 h-8 rounded-lg bg-[#166534] flex items-center justify-center flex-shrink-0 mt-0.5">
             <Zap className="w-4 h-4 text-white" />
           </div>
           <div className="flex-1">
@@ -1139,7 +1139,7 @@ function IntegrationsTab() {
                 { num: '4', title: 'It works automatically', desc: 'Once active, SmartRecruit uses it — e.g. n8n triggers fire after every screening, email providers send your Compose drafts.' },
               ].map(step => (
                 <div key={step.num} className="flex items-start gap-2 bg-white rounded-lg px-3 py-2.5 border border-blue-100">
-                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step.num}</span>
+                  <span className="w-5 h-5 rounded-full bg-[#166534] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step.num}</span>
                   <div>
                     <p className="text-xs font-semibold text-blue-900">{step.title}</p>
                     <p className="text-[11px] text-blue-600 leading-relaxed mt-0.5">{step.desc}</p>
@@ -1364,7 +1364,7 @@ function IntegrationsTab() {
                 </button>
               )}
               <button onClick={save} disabled={saving}
-                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold disabled:opacity-50 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm">
+                className="flex-1 py-2.5 rounded-xl bg-[#166534] text-white text-sm font-bold disabled:opacity-50 hover:bg-[#14532d] transition-all flex items-center justify-center gap-2 shadow-sm">
                 {saving
                   ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</>
                   : <><Key className="w-4 h-4" />Save & Connect</>}
@@ -2736,7 +2736,7 @@ export default function DashboardPage() {
   })()
 
   return (
-    <div className="min-h-screen dashboard-root bg-[#F8FAFC]">
+    <div className="min-h-screen dashboard-root bg-[#FCFCFA]">
       <div className="flex h-screen overflow-hidden">
 
         {/* Mobile nav backdrop */}
@@ -2757,8 +2757,8 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2.5 min-w-0">
               <BrandMark size={32} className="flex-shrink-0" />
               <div className="min-w-0">
-                <p className="text-[13px] font-extrabold text-white leading-tight tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>SRP SmartRecruit</p>
-                <p className="text-[10px] leading-tight mt-0.5 font-bold text-teal-300">Recruitment OS</p>
+                <p className="text-[13px] font-extrabold text-white leading-tight tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>SRP SmartRecruit</p>
+                <p className="text-[10px] leading-tight mt-0.5 font-bold text-[#F97316]">Recruitment OS</p>
               </div>
             </div>
             <button type="button" className="lg:hidden p-1.5 text-slate-300" onClick={() => setMobileNavOpen(false)} aria-label="Close">
@@ -2774,9 +2774,9 @@ export default function DashboardPage() {
           )}
           {profileData?.subscription?.plan === 'free' && (
             <button onClick={() => setUpgradePrompt({ show: true, message: 'Unlock unlimited AI screenings, job posts, and all premium features.', feature: 'Pro Plan' })}
-              className="mx-2.5 mt-2.5 px-2.5 py-1.5 rounded-lg flex items-center gap-2 transition-all border border-teal-400/40 bg-teal-500/15 hover:bg-teal-500/25 text-left group">
-              <Zap className="w-3.5 h-3.5 text-teal-300 group-hover:scale-105 transition-transform flex-shrink-0" />
-              <span className="text-[11px] font-bold text-teal-100">Upgrade to Pro</span>
+              className="mx-2.5 mt-2.5 px-2.5 py-1.5 rounded-lg flex items-center gap-2 transition-colors border border-[#F97316]/50 bg-[#F97316]/15 hover:bg-[#F97316]/25 text-left group">
+              <Zap className="w-3.5 h-3.5 text-[#F97316] group-hover:scale-105 transition-transform flex-shrink-0" />
+              <span className="text-[11px] font-bold text-[#fed7aa]">Upgrade to Pro</span>
             </button>
           )}
 
@@ -2984,17 +2984,17 @@ export default function DashboardPage() {
               <GlobalSearchPalette />
               <a
                 href="/m"
-                className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold border border-teal-200 text-teal-800 bg-teal-50 hover:bg-teal-100"
+                className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold border border-[#166534]/25 text-[#166534] bg-[#ecfdf3] hover:bg-[#d1fae5]"
               >
                 Mobile
               </a>
               <NotificationBell />
               <button onClick={() => setShowNewCandidate(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white hover:bg-indigo-50 border-2 border-indigo-300 text-[12px] text-indigo-800 font-bold transition-all shadow-sm hover:shadow-md">
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white hover:bg-[#ecfdf3] border-2 border-[#166534] text-[12px] text-[#166534] font-bold transition-colors shadow-sm hover:shadow-md">
                 <Plus className="w-3.5 h-3.5" /> Add Candidate
               </button>
               <button onClick={() => setShowNewJob(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12px] font-bold text-white transition-all bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] shadow-sm">
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12px] font-bold text-white transition-colors bg-[#F97316] hover:bg-[#ea580c] shadow-sm">
                 <Plus className="w-3.5 h-3.5" /> New Job
               </button>
             </div>
@@ -3041,7 +3041,7 @@ export default function DashboardPage() {
                       <Users className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Candidates</h1>
+                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>Candidates</h1>
                       <p className="text-sm text-slate-500 mt-0.5">
                         {filterStage
                           ? (() => {
@@ -3061,7 +3061,7 @@ export default function DashboardPage() {
                       <Upload className="w-4 h-4" /> Import
                     </button>
                     <button onClick={() => setShowNewCandidate(true)}
-                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20">
+                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors bg-[#166534] hover:bg-[#14532d] shadow-md shadow-green-900/15">
                       <Plus className="w-4 h-4" /> Add Candidate
                     </button>
                   </div>
@@ -3070,7 +3070,7 @@ export default function DashboardPage() {
                 {/* ── Filter bar ── */}
                 <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm shadow-slate-900/5 mb-5 ring-1 ring-slate-950/[0.02]">
                   <div className="filter-bar-label mb-3">
-                    <Filter className="w-3.5 h-3.5 text-indigo-600" aria-hidden />
+                    <Filter className="w-3.5 h-3.5 text-[#166534]" aria-hidden />
                     Filters
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
@@ -3092,7 +3092,7 @@ export default function DashboardPage() {
                     <div className="flex flex-col gap-0.5">
                       <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide px-0.5">Skill</span>
                       <div className="relative">
-                        <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-blue-400" />
+                        <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-[#166534]" />
                         <input value={filterSkill} onChange={e => setFilterSkill(e.target.value)}
                           placeholder="e.g. React"
                           list="skill-suggestions"
@@ -3544,7 +3544,7 @@ export default function DashboardPage() {
                       <Brain className="w-5 h-5 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>AI Screening</h1>
+                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>AI Screening</h1>
                       <p className="text-sm text-slate-500 mt-0.5">Score and rank candidates against your job description</p>
                     </div>
                   </div>
@@ -3555,7 +3555,7 @@ export default function DashboardPage() {
                         setScreenSingleFile(null)
                         if (m !== 'bulk') setBulkTexts([])
                       }}
-                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${screenMode === m ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-sm'}`}>
+                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${screenMode === m ? 'bg-[#166534] text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-sm'}`}>
                         {m === 'single' ? 'Single CV' : m === 'bulk' ? 'Bulk CVs' : 'From Candidates'}
                       </button>
                     ))}
@@ -3568,7 +3568,7 @@ export default function DashboardPage() {
                     <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Job Description</label>
                     <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={10}
                       placeholder="Paste the full job description here…"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 resize-none" />
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15 resize-none" />
                     <p className="text-xs font-semibold text-gray-600">Or upload JD file:</p>
                     <FileUploadZone label="Upload JD (PDF/DOC/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
                       onTexts={([t]) => setJdText(t.text)} disabled={screening} />
@@ -3583,7 +3583,7 @@ export default function DashboardPage() {
                       <>
                         <textarea value={resumeText} onChange={e => { setResumeText(e.target.value); setScreenSingleFile(null) }} rows={10}
                           placeholder="Paste the candidate's resume text here…"
-                          className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-400 resize-none" />
+                          className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15 resize-none" />
                         <p className="text-xs font-semibold text-gray-600">Or upload resume file:</p>
                         <FileUploadZone label="Upload Resume (PDF/DOCX/TXT)" accept=".pdf,.docx,.doc,.txt" multiple={false}
                           onTexts={(ts) => {
@@ -3715,12 +3715,12 @@ export default function DashboardPage() {
                             setScreenJobMeta(null)
                           }
                         }}
-                        className="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-sm text-gray-700 focus:outline-none focus:border-blue-400">
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm text-gray-700 focus:outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15">
                         <option value="">— Select a job to auto-load JD —</option>
                         {jobs.map(j => <option key={j.id} value={j.id}>{j.title} ({j.short_id ?? j.id.slice(0,8)})</option>)}
                       </select>
                       {screenJobMeta?.loading && (
-                        <p className="text-xs text-blue-600 mt-1 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Loading complete JD…</p>
+                        <p className="text-xs text-[#166534] mt-1 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Loading complete JD…</p>
                       )}
                       {screenJobId && screenJobMeta && !screenJobMeta.loading && (
                         <p className="text-xs text-emerald-700 mt-1 font-medium">
@@ -3740,18 +3740,18 @@ export default function DashboardPage() {
                 )}
 
                 {screening && screenProgress && (
-                  <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 flex items-center gap-3">
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-600 flex-shrink-0" />
+                  <div className="mb-4 rounded-xl border border-[#F97316]/35 bg-[#fff7ed] px-4 py-3 flex items-center gap-3">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#F97316] flex-shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-blue-900">AI Screening in progress</p>
-                      <p className="text-xs text-blue-700 mt-0.5 truncate">{screenProgress}</p>
+                      <p className="text-sm font-bold text-[#9a3412]">AI Screening in progress</p>
+                      <p className="text-xs text-[#c2410c] mt-0.5 truncate">{screenProgress}</p>
                     </div>
                   </div>
                 )}
 
                 <button onClick={runScreening}
                   disabled={screening || (!jdText && !screenJobId) || (screenMode === 'single' ? !resumeText : screenMode === 'bulk' ? bulkTexts.length === 0 : selectedCandIds.length === 0)}
-                  className="mb-6 flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 font-semibold text-sm text-white shadow-md shadow-indigo-900/20 transition-all disabled:opacity-50 disabled:pointer-events-none">
+                  className="mb-6 flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#F97316] hover:bg-[#ea580c] font-semibold text-sm text-white shadow-md shadow-orange-900/15 transition-colors disabled:opacity-50 disabled:pointer-events-none">
                   {screening ? <><Loader2 className="w-4 h-4 animate-spin" /> Screening…</> : <><Sparkles className="w-4 h-4" /> {screenMode === 'existing' ? `Screen ${selectedCandIds.length} Candidate${selectedCandIds.length !== 1 ? 's' : ''} (0 token waste)` : 'Run AI Screening'}</>}
                 </button>
 
@@ -3830,7 +3830,7 @@ export default function DashboardPage() {
                       <Mail className="w-5 h-5 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>AI Compose</h1>
+                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>AI Compose</h1>
                       <p className="text-sm text-slate-500 mt-0.5">Generate, rewrite or reply to recruitment messages</p>
                     </div>
                   </div>
@@ -4121,33 +4121,33 @@ export default function DashboardPage() {
                       <Briefcase className="w-5 h-5 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Job Posts</h1>
+                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>Job Posts</h1>
                       <p className="text-sm text-slate-500 mt-0.5">
                         {filteredJobs.length}{filteredJobs.length !== jobs.length ? ` of ${jobs.length}` : ''} job{filteredJobs.length !== 1 ? 's' : ''}
                       </p>
                     </div>
                   </div>
                   <button onClick={() => setShowNewJob(true)}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20 transition-all">
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F97316] hover:bg-[#ea580c] shadow-md shadow-orange-900/15 transition-colors">
                     <Plus className="w-4 h-4" /> New Job
                   </button>
                 </div>
 
                 {pendingAiAction === 'gen-post' && (
-                  <div className="mb-5 rounded-2xl border border-indigo-200/70 bg-indigo-50/40 p-4 shadow-sm">
+                  <div className="mb-5 rounded-2xl border border-[#166534]/25 bg-[#ecfdf3]/50 p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-extrabold text-indigo-900">Generate Job Post</p>
-                        <p className="text-xs text-indigo-800 mt-1">
+                        <p className="text-sm font-extrabold text-[#166534]">Generate Job Post</p>
+                        <p className="text-xs text-[#14532d] mt-1">
                           Generate from an existing job, or Quick Generate from pasted / uploaded JD text without creating a job first.
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <button type="button" onClick={() => { setPendingAiAction(null); openGenPostModal('existing') }}
-                            className="px-3 py-1.5 rounded-lg text-xs font-extrabold bg-indigo-600 text-white hover:bg-indigo-500">
+                            className="px-3 py-1.5 rounded-lg text-xs font-extrabold bg-[#F97316] text-white hover:bg-[#ea580c]">
                             From existing job
                           </button>
                           <button type="button" onClick={() => { setPendingAiAction(null); openGenPostModal('quick') }}
-                            className="px-3 py-1.5 rounded-lg text-xs font-extrabold border border-indigo-300 bg-white text-indigo-800 hover:bg-indigo-50">
+                            className="px-3 py-1.5 rounded-lg text-xs font-extrabold border border-[#166534]/30 bg-white text-[#166534] hover:bg-[#ecfdf3]">
                             Quick Generate
                           </button>
                         </div>
@@ -4224,7 +4224,7 @@ export default function DashboardPage() {
                     <p className="text-gray-500 mb-4">{jobs.length === 0 ? 'No jobs yet. Create your first job post.' : 'No jobs match the selected filters.'}</p>
                     {jobs.length === 0 && (
                       <button onClick={() => setShowNewJob(true)}
-                        className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-md shadow-indigo-900/20 transition-all">
+                        className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#F97316] hover:bg-[#ea580c] shadow-md shadow-orange-900/15 transition-all">
                         Create Job Post
                       </button>
                     )}
@@ -4327,7 +4327,7 @@ export default function DashboardPage() {
                       <BarChart3 className="w-5 h-5 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Recruitment Analytics</h1>
+                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>Recruitment Analytics</h1>
                       <p className="text-sm text-slate-500 mt-0.5">Live snapshot of your hiring pipeline and team performance</p>
                     </div>
                   </div>
@@ -4406,8 +4406,8 @@ export default function DashboardPage() {
                         const count = stageCounts[s.key] ?? 0
                         const pct = totalCandidates > 0 ? (count / totalCandidates) * 100 : 0
                         const barColors: Record<string, string> = {
-                          sourced: 'bg-slate-400', applied: 'bg-blue-500', screening: 'bg-violet-500',
-                          interview: 'bg-amber-500', offer: 'bg-teal-500', hired: 'bg-emerald-500',
+                          sourced: 'bg-slate-400', applied: 'bg-[#166534]', screening: 'bg-[#F97316]',
+                          interview: 'bg-amber-500', offer: 'bg-[#22C55E]', hired: 'bg-[#14532d]',
                         }
                         return (
                           <div key={s.key}>
@@ -4445,7 +4445,7 @@ export default function DashboardPage() {
                         const total = Object.values(matchCounts).reduce((a, b) => a + b, 0)
                         const items = [
                           { key: 'best',    label: 'Best Match',    bar: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200' },
-                          { key: 'good',    label: 'Good Match',    bar: 'bg-blue-500',    text: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200' },
+                          { key: 'good',    label: 'Good Match',    bar: 'bg-[#166534]',   text: 'text-[#166534]',   bg: 'bg-[#ecfdf3]',   border: 'border-[#166534]/20' },
                           { key: 'partial', label: 'Partial Match', bar: 'bg-amber-500',   text: 'text-amber-700',   bg: 'bg-amber-50',    border: 'border-amber-200' },
                           { key: 'poor',    label: 'Low Match',     bar: 'bg-red-400',     text: 'text-red-700',     bg: 'bg-red-50',      border: 'border-red-200' },
                         ]
@@ -4507,7 +4507,7 @@ export default function DashboardPage() {
                               <div key={s.key} className="flex items-center gap-3">
                                 <span className="text-xs font-semibold text-gray-700 w-20">{s.label}</span>
                                 <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                                  <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.max(pct, pct > 0 ? 4 : 0)}%` }} />
+                                  <div className="h-full bg-[#166534] rounded-full" style={{ width: `${Math.max(pct, pct > 0 ? 4 : 0)}%` }} />
                                 </div>
                                 <span className="text-xs font-bold text-gray-700 w-8 text-right">{count}</span>
                               </div>
@@ -4540,7 +4540,7 @@ export default function DashboardPage() {
                         <div className="space-y-2.5">
                           {topSkills.slice(0, 10).map(({ skill, count }, idx) => {
                             const pct = Math.round((count / topSkills[0].count) * 100)
-                            const barColors = ['bg-blue-500', 'bg-indigo-500', 'bg-sky-500', 'bg-teal-500', 'bg-cyan-500']
+                            const barColors = ['bg-[#166534]', 'bg-[#F97316]', 'bg-[#14532d]', 'bg-[#22C55E]', 'bg-[#ea580c]']
                             const barColor = barColors[idx % barColors.length]
                             return (
                               <div key={skill} className="flex items-center gap-3">
@@ -4625,7 +4625,7 @@ export default function DashboardPage() {
                       <Settings className="w-5 h-5 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>Account Settings</h1>
+                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>Account Settings</h1>
                       <p className="text-sm text-slate-500 mt-0.5">Manage your profile, subscription and API access</p>
                       <div className="flex flex-wrap gap-2 mt-3">
                         <button type="button" onClick={() => setSettingsPanel('integrations')}
@@ -4682,7 +4682,7 @@ export default function DashboardPage() {
                         {profileData.user.image
                           ? /* eslint-disable-next-line @next/next/no-img-element -- OAuth avatar URL from session */
                             <img src={profileData.user.image} alt="" className="w-16 h-16 rounded-full ring-2 ring-blue-200" />
-                          : <div className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold text-white ring-2 ring-blue-200 bg-blue-600">
+                          : <div className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold text-white ring-2 ring-blue-200 bg-[#166534]">
                               {profileData.user.name?.[0]?.toUpperCase() ?? '?'}
                             </div>
                         }
@@ -4696,7 +4696,7 @@ export default function DashboardPage() {
                                     className="w-full px-2 py-1 rounded bg-white border border-gray-300 text-sm text-gray-900 focus:outline-none focus:border-blue-500"
                                     autoFocus />
                                   <button onClick={saveName} disabled={savingName}
-                                    className="px-2 py-1 rounded text-white text-xs hover:bg-blue-700 disabled:opacity-50 bg-blue-600">
+                                    className="px-2 py-1 rounded text-white text-xs hover:bg-[#14532d] disabled:opacity-50 bg-[#166534]">
                                     {savingName ? '...' : 'Save'}
                                   </button>
                                   <button onClick={() => setEditingName(false)} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
@@ -4915,7 +4915,7 @@ export default function DashboardPage() {
 
                       <div className="flex items-center gap-3">
                         <button onClick={generateApiKey} disabled={generatingKey}
-                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-50 hover:bg-blue-700 bg-blue-600">
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-all disabled:opacity-50 hover:bg-[#14532d] bg-[#166534]">
                           {generatingKey ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
                           {generatingKey ? 'Generating...' : 'Generate API Key'}
                         </button>
@@ -5491,7 +5491,7 @@ export default function DashboardPage() {
                   else setGenPostError('Select a job first.')
                 }}
                 disabled={generatingPosts || genPostPlatforms.length === 0 || (genPostMode === 'existing' && !genPostJob) || (genPostMode === 'quick' && !quickJdText.trim())}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 font-black text-sm text-white transition-all disabled:opacity-50">
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-[#166534] hover:bg-blue-500 font-black text-sm text-white transition-all disabled:opacity-50">
                 {generatingPosts
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
                   : Object.keys(generatedPosts).length > 0
@@ -5519,7 +5519,7 @@ export default function DashboardPage() {
                   {JOB_POST_PLATFORMS.map(p => (
                     generatedPosts[p] ? (
                       <button key={p} onClick={() => setGenPostTab(p)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-black transition-all ${genPostTab === p ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}>
+                        className={`px-2.5 py-1 rounded-full text-xs font-black transition-all ${genPostTab === p ? 'bg-[#166534] text-white' : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}>
                         {JOB_POST_PLATFORM_META[p].label}
                       </button>
                     ) : null
@@ -5655,7 +5655,7 @@ export default function DashboardPage() {
         <div className="fixed inset-0 bg-slate-900/35 backdrop-blur-[2px] z-50 flex items-center justify-center p-4">
           <div className="glass-card rounded-2xl p-0 w-full max-w-md border border-slate-200 overflow-hidden shadow-xl">
             {/* Header */}
-            <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-4 text-center">
+            <div className="bg-[#166534] px-5 py-4 text-center">
               <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-2">
                 <Crown className="w-5 h-5 text-amber-200" />
               </div>
@@ -5698,7 +5698,7 @@ export default function DashboardPage() {
               </button>
               <a href="mailto:pasikantishashank24@gmail.com?subject=Upgrade%20to%20Pro%20Plan%20-%20SRP%20SmartRecruit&body=Hi%2C%20I%27d%20like%20to%20upgrade%20my%20account%20to%20the%20Pro%20plan.%0A%0AMy%20Email%3A%20"
                 onClick={() => setUpgradePrompt({ show: false, message: '', feature: '' })}
-                className="flex-1 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm font-semibold text-white transition-all flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 rounded-lg bg-[#166534] hover:bg-blue-500 text-sm font-semibold text-white transition-all flex items-center justify-center gap-2">
                 <Zap className="w-4 h-4" /> Upgrade now
               </a>
             </div>
@@ -5770,7 +5770,7 @@ function LightFileUploadZone({ label, accept, onText, disabled }: {
       <input ref={ref} type="file" accept={accept} className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) parseFile(f); if (ref.current) ref.current.value = '' }} />
       {parsing ? (
-        <div className="flex items-center justify-center gap-2 text-sm text-indigo-700 font-bold">
+        <div className="flex items-center justify-center gap-2 text-sm text-[#166534] font-bold">
           <Loader2 className="w-5 h-5 animate-spin" /> Parsing file…
         </div>
       ) : parseError ? (
@@ -5847,7 +5847,7 @@ function FileUploadZone({ label, accept, multiple, onTexts, disabled }: {
       <input ref={ref} type="file" accept={accept} multiple={multiple} className="hidden"
         onChange={e => { if (e.target.files?.length) parseFiles(e.target.files); if (ref.current) ref.current.value = '' }} />
       {parsing ? (
-        <div className="flex items-center justify-center gap-2 text-sm text-indigo-700 font-bold">
+        <div className="flex items-center justify-center gap-2 text-sm text-[#166534] font-bold">
           <Loader2 className="w-5 h-5 animate-spin" /> Parsing…
         </div>
       ) : parseError ? (
@@ -6069,7 +6069,7 @@ function JobDetailDrawer({ job, candidates, jobs, onClose, onOpenCandidate, onSt
       <div className="drawer-panel flex flex-col bg-white" style={{ maxWidth: 780 }} onClick={e => e.stopPropagation()}>
         {/* ── Header ── */}
         <div className="flex items-start gap-4 p-6 border-b border-slate-200 bg-slate-50/80 flex-shrink-0">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex-shrink-0 flex items-center justify-center shadow-md">
+          <div className="w-11 h-11 rounded-xl bg-[#166534] flex-shrink-0 flex items-center justify-center shadow-md">
             <Briefcase className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
@@ -6175,7 +6175,7 @@ function JobDetailDrawer({ job, candidates, jobs, onClose, onOpenCandidate, onSt
                       </td>
                       <td className="min-w-[180px]">
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex-shrink-0 flex items-center justify-center text-xs font-bold text-white">
+                          <div className="w-7 h-7 rounded-full bg-[#166534] flex-shrink-0 flex items-center justify-center text-xs font-bold text-white">
                             {c.candidate_name?.[0]?.toUpperCase() ?? '?'}
                           </div>
                           <div className="min-w-0">
@@ -6577,7 +6577,7 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, teamMembers = [
 
         {/* Header */}
         <div className="flex items-start gap-4 p-6 border-b border-slate-200 bg-slate-50/80">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex-shrink-0 flex items-center justify-center text-lg font-bold text-white shadow-md">
+          <div className="w-12 h-12 rounded-full bg-[#166534] flex-shrink-0 flex items-center justify-center text-lg font-bold text-white shadow-md">
             {c.candidate_name?.[0]?.toUpperCase() ?? '?'}
           </div>
           <div className="flex-1 min-w-0">

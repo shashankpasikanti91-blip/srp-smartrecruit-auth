@@ -146,7 +146,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen dashboard-root bg-slate-100">
+    <div className="min-h-screen dashboard-root bg-[#FCFCFA]">
       <div className="flex h-screen overflow-hidden">
         {mobileNavOpen && (
           <button
@@ -169,11 +169,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               <div className="min-w-0">
                 <p
                   className="text-[13px] font-extrabold text-white leading-tight tracking-tight"
-                  style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
+                  style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}
                 >
                   SRP SmartRecruit
                 </p>
-                <p className="text-[10px] leading-tight mt-0.5 font-bold text-teal-300">Recruitment OS</p>
+                <p className="text-[10px] leading-tight mt-0.5 font-bold text-[#F97316]">Recruitment OS</p>
               </div>
             </div>
             <button
@@ -227,7 +227,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 onClick={() => setAiNavExpanded(v => !v)}
                 aria-expanded={aiNavExpanded}
                 aria-controls="ai-tools-nav"
-                className="w-full flex items-center gap-1 px-2.5 mb-2 rounded-md text-slate-400 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                className="w-full flex items-center gap-1 px-2.5 mb-2 rounded-md text-slate-400 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]"
               >
                 <span className="flex-1 text-left text-[9px] font-extrabold uppercase tracking-widest">AI Tools</span>
                 {aiNavExpanded ? <ChevronUp className="w-3 h-3 flex-shrink-0" aria-hidden /> : <ChevronDown className="w-3 h-3 flex-shrink-0" aria-hidden />}
@@ -246,7 +246,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                         onChange={e => setAiNavQuery(e.target.value)}
                         placeholder="Search AI…"
                         autoComplete="off"
-                        className="w-full pl-7 pr-2 py-1.5 rounded-md text-[11px] bg-white/5 border border-white/10 text-slate-200 placeholder:text-slate-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400"
+                        className="w-full pl-7 pr-2 py-1.5 rounded-md text-[11px] bg-white/5 border border-white/10 text-slate-200 placeholder:text-slate-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#F97316]"
                       />
                     </div>
                   </div>

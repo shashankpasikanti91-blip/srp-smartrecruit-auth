@@ -90,7 +90,7 @@ export function MyPerformanceTab() {
         <div className="flex gap-2 flex-wrap">
           {PERIODS.map(p => (
             <button key={p.days} onClick={() => setDays(p.days)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${days === p.days ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-200'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${days === p.days ? 'bg-[#166534] text-white border-[#166534]' : 'bg-white text-slate-600 border-slate-200 hover:border-[#166534]/40'}`}>
               {p.label}
             </button>
           ))}
@@ -124,10 +124,10 @@ export function MyPerformanceTab() {
             />
           </div>
 
-          <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50/80 to-white p-5 shadow-sm mb-6">
+          <div className="rounded-2xl border border-[#166534]/20 bg-gradient-to-br from-[#ecfdf3]/80 to-white p-5 shadow-sm mb-6">
             <div className="flex items-center justify-between gap-3 mb-3">
               <p className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-violet-600" /> My AI Activity
+                <Sparkles className="w-4 h-4 text-[#F97316]" /> My AI Activity
               </p>
               <div className="flex flex-wrap gap-2 text-[11px] font-bold text-slate-600">
                 <span className="ui-badge ui-badge--purple">{aiUsage.total_requests ?? 0} requests</span>

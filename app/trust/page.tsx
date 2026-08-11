@@ -62,7 +62,7 @@ export default function TrustCenterPage() {
           </div>
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">Trust Center</p>
-            <h1 className="text-3xl font-bold tracking-tight mt-1" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
+            <h1 className="text-3xl font-bold tracking-tight mt-1" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>
               How we protect recruitment data
             </h1>
             <p className="text-slate-500 mt-2 text-sm leading-relaxed max-w-2xl">
