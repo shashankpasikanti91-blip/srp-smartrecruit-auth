@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -60,11 +61,14 @@ export default function FeatureShowcase() {
                     forceMount
                     className="absolute inset-0 m-0 h-full w-full data-[state=inactive]:hidden data-[state=inactive]:pointer-events-none"
                   >
-                    <img
+                    <Image
                       src={t.src}
                       alt={t.alt}
-                      className="h-full w-full object-cover motion-safe:hover:scale-105 motion-safe:transition-transform motion-safe:duration-700"
-                      loading={idx === 0 ? 'eager' : 'lazy'}
+                      fill
+                      sizes="(min-width:768px) 50vw, 100vw"
+                      className="object-cover motion-safe:hover:scale-105 motion-safe:transition-transform motion-safe:duration-700"
+                      unoptimized
+                      priority={idx === 0}
                     />
                   </TabsContent>
                 ))}
