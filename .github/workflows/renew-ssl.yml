@@ -1,7 +1,7 @@
 name: Renew SSL (recruit.srpailabs.com)
 
-# Renew Let's Encrypt cert only. Never restarts Docker daemon.
-# Never touches Wellora / SRP website / n8n containers.
+# Renew Let's Encrypt for recruit only. Never restarts Docker daemon.
+# Avoids renewing sibling product certs (Wellora / SRP site / n8n).
 on:
   workflow_dispatch:
 
@@ -9,7 +9,7 @@ jobs:
   renew:
     name: Certbot renew + nginx reload
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Renew certificate via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -18,48 +18,80 @@ jobs:
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
           port: ${{ secrets.HETZNER_PORT || 22 }}
-          command_timeout: 12m
+          command_timeout: 15m
           script: |
             set -u
-            echo "=== Current cert ==="
-            sudo openssl x509 -in /etc/letsencrypt/live/recruit.srpailabs.com/fullchain.pem -noout -dates -subject 2>/dev/null \
-              || sudo openssl x509 -in /etc/nginx/ssl/recruit.srpailabs.com/fullchain.pem -noout -dates -subject 2>/dev/null \
-              || echo "Could not read cert path — will try certbot anyway"
+            echo "=== Current recruit cert ==="
+            sudo openssl x509 -in /etc/letsencrypt/live/recruit.srpailabs.com/fullchain.pem -noout -dates -subject || true
+            curl -s -o /dev/null -w "local-app:%{http_code}\n" --max-time 8 http://127.0.0.1:3010/api/health || true
 
-            echo "=== Local app health (HTTP) ==="
-            curl -s -o /dev/null -w "local:%{http_code}\n" --max-time 8 http://127.0.0.1:3010/api/health || true
+            echo "=== Clear stuck certbot state ==="
+            sudo rm -rf /var/lib/letsencrypt/temp_checkpoint || true
+            sudo rm -f /var/lib/letsencrypt/.certbot.lock || true
 
-            echo "=== Certbot renew ==="
-            if command -v certbot >/dev/null 2>&1; then
-              sudo certbot renew --force-renewal --cert-name recruit.srpailabs.com --nginx --non-interactive \
-                || sudo certbot renew --force-renewal --nginx --non-interactive \
-                || sudo certbot certonly --nginx -d recruit.srpailabs.com --non-interactive --agree-tos --keep-until-expiring \
-                || sudo certbot certonly --webroot -w /var/www/html -d recruit.srpailabs.com --non-interactive --agree-tos
-            else
-              echo "certbot missing"
+            echo "=== ACME webroot path ==="
+            sudo mkdir -p /var/www/html/.well-known/acme-challenge
+            echo ok | sudo tee /var/www/html/.well-known/acme-challenge/ping >/dev/null
+            sudo chmod -R a+rX /var/www/html/.well-known || true
+
+            # Drop-in HTTP-only ACME helper (does not alter product apps)
+            sudo tee /etc/nginx/conf.d/00-acme-challenge.conf >/dev/null <<'NGX'
+            server {
+                listen 80 default_server;
+                listen [::]:80 default_server;
+                server_name _;
+                location ^~ /.well-known/acme-challenge/ {
+                    default_type "text/plain";
+                    root /var/www/html;
+                    allow all;
+                }
+                location / { return 444; }
+            }
+            NGX
+
+            if ! sudo nginx -t; then
+              echo "ACME drop-in broke nginx — removing"
+              sudo rm -f /etc/nginx/conf.d/00-acme-challenge.conf
+              sudo nginx -t
+            fi
+            sudo systemctl reload nginx
+
+            echo "=== Renew ONLY recruit.srpailabs.com ==="
+            OK=0
+            if sudo certbot certonly --cert-name recruit.srpailabs.com --nginx -d recruit.srpailabs.com --force-renewal --non-interactive --agree-tos; then
+              OK=1
+              echo "method=nginx"
+            elif sudo certbot certonly --cert-name recruit.srpailabs.com --webroot -w /var/www/html -d recruit.srpailabs.com --force-renewal --non-interactive --agree-tos; then
+              OK=1
+              echo "method=webroot"
+            fi
+
+            # Remove temporary ACME default_server so product vhosts keep port 80
+            sudo rm -f /etc/nginx/conf.d/00-acme-challenge.conf
+            sudo nginx -t && sudo systemctl reload nginx
+
+            if [ "$OK" != "1" ]; then
+              echo "Recruit renew failed"
+              sudo tail -n 100 /var/log/letsencrypt/letsencrypt.log || true
               exit 1
             fi
 
-            echo "=== Nginx test + reload (not restart docker) ==="
-            sudo nginx -t
-            sudo systemctl reload nginx
-
             echo "=== New cert dates ==="
-            sudo openssl x509 -in /etc/letsencrypt/live/recruit.srpailabs.com/fullchain.pem -noout -dates -subject 2>/dev/null || true
-
-            echo "=== HTTPS probe from host ==="
-            curl -s -o /dev/null -w "https:%{http_code}\n" --max-time 15 https://127.0.0.1/api/health -H "Host: recruit.srpailabs.com" --insecure || true
-            curl -s -o /dev/null -w "public:%{http_code}\n" --max-time 15 https://recruit.srpailabs.com/api/health || true
+            sudo openssl x509 -in /etc/letsencrypt/live/recruit.srpailabs.com/fullchain.pem -noout -dates -subject
+            curl -sk -o /dev/null -w "https-insecure:%{http_code}\n" --max-time 15 https://127.0.0.1/api/health -H "Host: recruit.srpailabs.com" || true
+            curl -s -o /dev/null -w "public:%{http_code}\n" --max-time 20 https://recruit.srpailabs.com/api/health || true
 
       - name: Verify public HTTPS
         run: |
-          for i in $(seq 1 20); do
-            CODE=$(curl -s -o /tmp/h.json -w "%{http_code}" --max-time 20 https://recruit.srpailabs.com/api/health || echo 000)
+          for i in $(seq 1 25); do
+            CODE=$(curl -s -o /tmp/h.json -w "%{http_code}" --max-time 25 https://recruit.srpailabs.com/api/health || true)
+            CODE=$(printf '%s' "$CODE" | tr -cd '0-9' | tail -c 3)
+            [ -n "$CODE" ] || CODE=000
             echo "attempt $i => $CODE"
             if [ "$CODE" = "200" ]; then
               head -c 400 /tmp/h.json; echo
               exit 0
             fi
-            sleep 3
+            sleep 4
           done
           exit 1
