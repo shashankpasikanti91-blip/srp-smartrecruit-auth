@@ -584,28 +584,33 @@ function JDTab() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Boolean Search Tab
 // ─────────────────────────────────────────────────────────────────────────────
-function BooleanTab() {
+function BooleanTab({ initialJobId = null }: { initialJobId?: string | null }) {
   const [jobTitle, setJobTitle] = useState('')
   const [skills, setSkills] = useState('')
   const [experience, setExperience] = useState('')
   const [jdText, setJdText] = useState('')
-  const [mode, setMode] = useState<'simple' | 'fromjd'>('simple')
+  const [mode, setMode] = useState<'simple' | 'fromjd'>(initialJobId ? 'fromjd' : 'simple')
   const [loading, setLoading] = useState(false)
+  const [prefillLoading, setPrefillLoading] = useState(Boolean(initialJobId))
+  const [jobMeta, setJobMeta] = useState<{ title?: string; client?: string | null } | null>(null)
   const [result, setResult] = useState<Record<string, unknown> | null>(null)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState<string | null>(null)
   const [history, setHistory] = useState<{id: string; job_title: string; short_boolean: string; created_at: string}[]>([])
+  const autoRanFor = useRef<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/boolean-search').then(r => r.json()).then(d => setHistory(d.searches ?? []))
+    fetch('/api/boolean-search').then(r => r.json()).then(d => setHistory(d.searches ?? [])).catch(() => undefined)
   }, [result])
 
-  async function submit(force = false) {
+  async function submit(force = false, jdOverride?: string) {
+    const jd = (jdOverride ?? jdText).trim()
     setError(''); setLoading(true)
     if (!force) setResult(null)
     try {
-      const payload = mode === 'fromjd'
-        ? { jd_text: jdText, force }
+      const useJd = Boolean(jdOverride) || mode === 'fromjd'
+      const payload = useJd
+        ? { jd_text: jd, force }
         : { job_title: jobTitle, skills: skills.split(',').map(s => s.trim()).filter(Boolean), experience, force }
       const res = await fetch('/api/boolean-search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const data = await res.json()
@@ -614,6 +619,50 @@ function BooleanTab() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Error') }
     setLoading(false)
   }
+
+  // Prefill + auto-generate from an existing job (Job 360 → Boolean Search)
+  useEffect(() => {
+    if (!initialJobId) {
+      setPrefillLoading(false)
+      return
+    }
+    let cancelled = false
+    setPrefillLoading(true)
+    setMode('fromjd')
+    setError('')
+    void (async () => {
+      try {
+        const res = await fetch(`/api/jobs/${initialJobId}/screening-context`)
+        const data = await res.json()
+        if (cancelled) return
+        if (!res.ok) {
+          setError(data.error ?? 'Could not load this job JD for Boolean Search')
+          setPrefillLoading(false)
+          return
+        }
+        const text = (data.jd_text ?? '').trim()
+        setJdText(text)
+        setJobTitle(data.title ?? '')
+        if (Array.isArray(data.skills) && data.skills.length) {
+          setSkills(data.skills.filter(Boolean).join(', '))
+        }
+        setJobMeta({ title: data.title, client: data.client })
+        setPrefillLoading(false)
+        if (text && autoRanFor.current !== initialJobId) {
+          autoRanFor.current = initialJobId
+          setMode('fromjd')
+          await submit(false, text)
+        }
+      } catch {
+        if (!cancelled) {
+          setError('Could not load this job JD for Boolean Search')
+          setPrefillLoading(false)
+        }
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per job id
+  }, [initialJobId])
 
   function copyStr(key: string, val: string) {
     navigator.clipboard.writeText(val); setCopied(key); setTimeout(() => setCopied(null), 2000)
@@ -637,21 +686,31 @@ function BooleanTab() {
           </div>
           <div className="min-w-0">
             <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Boolean Search Generator</h1>
-            <p className="text-sm text-slate-500 mt-0.5">LinkedIn, Naukri, Indeed — strings for sourcing in this workspace</p>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {jobMeta?.title
+                ? <>Strings for <span className="font-semibold text-[#166534]">{jobMeta.title}</span>{jobMeta.client ? ` · ${jobMeta.client}` : ''}</>
+                : 'LinkedIn, Naukri, Indeed — strings for sourcing in this workspace'}
+            </p>
           </div>
         </div>
       </div>
+
+      {prefillLoading && (
+        <div className="rounded-xl border border-[#166534]/20 bg-[#ecfdf3] px-4 py-3 text-sm font-semibold text-[#166534] flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading this job JD and generating Boolean strings…
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-4">
           <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm ring-1 ring-slate-950/[0.02]">
             <div className="flex gap-2 mb-4 flex-wrap">
               <button onClick={() => setMode('simple')}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'simple' ? 'bg-[#166534] text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'simple' ? 'bg-[#166534] text-white border-transparent shadow-md shadow-green-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
                 From Title + Skills
               </button>
               <button onClick={() => setMode('fromjd')}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'fromjd' ? 'bg-[#166534] text-white border-transparent shadow-md shadow-indigo-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${mode === 'fromjd' ? 'bg-[#166534] text-white border-transparent shadow-md shadow-green-900/20' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
                 From JD Text
               </button>
             </div>
@@ -661,39 +720,39 @@ function BooleanTab() {
                 <div>
                   <label className="text-xs font-semibold text-gray-700 mb-1 block">Job Title *</label>
                   <input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. Full Stack Developer"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-[#F97316]" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-700 mb-1 block">Skills (comma-separated)</label>
                   <input value={skills} onChange={e => setSkills(e.target.value)} placeholder="React, Node.js, MongoDB"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-[#F97316]" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-700 mb-1 block">Experience</label>
                   <input value={experience} onChange={e => setExperience(e.target.value)} placeholder="3+ years"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-blue-500" />
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:border-[#F97316]" />
                 </div>
               </div>
             ) : (
               <div>
-                <label className="text-xs font-semibold text-gray-700 mb-1 block">Paste Job Description</label>
+                <label className="text-xs font-semibold text-gray-700 mb-1 block">Job Description</label>
                 <textarea value={jdText} onChange={e => setJdText(e.target.value)} rows={6} placeholder="Paste the full JD here to auto-generate boolean strings…"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm resize-none focus:outline-none focus:border-blue-500" />
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm resize-none focus:outline-none focus:border-[#F97316]" />
                 <p className="text-xs text-gray-400 mt-2 mb-1">Or upload a JD file (PDF / DOCX / TXT):</p>
                 <LightFileUploadZone
                   label="Upload JD (PDF/DOC/DOCX/TXT) — click or drag & drop"
                   accept=".pdf,.docx,.doc,.txt"
                   onText={t => setJdText(prev => prev ? prev + '\n' + t : t)}
-                  disabled={loading}
+                  disabled={loading || prefillLoading}
                 />
               </div>
             )}
 
             {error && <div className="mt-3 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>}
 
-            <button onClick={() => submit(false)} disabled={loading || (mode === 'simple' ? !jobTitle.trim() : !jdText.trim())}
+            <button onClick={() => submit(false)} disabled={loading || prefillLoading || (mode === 'simple' ? !jobTitle.trim() : !jdText.trim())}
               className="mt-4 w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2 bg-[#F97316] hover:bg-[#ea580c] shadow-md shadow-orange-900/15">
-              {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : <><Sparkles className="w-4 h-4" />Generate Boolean Strings</>}
+              {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</> : <><Sparkles className="w-4 h-4" /> Generate Boolean Strings</>}
             </button>
           </div>
 
@@ -1435,6 +1494,7 @@ export default function DashboardPage() {
   const openAiShortcut = useCallback((s: AiShortcut) => {
     setActiveAiShortcutId(s.id)
     setCoachBootstrapTemplateId(s.templateId ?? null)
+    if (s.tab === 'boolean') setBooleanJobId(null)
     setActiveTab(s.tab)
     setPendingAiAction(s.id === 'gen-post' ? 'gen-post' : null)
     setMobileNavOpen(false)
@@ -1455,6 +1515,7 @@ export default function DashboardPage() {
     setActiveAiShortcutId(null)
     setCoachBootstrapTemplateId(null)
     setPendingAiAction(null)
+    if (tab === 'boolean') setBooleanJobId(null)
     setActiveTab(tab)
     setMobileNavOpen(false)
   }, [])
@@ -1563,6 +1624,7 @@ export default function DashboardPage() {
   /** Original file from last single-mode upload (used to persist PDF after AI screen saves a row). */
   const [screenSingleFile, setScreenSingleFile] = useState<File | null>(null)
   const [screenJobId, setScreenJobId] = useState('')
+  const [booleanJobId, setBooleanJobId] = useState<string | null>(null)
   const [screenJobMeta, setScreenJobMeta] = useState<{ title?: string; client?: string | null; loading?: boolean } | null>(null)
   const [screening, setScreening] = useState(false)
   const [screenProgress, setScreenProgress] = useState('')
@@ -1604,6 +1666,10 @@ export default function DashboardPage() {
           }
         } catch { /* ignore */ }
       })()
+    }
+    if (jobId && tab === 'boolean') {
+      setBooleanJobId(jobId)
+      setActiveTab('boolean')
     }
   }, [])
   const [skipAlreadyScreened, setSkipAlreadyScreened] = useState(true)
@@ -5200,7 +5266,7 @@ export default function DashboardPage() {
             {activeTab === 'boolean' && (
               <div>
                 <button type="button" onClick={() => setActiveTab('coach')} className="mb-3 text-sm font-bold text-indigo-700 hover:underline">← AI Assistant</button>
-                <BooleanTab />
+                <BooleanTab key={booleanJobId ?? 'boolean-blank'} initialJobId={booleanJobId} />
               </div>
             )}
 
@@ -5567,7 +5633,35 @@ export default function DashboardPage() {
           onOpenCandidate={(id) => {
             router.push(`/dashboard/candidates/${id}`)
           }}
-          onNavigate={(tab) => setActiveTab(tab as DashboardTab)}
+          onNavigate={(tab) => {
+            if (tab === 'boolean' || tab === 'screen') {
+              const id = selectedJobView.id
+              setSelectedJobView(null)
+              if (tab === 'boolean') setBooleanJobId(id)
+              if (tab === 'screen') {
+                setScreenJobId(id)
+                void (async () => {
+                  try {
+                    const res = await fetch(`/api/jobs/${id}/screening-context`)
+                    const data = await res.json()
+                    if (res.ok && data.jd_text) {
+                      setJdText(data.jd_text)
+                      setScreenJobMeta({ title: data.title, client: data.client, loading: false })
+                    }
+                  } catch { /* ignore */ }
+                })()
+              }
+              setActiveTab(tab as DashboardTab)
+              if (typeof window !== 'undefined') {
+                const url = new URL(window.location.href)
+                url.searchParams.set('tab', tab)
+                url.searchParams.set('job_post_id', id)
+                window.history.replaceState({}, '', url.toString())
+              }
+              return
+            }
+            setActiveTab(tab as DashboardTab)
+          }}
         />
       )}
 

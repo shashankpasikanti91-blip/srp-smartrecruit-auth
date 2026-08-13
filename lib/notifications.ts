@@ -134,6 +134,18 @@ export async function notifyError(ctx: {
   message: string; userId?: string | null; email?: string | null
   severity?: string; stack?: string
 }): Promise<void> {
+  // Throttle identical errors so AI/network flaps do not spam Telegram
+  const key = `${ctx.severity ?? 'error'}|${(ctx.message || '').slice(0, 160)}`
+  const now = Date.now()
+  const last = (globalThis as unknown as { __srpNotifyErr?: Map<string, number> }).__srpNotifyErr
+    ?? ((globalThis as unknown as { __srpNotifyErr: Map<string, number> }).__srpNotifyErr = new Map())
+  const prev = last.get(key) ?? 0
+  if (now - prev < 15 * 60 * 1000) {
+    console.warn('[notify] notifyError throttled:', key)
+    return
+  }
+  last.set(key, now)
+
   const emoji = ctx.severity === 'critical' ? '🚨' : '⚠️'
   await sendTelegram(
     `${emoji} <b>Error Alert — SRP AI Labs</b>\n\n` +
