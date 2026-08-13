@@ -64,7 +64,9 @@ jobs:
 
       - name: Public HTTPS health
         run: |
-          CODE=$(curl -s -o /tmp/h.json -w "%{http_code}" --max-time 20 https://recruit.srpailabs.com/api/health || echo 000)
+          CODE=$(curl -s -o /tmp/h.json -w "%{http_code}" --max-time 20 https://recruit.srpailabs.com/api/health || true)
+          CODE=$(printf '%s' "$CODE" | tr -cd '0-9' | tail -c 3)
+          [ -n "$CODE" ] || CODE=000
           echo "HTTPS /api/health => $CODE"
-          head -c 300 /tmp/h.json; echo
+          head -c 300 /tmp/h.json 2>/dev/null; echo
           test "$CODE" = "200"

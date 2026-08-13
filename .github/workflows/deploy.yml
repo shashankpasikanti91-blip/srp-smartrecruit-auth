@@ -9,6 +9,7 @@ on:
       - "*.md"
       - ".github/workflows/keep-alive.yml"
       - ".github/workflows/recover-production.yml"
+      - ".github/workflows/renew-ssl.yml"
       - "scripts/srp-keep-alive.sh"
   workflow_dispatch:
 
