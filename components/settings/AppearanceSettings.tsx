@@ -19,11 +19,14 @@ export function AppearanceSettings() {
   const [type, setType] = useState<AppearanceType>('modern')
 
   useEffect(() => {
-    const t = readAppearanceTheme()
-    const ty = readAppearanceType()
-    setTheme(t)
-    setType(ty)
-    applyAppearance(t, ty)
+    const id = requestAnimationFrame(() => {
+      const t = readAppearanceTheme()
+      const ty = readAppearanceType()
+      setTheme(t)
+      setType(ty)
+      applyAppearance(t, ty)
+    })
+    return () => cancelAnimationFrame(id)
   }, [])
 
   return (
