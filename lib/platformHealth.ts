@@ -38,7 +38,11 @@ export type PlatformHealthSnapshot = {
 }
 
 function appVersion(): string {
-  return process.env.npm_package_version || '1.0.0'
+  return (
+    process.env.APP_VERSION ||
+    process.env.npm_package_version ||
+    '1.3.0'
+  )
 }
 
 export function isSmtpConfigured(): boolean {

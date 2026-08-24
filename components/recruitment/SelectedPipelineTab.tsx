@@ -16,6 +16,7 @@ import {
 } from '@/lib/recruitmentOs'
 import { presetToRange, type DatePreset } from '@/lib/datePresets'
 import { formatExpYears, formatIsoDate } from '@/lib/opsList'
+import { formatPhoneInternational } from '@/lib/phoneFormat'
 
 type OfferRow = {
   id: string
@@ -350,7 +351,7 @@ export function SelectedPipelineTab({
               <tr>
                 <th className="font-extrabold">Emp./Cand. ID</th>
                 <th className="font-extrabold">Name</th>
-                <th className="font-extrabold">Contact</th>
+                <th className="font-extrabold">Phone</th>
                 <th className="font-extrabold">Email</th>
                 <th className="font-extrabold">Client / Project</th>
                 <th className="font-extrabold">Position</th>
@@ -385,7 +386,7 @@ export function SelectedPipelineTab({
                         {o.candidate_name}
                       </button>
                     </td>
-                    <td className="text-xs whitespace-nowrap">{o.candidate_phone || '—'}</td>
+                    <td className="text-xs whitespace-nowrap">{formatPhoneInternational(o.candidate_phone) || o.candidate_phone || '—'}</td>
                     <td className="text-xs max-w-[150px] truncate" title={o.candidate_email || ''}>{o.candidate_email || '—'}</td>
                     <td className="text-sm max-w-[180px] truncate" title={clientOf(o)}>{clientOf(o)}</td>
                     <td className="text-sm max-w-[140px] truncate">{positionOf(o)}</td>
@@ -437,10 +438,10 @@ export function SelectedPipelineTab({
                 <th className="font-extrabold">Open</th>
                 <th className="font-extrabold">Emp / Cand. ID</th>
                 <th className="font-extrabold">Name</th>
+                <th className="font-extrabold">Phone</th>
+                <th className="font-extrabold">Email</th>
                 <th className="font-extrabold">Client (Full)</th>
                 <th className="font-extrabold">Position</th>
-                <th className="font-extrabold">Contact</th>
-                <th className="font-extrabold">Email</th>
                 <th className="font-extrabold">Exp</th>
                 <th className="font-extrabold">Current Sal.</th>
                 <th className="font-extrabold">Expected Sal.</th>
@@ -482,10 +483,10 @@ export function SelectedPipelineTab({
                       {o.candidate_name}
                     </button>
                   </td>
+                  <td className="text-xs whitespace-nowrap">{formatPhoneInternational(o.candidate_phone) || o.candidate_phone || '—'}</td>
+                  <td className="text-xs max-w-[150px] truncate">{o.candidate_email || '—'}</td>
                   <td className="text-sm max-w-[180px] truncate" title={clientOf(o)}>{clientOf(o)}</td>
                   <td className="text-sm max-w-[140px] truncate">{positionOf(o)}</td>
-                  <td className="text-xs whitespace-nowrap">{o.candidate_phone || '—'}</td>
-                  <td className="text-xs max-w-[150px] truncate">{o.candidate_email || '—'}</td>
                   <td className="text-xs">{formatExpYears(o.years_experience)}</td>
                   <td className="text-xs">{o.current_salary || '—'}</td>
                   <td>

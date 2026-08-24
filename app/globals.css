@@ -1,25 +1,100 @@
-@import url('https://fonts.googleapis.com/css2?family=Carlito:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Carlito:ital,wght@0,400;0,700;1,400;1,700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ══════════════════════════════════════════════════════════
-   SRP SMARTRECRUIT — FOREST + SAFFRON DESIGN SYSTEM
-   Related to srpailabs.com, not a clone (no navy/cyan/violet)
+   SRP SMARTRECRUIT — v1.0.2 appearance system
+   Default: Navy Calm + Modern (Plus Jakarta Sans)
+   Toggle: data-theme=navy|forest · data-type=modern|classic
    ══════════════════════════════════════════════════════════ */
 
-:root {
-  /* Type */
-  --font-display:        'Times New Roman', Times, Georgia, serif;
-  --font-body:           Calibri, Carlito, 'Segoe UI', sans-serif;
+:root,
+html[data-theme='navy'] {
+  /* Type — Modern default */
+  --font-display:        'Plus Jakarta Sans', Carlito, 'Segoe UI', sans-serif;
+  --font-body:           'Plus Jakarta Sans', Carlito, 'Segoe UI', sans-serif;
 
-  /* Named brand */
+  /* Named brand (navy calm) */
+  --srp-forest:          #0B1F3A;
+  --srp-green:           #1E3A5F;
+  --srp-orange:          #3B82C4;
+  --srp-canvas:          #F7F9FC;
+
+  /* ── Sidebar / ESS nav ────────────────────────────────── */
+  --sidebar-bg:          #0B1F3A;
+  --sidebar-hover:       rgba(255, 255, 255, 0.08);
+  --sidebar-active:      #3B82C4;
+  --sidebar-active-text: #FFFFFF;
+  --sidebar-text:        #f1f5f9;
+  --sidebar-muted:       #94a3b8;
+  --sidebar-border:      rgba(255, 255, 255, 0.1);
+  --sidebar-brand:       #3B82C4;
+
+  /* Legacy accent aliases → calm slate-blue */
+  --srp-pink:     #3B82C4;
+  --srp-purple:   #1E3A5F;
+  --srp-blue:     #3B82C4;
+  --srp-cyan:     #64748B;
+
+  /* ── Dashboard canvas ─────────────────────────────────── */
+  --dash-bg:             #F7F9FC;
+  --dash-surface:        #FFFFFF;
+  --dash-border:         #E2E8F0;
+  --dash-text:           #0F172A;
+  --dash-text-2:         #64748B;
+  --dash-text-3:         #94A3B8;
+  --dash-ring:           rgba(59, 130, 196, 0.14);
+  --dash-heading:        #0F172A;
+  --dash-subheading:     #334155;
+  --radius-card:         16px;
+
+  /* ── Semantic / CTA (restrained) ─────────────────────── */
+  --color-primary:       #3B82C4;
+  --color-primary-hover: #2563A8;
+  --color-secondary:     #0B1F3A;
+  --color-secondary-hover: #071526;
+  --color-success:       #22C55E;
+  --color-warning:       #F59E0B;
+  --color-danger:        #EF4444;
+  --color-purple:        #1E3A5F;
+  --color-indigo:        #3B82C4;
+  --color-cta:           #3B82C4;
+  --color-cta-hover:     #2563A8;
+
+  /* ── Design system tokens ─────────────────────────────── */
+  --srp-surface:           #FFFFFF;
+  --srp-surface-elevated:  #F7F9FC;
+  --srp-border:            #E2E8F0;
+  --srp-text:              #0F172A;
+  --srp-text-muted:        #64748B;
+  --srp-accent:            #3B82C4;
+  --srp-action-post:       #1E3A5F;
+  --srp-action-boolean:    #1E3A5F;
+  --srp-action-screen:     #3B82C4;
+  --srp-action-pipeline:   #2563A8;
+  --srp-action-analytics:  #1E3A5F;
+  --srp-action-interview:  #3B82C4;
+  --srp-action-match:      #22C55E;
+  --srp-success:           #22C55E;
+  --srp-warning:           #F59E0B;
+  --srp-danger:            #EF4444;
+  --srp-info:              #3B82C4;
+
+  /* ── Shadows ──────────────────────────────────────────── */
+  --shadow-card:   0 1px 2px rgba(11,31,58,0.04), 0 4px 12px rgba(11,31,58,0.05);
+  --shadow-hover:  0 6px 20px rgba(11,31,58,0.08), 0 2px 6px rgba(11,31,58,0.04);
+  --shadow-modal:  0 16px 48px rgba(11,31,58,0.14);
+  --shadow-cta:    0 4px 14px rgba(59, 130, 196, 0.22);
+}
+
+/* Forest Classic — previous brand */
+html[data-theme='forest'] {
   --srp-forest:          #0B1F14;
   --srp-green:           #166534;
   --srp-orange:          #F97316;
   --srp-canvas:          #FCFCFA;
 
-  /* ── Sidebar — darker leaf, not parent navy ───────────── */
   --sidebar-bg:          #0B1F14;
   --sidebar-hover:       rgba(255, 255, 255, 0.08);
   --sidebar-active:      #166534;
@@ -29,13 +104,11 @@
   --sidebar-border:      rgba(255, 255, 255, 0.1);
   --sidebar-brand:       #F97316;
 
-  /* Legacy accent aliases → forest/orange (no pink/cyan brand) */
   --srp-pink:     #F97316;
   --srp-purple:   #166534;
   --srp-blue:     #166534;
   --srp-cyan:     #22C55E;
 
-  /* ── Dashboard canvas ─────────────────────────────────── */
   --dash-bg:             #FCFCFA;
   --dash-surface:        #FFFFFF;
   --dash-border:         #E5E7EB;
@@ -45,22 +118,16 @@
   --dash-ring:           rgba(249, 115, 22, 0.12);
   --dash-heading:        #111827;
   --dash-subheading:     #4B5563;
-  --radius-card:         16px;
 
-  /* ── Semantic / CTA ──────────────────────────────────── */
   --color-primary:       #F97316;
   --color-primary-hover: #ea580c;
   --color-secondary:     #166534;
   --color-secondary-hover: #14532d;
-  --color-success:       #22C55E;
-  --color-warning:       #F59E0B;
-  --color-danger:        #EF4444;
   --color-purple:        #166534;
   --color-indigo:        #166534;
   --color-cta:           #F97316;
   --color-cta-hover:     #ea580c;
 
-  /* ── Design system tokens ─────────────────────────────── */
   --srp-surface:           #FFFFFF;
   --srp-surface-elevated:  #FCFCFA;
   --srp-border:            #E5E7EB;
@@ -74,16 +141,24 @@
   --srp-action-analytics:  #166534;
   --srp-action-interview:  #F97316;
   --srp-action-match:      #22C55E;
-  --srp-success:           #22C55E;
-  --srp-warning:           #F59E0B;
-  --srp-danger:            #EF4444;
   --srp-info:              #166534;
 
-  /* ── Shadows ──────────────────────────────────────────── */
   --shadow-card:   0 1px 2px rgba(11,31,20,0.04), 0 4px 12px rgba(11,31,20,0.04);
   --shadow-hover:  0 6px 20px rgba(11,31,20,0.08), 0 2px 6px rgba(11,31,20,0.04);
   --shadow-modal:  0 16px 48px rgba(11,31,20,0.14);
   --shadow-cta:    0 4px 14px rgba(249, 115, 22, 0.28);
+}
+
+/* Classic typography */
+html[data-type='classic'] {
+  --font-display: 'Times New Roman', Times, Georgia, serif;
+  --font-body:    Calibri, Carlito, 'Segoe UI', sans-serif;
+}
+
+/* Modern typography (explicit) */
+html[data-type='modern'] {
+  --font-display: 'Plus Jakarta Sans', Carlito, 'Segoe UI', sans-serif;
+  --font-body:    'Plus Jakarta Sans', Carlito, 'Segoe UI', sans-serif;
 }
 
 * {
@@ -1254,14 +1329,14 @@ button, input, select, textarea {
   top: 0;
   bottom: 0;
   width: 4px;
-  background: var(--ess-kpi-accent, #ea580c);
+  background: var(--ess-kpi-accent, var(--color-primary));
 }
 .ess-kpi-card__label {
   font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #64748b;
+  color: var(--dash-text-2);
 }
 .ess-kpi-card__value {
   margin-top: 0.35rem;
@@ -1269,7 +1344,7 @@ button, input, select, textarea {
   font-weight: 800;
   color: var(--dash-heading);
   letter-spacing: -0.03em;
-  font-family: var(--font-body);
+  font-family: var(--font-display);
   font-variant-numeric: tabular-nums;
 }
 .ess-panel {
@@ -1285,14 +1360,15 @@ button, input, select, textarea {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.9rem 1.1rem;
-  border-bottom: 1px solid #eef2f7;
-  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  border-bottom: 1px solid var(--dash-border);
+  background: var(--dash-surface);
 }
 .ess-panel__title {
   font-size: 0.95rem;
   font-weight: 800;
   color: var(--dash-heading);
   letter-spacing: -0.02em;
+  font-family: var(--font-display);
 }
 .ess-tab-chip {
   display: inline-flex;
@@ -1302,24 +1378,24 @@ button, input, select, textarea {
   border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 700;
-  border: 1.5px solid #e2e8f0;
-  background: #fff;
-  color: #475569;
-  transition: all 0.15s ease;
+  border: 1.5px solid var(--dash-border);
+  background: var(--dash-surface);
+  color: var(--dash-text-2);
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 .ess-tab-chip:hover {
-  border-color: #a5b4fc;
-  color: #3730a3;
-  background: #ecfdf3;
+  border-color: var(--color-primary);
+  color: var(--color-secondary);
+  background: var(--dash-bg);
 }
 .ess-tab-chip.is-active {
-  background: linear-gradient(135deg, #3b5bdb, #14b8a6);
-  border-color: #3b5bdb;
+  background: var(--color-secondary);
+  border-color: var(--color-secondary);
   color: #fff;
-  box-shadow: 0 4px 14px rgba(59, 91, 219, 0.3);
+  box-shadow: var(--shadow-card);
 }
 
-/* ESS portal shell — SRP style (not legacy teal/green clone) */
+/* ESS portal shell — calm navy tokens */
 .ess-portal-shell {
   display: grid;
   grid-template-columns: 200px minmax(0, 1fr);
@@ -1334,7 +1410,7 @@ button, input, select, textarea {
   top: 0.5rem;
   border-radius: 1rem;
   border: 1px solid var(--dash-border);
-  background: #0b1f3a;
+  background: var(--sidebar-bg);
   padding: 0.75rem;
   box-shadow: var(--shadow-card);
 }
@@ -1343,7 +1419,7 @@ button, input, select, textarea {
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: var(--sidebar-muted);
   padding: 0.25rem 0.6rem 0.6rem;
 }
 .ess-portal-nav__item {
@@ -1355,18 +1431,18 @@ button, input, select, textarea {
   border-radius: 0.65rem;
   font-size: 12.5px;
   font-weight: 600;
-  color: #cbd5e1;
-  transition: all 0.15s ease;
+  color: var(--sidebar-text);
+  transition: background 0.15s ease, color 0.15s ease;
   text-align: left;
 }
 .ess-portal-nav__item:hover {
-  background: rgba(255,255,255,0.08);
+  background: var(--sidebar-hover);
   color: #fff;
 }
 .ess-portal-nav__item.is-active {
-  background: var(--color-primary);
-  color: #fff;
-  box-shadow: 0 6px 16px rgba(59, 91, 219, 0.35);
+  background: var(--sidebar-active);
+  color: var(--sidebar-active-text);
+  box-shadow: none;
 }
 .ess-portal-main {
   min-width: 0;

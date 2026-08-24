@@ -9,6 +9,7 @@ import { EntityNotesTimeline } from '@/components/ui/EntityNotesTimeline'
 import { SUBMISSION_STAGES, labelFor } from '@/lib/recruitmentOs'
 import { presetToRange, type DatePreset } from '@/lib/datePresets'
 import { formatIsoDate } from '@/lib/opsList'
+import { formatPhoneInternational } from '@/lib/phoneFormat'
 
 type Submission = {
   id: string
@@ -23,6 +24,7 @@ type Submission = {
   notes: string | null
   candidate_name: string
   candidate_email: string
+  candidate_phone?: string | null
   candidate_short_id: string
   job_title: string | null
   recruiter_name: string | null
@@ -242,6 +244,8 @@ export function SubmissionsTab({
               <tr>
                 <th className="font-extrabold">Cand. ID</th>
                 <th className="font-extrabold">Name</th>
+                <th className="font-extrabold">Phone</th>
+                <th className="font-extrabold">Email</th>
                 <th className="font-extrabold">Client / Project</th>
                 <th className="font-extrabold">Position</th>
                 <th className="font-extrabold">Recruiter</th>
@@ -255,7 +259,7 @@ export function SubmissionsTab({
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={11} className="text-center py-10 text-slate-400">No submissions in this filter</td></tr>
+                <tr><td colSpan={13} className="text-center py-10 text-slate-400">No submissions in this filter</td></tr>
               ) : rows.map((s, i) => (
                 <tr key={s.id} className={i % 2 ? 'bg-slate-50/70' : ''}>
                   <td>
@@ -277,6 +281,8 @@ export function SubmissionsTab({
                       <EntityIdLink kind="submission" id={s.short_id} onClick={() => openDetail(s)} />
                     </p>
                   </td>
+                  <td className="text-xs whitespace-nowrap">{formatPhoneInternational(s.candidate_phone) || s.candidate_phone || '—'}</td>
+                  <td className="text-xs max-w-[160px] truncate" title={s.candidate_email || ''}>{s.candidate_email || '—'}</td>
                   <td className="text-sm max-w-[180px] truncate" title={s.client_project || s.client_name || ''}>
                     {s.client_project || s.client_name || '—'}
                   </td>

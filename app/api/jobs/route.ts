@@ -5,6 +5,7 @@ import { checkJobPostLimit } from '@/lib/limits'
 import { logAudit } from '@/lib/audit'
 import { writeTimeline } from '@/lib/timelineEngine'
 import { createNotification } from '@/lib/notificationCenter'
+import { scheduleIndexJob } from '@/lib/rag/indexCorpus'
 
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, 'jobs.read')
@@ -132,6 +133,13 @@ export async function POST(req: NextRequest) {
       body: job.short_id ? `${job.short_id}` : undefined,
       entityType: 'job',
       entityId: job.id,
+    })
+
+    scheduleIndexJob({
+      tenantId: ctx.tenantId,
+      jobId: String(job.id),
+      jdText: body.raw_jd_text || body.description || null,
+      userId: ctx.userId,
     })
 
     return NextResponse.json({ job }, { status: 201 })

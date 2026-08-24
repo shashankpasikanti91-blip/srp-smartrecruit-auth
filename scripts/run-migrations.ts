@@ -29,6 +29,8 @@ const MIGRATIONS = [
   'migrate_v33_security.sql',
   'migrate_v34_jd_original.sql',
   'migrate_v35_job_posts_enriched.sql',
+  'migrate_v36_rag_graph.sql',
+  'migrate_v37_audit_ai.sql',
 ]
 
 async function main() {

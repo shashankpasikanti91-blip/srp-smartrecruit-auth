@@ -3,6 +3,7 @@ import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import { chatCompletionWithUsage } from '@/lib/aiClient'
 import { recordAiUsage } from '@/lib/aiUsage'
+import { logAiAction, withAiSecurityPolicy, wrapUntrustedData } from '@/lib/aiSecurity'
 
 export const maxDuration = 30
 
@@ -35,8 +36,8 @@ OUTPUT FORMAT — JSON ONLY. No markdown. No extra text.
 async function callAI(prompt: string, user: string) {
   return chatCompletionWithUsage({
     messages: [
-      { role: 'system', content: prompt },
-      { role: 'user', content: user },
+      { role: 'system', content: withAiSecurityPolicy(prompt) },
+      { role: 'user', content: wrapUntrustedData('BOOLEAN_INPUT', user) },
     ],
     temperature: 0.2,
     max_tokens: 1200,
@@ -75,8 +76,9 @@ export async function POST(req: NextRequest) {
                   linkedin_search, naukri_search, indeed_search, created_at
            FROM generated_boolean_searches
            WHERE user_id = $1 AND LOWER(job_title) = LOWER($2)
+             AND (tenant_id = $3 OR tenant_id IS NULL)
            ORDER BY created_at DESC LIMIT 1`,
-          [userId, job_title.trim()],
+          [userId, job_title.trim(), ctx.tenantId],
         )
         if (rows[0]) {
           const r = rows[0]
@@ -121,12 +123,13 @@ export async function POST(req: NextRequest) {
     try {
       const dbRes = await pool.query<{ id: string }>(
         `INSERT INTO generated_boolean_searches
-          (user_id, job_title, input_params, short_boolean, advanced_boolean,
+          (user_id, tenant_id, job_title, input_params, short_boolean, advanced_boolean,
            alternate_boolean, linkedin_search, naukri_search, indeed_search)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          RETURNING id`,
         [
           userId,
+          ctx.tenantId,
           (result.job_title as string) ?? job_title ?? '',
           JSON.stringify(body),
           result.short_boolean ?? '',
@@ -148,6 +151,13 @@ export async function POST(req: NextRequest) {
       operation: 'boolean_search',
       result: ai,
       metadata: { search_id: savedId, force: Boolean(force) },
+    })
+    await logAiAction({
+      ctx,
+      action: 'ai_boolean_search',
+      resourceType: 'boolean_search',
+      resourceId: savedId,
+      details: { job_title: job_title ?? null, cached: false },
     })
 
     return NextResponse.json({

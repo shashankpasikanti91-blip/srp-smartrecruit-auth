@@ -9,6 +9,8 @@ import {
   stagesForFeedbackBucket,
   xlsxDownload,
 } from '@/lib/opsList'
+import { formatPhoneInternational } from '@/lib/phoneFormat'
+import { cleanCandidateName } from '@/lib/nameClean'
 
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, 'candidates.read')
@@ -70,7 +72,7 @@ export async function GET(req: NextRequest) {
   const where = conditions.join(' AND ')
   const { rows } = await pool.query(
     `SELECT s.short_id, s.client_name, s.applying_for, s.stage, s.hire_type, s.submission_date, s.updated_at,
-            r.candidate_name, r.candidate_email, r.short_id AS candidate_id,
+            r.candidate_name, r.candidate_email, r.candidate_phone, r.short_id AS candidate_id,
             jp.title AS job_title, u.name AS recruiter_name
      FROM submissions s
      JOIN resumes r ON r.id = s.resume_id
@@ -83,13 +85,14 @@ export async function GET(req: NextRequest) {
   )
 
   const headers = [
-    'Submission ID', 'Cand. ID', 'Candidate', 'Email', 'Client', 'Position',
+    'Submission ID', 'Cand. ID', 'Candidate', 'Phone', 'Email', 'Client', 'Position',
     'Stage', 'Hire Type', 'Job', 'Recruiter', 'Submitted', 'Feedback date',
   ]
   const data = rows.map(r => [
     r.short_id,
     r.candidate_id,
-    r.candidate_name,
+    cleanCandidateName(r.candidate_name as string) || r.candidate_name,
+    formatPhoneInternational(r.candidate_phone as string) || r.candidate_phone || '',
     r.candidate_email,
     r.client_name,
     r.applying_for,

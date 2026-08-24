@@ -22,6 +22,7 @@ import { getServerSession, Session } from 'next-auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { authOptions } from './auth'
 import { pool } from './db'
+import { resolveRequestId } from './requestLog'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,8 @@ export interface TenantContext {
   tenantPlan: string
   tenantRole: 'owner' | 'admin' | 'recruiter' | 'member' | 'viewer'
   permissions: TenantPermissions
+  /** Correlation id for this request (header or generated). APIs are not wrapped by proxy.ts. */
+  requestId: string
 }
 
 export interface TenantPermissions {
@@ -136,6 +139,7 @@ export async function resolveTenant(req?: NextRequest): Promise<TenantContext | 
     tenantPlan: row.plan,
     tenantRole: row.role as TenantContext['tenantRole'],
     permissions: mergePermissions(row.permissions, row.role),
+    requestId: resolveRequestId(req?.headers.get('x-request-id') ?? null),
   }
 }
 
@@ -171,15 +175,19 @@ export async function requireTenant(
 ): Promise<TenantContext | NextResponse> {
   const ctx = await resolveTenant(req)
   if (!ctx) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const res = NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    res.headers.set('x-request-id', resolveRequestId(req.headers.get('x-request-id')))
+    return res
   }
   if (permission) {
     const ok = checkPermission(ctx.permissions, permission)
     if (!ok) {
-      return NextResponse.json(
+      const res = NextResponse.json(
         { error: `Forbidden: you lack the '${permission}' permission in this workspace` },
         { status: 403 }
       )
+      res.headers.set('x-request-id', ctx.requestId)
+      return res
     }
   }
   // Heartbeat: approximate "online" from last_active_at (throttled in SQL)

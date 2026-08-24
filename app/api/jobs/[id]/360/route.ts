@@ -26,7 +26,7 @@ export async function GET(
   if (!jobRes.rows[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const job = jobRes.rows[0]
 
-  const [pipeline, submissions, interviews, offers, similar, candidates, timeline] = await Promise.all([
+  const [pipeline, submissions, interviews, offers, similar, candidates, timeline, pipelinePeople] = await Promise.all([
     pool.query(
       `SELECT COALESCE(pipeline_stage,'sourced') AS stage, COUNT(*)::int AS n
        FROM resumes WHERE tenant_id = $1 AND job_post_id = $2
@@ -84,6 +84,26 @@ export async function GET(
       [ctx.tenantId, id]
     ).catch(() => ({ rows: [] })),
     listEntityTimeline({ tenantId: ctx.tenantId, entityType: 'job', entityId: id, limit: 30 }).catch(() => []),
+    pool.query(
+      `SELECT r.id, r.short_id, r.candidate_name, r.ai_score,
+              COALESCE(r.pipeline_stage, 'sourced') AS stage
+       FROM resumes r
+       WHERE r.tenant_id = $1 AND r.job_post_id = $2
+       ORDER BY r.updated_at DESC NULLS LAST
+       LIMIT 80`,
+      [ctx.tenantId, id]
+    ).catch(async () =>
+      pool.query(
+        `SELECT DISTINCT ON (r.id) r.id, r.short_id, r.candidate_name, r.ai_score,
+                COALESCE(r.pipeline_stage, s.stage, 'sourced') AS stage
+         FROM submissions s
+         JOIN resumes r ON r.id = s.resume_id
+         WHERE s.tenant_id = $1 AND s.job_post_id = $2
+         ORDER BY r.id, s.updated_at DESC
+         LIMIT 80`,
+        [ctx.tenantId, id]
+      ).catch(() => ({ rows: [] })),
+    ),
   ])
 
   const market = await analyzeJobFillDifficulty({ tenantId: ctx.tenantId, jobId: id }).catch(() => ({
@@ -148,6 +168,32 @@ export async function GET(
   const pipelineMap: Record<string, number> = {}
   for (const r of pipeline.rows) pipelineMap[r.stage] = r.n
 
+  const pipeline_board: Record<string, Array<{
+    id: string
+    short_id: string
+    candidate_name: string
+    ai_score: number | null
+    stage: string
+  }>> = {}
+  for (const r of pipelinePeople.rows as Array<Record<string, unknown>>) {
+    const stage = String(r.stage ?? 'sourced')
+    if (!pipeline_board[stage]) pipeline_board[stage] = []
+    if (pipeline_board[stage].length >= 12) continue
+    pipeline_board[stage].push({
+      id: String(r.id),
+      short_id: String(r.short_id ?? '').slice(0, 12),
+      candidate_name: String(r.candidate_name ?? 'Candidate'),
+      ai_score: r.ai_score != null ? Number(r.ai_score) : null,
+      stage,
+    })
+  }
+  // Prefer count map from board if primary pipeline query was empty
+  if (!Object.keys(pipelineMap).length) {
+    for (const [stage, people] of Object.entries(pipeline_board)) {
+      pipelineMap[stage] = people.length
+    }
+  }
+
   const savedPosts = await getJobPostContents(id).catch(() => null)
   const post_contents: Record<string, string> = {}
   if (savedPosts) {
@@ -175,6 +221,7 @@ export async function GET(
     post_contents,
     required_skills: Array.isArray(job.skills) ? job.skills : (Array.isArray(job.tags) ? job.tags : []),
     pipeline: pipelineMap,
+    pipeline_board,
     ranking,
     candidate_ranking: ranking,
     submissions: submissions.rows,

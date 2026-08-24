@@ -1,26 +1,14 @@
 /**
  * Internal talent pool matching for a job — tenant-scoped only.
+ * Hybrid: token overlap + vector sim + light graph skill boost when available.
  */
 import { pool } from '@/lib/db'
 import { buildJdFromJobRow } from '@/lib/jobScreeningContext'
+import { resumeVectorScores } from '@/lib/rag/retrieve'
+import { graphSkillBoostBatch } from '@/lib/rag/graph'
+import type { InternalMatchRow, MatchExplain } from '@/lib/internalMatchTypes'
 
-export type InternalMatchRow = {
-  id: string
-  short_id: string
-  candidate_name: string
-  match_percent: number
-  ai_score: number | null
-  skills: string[]
-  experience: string | null
-  location: string | null
-  availability: string | null
-  notice_period: string | null
-  visa: string | null
-  nationality: string | null
-  recruiter_name: string | null
-  recruiter_email: string | null
-  pipeline_stage: string
-}
+export type { InternalMatchRow, MatchExplain } from '@/lib/internalMatchTypes'
 
 function tokenize(text: string): Set<string> {
   return new Set(
@@ -93,6 +81,21 @@ export async function computeInternalMatches(
   const jobLocation = String(jobRow.location ?? '').toLowerCase()
   const scored: InternalMatchRow[] = []
 
+  // Batch vector scores for candidate set (best-effort)
+  let vectorMap = new Map<string, number>()
+  let graphMap = new Map<string, number>()
+  const resumeIds = candidates.map(c => String(c.id))
+  try {
+    vectorMap = await resumeVectorScores({
+      tenantId,
+      query: jdText.slice(0, 4000) || String(jobRow.title ?? ''),
+      resumeIds,
+    })
+  } catch { /* no pgvector / no embeddings yet */ }
+  try {
+    graphMap = await graphSkillBoostBatch(tenantId, resumeIds, requiredSkills)
+  } catch { /* ignore */ }
+
   for (const row of candidates) {
     const profile = typeof row.candidate_profile === 'string'
       ? (() => { try { return JSON.parse(row.candidate_profile) } catch { return {} } })()
@@ -102,7 +105,7 @@ export async function computeInternalMatches(
       ? (row.ai_skills as string[])
       : []
 
-    let matchPercent = skillOverlap(requiredSkills, skills)
+    let tokenPercent = skillOverlap(requiredSkills, skills)
 
     const candText = tokenize(`${row.raw_text ?? ''} ${skills.join(' ')}`)
     let jdHits = 0
@@ -111,21 +114,59 @@ export async function computeInternalMatches(
     }
     if (jdTokens.size > 0) {
       const jdScore = Math.round((jdHits / Math.min(jdTokens.size, 80)) * 100)
-      matchPercent = Math.round(matchPercent * 0.6 + jdScore * 0.4)
+      tokenPercent = Math.round(tokenPercent * 0.6 + jdScore * 0.4)
     }
 
     const location = profileStr(profile, 'current_location') ?? profileStr(profile, 'preferred_location')
     if (jobLocation && location && location.toLowerCase().includes(jobLocation.split(',')[0])) {
-      matchPercent = Math.min(100, matchPercent + 8)
+      tokenPercent = Math.min(100, tokenPercent + 8)
     }
 
     const aiScore = row.ai_score != null ? Number(row.ai_score) : null
     if (aiScore != null) {
-      matchPercent = Math.round(matchPercent * 0.7 + aiScore * 0.3)
+      tokenPercent = Math.round(tokenPercent * 0.7 + aiScore * 0.3)
     }
 
+    const resumeId = String(row.id)
+    const vectorSim = vectorMap.get(resumeId) // 0–1
+    const graphBoost = graphMap.get(resumeId) ?? 0
+
+    let matchPercent = tokenPercent
+    let explain: MatchExplain
+    if (vectorSim != null && vectorSim > 0) {
+      const vectorPct = Math.round(vectorSim * 100)
+      matchPercent = Math.round(
+        vectorPct * 0.6 + tokenPercent * 0.3 + graphBoost * 0.1,
+      )
+      explain = {
+        vector_pct: vectorPct,
+        token_pct: tokenPercent,
+        graph_pct: graphBoost,
+        mode: 'hybrid',
+        summary: `Deep match ${vectorPct}% · skills/JD ${tokenPercent}% · graph ${graphBoost}%`,
+      }
+    } else if (graphBoost > 0) {
+      matchPercent = Math.round(tokenPercent * 0.9 + graphBoost * 0.1)
+      explain = {
+        vector_pct: null,
+        token_pct: tokenPercent,
+        graph_pct: graphBoost,
+        mode: 'token+graph',
+        summary: `Skills/JD ${tokenPercent}% · shared skills graph ${graphBoost}%`,
+      }
+    } else {
+      explain = {
+        vector_pct: null,
+        token_pct: tokenPercent,
+        graph_pct: 0,
+        mode: 'token',
+        summary: `Skills/JD overlap ${tokenPercent}% (index resumes for deeper vector match)`,
+      }
+    }
+    matchPercent = Math.max(0, Math.min(100, matchPercent))
+
     scored.push({
-      id: String(row.id),
+      id: resumeId,
       short_id: String(row.short_id ?? row.id).slice(0, 12),
       candidate_name: String(row.candidate_name ?? ''),
       match_percent: matchPercent,
@@ -140,6 +181,7 @@ export async function computeInternalMatches(
       recruiter_name: (row.recruiter_name as string) ?? null,
       recruiter_email: (row.recruiter_email as string) ?? null,
       pipeline_stage: String(row.pipeline_stage ?? ''),
+      explain,
     })
   }
 

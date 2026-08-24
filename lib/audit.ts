@@ -18,6 +18,8 @@ export interface AuditEvent {
   module?: string | null
   /** Link to candidate timeline when applicable */
   resumeId?: string | null
+  correlationId?: string | null
+  actorType?: 'human' | 'system' | 'agent' | 'support_session' | null
 }
 
 /**
@@ -28,8 +30,8 @@ export async function logAudit(ev: AuditEvent): Promise<void> {
     await pool.query(
       `INSERT INTO audit_logs
          (user_id, user_email, action, resource_type, resource_id, details, result, tenant_id,
-          old_value, new_value, reason, ip_address, module)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          old_value, new_value, reason, ip_address, module, correlation_id, actor_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
       [
         ev.userId,
         ev.userEmail,
@@ -49,6 +51,8 @@ export async function logAudit(ev: AuditEvent): Promise<void> {
         ev.reason ?? null,
         ev.ipAddress ?? null,
         ev.module ?? ev.resourceType,
+        ev.correlationId ?? null,
+        ev.actorType ?? 'human',
       ]
     )
   } catch {

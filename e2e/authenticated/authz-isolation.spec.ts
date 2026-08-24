@@ -50,6 +50,26 @@ test.describe('Authenticated authz & isolation', () => {
     expect([404, 403]).toContain(res.status())
   })
 
+  test('generate-posts rejects unknown job UUID', async ({ request }) => {
+    const res = await request.post('/api/jobs/generate-posts', {
+      data: { job_post_id: '00000000-0000-4000-8000-000000000099', title: 'E2E Probe' },
+    })
+    expect([400, 403, 404]).toContain(res.status())
+    if (res.status() === 404) {
+      const body = await res.json().catch(() => ({}))
+      expect(JSON.stringify(body).toLowerCase()).not.toMatch(/@.*\./)
+    }
+  })
+
+  test('generate-posts rejects foreign job id when configured', async ({ request }) => {
+    const id = process.env.E2E_FOREIGN_JOB_ID?.trim()
+    test.skip(!id, 'Set E2E_FOREIGN_JOB_ID to a UUID from another tenant')
+    const res = await request.post('/api/jobs/generate-posts', {
+      data: { job_post_id: id },
+    })
+    expect([403, 404]).toContain(res.status())
+  })
+
   test('governance is admin-only (403 for recruiters)', async ({ request }) => {
     const res = await request.get('/api/governance')
     // owner/admin → 200; recruiter/member/viewer → 403; missing perm → 403

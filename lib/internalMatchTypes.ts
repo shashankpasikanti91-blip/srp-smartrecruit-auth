@@ -1,4 +1,12 @@
 /** Client-safe internal match row type. */
+export type MatchExplain = {
+  vector_pct: number | null
+  token_pct: number
+  graph_pct: number
+  mode: 'hybrid' | 'token+graph' | 'token'
+  summary: string
+}
+
 export type InternalMatchRow = {
   id: string
   short_id: string
@@ -15,4 +23,5 @@ export type InternalMatchRow = {
   recruiter_name: string | null
   recruiter_email: string | null
   pipeline_stage: string
+  explain?: MatchExplain
 }

@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
 
   const where = conditions.join(' AND ')
   const { rows } = await pool.query(
-    `SELECT s.*, r.candidate_name, r.candidate_email, r.short_id AS candidate_short_id,
+    `SELECT s.*, r.candidate_name, r.candidate_email, r.candidate_phone, r.short_id AS candidate_short_id,
             jp.title AS job_title,
             COALESCE(jp.company, s.client_name) AS client_project,
             u.name AS recruiter_name

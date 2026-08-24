@@ -3,6 +3,7 @@ import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import { chatCompletionWithUsage } from '@/lib/aiClient'
 import { recordAiUsage } from '@/lib/aiUsage'
+import { logAiAction, withAiSecurityPolicy, wrapUntrustedData } from '@/lib/aiSecurity'
 
 export const maxDuration = 60
 
@@ -69,8 +70,8 @@ OUTPUT FORMAT — Return JSON ONLY. No markdown. No extra text.
 async function callAI(systemPrompt: string, userMessage: string) {
   return chatCompletionWithUsage({
     messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userMessage },
+      { role: 'system', content: withAiSecurityPolicy(systemPrompt) },
+      { role: 'user', content: wrapUntrustedData('JD_INPUT', userMessage) },
     ],
     temperature: 0.35,
     max_tokens: 2500,
@@ -117,8 +118,9 @@ export async function POST(req: NextRequest) {
             `SELECT id, title, full_jd_text, structured_data, created_at
              FROM generated_jds
              WHERE user_id = $1 AND LOWER(title) = LOWER($2)
+               AND (tenant_id = $3 OR tenant_id IS NULL)
              ORDER BY created_at DESC LIMIT 1`,
-            [userId, job_title.trim()],
+            [userId, job_title.trim(), ctx.tenantId],
           )
           if (rows[0]) {
             const row = rows[0]
@@ -164,10 +166,10 @@ export async function POST(req: NextRequest) {
       try {
         const dbRes = await pool.query<{ id: string }>(
           `INSERT INTO generated_jds
-            (user_id, title, input_params, full_jd_text, structured_data)
-           VALUES ($1, $2, $3, $4, $5)
+            (user_id, tenant_id, title, input_params, full_jd_text, structured_data)
+           VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id`,
-          [userId, job_title, JSON.stringify(params), result.full_jd_text ?? ai.content, JSON.stringify(result)]
+          [userId, ctx.tenantId, job_title, JSON.stringify(params), result.full_jd_text ?? ai.content, JSON.stringify(result)]
         )
         savedId = dbRes.rows[0]?.id ?? null
       } catch (dbErr) {
@@ -180,6 +182,13 @@ export async function POST(req: NextRequest) {
         operation: 'jd_generate',
         result: ai,
         metadata: { jd_id: savedId, force: Boolean(force) },
+      })
+      await logAiAction({
+        ctx,
+        action: 'ai_jd_generate',
+        resourceType: 'generated_jd',
+        resourceId: savedId,
+        details: { job_title },
       })
 
       return NextResponse.json({
@@ -238,6 +247,12 @@ export async function POST(req: NextRequest) {
         result: ai,
         metadata: { force: Boolean(force) },
       })
+      await logAiAction({
+        ctx,
+        action: 'ai_jd_analyze',
+        resourceType: 'jd_analysis',
+        details: { chars: jd_text.length },
+      })
 
       return NextResponse.json({
         action: 'analyze',
@@ -267,9 +282,10 @@ export async function GET(req: NextRequest) {
   if (ctx instanceof NextResponse) return ctx
   try {
     const { rows } = await pool.query(
-      `SELECT id, title, created_at FROM generated_jds WHERE user_id = $1
+      `SELECT id, title, created_at FROM generated_jds
+       WHERE user_id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)
        ORDER BY created_at DESC LIMIT 30`,
-      [ctx.userId]
+      [ctx.userId, ctx.tenantId],
     )
     return NextResponse.json({ jds: rows })
   } catch {

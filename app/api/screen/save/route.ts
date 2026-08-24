@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
-import { isValidUUID } from '@/lib/validate'
+import { isValidUUID, sanitizeDbText, asAiString, sanitizeStringArray } from '@/lib/validate'
 import { extractResumeFields } from '@/lib/resumeExtract'
+import { cleanCandidateName } from '@/lib/nameClean'
+import { formatPhoneInternational, sanitizeCandidateEmail, splitGluedPhoneFromEmail } from '@/lib/phoneFormat'
 import { writeTimeline } from '@/lib/timelineEngine'
 import { logAudit } from '@/lib/audit'
 import { advanceFromDomain } from '@/lib/lifecycle'
 import { assertFeatureEnabled, assertNotMaintenance } from '@/lib/featureFlags'
 import { syncResumeToDocumentSlot } from '@/lib/resumeDocumentSync'
 import { normalizeDecisionBands } from '@/lib/screeningTypes'
+import { scheduleIndexResume } from '@/lib/rag/indexCorpus'
+import { upsertResumeJobEdge } from '@/lib/rag/graph'
 
 function normalizeScore(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -71,7 +75,8 @@ export async function POST(req: NextRequest) {
   if (!result || typeof result !== 'object' || result.error) {
     return NextResponse.json({ error: 'Valid screening result required' }, { status: 400 })
   }
-  if (!rawText.trim()) {
+  rawText = sanitizeDbText(rawText, 100_000)
+  if (!rawText) {
     return NextResponse.json({ error: 'raw_text required to save candidate resume' }, { status: 400 })
   }
 
@@ -88,9 +93,24 @@ export async function POST(req: NextRequest) {
 
   const extracted = extractResumeFields(rawText, filename)
   const p = { ...result }
-  if (!(p.name as string)?.trim() && extracted.name) p.name = extracted.name
-  if (!(p.email as string)?.trim() && extracted.email) p.email = extracted.email
-  if (!(p.contact_number as string)?.trim() && extracted.phone) p.contact_number = extracted.phone
+  const name =
+    cleanCandidateName(asAiString(p.name, 200)) ||
+    extracted.name ||
+    ''
+  let email =
+    sanitizeCandidateEmail(asAiString(p.email, 320)) ||
+    extracted.email ||
+    ''
+  let phone =
+    formatPhoneInternational(asAiString(p.contact_number, 50)) ||
+    extracted.phone ||
+    ''
+  const glued = splitGluedPhoneFromEmail(asAiString(p.email, 320) || email)
+  if (glued.email) email = glued.email
+  if (glued.phone && !phone) phone = glued.phone
+  if (name) p.name = name
+  if (email) p.email = email
+  if (phone) p.contact_number = phone.slice(0, 50)
 
   const score = normalizeScore(p.score)
   if (score != null) {
@@ -103,29 +123,30 @@ export async function POST(req: NextRequest) {
 
   const evalData = p.evaluation as Record<string, unknown> | undefined
   const jdMatch = p.jd_match as Record<string, unknown> | undefined
-  const decision = (p.decision as string) ?? ''
-  const skills: string[] = [
-    ...((jdMatch?.matching_skills as string[]) ?? []),
-    ...((evalData?.high_match_skills as string[]) ?? []),
-    ...((p.strong_skills as string[]) ?? []),
-  ].filter((s, i, a) => s && a.indexOf(s) === i).slice(0, 50)
+  const decision = asAiString(p.decision, 80)
+  if (decision) p.decision = decision
+  const skills: string[] = sanitizeStringArray([
+    ...((jdMatch?.matching_skills as unknown[]) ?? []),
+    ...((evalData?.high_match_skills as unknown[]) ?? []),
+    ...((p.strong_skills as unknown[]) ?? []),
+  ], 50, 120)
 
-  const summary = (
-    (p.hiring_reasoning as string)
-    || (evalData?.justification as string)
-    || (p.executive_summary as string)
-    || ''
+  const summary = asAiString(
+    p.hiring_reasoning || evalData?.justification || p.executive_summary,
+    4000,
   )
   const stage = decision === 'Shortlisted' || decision === 'Excellent' ? 'screening' : 'applied'
-  const resolvedName = ((p.name as string)?.trim()
-    || extracted.name
-    || filename.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ')
-    || 'Unknown Candidate').slice(0, 200)
-  const candidateEmail = ((p.email as string | null) || extracted.email || null)?.toLowerCase() ?? null
+  const resolvedName = (
+    cleanCandidateName(name) ||
+    extracted.name ||
+    cleanCandidateName(filename.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ')) ||
+    'Unknown Candidate'
+  ).slice(0, 200)
+  const candidateEmail = (email || extracted.email || null)?.toLowerCase() ?? null
   const audit = p.experience_audit as { current_employer?: string; current_role?: string; calculated_years?: number } | undefined
   const profilePatch = {
-    current_title: String(p.current_designation || audit?.current_role || '').trim() || null,
-    current_company: String(p.current_company || audit?.current_employer || '').trim() || null,
+    current_title: asAiString(p.current_designation || audit?.current_role, 200) || null,
+    current_company: asAiString(p.current_company || audit?.current_employer, 200) || null,
     total_experience: audit?.calculated_years != null ? String(audit.calculated_years) : null,
   }
 
@@ -158,9 +179,9 @@ export async function POST(req: NextRequest) {
           [
             score, summary.slice(0, 4000), skills, stage,
             JSON.stringify(p), resolvedName,
-            ((p.contact_number as string) || extracted.phone || null),
+            phone || extracted.phone || null,
             jobPostId ?? null,
-            rawText.slice(0, 100000),
+            rawText,
             JSON.stringify(profilePatch),
             dbId, ctx.tenantId,
           ],
@@ -181,7 +202,7 @@ export async function POST(req: NextRequest) {
           resolvedName, candidateEmail,
           ((p.contact_number as string | null) || extracted.phone)?.slice(0, 50) ?? null,
           filename,
-          rawText.slice(0, 100000),
+          rawText,
           score, summary.slice(0, 4000), skills,
           JSON.stringify(p), JSON.stringify(profilePatch), stage,
         ],
@@ -255,8 +276,11 @@ export async function POST(req: NextRequest) {
     tenantId: ctx.tenantId,
     action: 'ai_screen_saved',
     resourceType: 'candidate',
-    resourceId: shortId || dbId,
-    details: { score, is_duplicate: isDuplicate },
+    resourceId: dbId,
+    correlationId: ctx.requestId,
+    actorType: 'human',
+    module: 'ai',
+    details: { score, is_duplicate: isDuplicate, short_id: shortId },
   }).catch(() => null)
 
   const saved = {
@@ -269,6 +293,24 @@ export async function POST(req: NextRequest) {
     draft: false,
     is_duplicate: isDuplicate,
     screened_at: new Date().toISOString(),
+  }
+
+  if (dbId && rawText.trim().length >= 40) {
+    scheduleIndexResume({
+      tenantId: ctx.tenantId,
+      resumeId: dbId,
+      rawText,
+      skills,
+      userId: ctx.userId,
+    })
+  }
+  if (dbId && jobPostId && isValidUUID(jobPostId)) {
+    void upsertResumeJobEdge({
+      tenantId: ctx.tenantId,
+      resumeId: dbId,
+      jobId: jobPostId,
+      edgeType: 'screened_for',
+    }).catch(() => null)
   }
 
   return NextResponse.json({ ok: true, db_id: dbId, short_id: shortId, is_duplicate: isDuplicate, result: saved })

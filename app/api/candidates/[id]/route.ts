@@ -13,6 +13,9 @@ import {
 } from '@/lib/validate'
 import { LIFECYCLE_STATUSES, lifecycleToPipelineStage } from '@/lib/candidateLifecycle'
 import { fetchCandidateById } from '@/lib/candidateFetch'
+import { cleanCandidateName } from '@/lib/nameClean'
+import { formatPhoneInternational, sanitizeCandidateEmail, splitGluedPhoneFromEmail } from '@/lib/phoneFormat'
+import { scheduleIndexResume } from '@/lib/rag/indexCorpus'
 
 const VALID_STAGES = [
   'sourced', 'applied', 'new', 'screening', 'submitted', 'interview', 'offer',
@@ -79,7 +82,7 @@ export async function PATCH(
     const auditDetails: Record<string, unknown> = {}
 
     if (body.candidate_name !== undefined) {
-      const name = sanitizeText(body.candidate_name, 200)
+      const name = cleanCandidateName(body.candidate_name, 200) || sanitizeText(body.candidate_name, 200)
       if (!name) return NextResponse.json({ error: 'candidate_name cannot be empty' }, { status: 400 })
       sanitized.candidate_name = name
       auditDetails.name_updated = true
@@ -89,9 +92,13 @@ export async function PATCH(
       if (body.candidate_email === null || body.candidate_email === '') {
         sanitized.candidate_email = null
       } else {
-        const email = sanitizeEmail(body.candidate_email)
+        const glued = splitGluedPhoneFromEmail(String(body.candidate_email))
+        const email = sanitizeCandidateEmail(glued.email) || sanitizeEmail(glued.email)
         if (!email) return NextResponse.json({ error: 'Invalid candidate_email' }, { status: 400 })
         sanitized.candidate_email = email
+        if (glued.phone && body.candidate_phone === undefined) {
+          sanitized.candidate_phone = glued.phone.slice(0, 50)
+        }
       }
       auditDetails.email_updated = true
     }
@@ -99,7 +106,7 @@ export async function PATCH(
     if (body.candidate_phone !== undefined) {
       sanitized.candidate_phone = body.candidate_phone === null || body.candidate_phone === ''
         ? null
-        : sanitizeText(body.candidate_phone, 50)
+        : (formatPhoneInternational(body.candidate_phone) || sanitizeText(body.candidate_phone, 50))
       auditDetails.phone_updated = true
     }
 
@@ -135,6 +142,13 @@ export async function PATCH(
 
     if (body.ai_summary !== undefined) {
       sanitized.ai_summary = sanitizeText(body.ai_summary, 5000)
+    }
+
+    if (body.raw_text !== undefined) {
+      sanitized.raw_text = body.raw_text === null || body.raw_text === ''
+        ? null
+        : sanitizeText(body.raw_text, 100000)
+      auditDetails.raw_text_updated = true
     }
 
     if (body.job_post_id !== undefined) {
@@ -272,6 +286,20 @@ export async function PATCH(
     const cand = rows[0]
     if (cand.candidate_profile && typeof cand.candidate_profile === 'string') {
       try { cand.candidate_profile = JSON.parse(cand.candidate_profile) } catch { /* keep */ }
+    }
+
+    if (
+      sanitized.raw_text !== undefined ||
+      sanitized.ai_skills !== undefined ||
+      sanitized.ai_summary !== undefined
+    ) {
+      scheduleIndexResume({
+        tenantId: ctx.tenantId,
+        resumeId: id,
+        rawText: typeof sanitized.raw_text === 'string' ? sanitized.raw_text : undefined,
+        skills: Array.isArray(sanitized.ai_skills) ? (sanitized.ai_skills as string[]) : undefined,
+        userId: ctx.userId,
+      })
     }
 
     return NextResponse.json({ candidate: cand })

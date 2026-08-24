@@ -159,7 +159,8 @@ export async function extractTextFromUpload(file: File): Promise<{
     text = buffer.toString('utf-8')
   }
 
-  const trimmed = text.trim().slice(0, 40_000)
+  // NUL bytes from some PDFs/DOC parsers crash Postgres UTF-8 inserts
+  const trimmed = text.replace(/\u0000/g, '').trim().slice(0, 40_000)
   if (trimmed.length < 10) {
     fail('Could not extract readable text from this file', 422)
   }

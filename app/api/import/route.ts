@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
+import { cleanCandidateName } from '@/lib/nameClean'
+import { formatPhoneInternational, sanitizeCandidateEmail, splitGluedPhoneFromEmail } from '@/lib/phoneFormat'
+import { findDuplicateCandidates } from '@/lib/duplicateCheck'
 
 export const maxDuration = 30
 
@@ -88,8 +91,14 @@ async function processImport(
 
   for (let i = 0; i < rows.length; i++) {
     const rowData = rowToCandidate(headers, rows[i])
-    const email = rowData.email?.trim().toLowerCase()
-    const name = rowData.name?.trim()
+    const glued = splitGluedPhoneFromEmail(rowData.email)
+    const email = (glued.email || rowData.email?.trim().toLowerCase() || '') || ''
+    const name = cleanCandidateName(rowData.name) || rowData.name?.trim() || ''
+    const phone =
+      formatPhoneInternational(rowData.phone) ||
+      glued.phone ||
+      rowData.phone?.trim() ||
+      ''
 
     if (!email && !name) {
       failed++
@@ -117,44 +126,42 @@ async function processImport(
     }
 
     try {
-      // Check duplicate
-      let existing: { id: string } | undefined
-      if (email) {
-        const dup = await pool.query<{ id: string }>(
-          `SELECT id FROM resumes WHERE candidate_email = $1 AND tenant_id = $2 LIMIT 1`,
-          [email, tenantId]
-        )
-        existing = dup.rows[0]
+      const duplicates = await findDuplicateCandidates({
+        tenantId,
+        email: email || null,
+        phone: phone || null,
+      })
+
+      if (duplicates.length) {
+        skipped++
+        try {
+          await pool.query(
+            `INSERT INTO import_row_errors (batch_id, row_number, raw_data, error_message)
+             VALUES ($1,$2,$3,$4)`,
+            [
+              batchId,
+              i + 2,
+              JSON.stringify(rowData),
+              `Duplicate skipped (${duplicates[0].matched_on.join(', ')}): ${duplicates[0].short_id}`,
+            ],
+          )
+        } catch { /* silent */ }
+        continue
       }
 
-      if (existing) {
-        // Merge — update what is now present
-        await pool.query(
-          `UPDATE resumes SET
-             candidate_name = COALESCE(NULLIF($1,''), candidate_name),
-             candidate_phone = COALESCE(NULLIF($2,''), candidate_phone),
-             full_ai_analysis = $3,
-             source_batch_id = $4,
-             updated_at = NOW()
-           WHERE id = $5 AND tenant_id = $6`,
-          [name, rowData.phone, JSON.stringify(extraData), batchId, existing.id, tenantId]
-        )
-        skipped++
-      } else {
-        // Create new candidate
-        await pool.query(
-          `INSERT INTO resumes
-             (tenant_id, user_id, candidate_name, candidate_email, candidate_phone,
-              source_type, source_batch_id, full_ai_analysis,
-              pipeline_stage, status)
-           VALUES ($1,$2,$3,$4,$5,'import',$6,$7,'applied','pending')`,
-          [
-            tenantId, userId, name ?? '', email ?? '', rowData.phone ?? '',
-            batchId, JSON.stringify(extraData),
-          ]
-        )
-        successCount++
-      }
+      // Create new candidate
+      await pool.query(
+        `INSERT INTO resumes
+           (tenant_id, user_id, candidate_name, candidate_email, candidate_phone,
+            source_type, source_batch_id, full_ai_analysis,
+            pipeline_stage, status)
+         VALUES ($1,$2,$3,$4,$5,'import',$6,$7,'applied','pending')`,
+        [
+          tenantId, userId, name ?? '', sanitizeCandidateEmail(email) || email || '', phone || null,
+          batchId, JSON.stringify(extraData),
+        ]
+      )
+      successCount++
     } catch (rowErr) {
       failed++
       try {

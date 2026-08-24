@@ -22,11 +22,12 @@ test.describe('Public pages', () => {
   test('homepage renders premium hero', async ({ page }) => {
     await page.goto('/')
     await expect(
-      page.getByRole('heading', { name: /From hundreds of CVs to a shortlist recruiters can trust/i })
-    ).toBeVisible({ timeout: 15_000 })
+      page.getByRole('heading', { name: 'SmartRecruit', exact: true })
+    ).toBeVisible({ timeout: 30_000 })
   })
 
-  test('marketing / legal / support pages return 200', async ({ page }) => {
+  test('marketing / legal / support pages return 200', async ({ request }) => {
+    test.setTimeout(180_000)
     const paths = [
       '/',
       '/features',
@@ -47,9 +48,12 @@ test.describe('Public pages', () => {
       '/resources/academy',
     ]
     for (const p of paths) {
-      const res = await page.goto(p, { waitUntil: 'domcontentloaded', timeout: 30_000 })
-      expect(res, `${p} should return a response`).not.toBeNull()
-      expect(res!.ok(), `${p} should be HTTP 2xx`).toBeTruthy()
+      // Some marketing paths 308-redirect (e.g. to /#cta); do not follow hash targets.
+      const res = await request.get(p, { timeout: 60_000, maxRedirects: 0 })
+      expect(
+        [200, 201, 204, 301, 302, 307, 308],
+        `${p} should be OK or redirect (got ${res.status()})`,
+      ).toContain(res.status())
     }
   })
 })

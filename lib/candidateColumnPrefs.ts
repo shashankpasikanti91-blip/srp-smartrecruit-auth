@@ -1,10 +1,11 @@
 export const CANDIDATE_COLUMN_STORAGE_KEY = 'srp_candidate_columns'
 
+/** Universal contact order: Name → Phone → Email (all tables / exports). */
 export const CANDIDATE_COLUMNS = [
   { key: 'id', label: 'ID' },
   { key: 'name', label: 'Name' },
-  { key: 'email', label: 'Email' },
   { key: 'phone', label: 'Phone' },
+  { key: 'email', label: 'Email' },
   { key: 'nric', label: 'NRIC' },
   { key: 'client', label: 'Client' },
   { key: 'hire_type', label: 'Hire Type' },

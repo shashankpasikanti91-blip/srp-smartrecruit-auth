@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
     phone?: string
     passport?: string
     linkedin?: string
+    nric?: string
     resume_text?: string
     exclude_id?: string
   }
@@ -32,9 +33,10 @@ export async function POST(req: NextRequest) {
   const phone = body.phone ?? ''
   const passport = body.passport ?? ''
   const linkedin = body.linkedin ?? ''
+  const nric = body.nric ?? ''
   const resumeHash = hashResumeContent(body.resume_text)
 
-  if (!email && !phone && !passport && !linkedin && !resumeHash) {
+  if (!email && !phone && !passport && !linkedin && !nric && !resumeHash) {
     return NextResponse.json({ duplicates: [], is_duplicate: false })
   }
 
@@ -44,6 +46,7 @@ export async function POST(req: NextRequest) {
     phone,
     passport,
     linkedin,
+    nric,
     resumeHash: resumeHash || null,
     excludeId: body.exclude_id ?? null,
   })

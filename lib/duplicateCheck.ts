@@ -3,6 +3,7 @@
  */
 import { createHash } from 'crypto'
 import { pool } from '@/lib/db'
+import { normalizePhoneDigits } from '@/lib/phoneFormat'
 
 export type DuplicateMatch = {
   id: string
@@ -19,8 +20,7 @@ export type DuplicateMatch = {
 }
 
 export function normalizePhone(phone: string | null | undefined): string {
-  if (!phone) return ''
-  return phone.replace(/\D/g, '').slice(-10)
+  return normalizePhoneDigits(phone)
 }
 
 export function normalizeEmail(email: string | null | undefined): string {
@@ -44,6 +44,7 @@ export async function findDuplicateCandidates(opts: {
   phone?: string | null
   passport?: string | null
   linkedin?: string | null
+  nric?: string | null
   resumeHash?: string | null
   excludeId?: string | null
 }): Promise<DuplicateMatch[]> {
@@ -52,6 +53,7 @@ export async function findDuplicateCandidates(opts: {
   const phone = normalizePhone(opts.phone)
   const passport = (opts.passport ?? '').trim().toUpperCase()
   const linkedin = normalizeLinkedIn(opts.linkedin)
+  const nric = (opts.nric ?? '').replace(/[\s\-]/g, '').toUpperCase()
   const hash = opts.resumeHash ?? ''
 
   async function addRows(
@@ -103,8 +105,8 @@ export async function findDuplicateCandidates(opts: {
 
   if (phone.length >= 8) {
     const { rows } = await pool.query(
-      `${baseSelect} AND regexp_replace(COALESCE(r.candidate_phone,''), '\\\\D', '', 'g') LIKE $2 LIMIT 5`,
-      [opts.tenantId, `%${phone}`],
+      `${baseSelect} AND RIGHT(regexp_replace(COALESCE(r.candidate_phone,''), '\\D', '', 'g'), 10) = $2 LIMIT 5`,
+      [opts.tenantId, phone.slice(-10)],
     )
     await addRows(rows, 'phone')
   }
@@ -115,6 +117,14 @@ export async function findDuplicateCandidates(opts: {
       [opts.tenantId, passport],
     )
     await addRows(rows, 'passport')
+  }
+
+  if (nric.length >= 8) {
+    const { rows } = await pool.query(
+      `${baseSelect} AND regexp_replace(UPPER(COALESCE(r.candidate_profile->>'nric','')), '[\\s\\-]', '', 'g') = $2 LIMIT 5`,
+      [opts.tenantId, nric],
+    )
+    await addRows(rows, 'nric')
   }
 
   if (linkedin) {

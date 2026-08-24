@@ -4,6 +4,8 @@ import { pool } from '@/lib/db'
 import { sanitizeText, isValidUUID } from '@/lib/validate'
 import { logAudit } from '@/lib/audit'
 import { logDataAccess, logUserActivity } from '@/lib/activityLog'
+import { cleanCandidateName } from '@/lib/nameClean'
+import { formatPhoneInternational, sanitizeCandidateEmail } from '@/lib/phoneFormat'
 
 function getIpAddress(req: NextRequest) {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
@@ -97,16 +99,17 @@ export async function GET(req: NextRequest) {
     const { rows } = await pool.query(sql, params)
 
     const headers = [
-      'ID', 'Name', 'Email', 'Phone', 'NRIC', 'Nationality', 'Client', 'Hire Type',
+      'ID', 'Name', 'Phone', 'Email', 'NRIC', 'Nationality', 'Client', 'Hire Type',
       'Applying For', 'Experience', 'Current Role', 'Location', 'Visa Type',
       'AI Score', 'Match', 'Stage', 'Lifecycle', 'Status',
       'Job ID', 'Job Title', 'Company', 'Owner Name', 'Owner Email',
       'Skills', 'Source', 'File', 'Created', 'Updated',
     ]
 
-    const escape = (v: unknown) => {
-      const s = v == null ? '' : String(v)
-      if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+    const escape = (v: unknown, forceText = false) => {
+      let s = v == null ? '' : String(v)
+      if (forceText && s) s = `\t${s}`
+      if (/[",\n\r\t]/.test(s)) return `"${s.replace(/"/g, '""')}"`
       return s
     }
 
@@ -123,25 +126,38 @@ export async function GET(req: NextRequest) {
     for (const raw of rows) {
       const r = raw as Record<string, unknown>
       const p = profileOf(r)
+      const phone =
+        formatPhoneInternational(r.candidate_phone as string) || (r.candidate_phone as string) || ''
       lines.push([
-        r.short_id, r.candidate_name, r.candidate_email, r.candidate_phone,
-        p.nric ?? p.id_document_reference ?? '',
-        p.nationality ?? '',
-        p.client_name ?? r.job_company ?? '',
-        p.hire_type ?? '',
-        p.applying_for ?? '',
-        p.total_experience ?? '',
-        p.current_role ?? p.current_title ?? '',
-        p.current_location ?? '',
-        p.visa_type ?? '',
-        r.ai_score, r.match_category, r.pipeline_stage,
-        p.lifecycle_status ?? '',
-        r.status,
-        r.job_short_id, r.job_title, r.job_company,
-        r.owner_name, r.owner_email, r.skills, r.source_type, r.file_name,
-        r.created_at ? new Date(r.created_at as string).toISOString() : '',
-        r.updated_at ? new Date(r.updated_at as string).toISOString() : '',
-      ].map(escape).join(','))
+        escape(r.short_id),
+        escape(cleanCandidateName(r.candidate_name as string) || r.candidate_name),
+        escape(phone, true),
+        escape(sanitizeCandidateEmail(r.candidate_email as string) || r.candidate_email || ''),
+        escape(p.nric ?? p.id_document_reference ?? ''),
+        escape(p.nationality ?? ''),
+        escape(p.client_name ?? r.job_company ?? ''),
+        escape(p.hire_type ?? ''),
+        escape(p.applying_for ?? ''),
+        escape(p.total_experience ?? ''),
+        escape(p.current_role ?? p.current_title ?? ''),
+        escape(p.current_location ?? ''),
+        escape(p.visa_type ?? ''),
+        escape(r.ai_score),
+        escape(r.match_category),
+        escape(r.pipeline_stage),
+        escape(p.lifecycle_status ?? ''),
+        escape(r.status),
+        escape(r.job_short_id),
+        escape(r.job_title),
+        escape(r.job_company),
+        escape(r.owner_name),
+        escape(r.owner_email),
+        escape(r.skills),
+        escape(r.source_type),
+        escape(r.file_name),
+        escape(r.created_at ? new Date(r.created_at as string).toISOString() : ''),
+        escape(r.updated_at ? new Date(r.updated_at as string).toISOString() : ''),
+      ].join(','))
     }
 
     // UTF-8 BOM so Excel opens UTF-8 correctly

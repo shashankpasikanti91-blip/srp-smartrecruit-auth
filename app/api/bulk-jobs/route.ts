@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
-import { isValidUUID, sanitizeText } from '@/lib/validate'
+import { isValidUUID, sanitizeText, sanitizeDbText, parseBodySafe } from '@/lib/validate'
 import { buildJdFromJobRow, fetchJobJdSource } from '@/lib/jobScreeningContext'
 import { assertFeatureEnabled, assertNotMaintenance } from '@/lib/featureFlags'
 
@@ -88,16 +88,27 @@ async function processBulkJob(
             body: JSON.stringify({
               jd_text: jdText,
               job_post_id: jobPostId || undefined,
+              // Bulk must persist — otherwise screen returns draft with no db_id
+              persist: true,
               resumes: [{ text: item.resume_text, filename: item.file_name || 'resume.pdf' }],
             }),
           })
+          const errText = await res.text()
           if (!res.ok) {
-            const errText = await res.text()
             throw new Error(errText.slice(0, 300) || `screen ${res.status}`)
           }
-          const data = await res.json() as { results?: { db_id?: string }[] }
-          const candId = data.results?.[0]?.db_id ?? null
-          if (!candId) throw new Error('screen returned no db_id')
+          let data: { results?: { db_id?: string; error?: string; db_save_warning?: string }[] } = {}
+          try {
+            data = errText.trim() ? JSON.parse(errText) : {}
+          } catch {
+            throw new Error('screen returned invalid JSON')
+          }
+          const row = data.results?.[0]
+          const candId = row?.db_id ?? null
+          if (!candId) {
+            const why = row?.error || row?.db_save_warning || 'screen returned no db_id'
+            throw new Error(String(why).slice(0, 300))
+          }
 
           await pool.query(
             `UPDATE bulk_screening_items
@@ -174,13 +185,12 @@ export async function POST(req: NextRequest) {
   const featureOff = await assertFeatureEnabled('bulk_upload', true)
   if (featureOff) return featureOff
 
-  const body = await req.json() as {
-    job_post_id?: string
-    jd_text?: string
-    resumes?: ResumeIn[]
+  const body = await parseBodySafe(req)
+  if (!body) {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const resumes = Array.isArray(body.resumes) ? body.resumes : []
+  const resumes = Array.isArray(body.resumes) ? body.resumes as ResumeIn[] : []
   if (!resumes.length) {
     return NextResponse.json({ error: 'resumes required' }, { status: 400 })
   }
@@ -188,8 +198,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Max 500 resumes per bulk job' }, { status: 400 })
   }
 
-  let jdText = (body.jd_text || '').trim()
-  let jobPostId = body.job_post_id && isValidUUID(body.job_post_id) ? body.job_post_id : null
+  let jdText = sanitizeDbText(body.jd_text, 50_000)
+  let jobPostId = typeof body.job_post_id === 'string' && isValidUUID(body.job_post_id) ? body.job_post_id : null
 
   if (jobPostId) {
     const row = await fetchJobJdSource(pool, ctx.tenantId, jobPostId)
@@ -214,12 +224,29 @@ export async function POST(req: NextRequest) {
   )
   const bulkJobId = jobRows[0].id
 
+  let inserted = 0
   for (const r of resumes) {
+    const resumeText = sanitizeDbText(r.text, 100_000)
+    if (!resumeText) continue
     await pool.query(
       `INSERT INTO bulk_screening_items (bulk_job_id, tenant_id, file_name, resume_text, status)
        VALUES ($1,$2,$3,$4,'pending')`,
-      [bulkJobId, ctx.tenantId, sanitizeText(r.filename, 255), (r.text || '').slice(0, 100000)],
+      [bulkJobId, ctx.tenantId, sanitizeText(r.filename, 255), resumeText],
     )
+    inserted++
+  }
+  if (inserted !== resumes.length) {
+    await pool.query(
+      `UPDATE bulk_screening_jobs SET total = $1, eta_seconds = $2, updated_at = NOW() WHERE id = $3`,
+      [inserted, Math.ceil(Math.max(inserted, 1) / 5) * 45, bulkJobId],
+    )
+  }
+  if (!inserted) {
+    await pool.query(
+      `UPDATE bulk_screening_jobs SET status = 'failed', error_summary = $1, updated_at = NOW() WHERE id = $2`,
+      ['No readable resume text to screen', bulkJobId],
+    )
+    return NextResponse.json({ error: 'No readable resume text to screen' }, { status: 400 })
   }
 
   // Process in background — HTTP returns immediately (no gateway timeout)
@@ -288,7 +315,7 @@ export async function GET(req: NextRequest) {
   )
 
   const items = await pool.query(
-    `SELECT id, file_name, status, candidate_id, error, retry_count, updated_at
+    `SELECT id, file_name, status, candidate_id, error, retry_count, updated_at, result_json
      FROM bulk_screening_items WHERE bulk_job_id = $1 ORDER BY created_at`,
     [id],
   )

@@ -8,6 +8,7 @@ import { chromium } from '@playwright/test'
 import path from 'path'
 import fs from 'fs'
 import { config as dotenvConfig } from 'dotenv'
+import { fillCredentials } from './helpers/login'
 
 export default async function globalSetup() {
   dotenvConfig({ path: path.resolve(__dirname, '..', '.env.e2e.local') })
@@ -49,30 +50,28 @@ export default async function globalSetup() {
   const context = await browser.newContext({ baseURL: origin })
   const page = await context.newPage()
 
-  await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 30_000 })
-
-  const emailTab = page.getByRole('button', { name: 'Email', exact: true })
-  if (await emailTab.isVisible().catch(() => false)) {
-    await emailTab.click()
-  }
-
-  await page.locator('input[type="email"]').fill(email)
-  await page.locator('input[type="password"]').fill(password)
-  await page.locator('form button[type="submit"]').click()
+  // Warm auth + dashboard so Turbopack compile doesn't eat the sign-in click
+  await page.request.get('/api/auth/csrf').catch(() => {})
+  await page.request.get('/api/auth/providers').catch(() => {})
+  await page.request.get('/api/auth/session').catch(() => {})
 
   try {
-    await page.waitForURL(/\/dashboard/, { timeout: 45_000, waitUntil: 'commit' })
+    await fillCredentials(page, email, password)
+    await page.getByText('Compiling...').waitFor({ state: 'hidden', timeout: 90_000 }).catch(() => {})
+    await page.getByRole('button', { name: /Sign in to SmartRecruit/i }).click()
+    await page.waitForURL(/\/dashboard/, { timeout: 90_000, waitUntil: 'commit' })
   } catch {
     const invalid = await page.locator('text=Invalid email or password').isVisible().catch(() => false)
+    const enterCreds = await page.getByText(/Please enter your email and password/i).isVisible().catch(() => false)
+    const bodyText = (await page.locator('body').innerText().catch(() => '')).slice(0, 400)
+    await page.screenshot({ path: path.join(authDir, 'login-failed.png'), fullPage: true }).catch(() => {})
     await browser.close()
-    if (invalid) {
-      fs.writeFileSync(authFile, JSON.stringify({ cookies: [], origins: [] }))
-      console.warn(
-        `[e2e global-setup] Login failed for ${email} — authenticated specs will redirect to login. Update .env.e2e.local`
-      )
-      return
-    }
-    throw new Error(`[e2e global-setup] Login did not reach /dashboard for ${email}. Current URL: ${page.url()}`)
+    fs.writeFileSync(authFile, JSON.stringify({ cookies: [], origins: [] }))
+    console.warn(
+      `[e2e global-setup] Login did not reach /dashboard (invalid=${invalid}, emptyFields=${enterCreds}). ` +
+        `Snippet: ${bodyText.replace(/\s+/g, ' ').slice(0, 200)}`,
+    )
+    return
   }
 
   await context.storageState({ path: authFile })

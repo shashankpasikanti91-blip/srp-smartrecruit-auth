@@ -8,6 +8,7 @@ import { EntityIdLink } from '@/components/ui/EntityIdLink'
 import { INTERVIEW_STATUSES, labelFor } from '@/lib/recruitmentOs'
 import { presetToRange, type DatePreset } from '@/lib/datePresets'
 import { formatExpYears, formatIsoDate, formatIsoTime } from '@/lib/opsList'
+import { formatPhoneInternational } from '@/lib/phoneFormat'
 
 type Interview = {
   id: string
@@ -335,7 +336,7 @@ export function InterviewsTab({
                         {iv.candidate_name}
                       </button>
                     </td>
-                    <td className="text-xs whitespace-nowrap">{iv.candidate_phone || '—'}</td>
+                    <td className="text-xs whitespace-nowrap">{formatPhoneInternational(iv.candidate_phone) || iv.candidate_phone || '—'}</td>
                     <td className="text-xs max-w-[160px] truncate" title={iv.candidate_email || ''}>{iv.candidate_email || '—'}</td>
                     <td className="text-sm max-w-[180px] truncate" title={iv.job_client_name || ''}>{iv.job_client_name || '—'}</td>
                     <td className="text-sm max-w-[140px] truncate">{iv.job_title || '—'}</td>

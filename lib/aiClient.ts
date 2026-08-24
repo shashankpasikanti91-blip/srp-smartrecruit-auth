@@ -135,17 +135,27 @@ export async function chatCompletionWithUsage(opts: ChatCompletionOptions): Prom
     throw new Error(`AI API ${res.status}: ${message}`)
   }
 
-  const data = await res.json() as {
+  const raw = await res.text()
+  if (!raw.trim()) {
+    throw new Error(`AI API returned empty body (${cfg.model})`)
+  }
+  let data: {
     choices?: { message?: { content?: string } }[]
     usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
     model?: string
   }
+  try {
+    data = JSON.parse(raw)
+  } catch {
+    throw new Error(`AI API returned invalid JSON (${cfg.model}): ${raw.slice(0, 200)}`)
+  }
+  const content = data.choices?.[0]?.message?.content ?? ''
   const prompt_tokens = Number(data.usage?.prompt_tokens ?? 0)
   const completion_tokens = Number(data.usage?.completion_tokens ?? 0)
   const total_tokens = Number(data.usage?.total_tokens ?? prompt_tokens + completion_tokens)
 
   return {
-    content: data.choices?.[0]?.message?.content ?? '',
+    content,
     model: data.model || cfg.model,
     prompt_tokens,
     completion_tokens,
@@ -158,6 +168,79 @@ export async function chatCompletionWithUsage(opts: ChatCompletionOptions): Prom
 export async function chatCompletion(opts: ChatCompletionOptions): Promise<string> {
   const result = await chatCompletionWithUsage(opts)
   return result.content
+}
+
+export type EmbedResult = {
+  vectors: number[][]
+  model: string
+  prompt_tokens: number
+  total_tokens: number
+  duration_ms: number
+}
+
+/** Default embedding model (1536 dims). Override with EMBEDDING_MODEL. */
+export function getEmbeddingModel(cfg: AIConfig): string {
+  const raw = (process.env.EMBEDDING_MODEL || '').trim()
+  if (raw) {
+    if (cfg.provider === 'openrouter' && !raw.includes('/')) return `openai/${raw}`
+    return raw
+  }
+  return cfg.provider === 'openrouter'
+    ? 'openai/text-embedding-3-small'
+    : 'text-embedding-3-small'
+}
+
+/**
+ * Batch embeddings via OpenAI-compatible /embeddings endpoint.
+ * Returns one vector per input string (1536 dims for text-embedding-3-small).
+ */
+export async function embedTexts(texts: string[]): Promise<EmbedResult> {
+  const cfg = getAIConfig()
+  if (!cfg) throw new Error('AI not configured — set OPENAI_API_KEY in .env')
+  const cleaned = texts.map(t => String(t ?? '').trim()).filter(Boolean)
+  if (!cleaned.length) {
+    return { vectors: [], model: getEmbeddingModel(cfg), prompt_tokens: 0, total_tokens: 0, duration_ms: 0 }
+  }
+
+  const model = getEmbeddingModel(cfg)
+  const started = Date.now()
+  const res = await fetch(`${cfg.baseUrl}/embeddings`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${cfg.apiKey}`,
+      'HTTP-Referer': 'https://recruit.srpailabs.com',
+      'X-Title': 'SRP SmartRecruit',
+    },
+    body: JSON.stringify({ model, input: cleaned }),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`Embeddings API ${res.status}: ${errText.slice(0, 400)}`)
+  }
+
+  const data = await res.json() as {
+    data?: Array<{ embedding?: number[]; index?: number }>
+    usage?: { prompt_tokens?: number; total_tokens?: number }
+    model?: string
+  }
+  const rows = Array.isArray(data.data) ? [...data.data] : []
+  rows.sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+  const vectors = rows.map(r => (Array.isArray(r.embedding) ? r.embedding : []))
+  if (vectors.length !== cleaned.length || vectors.some(v => v.length === 0)) {
+    throw new Error(`Embeddings API returned unexpected shape (got ${vectors.length} for ${cleaned.length} inputs)`)
+  }
+
+  const prompt_tokens = Number(data.usage?.prompt_tokens ?? 0)
+  const total_tokens = Number(data.usage?.total_tokens ?? prompt_tokens)
+  return {
+    vectors,
+    model: data.model || model,
+    prompt_tokens,
+    total_tokens,
+    duration_ms: Date.now() - started,
+  }
 }
 
 /** Safe status for health checks — never exposes the key. */

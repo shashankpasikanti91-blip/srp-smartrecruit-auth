@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { createResume, getResumes, logActivity } from '@/lib/db'
+import { cleanCandidateName } from '@/lib/nameClean'
+import {
+  formatPhoneInternational,
+  sanitizeCandidateEmail,
+  splitGluedPhoneFromEmail,
+} from '@/lib/phoneFormat'
 
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, 'candidates.read')
@@ -19,7 +25,20 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    if (!body.candidate_name && !body.candidate_email) {
+    const glued = splitGluedPhoneFromEmail(body.candidate_email)
+    const candidate_name =
+      cleanCandidateName(body.candidate_name) ||
+      (typeof body.candidate_name === 'string' ? body.candidate_name.trim() : '') ||
+      null
+    const candidate_email =
+      sanitizeCandidateEmail(glued.email || body.candidate_email) || null
+    const candidate_phone =
+      formatPhoneInternational(body.candidate_phone) ||
+      glued.phone ||
+      (typeof body.candidate_phone === 'string' ? body.candidate_phone.trim().slice(0, 50) : null) ||
+      null
+
+    if (!candidate_name && !candidate_email) {
       return NextResponse.json({ error: 'candidate_name or candidate_email required' }, { status: 400 })
     }
 
@@ -27,9 +46,9 @@ export async function POST(req: NextRequest) {
       tenant_id: tenantId,
       user_id: userId,
       job_post_id: body.job_post_id ?? null,
-      candidate_name: body.candidate_name ?? null,
-      candidate_email: body.candidate_email ?? null,
-      candidate_phone: body.candidate_phone ?? null,
+      candidate_name,
+      candidate_email,
+      candidate_phone: candidate_phone ? String(candidate_phone).slice(0, 50) : null,
       file_name: body.file_name ?? null,
       file_url: body.file_url ?? null,
       file_size_bytes: body.file_size_bytes ?? null,
@@ -49,7 +68,7 @@ export async function POST(req: NextRequest) {
       event_type: 'resume_uploaded',
       event_data: {
         resume_id: resume.id,
-        candidate: body.candidate_name ?? body.candidate_email,
+        candidate: candidate_name ?? candidate_email,
         job_post_id: body.job_post_id ?? null,
       },
     })

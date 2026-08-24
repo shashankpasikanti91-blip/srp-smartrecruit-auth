@@ -3,7 +3,8 @@ import { requireTenant, checkPermission } from '@/lib/tenant'
 import { upsertJobPostContents, pool } from '@/lib/db'
 import { chatCompletionWithUsage, getAIConfig } from '@/lib/aiClient'
 import { recordAiUsage } from '@/lib/aiUsage'
-import { isValidUUID } from '@/lib/validate'
+import { isValidUUID, parseBodySafe, asAiString, sanitizeDbText } from '@/lib/validate'
+import { logAiAction, withAiSecurityPolicy, wrapUntrustedData } from '@/lib/aiSecurity'
 import {
   buildJobPostSystemPrompt,
   normalizePlatforms,
@@ -28,7 +29,11 @@ export async function POST(req: NextRequest) {
   const userId = ctx.userId
 
   try {
-    const body = await req.json() as {
+    const bodyRaw = await parseBodySafe(req)
+    if (!bodyRaw) {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+    const body = bodyRaw as {
       job_post_id?: string
       title?: string
       company?: string
@@ -43,31 +48,35 @@ export async function POST(req: NextRequest) {
     }
 
     const force = Boolean(body.force)
-    let title = body.title?.trim() || ''
-    let company = body.company
-    let location = body.location
-    let type = body.type
-    let description = body.description
-    let requirements = body.requirements
-    let rawJd = body.raw_jd_text
+    let title = asAiString(body.title, 200)
+    let company = asAiString(body.company, 200) || undefined
+    let location = asAiString(body.location, 200) || undefined
+    let type = asAiString(body.type, 80) || undefined
+    let description = sanitizeDbText(body.description, 50_000) || undefined
+    let requirements = sanitizeDbText(body.requirements, 50_000) || undefined
+    let rawJd = sanitizeDbText(body.raw_jd_text, 50_000) || undefined
 
     // Always load full job row when id provided — never lose raw_jd_text
-    if (body.job_post_id && isValidUUID(body.job_post_id)) {
+    if (body.job_post_id) {
+      if (!isValidUUID(body.job_post_id)) {
+        return NextResponse.json({ error: 'Invalid job id' }, { status: 400 })
+      }
       const { rows } = await pool.query(
         `SELECT title, company, location, type, description, requirements, raw_jd_text
          FROM job_posts WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
         [body.job_post_id, ctx.tenantId],
       )
       const job = rows[0]
-      if (job) {
-        title = title || job.title || ''
-        company = company || job.company
-        location = location || job.location
-        type = type || job.type
-        description = description || job.description
-        requirements = requirements || job.requirements
-        rawJd = rawJd || job.raw_jd_text
+      if (!job) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 })
       }
+      title = title || job.title || ''
+      company = company || job.company
+      location = location || job.location
+      type = type || job.type
+      description = description || job.description
+      requirements = requirements || job.requirements
+      rawJd = rawJd || job.raw_jd_text
     }
 
     if (!title) return NextResponse.json({ error: 'title required' }, { status: 400 })
@@ -77,8 +86,12 @@ export async function POST(req: NextRequest) {
     // Cache hit: return saved posts without calling AI unless force
     if (!force && body.job_post_id && isValidUUID(body.job_post_id)) {
       const { rows: contentRows } = await pool.query(
-        `SELECT * FROM job_post_contents WHERE job_post_id = $1 LIMIT 1`,
-        [body.job_post_id],
+        `SELECT jpc.*
+         FROM job_post_contents jpc
+         JOIN job_posts jp ON jp.id = jpc.job_post_id
+         WHERE jpc.job_post_id = $1 AND jp.tenant_id = $2
+         LIMIT 1`,
+        [body.job_post_id, ctx.tenantId],
       )
       const saved = contentRows[0] as Record<string, unknown> | undefined
       if (saved) {
@@ -128,11 +141,11 @@ export async function POST(req: NextRequest) {
       type && `Employment Type: ${type}`,
       jdBlock && `Full Job Description (source of truth):\n${jdBlock.slice(0, 12000)}`,
       requirements && `Requirements:\n${requirements}`,
-      body.custom_prompt && `Special Instructions: ${body.custom_prompt}`,
+      body.custom_prompt && `Special Instructions: ${asAiString(body.custom_prompt, 2000)}`,
       `Selected platforms: ${platforms.join(', ')}`,
     ].filter(Boolean).join('\n\n')
 
-    const systemPrompt = buildJobPostSystemPrompt(platforms)
+    const systemPrompt = withAiSecurityPolicy(buildJobPostSystemPrompt(platforms))
 
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 50_000)
@@ -141,7 +154,7 @@ export async function POST(req: NextRequest) {
       ai = await chatCompletionWithUsage({
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Generate job posts for:\n${jobContext}` },
+          { role: 'user', content: `Generate job posts for:\n${wrapUntrustedData('JOB_DESCRIPTION', jobContext)}` },
         ],
         temperature: 0.7,
         max_tokens: 3500,
@@ -151,12 +164,25 @@ export async function POST(req: NextRequest) {
     } finally {
       clearTimeout(timer)
     }
-    const parsed = JSON.parse(ai.content) as Record<string, string>
+    const rawAi = (ai.content || '').trim()
+    if (!rawAi) {
+      return NextResponse.json({ error: 'AI returned empty content — try again.' }, { status: 502 })
+    }
+    let parsed: Record<string, unknown> = {}
+    try {
+      const jsonMatch = rawAi.match(/\{[\s\S]*\}/)
+      parsed = JSON.parse(jsonMatch?.[0] ?? rawAi) as Record<string, unknown>
+    } catch {
+      return NextResponse.json({ error: 'AI returned invalid JSON — try again.' }, { status: 502 })
+    }
 
     const posts: Partial<Record<JobPostPlatform, string>> = {}
     for (const p of platforms) {
-      const text = typeof parsed[p] === 'string' ? parsed[p].trim() : ''
+      const text = asAiString(parsed[p], 8000)
       if (text) posts[p] = text
+    }
+    if (!Object.keys(posts).length) {
+      return NextResponse.json({ error: 'AI returned empty posts — try again with a clearer JD.' }, { status: 422 })
     }
 
     if (body.job_post_id && canJobs) {
@@ -169,6 +195,13 @@ export async function POST(req: NextRequest) {
       operation: 'generate_posts',
       result: ai,
       metadata: { job_post_id: body.job_post_id ?? null, platforms, force },
+    })
+    await logAiAction({
+      ctx,
+      action: 'ai_generate_posts',
+      resourceType: 'job_post',
+      resourceId: body.job_post_id ?? undefined,
+      details: { platforms, cached: false, tokens: ai.total_tokens },
     })
 
     return NextResponse.json({

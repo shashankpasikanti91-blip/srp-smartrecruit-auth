@@ -29,6 +29,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV APP_VERSION=1.3.0
+ENV npm_package_version=1.3.0
 
 # Non-root user
 RUN addgroup --system --gid 1001 nodejs \

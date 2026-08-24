@@ -48,13 +48,27 @@ export function sanitizeEmail(value: unknown): string | null {
 // ── Text / String ─────────────────────────────────────────────────────────────
 
 /**
+ * Strip NUL bytes and other non-printable controls that break Postgres UTF-8
+ * (`invalid byte sequence for encoding "UTF8": 0x00`). Keeps tab/newline/CR.
+ */
+export function stripInvalidDbChars(value: string): string {
+  return value.replace(/\u0000/g, '').replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+}
+
+/**
  * Trims and enforces a max length. Returns null if empty or not a string.
  */
 export function sanitizeText(value: unknown, maxLen = 1000): string | null {
   if (typeof value !== 'string') return null
-  const trimmed = value.trim()
+  const trimmed = stripInvalidDbChars(value).trim()
   if (!trimmed) return null
   return trimmed.slice(0, maxLen)
+}
+
+/** Long resume / JD body for DB columns — never returns null; empty string if invalid. */
+export function sanitizeDbText(value: unknown, maxLen = 100_000): string {
+  if (typeof value !== 'string') return ''
+  return stripInvalidDbChars(value).trim().slice(0, maxLen)
 }
 
 export function sanitizeExternalUrl(value: unknown, maxLen = 1000): string | null {
@@ -113,13 +127,71 @@ export function sanitizeEnum<T extends string>(
 
 /**
  * Returns a string array from a value, stripping non-string/empty items.
+ * Also coerces { name: "x" } style AI objects into strings.
  */
 export function sanitizeStringArray(value: unknown, maxItems = 100, maxItemLen = 200): string[] {
   if (!Array.isArray(value)) return []
-  return value
-    .filter(v => typeof v === 'string' && v.trim().length > 0)
-    .slice(0, maxItems)
-    .map(v => (v as string).trim().slice(0, maxItemLen))
+  const out: string[] = []
+  for (const v of value) {
+    const s = asAiString(v, maxItemLen)
+    if (s) out.push(s)
+    if (out.length >= maxItems) break
+  }
+  return out
+}
+
+/**
+ * Coerce AI JSON fields that may arrive as objects/numbers into safe strings.
+ * Prevents `.trim()` crashes and React "Objects are not valid as a React child".
+ */
+export function asAiString(value: unknown, maxLen = 2000): string {
+  if (value == null) return ''
+  if (typeof value === 'string') return stripInvalidDbChars(value).trim().slice(0, maxLen)
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value).slice(0, maxLen)
+  }
+  if (typeof value === 'object') {
+    const o = value as Record<string, unknown>
+    for (const k of ['name', 'text', 'value', 'label', 'title', 'content', 'email', 'phone']) {
+      if (typeof o[k] === 'string' && (o[k] as string).trim()) {
+        return stripInvalidDbChars(o[k] as string).trim().slice(0, maxLen)
+      }
+    }
+    try {
+      return stripInvalidDbChars(JSON.stringify(value)).slice(0, maxLen)
+    } catch {
+      return ''
+    }
+  }
+  return ''
+}
+
+/**
+ * Safe response JSON parser for fetch() — never throws.
+ */
+export async function parseResponseJsonSafe<T = Record<string, unknown>>(res: Response): Promise<T | null> {
+  try {
+    const text = await res.text()
+    if (!text.trim()) return null
+    return JSON.parse(text) as T
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Safe request JSON body parser — never throws.
+ * Returns null if body is unparseable or not an object.
+ */
+export async function parseBodySafe(req: Request): Promise<Record<string, unknown> | null> {
+  try {
+    const text = await req.text()
+    if (!text.trim()) return null
+    const parsed = JSON.parse(text)
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
 }
 
 // ── Custom Error ──────────────────────────────────────────────────────────────
@@ -212,22 +284,5 @@ export function sanitizeCandidateProfile(value: unknown): Record<string, string 
     linkedin_url: pick('linkedin_url', 500),
     portfolio_url: pick('portfolio_url', 500),
     experience_summary: pick('experience_summary', 4000),
-  }
-}
-
-// ── Helpers for route handlers ────────────────────────────────────────────────
-
-/**
- * Safe JSON body parser — never throws to the caller.
- * Returns null if body is unparseable or not an object.
- */
-export async function parseBodySafe(req: Request): Promise<Record<string, unknown> | null> {
-  try {
-    const text = await req.text()
-    if (!text.trim()) return null
-    const parsed = JSON.parse(text)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : null
-  } catch {
-    return null
   }
 }

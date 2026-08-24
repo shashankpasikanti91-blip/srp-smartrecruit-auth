@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Briefcase, Filter, Loader2, Search, Sparkles, Users, X } from 'lucide-react'
 import { ScrollableTable } from '@/components/dashboard/ScrollableTable'
+import { formatPhoneInternational } from '@/lib/phoneFormat'
 
 type ApiCandidate = {
   id: string
   short_id?: string
   candidate_name: string
   candidate_email?: string | null
+  candidate_phone?: string | null
   ai_score?: number | null
   ai_skills?: string[]
   pipeline_stage?: string
@@ -226,6 +228,8 @@ export function InternalTalentPoolTab({}: {}) {
             <thead>
               <tr>
                 <th>Candidate</th>
+                <th>Phone</th>
+                <th>Email</th>
                 <th>Current Role</th>
                 <th>Primary Skills</th>
                 <th>Experience</th>
@@ -261,6 +265,8 @@ export function InternalTalentPoolTab({}: {}) {
                         <p className="text-xs text-gray-500">{c.short_id ? `RES-${c.short_id}` : c.id.slice(0, 8)}</p>
                       </div>
                     </td>
+                    <td className="text-sm text-gray-700 whitespace-nowrap">{formatPhoneInternational(c.candidate_phone) || c.candidate_phone || '—'}</td>
+                    <td className="text-sm text-gray-700 max-w-[160px] truncate" title={c.candidate_email || ''}>{c.candidate_email || '—'}</td>
                     <td className="text-sm text-gray-700">{currentRole || '—'}</td>
                     <td className="text-sm text-gray-700">{firstSkills(c.ai_skills, 3)}</td>
                     <td className="text-sm text-gray-600">{totalExp || '—'}</td>

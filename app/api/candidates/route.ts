@@ -5,6 +5,13 @@ import { sanitizeEmail, sanitizeText, sanitizeStringArray, sanitizePositiveInt, 
 import { logAudit } from '@/lib/audit'
 import { writeTimeline } from '@/lib/timelineEngine'
 import { createNotification } from '@/lib/notificationCenter'
+import { cleanCandidateName } from '@/lib/nameClean'
+import { formatPhoneInternational, sanitizeCandidateEmail, splitGluedPhoneFromEmail } from '@/lib/phoneFormat'
+import {
+  findDuplicateCandidates,
+  hashResumeContent,
+} from '@/lib/duplicateCheck'
+import { scheduleIndexResume } from '@/lib/rag/indexCorpus'
 
 /** pg sometimes returns JSONB as object; legacy TEXT/json columns may return a string. */
 function parseJsonObject<T extends Record<string, unknown>>(v: unknown): T | null {
@@ -258,9 +265,16 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const candidate_name    = sanitizeText(body.candidate_name, 200)
-    const candidate_email   = sanitizeEmail(body.candidate_email)
-    const candidate_phone   = sanitizeText(body.candidate_phone, 50)
+    let candidate_name    = cleanCandidateName(body.candidate_name, 200) || sanitizeText(body.candidate_name, 200) || ''
+    let candidate_email   = sanitizeCandidateEmail(body.candidate_email) || sanitizeEmail(body.candidate_email) || null
+    let candidate_phone   = formatPhoneInternational(body.candidate_phone) || sanitizeText(body.candidate_phone, 50) || null
+    // Recover phone glued onto email
+    if (candidate_email) {
+      const glued = splitGluedPhoneFromEmail(String(body.candidate_email ?? candidate_email))
+      if (glued.email) candidate_email = glued.email
+      if (glued.phone && !candidate_phone) candidate_phone = glued.phone
+    }
+    if (candidate_phone) candidate_phone = candidate_phone.slice(0, 50)
     const ai_skills         = sanitizeStringArray(body.ai_skills, 100, 200)
     const ai_score          = sanitizePositiveInt(body.ai_score, 100)
     const ai_summary        = sanitizeText(body.ai_summary, 5000)
@@ -292,83 +306,92 @@ export async function POST(req: NextRequest) {
       job_post_id = body.job_post_id
     }
 
-    // Duplicate check by email within this tenant
-    if (candidate_email) {
-      const dup = await pool.query<{
-        id: string
-        short_id: string
-        candidate_name: string
-        pipeline_stage: string
-        status: string
-        created_at: Date
-        upload_user_name: string | null
-        upload_user_email: string | null
-      }>(
-        `SELECT r.id, r.short_id, r.candidate_name, r.pipeline_stage, r.status, r.created_at,
-                u.name AS upload_user_name, u.email AS upload_user_email
-           FROM resumes r
-           LEFT JOIN auth_users u ON u.id = r.user_id
-          WHERE r.tenant_id = $1 AND r.candidate_email = $2
-          LIMIT 1`,
-        [ctx.tenantId, candidate_email]
-      )
-      if (dup.rows.length) {
-        const row = dup.rows[0]
-        const uploaded_by =
-          row.upload_user_name || row.upload_user_email
-            ? { name: row.upload_user_name, email: row.upload_user_email }
-            : null
-        return NextResponse.json({
-          error: 'Duplicate: a candidate with this email already exists in this workspace',
-          existing: {
-            id: row.id,
-            short_id: row.short_id,
-            name: row.candidate_name,
-            pipeline_stage: row.pipeline_stage,
-            status: row.status,
-            created_at: row.created_at,
-            uploaded_by,
-          },
-          is_duplicate: true,
-        }, { status: 409 })
-      }
+    // Full duplicate check (email / phone / passport / LinkedIn / NRIC / resume hash)
+    const profileObj = (candidate_profile ?? {}) as Record<string, unknown>
+    const resumeHash = hashResumeContent(raw_text)
+    const duplicates = await findDuplicateCandidates({
+      tenantId: ctx.tenantId,
+      email: candidate_email,
+      phone: candidate_phone,
+      passport: typeof profileObj.passport_number === 'string' ? profileObj.passport_number : null,
+      linkedin: typeof profileObj.linkedin_url === 'string' ? profileObj.linkedin_url : null,
+      nric: typeof profileObj.nric === 'string' ? profileObj.nric : null,
+      resumeHash: resumeHash || null,
+    })
+    if (duplicates.length) {
+      const top = duplicates[0]
+      return NextResponse.json({
+        error: `Duplicate: matching candidate already exists (${top.matched_on.join(', ')})`,
+        existing: {
+          id: top.id,
+          short_id: top.short_id,
+          name: top.candidate_name,
+          pipeline_stage: top.pipeline_stage,
+          status: top.status,
+          created_at: top.created_at,
+          uploaded_by: top.owner_name || top.owner_email
+            ? { name: top.owner_name, email: top.owner_email }
+            : null,
+        },
+        is_duplicate: true,
+        duplicates,
+      }, { status: 409 })
     }
 
     const status = body.status === 'reviewed' ? 'reviewed' : 'pending'
 
-    const { rows } = await pool.query(
-      `INSERT INTO resumes
-         (tenant_id, user_id, candidate_name, candidate_email, candidate_phone,
-          ai_skills, ai_score, ai_summary, job_post_id, pipeline_stage,
-          raw_text, file_name, file_size_bytes, candidate_profile, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15)
-       RETURNING *`,
-      [ctx.tenantId, ctx.userId, candidate_name, candidate_email,
-       candidate_phone, ai_skills, ai_score, ai_summary,
-       job_post_id, pipeline_stage, raw_text, file_name, file_size_bytes,
-       candidate_profile ? JSON.stringify(candidate_profile) : '{}',
-       status]
-    )
+    let cand: Record<string, unknown>
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO resumes
+           (tenant_id, user_id, candidate_name, candidate_email, candidate_phone,
+            ai_skills, ai_score, ai_summary, job_post_id, pipeline_stage,
+            raw_text, file_name, file_size_bytes, candidate_profile, status, resume_content_hash)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16)
+         RETURNING *`,
+        [ctx.tenantId, ctx.userId, candidate_name, candidate_email,
+         candidate_phone, ai_skills, ai_score, ai_summary,
+         job_post_id, pipeline_stage, raw_text, file_name, file_size_bytes,
+         candidate_profile ? JSON.stringify(candidate_profile) : '{}',
+         status, resumeHash || null]
+      )
+      cand = rows[0]
+    } catch {
+      // resume_content_hash column may be missing on older DBs
+      const { rows } = await pool.query(
+        `INSERT INTO resumes
+           (tenant_id, user_id, candidate_name, candidate_email, candidate_phone,
+            ai_skills, ai_score, ai_summary, job_post_id, pipeline_stage,
+            raw_text, file_name, file_size_bytes, candidate_profile, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15)
+         RETURNING *`,
+        [ctx.tenantId, ctx.userId, candidate_name, candidate_email,
+         candidate_phone, ai_skills, ai_score, ai_summary,
+         job_post_id, pipeline_stage, raw_text, file_name, file_size_bytes,
+         candidate_profile ? JSON.stringify(candidate_profile) : '{}',
+         status]
+      )
+      cand = rows[0]
+    }
 
-    const cand = rows[0]
     await logAudit({
       userId: ctx.userId,
       userEmail: ctx.userEmail,
       tenantId: ctx.tenantId,
       action: 'candidate_created',
       resourceType: 'candidate',
-      resourceId: cand.short_id ?? cand.id,
-      resumeId: cand.id,
+      resourceId: (cand.short_id as string) ?? (cand.id as string),
+      resumeId: cand.id as string,
       details: { name: cand.candidate_name, stage: pipeline_stage },
     })
     await writeTimeline({
       tenantId: ctx.tenantId,
       entityType: 'candidate',
-      entityId: cand.id,
-      resumeId: cand.id,
+      entityId: String(cand.id),
+      resumeId: String(cand.id),
       eventType: 'candidate_sourced',
       title: 'Candidate Sourced',
-      detail: cand.candidate_name,
+      detail: cand.candidate_name != null ? String(cand.candidate_name) : null,
       actorUserId: ctx.userId,
       actorEmail: ctx.userEmail,
       meta: { pipeline_stage, job_post_id },
@@ -379,10 +402,20 @@ export async function POST(req: NextRequest) {
       category: 'candidate',
       title: `Candidate added — ${cand.candidate_name}`,
       body: pipeline_stage ? `Stage: ${pipeline_stage}` : undefined,
-      resumeId: cand.id,
+      resumeId: String(cand.id),
       entityType: 'candidate',
-      entityId: cand.id,
+      entityId: String(cand.id),
     })
+
+    if (raw_text && String(raw_text).trim().length >= 40) {
+      scheduleIndexResume({
+        tenantId: ctx.tenantId,
+        resumeId: String(cand.id),
+        rawText: String(raw_text),
+        skills: ai_skills,
+        userId: ctx.userId,
+      })
+    }
 
     return NextResponse.json({ candidate: cand }, { status: 201 })
   } catch (err: unknown) {

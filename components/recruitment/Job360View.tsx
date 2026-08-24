@@ -10,6 +10,7 @@ import { InternalMatchesTab } from '@/components/jobs/InternalMatchesTab'
 import { EntityNotesTimeline } from '@/components/ui/EntityNotesTimeline'
 import { OwnershipPanel } from '@/components/ownership/OwnershipPanel'
 import type { AiFitScores } from '@/lib/aiFitScore'
+import type { InternalMatchRow } from '@/lib/internalMatchTypes'
 import {
   JOB_POST_PLATFORMS,
   JOB_POST_PLATFORM_META,
@@ -119,11 +120,20 @@ type Job360Job = {
   updated_at?: string | null
 }
 
+type PipelinePerson = {
+  id: string
+  short_id: string
+  candidate_name: string
+  ai_score: number | null
+  stage: string
+}
+
 type Job360Data = {
   job?: Job360Job
   post_contents?: Record<string, string>
   required_skills?: string[]
   pipeline?: Record<string, number>
+  pipeline_board?: Record<string, PipelinePerson[]>
   ranking?: RankedCandidate[]
   submissions?: unknown[]
   interviews?: unknown[]
@@ -266,6 +276,8 @@ export function Job360View({
   const [genError, setGenError] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [customPrompt, setCustomPrompt] = useState('')
+  const [topMatches, setTopMatches] = useState<InternalMatchRow[]>([])
+  const [topMatchesLoading, setTopMatchesLoading] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -292,7 +304,25 @@ export function Job360View({
     }
   }, [jobId])
 
+  const loadTopMatches = useCallback(async () => {
+    setTopMatchesLoading(true)
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/internal-matches?limit=5`)
+      const json = await res.json().catch(() => ({}))
+      if (res.ok) setTopMatches(json.matches ?? [])
+      else setTopMatches([])
+    } catch {
+      setTopMatches([])
+    } finally {
+      setTopMatchesLoading(false)
+    }
+  }, [jobId])
+
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (tab === 'overview') void loadTopMatches()
+  }, [tab, loadTopMatches])
 
   const job = data?.job
 
@@ -598,6 +628,59 @@ export function Job360View({
                       </div>
                     ))}
                   </div>
+
+                  <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-3.5">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div>
+                        <p className="text-sm font-extrabold text-teal-950">Top internal matches</p>
+                        <p className="text-[11px] font-medium text-teal-900/80">
+                          Deep RAG + skills + graph — why each person fits this job
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setTab('internal_matches')}
+                        className="text-[11px] font-extrabold text-teal-800 hover:underline"
+                      >
+                        View all
+                      </button>
+                    </div>
+                    {topMatchesLoading ? (
+                      <div className="flex justify-center py-4">
+                        <Loader2 className="w-4 h-4 animate-spin text-teal-700" />
+                      </div>
+                    ) : topMatches.length === 0 ? (
+                      <p className="text-xs font-semibold text-teal-900/70 py-2">
+                        No matches yet — index resumes in Settings → Deep RAG, or add talent to this workspace.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {topMatches.map(m => (
+                          <li
+                            key={m.id}
+                            className="flex flex-wrap items-start justify-between gap-2 rounded-lg bg-white border border-teal-100 px-3 py-2"
+                          >
+                            <div className="min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => onOpenCandidate?.(m.id)}
+                                className="text-sm font-extrabold text-indigo-700 hover:underline"
+                              >
+                                {m.candidate_name}
+                              </button>
+                              <p className="text-[11px] font-semibold text-teal-800 mt-0.5">
+                                {m.explain?.summary ?? `${m.match_percent}% match`}
+                              </p>
+                            </div>
+                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-200">
+                              {m.match_percent}%
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
                   {!hasStructured && (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
                       <p className="text-sm font-extrabold text-amber-950">JD fields are empty</p>
@@ -926,7 +1009,7 @@ export function Job360View({
               )}
 
               {tab === 'pipeline' && (
-                <div>
+                <div className="space-y-3">
                   {data?.pipeline && Object.keys(data.pipeline).length ? (
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                       {Object.entries(data.pipeline).map(([stage, count]) => (
@@ -936,8 +1019,44 @@ export function Job360View({
                         </div>
                       ))}
                     </div>
+                  ) : null}
+
+                  {data?.pipeline_board && Object.keys(data.pipeline_board).length ? (
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {Object.entries(data.pipeline_board)
+                        .sort(([a], [b]) => a.localeCompare(b))
+                        .map(([stage, people]) => (
+                          <div key={stage} className="rounded-xl border border-slate-200 bg-slate-50/80 overflow-hidden">
+                            <div className="px-3 py-2 border-b border-slate-200 bg-white flex items-center justify-between">
+                              <p className="text-[11px] font-extrabold uppercase tracking-wide text-slate-600">
+                                {stage.replace(/_/g, ' ')}
+                              </p>
+                              <span className="text-[10px] font-extrabold text-indigo-700">{people.length}</span>
+                            </div>
+                            <ul className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                              {people.map(p => (
+                                <li key={p.id} className="px-3 py-2 hover:bg-white">
+                                  <button
+                                    type="button"
+                                    onClick={() => onOpenCandidate?.(p.id)}
+                                    className="text-left w-full"
+                                  >
+                                    <p className="text-sm font-extrabold text-indigo-700 truncate hover:underline">
+                                      {p.candidate_name}
+                                    </p>
+                                    <p className="text-[10px] font-bold text-slate-500 mt-0.5">
+                                      {p.short_id}
+                                      {p.ai_score != null ? ` · AI ${p.ai_score}` : ''}
+                                    </p>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                    </div>
                   ) : (
-                    <EmptyHint label="pipeline stages" />
+                    <EmptyHint label="pipeline candidates" />
                   )}
                 </div>
               )}

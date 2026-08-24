@@ -40,6 +40,21 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Secret pattern scan (blocking)
+        run: |
+          if git grep -I -E 'sk-or-v1-[A-Za-z0-9]{20,}|BEGIN (RSA |OPENSSH )?PRIVATE KEY' -- ':!*.md' ':!*.template' ':!**/.env.example'; then
+            echo "Possible secret in tracked files"
+            exit 1
+          fi
+          echo "Secret pattern scan passed"
+
+      - name: npm audit (critical — blocking)
+        run: npm audit --audit-level=critical --legacy-peer-deps
+
+      - name: npm audit (high — report only)
+        continue-on-error: true
+        run: npm audit --audit-level=high --legacy-peer-deps
+
       - name: Build (verify it compiles)
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || '' }}

@@ -3,6 +3,7 @@ import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { isValidUUID, sanitizeText, sanitizeEnum } from '@/lib/validate'
+import { scheduleIndexJob } from '@/lib/rag/indexCorpus'
 
 const VALID_STATUSES = ['active', 'closed', 'draft', 'archived'] as const
 const VALID_TYPES = ['full-time', 'part-time', 'contract', 'remote', 'internship'] as const
@@ -139,6 +140,17 @@ export async function PATCH(
       action: 'job_updated', resourceType: 'job', resourceId: id,
       details: { fields: Object.keys(body) }, tenantId: ctx.tenantId,
     })
+    if (
+      body.raw_jd_text !== undefined ||
+      body.description !== undefined ||
+      body.requirements !== undefined
+    ) {
+      scheduleIndexJob({
+        tenantId: ctx.tenantId,
+        jobId: id,
+        userId: ctx.userId,
+      })
+    }
     return NextResponse.json({ job: rows[0] })
   } catch (e) {
     console.error('[api/jobs PATCH]', e)

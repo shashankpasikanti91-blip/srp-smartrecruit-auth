@@ -53,7 +53,7 @@ export function InternalMatchesTab({
       <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3.5">
         <p className="text-sm font-extrabold text-teal-950">Best Internal Match</p>
         <p className="text-xs font-medium text-teal-900/80 mt-1">
-          Tenant-only talent pool ranked for {jobTitle || 'this job'}. Never searches other workspaces.
+          Tenant-only talent pool ranked for {jobTitle || 'this job'}. Hybrid score uses deep RAG + skills + graph when indexed. Never searches other workspaces.
         </p>
       </div>
 
@@ -100,16 +100,28 @@ export function InternalMatchesTab({
                     ))}
                   </div>
                 )}
+                  {m.explain?.summary && (
+                  <p className="text-[11px] font-semibold text-teal-800/90 mt-1.5">
+                    Why: {m.explain.summary}
+                  </p>
+                )}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 <button type="button" onClick={() => onOpenCandidate?.(m.id)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white text-[11px] font-extrabold">
                   <Eye className="w-3 h-3" /> View
                 </button>
-                <button type="button" onClick={() => onOpenCandidate?.(m.id)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-extrabold text-slate-700">
-                  <UserPlus className="w-3 h-3" /> Pipeline
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenCandidate?.(m.id)
+                  }}
+                  title={m.explain?.summary ?? 'Open candidate'}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-teal-200 bg-teal-50 text-[11px] font-extrabold text-teal-900"
+                >
+                  <Sparkles className="w-3 h-3" /> Why
                 </button>
                 <button type="button" onClick={() => onOpenCandidate?.(m.id)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-extrabold text-slate-700">
-                  <Sparkles className="w-3 h-3" /> AI
+                  <UserPlus className="w-3 h-3" /> Pipeline
                 </button>
                 <button type="button" onClick={() => onOpenCandidate?.(m.id)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-extrabold text-slate-700">
                   <Phone className="w-3 h-3" /> Contact

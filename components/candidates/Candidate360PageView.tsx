@@ -128,6 +128,8 @@ export function Candidate360PageView({
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
   const [resumeFileOk, setResumeFileOk] = useState<boolean | null>(null)
+  const [jobMatchWhy, setJobMatchWhy] = useState<string | null>(null)
+  const [jobMatchPct, setJobMatchPct] = useState<number | null>(null)
   const [editForm, setEditForm] = useState({
     candidate_email: '',
     candidate_phone: '',
@@ -159,6 +161,36 @@ export function Candidate360PageView({
   }, [candidateId])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    let cancelled = false
+    const linkedJob = data?.candidate?.job_post_id
+    if (!linkedJob || !candidateId) {
+      setJobMatchWhy(null)
+      setJobMatchPct(null)
+      return
+    }
+    fetch(`/api/jobs/${linkedJob}/internal-matches?limit=40`)
+      .then(r => r.json())
+      .then(json => {
+        if (cancelled) return
+        const hit = (json.matches ?? []).find((m: { id: string }) => m.id === candidateId)
+        if (hit) {
+          setJobMatchPct(typeof hit.match_percent === 'number' ? hit.match_percent : null)
+          setJobMatchWhy(hit.explain?.summary ?? null)
+        } else {
+          setJobMatchPct(null)
+          setJobMatchWhy(null)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setJobMatchWhy(null)
+          setJobMatchPct(null)
+        }
+      })
+    return () => { cancelled = true }
+  }, [candidateId, data?.candidate?.job_post_id])
 
   useEffect(() => {
     let cancelled = false
@@ -361,6 +393,30 @@ export function Candidate360PageView({
               {kpis.map((k, i) => (
                 <SummaryCard key={k.label} label={k.label} value={k.value} tone={KPI_TONES[i % KPI_TONES.length]} />
               ))}
+            </div>
+          )}
+
+          {!loading && !error && (jobMatchWhy || c?.ai_summary) && (
+            <div className="px-5 pb-4 border-b border-slate-100">
+              <div className="rounded-xl border border-teal-200 bg-teal-50/60 px-3.5 py-3">
+                <p className="text-[10px] font-extrabold uppercase tracking-wide text-teal-800 mb-1">
+                  Deep match &amp; AI on record
+                </p>
+                {jobMatchWhy ? (
+                  <p className="text-sm font-semibold text-teal-950">
+                    {jobMatchPct != null ? `${jobMatchPct}% vs linked job — ` : ''}
+                    {jobMatchWhy}
+                  </p>
+                ) : null}
+                {c?.ai_summary ? (
+                  <p className="text-xs font-medium text-slate-700 mt-1.5 line-clamp-3">
+                    {String(c.ai_summary)}
+                  </p>
+                ) : null}
+                <p className="text-[11px] font-medium text-teal-900/70 mt-1.5">
+                  Coach can cite this resume after Deep RAG indexing (Settings → admin).
+                </p>
+              </div>
             </div>
           )}
 

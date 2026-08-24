@@ -4,6 +4,8 @@ import { pool } from '@/lib/db'
 import { sanitizeText } from '@/lib/validate'
 import { csvDownload, resolveDateFilter, resolveMineScope, xlsxDownload, deriveDocsStatus } from '@/lib/opsList'
 import { DOCUMENT_SLOTS } from '@/lib/documentStorage'
+import { formatPhoneInternational } from '@/lib/phoneFormat'
+import { cleanCandidateName } from '@/lib/nameClean'
 
 const HR_SLOTS = [...DOCUMENT_SLOTS]
 
@@ -86,8 +88,8 @@ export async function GET(req: NextRequest) {
   const data = mapped.map(o => [
     o.short_id,
     o.candidate_short_id,
-    o.candidate_name,
-    o.candidate_phone,
+    cleanCandidateName(o.candidate_name as string) || o.candidate_name,
+    formatPhoneInternational(o.candidate_phone as string) || o.candidate_phone || '',
     o.candidate_email,
     o.job_client_name || o.submission_client,
     o.submission_position || o.job_title,

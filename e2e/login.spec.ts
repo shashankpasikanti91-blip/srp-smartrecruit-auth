@@ -1,14 +1,5 @@
 import { test, expect } from '@playwright/test'
-
-/**
- * Credentials login test – runs against live server when
- *   PLAYWRIGHT_BASE_URL=https://recruit.srpailabs.com
- *   E2E_DEMO_EMAIL=demo@srpailabs.com
- *   E2E_DEMO_PASSWORD=Demo@1234
- * are set.  Falls back to demo creds if vars are missing.
- */
-const DEMO_EMAIL    = process.env.E2E_DEMO_EMAIL    ?? 'demo@srpailabs.com'
-const DEMO_PASSWORD = process.env.E2E_DEMO_PASSWORD ?? 'Demo@1234'
+import { DEMO_EMAIL, fillCredentials, signInToDashboard } from './helpers/login'
 
 test.describe('Credentials login flow', () => {
   test('login page loads', async ({ page }) => {
@@ -18,33 +9,22 @@ test.describe('Credentials login flow', () => {
     await expect(page.locator('input[type="password"]')).toBeVisible()
   })
 
-  test('wrong password shows error', async ({ page }) => {
-    await page.goto('/login')
-    await page.fill('input[type="email"]', DEMO_EMAIL)
-    await page.fill('input[type="password"]', 'WrongPassword999!')
-    await page.click('button[type="submit"]')
-    // Should stay on login page and show error
-    await expect(page).toHaveURL(/\/login/, { timeout: 10_000 })
+  test('wrong password stays on login', async ({ page }) => {
+    await fillCredentials(page, DEMO_EMAIL, 'WrongPassword999!')
+    await page.getByRole('button', { name: /Sign in to SmartRecruit/i }).click()
+    await expect(page).toHaveURL(/\/login/, { timeout: 15_000 })
   })
 
   test('correct demo credentials redirect to dashboard', async ({ page }) => {
-    await page.goto('/login')
-    await page.fill('input[type="email"]', DEMO_EMAIL)
-    await page.fill('input[type="password"]', DEMO_PASSWORD)
-    await page.click('button[type="submit"]')
-    await page.waitForURL(/\/dashboard/, { timeout: 20_000, waitUntil: 'commit' })
+    test.setTimeout(90_000)
+    await signInToDashboard(page)
     expect(page.url()).toMatch(/\/dashboard/)
   })
 
   test('dashboard loads after login', async ({ page }) => {
-    await page.goto('/login')
-    await page.fill('input[type="email"]', DEMO_EMAIL)
-    await page.fill('input[type="password"]', DEMO_PASSWORD)
-    await page.click('button[type="submit"]')
-    await page.waitForURL(/\/dashboard/, { timeout: 20_000, waitUntil: 'commit' })
-    // Core dashboard elements
+    test.setTimeout(120_000)
+    await signInToDashboard(page)
     await expect(page.locator('body')).not.toBeEmpty()
-    // No error messages
     await expect(page.locator('text=Something went wrong')).not.toBeVisible()
     await expect(page.locator('text=500')).not.toBeVisible()
   })

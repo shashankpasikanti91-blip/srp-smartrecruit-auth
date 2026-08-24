@@ -10,11 +10,22 @@ import {
 const STORAGE_KEY = 'srp-ai-workspace-v1'
 
 type ChatRole = 'user' | 'assistant' | 'system'
+type CoachCitation = {
+  source_type: 'resume' | 'job'
+  source_id: string
+  chunk_index: number
+  score: number
+  preview: string
+  cite: string
+}
+
 type MessageMeta = {
   candidate_id?: string
   candidate_name?: string
   job_id?: string
   job_title?: string
+  citations?: CoachCitation[]
+  grounded_citations?: number
 }
 type ChatMessage = { id: string; role: ChatRole; content: string; at: number; meta?: MessageMeta }
 type ChatSession = {
@@ -451,9 +462,19 @@ export function AiRecruiterWorkspace({
         return
       }
       const text = data.suggestions ?? data.content ?? data.reply ?? 'No response from AI.'
-      const meta: MessageMeta | undefined = data.meta ?? (
+      const citations = Array.isArray(data.citations) ? (data.citations as CoachCitation[]) : undefined
+      const baseMeta: MessageMeta | undefined = data.meta ?? (
         data.candidate_id ? { candidate_id: data.candidate_id, candidate_name: data.candidate_name } : undefined
       )
+      const meta: MessageMeta | undefined =
+        citations?.length || baseMeta
+          ? {
+              ...(baseMeta ?? {}),
+              citations,
+              grounded_citations:
+                typeof data.grounded_citations === 'number' ? data.grounded_citations : undefined,
+            }
+          : undefined
       updateSession(active.id, s => ({
         ...s,
         updatedAt: Date.now(),
@@ -749,6 +770,36 @@ export function AiRecruiterWorkspace({
                     <Briefcase className="w-3.5 h-3.5" />
                     {m.meta.job_title ?? 'View job'}
                   </button>
+                )}
+                {m.role === 'assistant' && m.meta?.citations && m.meta.citations.length > 0 && (
+                  <div className="mt-2.5 pt-2.5 border-t border-slate-100">
+                    <p className="text-[10px] font-extrabold uppercase tracking-wide text-teal-800 mb-1.5">
+                      From your talent data
+                      {typeof m.meta.grounded_citations === 'number'
+                        ? ` · ${m.meta.grounded_citations} cited`
+                        : ''}
+                    </p>
+                    <ul className="space-y-1.5">
+                      {m.meta.citations.slice(0, 4).map(c => (
+                        <li
+                          key={`${c.source_type}-${c.source_id}-${c.chunk_index}`}
+                          className="rounded-lg border border-teal-100 bg-teal-50/60 px-2.5 py-1.5"
+                        >
+                          <p className="text-[10px] font-extrabold text-teal-900">
+                            {c.cite}
+                            {c.score > 0 ? (
+                              <span className="ml-1.5 font-bold text-teal-700/80">
+                                sim {(c.score * 100).toFixed(0)}%
+                              </span>
+                            ) : null}
+                          </p>
+                          <p className="text-[11px] font-medium text-slate-600 leading-snug mt-0.5 line-clamp-2">
+                            {c.preview}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
             ))}

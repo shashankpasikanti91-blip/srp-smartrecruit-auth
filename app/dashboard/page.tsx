@@ -8,7 +8,11 @@ import { EditCandidateModal } from '@/components/candidates/EditCandidateModal'
 import { SubmissionDetailsModal } from '@/components/candidates/SubmissionDetailsModal'
 import { Candidate360TabBar, Candidate360Panels, isCandidate360PanelTab } from '@/components/candidates/Candidate360View'
 import { CandidateColumnPicker } from '@/components/candidates/CandidateColumnPicker'
+import { AppearanceSettings } from '@/components/settings/AppearanceSettings'
+import { applyAppearance } from '@/lib/appearance'
 import { loadCandidateColumnPrefs, type CandidateColumnKey, CANDIDATE_COLUMNS } from '@/lib/candidateColumnPrefs'
+import { formatPhoneInternational } from '@/lib/phoneFormat'
+import { cleanCandidateName } from '@/lib/nameClean'
 import { CandidateBulkBar } from '@/components/recruitment/CandidateBulkBar'
 import { SubmissionsTab } from '@/components/recruitment/SubmissionsTab'
 import { InterviewsTab } from '@/components/recruitment/InterviewsTab'
@@ -35,6 +39,7 @@ import { NewJobModal } from '@/components/recruitment/NewJobModal'
 import { AddCandidateFlow } from '@/components/recruitment/AddCandidateFlow'
 import { DeleteActionButton } from '@/components/recruitment/DeleteActionButton'
 import { DeleteApprovalsPanel } from '@/components/recruitment/DeleteApprovalsPanel'
+import { RagReindexPanel } from '@/components/settings/RagReindexPanel'
 import { NotificationBell } from '@/components/dashboard/NotificationBell'
 import { GlobalSearchPalette } from '@/components/dashboard/GlobalSearchPalette'
 import { InstallAppButton } from '@/components/pwa/PwaInstall'
@@ -897,7 +902,7 @@ function ImportTab() {
           {([
             { source: 'Naukri Export', cols: ['Name', 'Email', 'Mobile', 'Skills', 'Experience', 'Current Company', 'Current Designation', 'Location'] },
             { source: 'LinkedIn Recruiter', cols: ['First Name', 'Last Name', 'Email Address', 'Headline', 'Skills', 'Company', 'Title', 'City'] },
-            { source: 'Indeed / Monster', cols: ['name', 'email', 'phone', 'skills', 'work_experience', 'current_title', 'current_company', 'location'] },
+            { source: 'Indeed / Monster', cols: ['name', 'phone', 'email', 'skills', 'work_experience', 'current_title', 'current_company', 'location'] },
           ] as const).map(({ source, cols }) => (
             <div key={source} className="bg-white rounded-lg p-3 border border-blue-200">
               <p className="text-xs font-semibold text-blue-700 mb-2">{source}</p>
@@ -1472,6 +1477,11 @@ export default function DashboardPage() {
       void fetch('/api/security/session-cookie', { method: 'POST' }).catch(() => {})
     }
   }, [status, session])
+
+  // Apply saved appearance (theme + typography) from localStorage
+  useEffect(() => {
+    applyAppearance()
+  }, [])
   const router = useRouter()
 
   const [activeTab, setActiveTab] = useState<DashboardTab>('workspace')
@@ -1627,6 +1637,7 @@ export default function DashboardPage() {
   const [booleanJobId, setBooleanJobId] = useState<string | null>(null)
   const [screenJobMeta, setScreenJobMeta] = useState<{ title?: string; client?: string | null; loading?: boolean } | null>(null)
   const [screening, setScreening] = useState(false)
+  const screenRunIdRef = useRef(0)
   const [screenProgress, setScreenProgress] = useState('')
   const [screenError, setScreenError] = useState('')
   const [screenResults, setScreenResults] = useState<ScreenResult[]>([])
@@ -2302,7 +2313,9 @@ export default function DashboardPage() {
   }
 
   const runScreening = async () => {
-    setScreening(true); setScreenError(''); setScreenResults([]); setScreenProgress('Preparing resumes…')
+    const runId = ++screenRunIdRef.current
+    setScreening(true); setScreenError(''); setScreenProgress('Preparing resumes…')
+    // Keep prior results visible until new ones arrive (avoids blank flash / race clears)
     try {
       let resumes: Array<{ text: string; filename: string; id?: string }>
       if (screenMode === 'single') {
@@ -2341,7 +2354,14 @@ export default function DashboardPage() {
             resumes,
           }),
         })
-        const queueData = await queueRes.json()
+        const queueRaw = await queueRes.text()
+        let queueData: { error?: string; bulk_job_id?: string } = {}
+        try {
+          queueData = queueRaw.trim() ? JSON.parse(queueRaw) : {}
+        } catch {
+          setScreenError('Could not queue bulk screening (invalid server response).')
+          return
+        }
         if (!queueRes.ok) {
           setScreenError(queueData.error || 'Could not queue bulk screening')
           return
@@ -2352,31 +2372,73 @@ export default function DashboardPage() {
         const etaSeconds = Math.ceil(resumes.length / 5) * 45
         const pollBudgetSeconds = etaSeconds + 300 // buffer for slow screening / retries
         const maxTicks = Math.min(900, Math.ceil(pollBudgetSeconds / 3))
+        let bulkTerminal = false
         for (let tick = 0; tick < maxTicks; tick++) {
+          if (runId !== screenRunIdRef.current) return
           await new Promise(r => setTimeout(r, 3000))
+          if (runId !== screenRunIdRef.current) return
           const st = await fetch(`/api/bulk-jobs?id=${bulkId}`)
-          const stData = await st.json()
+          const stRaw = await st.text()
+          let stData: { job?: { status?: string; completed?: number; total?: number; failed?: number; skipped?: number }; items?: Array<{ status?: string; error?: string | null; result_json?: unknown; file_name?: string | null; candidate_id?: string | null }> } = {}
+          try {
+            stData = stRaw.trim() ? JSON.parse(stRaw) : {}
+          } catch {
+            continue
+          }
           const job = stData.job
           if (!job) break
+          const completed = job.completed ?? 0
+          const total = job.total ?? 0
+          const failed = job.failed ?? 0
+          const skipped = job.skipped ?? 0
           setScreenProgress(
-            `Bulk ${job.status}: ${job.completed}/${job.total} done · ${job.failed} failed · ${job.skipped} skipped`,
+            `Bulk ${job.status}: ${completed}/${total} done · ${failed} failed · ${skipped} skipped`,
           )
           if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
-            if (job.failed > 0) {
-              const items: Array<{ status?: string; error?: string | null }> = Array.isArray(stData.items) ? stData.items : []
+            bulkTerminal = true
+            if (runId !== screenRunIdRef.current) return
+            if (failed > 0) {
+              const items = Array.isArray(stData.items) ? stData.items : []
               const examples = items
                 .filter(i => i.status === 'failed' && (i.error ?? '').trim())
                 .slice(0, 3)
                 .map(i => String(i.error).trim())
               setScreenError(
-                `${job.failed} item(s) failed. ${examples.length ? `Examples: ${examples.join(' | ')}` : `Retry from bulk job ${bulkId}`}`,
+                `${failed} item(s) failed. ${examples.length ? `Examples: ${examples.join(' | ')}` : `Retry from bulk job ${bulkId}`}`,
               )
             } else {
               setScreenError('')
             }
+            const items = Array.isArray(stData.items) ? stData.items : []
+            const fromBulk = items
+              .filter(i => i.status === 'done' && i.result_json && typeof i.result_json === 'object')
+              .map((i, idx) => {
+                const row = i.result_json as ScreenResult
+                return {
+                  ...row,
+                  db_id: row.db_id || i.candidate_id || undefined,
+                  filename: row.filename || i.file_name || undefined,
+                  persisted: Boolean(row.db_id || i.candidate_id),
+                  draft: !row.db_id && !i.candidate_id,
+                  _draftKey: `${i.file_name || row.filename || 'resume'}-${idx}`,
+                } as ScreenResult & { _draftKey: string }
+              })
+            if (fromBulk.length) {
+              setScreenResults(fromBulk)
+              setWorkspaceBanner(
+                `${fromBulk.length} screening result${fromBulk.length === 1 ? '' : 's'} ready — scroll down or open Candidates.`,
+              )
+            } else if (completed > 0) {
+              setWorkspaceBanner(
+                `${completed} candidate${completed === 1 ? '' : 's'} screened and saved. Open Candidates to view them.`,
+              )
+            }
             await loadData()
             break
           }
+        }
+        if (!bulkTerminal && runId === screenRunIdRef.current) {
+          setScreenError(`Bulk screening timed out waiting for job ${bulkId}. Check Candidates — some may already be saved.`)
         }
         return
       }
@@ -2416,6 +2478,7 @@ export default function DashboardPage() {
           return
         }
         if (!res.ok) { setScreenError(data.error ?? `Server error (${res.status}). Please try again.`); return }
+        if (runId !== screenRunIdRef.current) return
         const results = data.results ?? []
         const failed = results.filter(r => r && typeof r === 'object' && 'error' in r && r.error)
         // Enrich by original index BEFORE filtering failures (avoids wrong CV text on Save)
@@ -2509,14 +2572,20 @@ export default function DashboardPage() {
       const msg = String(e)
       if (msg.includes('AbortError') || msg.includes('aborted')) {
         setScreenError('Screening is taking longer than expected. Please try again in a moment.')
+      } else if (msg.includes('Unexpected end of JSON') || msg.includes('JSON')) {
+        setScreenError('Server returned an empty or invalid response. Please try again — if this persists, re-upload the CV as PDF/DOCX.')
       } else if (msg.includes('timeout') || msg.includes('ECONNREFUSED')) {
         setScreenError('Server is temporarily busy. Please wait a few seconds and try again.')
       } else {
         setScreenError(msg)
       }
     } finally {
-      setScreening(false)
-      setTimeout(() => setScreenProgress(''), 2500)
+      if (runId === screenRunIdRef.current) {
+        setScreening(false)
+        setTimeout(() => {
+          if (runId === screenRunIdRef.current) setScreenProgress('')
+        }, 2500)
+      }
     }
   }
 
@@ -2538,7 +2607,9 @@ export default function DashboardPage() {
         try { data = JSON.parse(rawText) } catch { setComposeError('Invalid response from server.'); return }
       }
       if (!res.ok) { setComposeError(data.error ?? 'Generation failed'); return }
-      setComposeOutput(data.content ?? '')
+      const content = (data.content ?? '').trim()
+      if (!content) { setComposeError('AI returned empty content — try again.'); return }
+      setComposeOutput(content)
     } catch (e) {
       setComposeError(String(e))
     } finally {
@@ -2619,14 +2690,24 @@ export default function DashboardPage() {
           force,
         }),
       })
-      const data = await res.json()
+      const raw = await res.text()
+      let data: { posts?: Record<string, string>; error?: string } = {}
+      try { data = raw.trim() ? JSON.parse(raw) : {} } catch {
+        setGenPostError('Invalid response from server. Please try again.')
+        return
+      }
       if (res.status === 403) {
         setUpgradePrompt({ show: true, message: data.error || 'You have reached your plan limit.', feature: 'Job Post Generation' })
         return
       }
       if (!res.ok) { setGenPostError(data.error ?? 'Failed to generate posts'); return }
-      setGeneratedPosts(data.posts ?? {})
-      const firstKey = Object.keys(data.posts ?? {})[0]
+      const posts = data.posts ?? {}
+      if (!Object.keys(posts).length) {
+        setGenPostError('AI returned empty posts — try again with a clearer JD.')
+        return
+      }
+      setGeneratedPosts(posts)
+      const firstKey = Object.keys(posts)[0]
       if (firstKey) setGenPostTab(firstKey)
       await loadData()
       setWorkspaceBanner('Social posts generated and saved for this job.')
@@ -2657,15 +2738,25 @@ export default function DashboardPage() {
           force,
         }),
       })
-      const data = await res.json()
+      const raw = await res.text()
+      let data: { posts?: Record<string, string>; error?: string } = {}
+      try { data = raw.trim() ? JSON.parse(raw) : {} } catch {
+        setGenPostError('Invalid response from server. Please try again.')
+        return
+      }
       if (res.status === 403) {
         setUpgradePrompt({ show: true, message: data.error || 'You have reached your plan limit.', feature: 'Job Post Generation' })
         return
       }
       if (!res.ok) { setGenPostError(data.error ?? 'Failed to generate posts'); return }
-      setGeneratedPosts(data.posts ?? {})
+      const posts = data.posts ?? {}
+      if (!Object.keys(posts).length) {
+        setGenPostError('AI returned empty posts — try again with a clearer JD.')
+        return
+      }
+      setGeneratedPosts(posts)
       setQuickTitle(title)
-      const firstKey = Object.keys(data.posts ?? {})[0]
+      const firstKey = Object.keys(posts)[0]
       if (firstKey) setGenPostTab(firstKey)
       setWorkspaceBanner('Channel posts generated (not saved as a job). Use Save as Job to persist.')
     } catch (e) {
@@ -3407,8 +3498,8 @@ export default function DashboardPage() {
                           </th>
                           {showCandCol('id') && <th>ID</th>}
                           {showCandCol('name') && <th>Name</th>}
-                          {showCandCol('email') && <th>Email</th>}
                           {showCandCol('phone') && <th>Phone</th>}
+                          {showCandCol('email') && <th>Email</th>}
                           {showCandCol('nric') && <th>National ID</th>}
                           {showCandCol('client') && <th>Client</th>}
                           {showCandCol('hire_type') && <th>Hire Type</th>}
@@ -3453,14 +3544,14 @@ export default function DashboardPage() {
                             {showCandCol('id') && <td className="px-3 py-2.5"><ShortIdBadge id={c.short_id ?? c.id.slice(0, 8)} /></td>}
                             {showCandCol('name') && (
                             <td className="px-3 py-2.5 min-w-[140px] max-w-[180px]">
-                              <p className="font-semibold text-[13px] text-gray-900 truncate">{c.candidate_name}</p>
+                              <p className="font-semibold text-[13px] text-gray-900 truncate">{cleanCandidateName(c.candidate_name) || c.candidate_name}</p>
                               {!nric && !p.passport_number && !p.id_document_reference && (
                                 <span className="inline-flex mt-0.5 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800">ID missing</span>
                               )}
                             </td>
                             )}
+                            {showCandCol('phone') && <td className="px-3 py-2.5 text-[12px] text-slate-600 whitespace-nowrap">{formatPhoneInternational(c.candidate_phone) || c.candidate_phone || '—'}</td>}
                             {showCandCol('email') && <td className="px-3 py-2.5 text-[12px] text-slate-700 max-w-[160px] truncate">{c.candidate_email || '—'}</td>}
-                            {showCandCol('phone') && <td className="px-3 py-2.5 text-[12px] text-slate-600 whitespace-nowrap">{c.candidate_phone || '—'}</td>}
                             {showCandCol('nric') && <td className="px-3 py-2.5 text-[12px] font-mono text-slate-700 whitespace-nowrap">{nric || '—'}</td>}
                             {showCandCol('client') && <td className="px-3 py-2.5 text-[12px] text-slate-600 max-w-[120px] truncate">{p.client_name || c.job_posts?.company || '—'}</td>}
                             {showCandCol('hire_type') && <td className="px-3 py-2.5 text-[12px] capitalize text-slate-600">{p.hire_type ? (HIRE_TYPE_LABELS[p.hire_type as keyof typeof HIRE_TYPE_LABELS] || p.hire_type) : '—'}</td>}
@@ -3623,7 +3714,11 @@ export default function DashboardPage() {
                   <div className="flex flex-wrap gap-2 justify-end">
                     {(['single', 'bulk', 'existing'] as const).map(m => (
                       <button key={m} onClick={() => {
-                        setScreenMode(m); setScreenResults([]); setSelectedCandIds([])
+                        setScreenMode(m)
+                        if (!screening) {
+                          setScreenResults([])
+                          setSelectedCandIds([])
+                        }
                         setScreenSingleFile(null)
                         if (m !== 'bulk') setBulkTexts([])
                       }}
@@ -4697,8 +4792,8 @@ export default function DashboardPage() {
                       <Settings className="w-5 h-5 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>Account Settings</h1>
-                      <p className="text-sm text-slate-500 mt-0.5">Manage your profile, subscription and API access</p>
+                      <h1 className="text-lg sm:text-xl font-bold text-[var(--dash-heading)] tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>Account Settings</h1>
+                      <p className="text-sm text-[var(--dash-text-2)] mt-0.5">Manage your profile, appearance, subscription and API access</p>
                       <div className="flex flex-wrap gap-2 mt-3">
                         <button type="button" onClick={() => setSettingsPanel('integrations')}
                           className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
@@ -4728,6 +4823,16 @@ export default function DashboardPage() {
                     <DeleteApprovalsPanel onChanged={() => { void loadData() }} />
                   </div>
                 )}
+
+                {isTenantAdminOrOwner && (
+                  <div className="mb-5">
+                    <RagReindexPanel />
+                  </div>
+                )}
+
+                <div className="mb-5">
+                  <AppearanceSettings />
+                </div>
 
                 {profileLoading ? (
                   <div className="flex items-center justify-center py-20">
@@ -6053,14 +6158,14 @@ function ScreenResultCard({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-bold text-gray-900">{r.name || 'Unknown Candidate'}</h3>
+            <h3 className="text-sm font-bold text-gray-900">{typeof r.name === 'string' && r.name.trim() ? r.name : 'Unknown Candidate'}</h3>
             {r.short_id && <ShortIdBadge id={r.short_id} />}
             {r.decision && (
               <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${
                 String(r.decision).toLowerCase().includes('reject') ? 'bg-red-50 text-red-800 border-red-200'
                   : String(r.decision).toLowerCase().includes('hold') ? 'bg-amber-50 text-amber-800 border-amber-200'
                     : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              }`}>{r.decision}</span>
+              }`}>{String(r.decision)}</span>
             )}
             {jdMatch != null && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">JD {Math.round(Number(jdMatch))}%</span>
@@ -6072,7 +6177,7 @@ function ScreenResultCard({
             )}
           </div>
           <p className="text-xs text-gray-500 mt-0.5 truncate">
-            {[r.email, r.contact_number, r.current_company].filter(Boolean).join(' · ')}
+            {[r.email, r.contact_number, r.current_company].map(v => (typeof v === 'string' ? v : '')).filter(Boolean).join(' · ')}
           </p>
           <p className="text-xs text-slate-600 mt-1.5 leading-snug line-clamp-2">{briefLine}</p>
         </div>
@@ -6905,9 +7010,13 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, teamMembers = [
               <div>
                 <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">AI-Extracted Skills</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {c.ai_skills.map(s => (
-                    <span key={s} className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-100 text-xs font-medium">{s}</span>
-                  ))}
+                  {c.ai_skills.map((s, i) => {
+                    const label = typeof s === 'string' ? s : (s && typeof s === 'object' && 'name' in (s as object) ? String((s as { name?: unknown }).name ?? '') : String(s ?? ''))
+                    if (!label.trim()) return null
+                    return (
+                    <span key={`${label}-${i}`} className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-100 text-xs font-medium">{label}</span>
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -7032,9 +7141,13 @@ function CandidateDetailModal({ candidate: c, duplicateSiblings, teamMembers = [
                       <div className="mt-4">
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Extracted Skills</p>
                         <div className="flex flex-wrap gap-1.5">
-                          {c.ai_skills.map(s => (
-                            <span key={s} className="px-2 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-100 text-xs">{s}</span>
-                          ))}
+                          {c.ai_skills.map((s, i) => {
+                            const label = typeof s === 'string' ? s : (s && typeof s === 'object' && 'name' in (s as object) ? String((s as { name?: unknown }).name ?? '') : String(s ?? ''))
+                            if (!label.trim()) return null
+                            return (
+                            <span key={`${label}-${i}`} className="px-2 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-100 text-xs">{label}</span>
+                            )
+                          })}
                         </div>
                       </div>
                     )}

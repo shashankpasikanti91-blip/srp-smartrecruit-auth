@@ -24,6 +24,7 @@ async function recordExport(opts: {
   userEmail: string
   exportType: string
   rowCount: number
+  correlationId?: string
 }) {
   await pool.query(
     `INSERT INTO tenant_exports (tenant_id, user_id, export_type, status, row_count)
@@ -38,6 +39,8 @@ async function recordExport(opts: {
     resourceType: 'tenant_export',
     details: { type: opts.exportType, rows: opts.rowCount },
     module: 'security',
+    actorType: 'human',
+    correlationId: opts.correlationId ?? null,
   })
   await createNotification({
     tenantId: opts.tenantId,
@@ -116,6 +119,7 @@ export async function GET(req: NextRequest) {
     userEmail: ctx.userEmail,
     exportType: type,
     rowCount: totalRows,
+    correlationId: ctx.requestId,
   })
 
   if (format === 'csv' && type !== 'all') {

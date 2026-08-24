@@ -5,7 +5,8 @@ import { test, expect } from '@playwright/test'
  */
 test.describe('Security headers & public safety', () => {
   test('health endpoint is public and does not leak secrets', async ({ request }) => {
-    const res = await request.get('/api/health')
+    test.setTimeout(90_000)
+    const res = await request.get('/api/health', { timeout: 60_000 })
     expect(res.ok()).toBeTruthy()
     const json = await res.json()
     expect(json.ok).toBeTruthy()
@@ -32,6 +33,13 @@ test.describe('Security headers & public safety', () => {
     const posts: Array<{ path: string; body: Record<string, unknown> }> = [
       { path: '/api/candidates', body: { full_name: 'E2E Probe' } },
       { path: '/api/jobs', body: { title: 'E2E Probe' } },
+      { path: '/api/jobs/generate-posts', body: { title: 'E2E Probe' } },
+      { path: '/api/screen', body: { resume_text: 'x', jd_text: 'y' } },
+      { path: '/api/boolean-search', body: { job_title: 'E2E Probe' } },
+      { path: '/api/compose', body: { email_type: 'followup' } },
+      { path: '/api/jd', body: { action: 'generate', job_title: 'E2E Probe' } },
+      { path: '/api/rag/query', body: { q: 'test' } },
+      { path: '/api/coach', body: { messages: [{ role: 'user', content: 'hi' }] } },
       { path: '/api/notes', body: { entityType: 'candidate', entityId: '00000000-0000-0000-0000-000000000001', body: 'x' } },
       { path: '/api/ownership', body: { action: 'assign', entityType: 'candidate', entityId: '00000000-0000-0000-0000-000000000001' } },
       { path: '/api/comm', body: { action: 'send', to: 'probe@example.com', subject: 'x', body: '<script>alert(1)</script>' } },

@@ -122,8 +122,8 @@ export function ClientsTab({
             type="button"
             onClick={() => exportCsv(
               'clients.csv',
-              ['Name', 'Industry', 'Contact', 'Email', 'Phone', 'Notes'],
-              clients.map(c => [c.name, c.industry, c.contact_name, c.contact_email, c.contact_phone, c.notes]),
+              ['Name', 'Industry', 'Contact', 'Phone', 'Email', 'Notes'],
+              clients.map(c => [c.name, c.industry, c.contact_name, c.contact_phone, c.contact_email, c.notes]),
             )}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
           >
@@ -185,8 +185,8 @@ export function ClientsTab({
                 <th>Name</th>
                 <th>Industry</th>
                 <th>Contact</th>
-                <th>Email</th>
                 <th>Phone</th>
+                <th>Email</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -202,8 +202,8 @@ export function ClientsTab({
                   <td className="font-medium">{c.name}</td>
                   <td>{c.industry || '—'}</td>
                   <td>{c.contact_name || '—'}</td>
-                  <td>{c.contact_email || '—'}</td>
                   <td>{c.contact_phone || '—'}</td>
+                  <td>{c.contact_email || '—'}</td>
                   <td onClick={e => e.stopPropagation()}>
                     {canRequestDelete ? (
                       <DeleteActionButton

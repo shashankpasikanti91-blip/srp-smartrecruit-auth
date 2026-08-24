@@ -3,6 +3,8 @@ import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import { sanitizeText } from '@/lib/validate'
 import { csvDownload, resolveDateFilter, resolveMineScope, xlsxDownload } from '@/lib/opsList'
+import { formatPhoneInternational } from '@/lib/phoneFormat'
+import { cleanCandidateName } from '@/lib/nameClean'
 
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req)
@@ -71,8 +73,8 @@ export async function GET(req: NextRequest) {
   const data = rows.map(r => [
     r.short_id,
     r.candidate_short_id,
-    r.candidate_name,
-    r.candidate_phone,
+    cleanCandidateName(r.candidate_name as string) || r.candidate_name,
+    formatPhoneInternational(r.candidate_phone as string) || r.candidate_phone || '',
     r.candidate_email,
     r.job_client_name,
     r.job_title,

@@ -69,11 +69,11 @@ type EssView =
   | 'statutory'
 
 const LEAVE_TYPES = [
-  { key: 'annual', label: 'Annual leave', accent: '#3b5bdb' },
-  { key: 'medical', label: 'Medical leave', accent: '#14b8a6' },
-  { key: 'unpaid', label: 'Unpaid leave', accent: '#64748b' },
-  { key: 'hospitalization', label: 'Hospitalization', accent: '#ef4444' },
-  { key: 'compassionate', label: 'Compassionate', accent: '#22c55e' },
+  { key: 'annual', label: 'Annual leave', accent: '#3B82C4' },
+  { key: 'medical', label: 'Medical leave', accent: '#64748B' },
+  { key: 'unpaid', label: 'Unpaid leave', accent: '#94A3B8' },
+  { key: 'hospitalization', label: 'Hospitalization', accent: '#EF4444' },
+  { key: 'compassionate', label: 'Compassionate', accent: '#22C55E' },
 ] as const
 
 const STATUTORY_TYPES = ['all', 'ea', 'cp22', 'pcb', 'statutory', 'tax'] as const
@@ -445,11 +445,11 @@ export function ESSTab() {
             <div className="space-y-4">
               <div className="grid sm:grid-cols-3 gap-3">
                 {[
-                  { label: 'Pending leave', value: leavePending, accent: '#3b5bdb', go: 'leave' as const },
-                  { label: 'Pending claims', value: claimsPending, accent: '#ef4444', go: 'claims' as const },
-                  { label: 'Time status', value: checkedIn ? 'On shift' : 'Off shift', accent: '#14b8a6', go: 'attendance' as const },
+                  { label: 'Pending leave', value: leavePending, accent: '#3B82C4', go: 'leave' as const },
+                  { label: 'Pending claims', value: claimsPending, accent: '#EF4444', go: 'claims' as const },
+                  { label: 'Time status', value: checkedIn ? 'On shift' : 'Off shift', accent: '#64748B', go: 'attendance' as const },
                 ].map(c => (
-                  <button key={c.label} type="button" onClick={() => setView(c.go)} className="kpi-card text-left hover:border-indigo-300">
+                  <button key={c.label} type="button" onClick={() => setView(c.go)} className="kpi-card text-left hover:border-[var(--color-primary)]">
                     <p className="kpi-card__label">{c.label}</p>
                     <p className="kpi-card__value" style={{ color: typeof c.value === 'number' ? undefined : c.accent }}>{c.value}</p>
                     <p className="kpi-card__sub">Open module →</p>
@@ -490,7 +490,7 @@ export function ESSTab() {
                         </div>
                         <button
                           type="button"
-                          className="w-full py-2 text-xs font-bold border-t border-slate-100 text-[var(--color-primary)] hover:bg-indigo-50"
+                          className="w-full py-2 text-xs font-bold border-t border-slate-100 text-[var(--color-primary)] hover:bg-[var(--dash-bg)]"
                           onClick={() => { setLeaveForm(f => ({ ...f, leave_type: t.key })); setView('leave') }}
                         >
                           Apply →
@@ -791,7 +791,7 @@ export function ESSTab() {
                           : status === 'weekend' ? 'bg-slate-200 text-slate-600'
                           : status === 'wfh' ? 'bg-sky-100 text-sky-800'
                           : status === 'ot' || status === 'overtime' ? 'bg-amber-100 text-amber-900'
-                          : status === 'present' ? 'bg-indigo-100 text-indigo-800'
+                          : status === 'present' ? 'bg-sky-100 text-sky-900'
                           : 'bg-slate-50 text-slate-400'
                         return (
                           <div
@@ -805,7 +805,7 @@ export function ESSTab() {
                       })}
                     </div>
                     <div className="flex flex-wrap gap-3 mt-3 text-[10px] font-semibold text-slate-500">
-                      <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-indigo-400" /> Present</span>
+                      <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[var(--color-primary)]" /> Present</span>
                       <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-400" /> Absent</span>
                       <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-violet-400" /> Leave</span>
                       <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-400" /> Weekend</span>

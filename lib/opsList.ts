@@ -26,11 +26,23 @@ export function resolveDateFilter(searchParams: URLSearchParams): { from: string
 }
 
 export function csvDownload(filename: string, headers: string[], rows: Array<Array<string | number | null | undefined>>) {
-  const escape = (v: string | number | null | undefined) => {
-    const s = v == null ? '' : String(v)
-    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  const phoneIdx = new Set(
+    headers.map((h, i) => (/phone|contact|mobile/i.test(h) ? i : -1)).filter(i => i >= 0),
+  )
+  const escape = (v: string | number | null | undefined, colIdx?: number) => {
+    let s = v == null ? '' : String(v)
+    // Force Excel to treat phones as text (avoid -9151077 / scientific)
+    if (colIdx != null && phoneIdx.has(colIdx) && s && /^[+=\-]/.test(s)) {
+      s = `\t${s}`
+    } else if (colIdx != null && phoneIdx.has(colIdx) && s.startsWith('+')) {
+      s = `\t${s}`
+    }
+    return /[",\n\r\t]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
   }
-  const lines = [headers.map(escape).join(','), ...rows.map(r => r.map(escape).join(','))]
+  const lines = [
+    headers.map((h, i) => escape(h, i)).join(','),
+    ...rows.map(r => r.map((c, i) => escape(c, i)).join(',')),
+  ]
   return new NextResponse('\uFEFF' + lines.join('\r\n'), {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
@@ -48,7 +60,17 @@ export async function xlsxDownload(
   const workbook = new ExcelJS.Workbook()
   const sheet = workbook.addWorksheet(sheetName)
   sheet.addRow(headers)
-  for (const row of rows) sheet.addRow(row.map(c => (c == null ? '' : c)))
+  const phoneIdx = headers
+    .map((h, i) => (/phone|contact|mobile/i.test(h) ? i : -1))
+    .filter(i => i >= 0)
+  for (const row of rows) {
+    const excelRow = sheet.addRow(row.map(c => (c == null ? '' : c)))
+    for (const i of phoneIdx) {
+      const cell = excelRow.getCell(i + 1)
+      cell.numFmt = '@'
+      if (cell.value != null && cell.value !== '') cell.value = String(cell.value)
+    }
+  }
   sheet.getRow(1).font = { bold: true }
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
   return new NextResponse(new Uint8Array(buffer), {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/tenant'
 import { chatCompletionWithUsage } from '@/lib/aiClient'
 import { recordAiUsage } from '@/lib/aiUsage'
+import { logAiAction, withAiSecurityPolicy, wrapUntrustedData } from '@/lib/aiSecurity'
 
 export const maxDuration = 30
 
@@ -56,8 +57,8 @@ Use emojis appropriately, keep it brief and conversational.`,
 async function callAI(systemPrompt: string, userMessage: string) {
   return chatCompletionWithUsage({
     messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userMessage },
+      { role: 'system', content: withAiSecurityPolicy(systemPrompt) },
+      { role: 'user', content: wrapUntrustedData('COMPOSE_INPUT', userMessage) },
     ],
     temperature: 0.7,
     max_tokens: 1200,
@@ -148,12 +149,21 @@ Generate the full message now:`
     }
 
     const ai = await callAI(COMPOSE_SYSTEM_PROMPT, userMessage)
+    if (!ai.content?.trim()) {
+      return NextResponse.json({ error: 'AI returned empty content — try again.' }, { status: 502 })
+    }
     await recordAiUsage({
       userId: ctx.userId,
       tenantId: ctx.tenantId,
       operation: 'compose',
       result: ai,
       metadata: { action: effectiveAction, email_type: email_type ?? null, platform: platform ?? null },
+    })
+    await logAiAction({
+      ctx,
+      action: 'ai_compose',
+      resourceType: 'compose',
+      details: { action: effectiveAction, email_type: email_type ?? null },
     })
     return NextResponse.json({
       content: ai.content,

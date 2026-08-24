@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import './marketing.css'
 import Providers from './providers'
+import { APPEARANCE_BOOT_SCRIPT } from '@/lib/appearance'
 
 const SITE = 'https://recruit.srpailabs.com'
 const TITLE = 'SRP SmartRecruit'
@@ -82,12 +83,15 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: 'cover',
-  themeColor: '#166534',
+  themeColor: '#0B1F3A',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang="en" className="scroll-smooth" data-theme="navy" data-type="modern">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: APPEARANCE_BOOT_SCRIPT }} />
+      </head>
       <body>
         <script
           type="application/ld+json"
