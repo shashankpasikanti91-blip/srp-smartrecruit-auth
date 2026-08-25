@@ -133,7 +133,7 @@ test.describe('Candidate submit mapping', () => {
     const ivs = await request.get(`/api/interviews?resume_id=${cand.id}`)
     expect(ivs.ok()).toBeTruthy()
     const ivBody = await ivs.json()
-    expect((ivBody.interviews ?? []).length).toBeGreaterThan(0)
+    expect((ivBody.interviews ?? []).length, JSON.stringify(ivBody)).toBeGreaterThan(0)
 
     const reject = await request.patch(`/api/submissions/${subId}`, { data: { stage: 'rejected' } })
     expect(reject.ok()).toBeTruthy()
@@ -176,8 +176,8 @@ test.describe('Candidate submit mapping', () => {
           candidate_email: cand.candidate_email || undefined,
         },
       })
-      expect(created.status()).not.toBe(500)
       const createdBody = await created.json().catch(() => ({}))
+      expect(created.status(), JSON.stringify(createdBody)).not.toBe(500)
       iv = createdBody.interview
     }
     const interviewId = iv?.id

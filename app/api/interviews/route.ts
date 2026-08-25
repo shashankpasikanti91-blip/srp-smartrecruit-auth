@@ -235,7 +235,12 @@ export async function POST(req: NextRequest) {
       format: body.format,
       notes: body.notes,
     })
-    if (!pending) return NextResponse.json({ error: 'Could not create interview' }, { status: 500 })
+    if (!pending) {
+      return NextResponse.json(
+        { error: 'Could not create interview', detail: 'cascade_insert_failed' },
+        { status: 500 },
+      )
+    }
     return NextResponse.json({ interview: pending.interview }, { status: pending.created ? 201 : 200 })
   }
 

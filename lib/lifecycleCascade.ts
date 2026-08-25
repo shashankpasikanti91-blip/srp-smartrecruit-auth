@@ -68,13 +68,13 @@ async function findOpenInterview(opts: {
     `SELECT id, short_id, status, scheduled_at, resume_id, job_post_id
      FROM interviews
      WHERE tenant_id = $1 AND resume_id = $2
-       AND LOWER(COALESCE(status, '')) <> ALL($3::text[])
-       AND ($4::uuid IS NULL OR job_post_id IS NULL OR job_post_id = $4)
+       AND LOWER(COALESCE(status, '')) NOT IN ('cancelled','rejected','no_show','interviewer_no_show')
+       AND ($3::uuid IS NULL OR job_post_id IS NULL OR job_post_id = $3)
      ORDER BY
        CASE WHEN status = 'to_schedule' THEN 0 ELSE 1 END,
        scheduled_at DESC NULLS LAST
      LIMIT 1`,
-    [opts.tenantId, opts.resumeId, CLOSED_INTERVIEW, opts.jobPostId ?? null],
+    [opts.tenantId, opts.resumeId, opts.jobPostId ?? null],
   )
   return rows[0] ?? null
 }
@@ -171,47 +171,53 @@ export async function ensureInterviewForSubmission(
     const slot = when ?? new Date(Date.now() + 24 * 3600_000)
 
     let inserted: InterviewRow | null = null
-    const attempts: Array<{ status: string; at: string | null; email: string | null }> = [
-      { status: preferredStatus, at: when ? when.toISOString() : null, email },
-      { status: 'scheduled', at: slot.toISOString(), email: email || 'unscheduled@local' },
-    ]
-    let lastErr: unknown = null
-    for (const attempt of attempts) {
-      try {
-        const { rows } = await pool.query<InterviewRow>(
-          `INSERT INTO interviews
+    const safeEmail = email || 'unscheduled@local'
+    const notes = input.notes ?? (when ? null : 'Pending interview slot')
+    const insertSql: Array<{ sql: string; params: unknown[] }> = [
+      {
+        sql: `INSERT INTO interviews
+             (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
+              interviewer_id, user_id, scheduled_at, duration_minutes, format, notes, status, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$11,$12,NOW())
+           RETURNING id, short_id, status, scheduled_at, resume_id, job_post_id`,
+        params: [
+          shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
+          input.candidateName, safeEmail, input.userId,
+          when ? when.toISOString() : slot.toISOString(),
+          60, format, notes, 'scheduled',
+        ],
+      },
+      {
+        sql: `INSERT INTO interviews
              (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
               interviewer_id, scheduled_at, duration_minutes, format, notes, status, created_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
            RETURNING id, short_id, status, scheduled_at, resume_id, job_post_id`,
-          [
-            shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
-            input.candidateName, attempt.email, input.userId,
-            attempt.at, 60, format, input.notes ?? (when ? null : 'Pending interview slot'),
-            attempt.status,
-          ],
-        )
+        params: [
+          shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
+          input.candidateName, safeEmail, input.userId,
+          slot.toISOString(), 60, format, notes, 'scheduled',
+        ],
+      },
+      {
+        sql: `INSERT INTO interviews
+             (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
+              user_id, scheduled_at, duration_minutes, format, notes, status, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+           RETURNING id, short_id, status, scheduled_at, resume_id, job_post_id`,
+        params: [
+          shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
+          input.candidateName, safeEmail, input.userId,
+          slot.toISOString(), 60, format, notes, 'scheduled',
+        ],
+      },
+    ]
+    let lastErr: unknown = null
+    for (const attempt of insertSql) {
+      try {
+        const { rows } = await pool.query<InterviewRow>(attempt.sql, attempt.params)
         inserted = rows[0] ?? null
         if (inserted) break
-      } catch (e) {
-        lastErr = e
-      }
-    }
-    if (!inserted) {
-      try {
-        const { rows } = await pool.query<InterviewRow>(
-          `INSERT INTO interviews
-             (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
-              interviewer_id, scheduled_at, status, created_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'scheduled',NOW())
-           RETURNING id, short_id, status, scheduled_at, resume_id, job_post_id`,
-          [
-            shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
-            input.candidateName, email || 'unscheduled@local', input.userId,
-            slot.toISOString(),
-          ],
-        )
-        inserted = rows[0] ?? null
       } catch (e) {
         lastErr = e
       }
