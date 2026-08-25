@@ -116,12 +116,15 @@ export function SubmissionDetailsModal({
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([])
+  const [clientId, setClientId] = useState('')
   const [submissionId, setSubmissionId] = useState<string | null>(null)
   const [submissionShortId, setSubmissionShortId] = useState<string | null>(null)
 
   useEffect(() => {
     setForm(fromCandidate(candidate))
     setJobId(candidate.job_posts?.id ?? '')
+    setClientId('')
     setMsg(null)
     setErr(null)
     fetch(`/api/submissions/latest?resume_id=${candidate.id}`)
@@ -130,14 +133,30 @@ export function SubmissionDetailsModal({
         if (d.submission) {
           setSubmissionId(d.submission.id)
           setSubmissionShortId(d.submission.short_id)
+          if (d.submission.job_post_id) setJobId(d.submission.job_post_id)
+          setForm(prev => ({
+            ...prev,
+            client_name: d.submission.client_name || prev.client_name,
+            applying_for: d.submission.applying_for || prev.applying_for,
+          }))
         } else {
           setSubmissionId(null)
           setSubmissionShortId(null)
         }
       })
       .catch(() => {})
+    fetch('/api/clients')
+      .then(r => r.json())
+      .then(d => setClients(d.clients ?? []))
+      .catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidate.id])
+
+  useEffect(() => {
+    if (!form.client_name || clientId) return
+    const match = clients.find(c => c.name.toLowerCase() === form.client_name.toLowerCase())
+    if (match) setClientId(match.id)
+  }, [clients, form.client_name, clientId])
 
   const set = (key: keyof Form, value: string) => {
     setForm(prev => {
@@ -208,7 +227,6 @@ export function SubmissionDetailsModal({
           candidate_name: fullName || candidate.candidate_name,
           candidate_email: form.email.trim() || null,
           candidate_phone: form.phone.trim() || null,
-          job_post_id: jobId || null,
           candidate_profile,
         }),
       })
@@ -320,16 +338,47 @@ export function SubmissionDetailsModal({
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {tab === 'contact' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {input('applying_for', 'Requirement / applying for')}
-              {input('client_name', 'Client')}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1 uppercase tracking-wide">Linked job</label>
-                <select value={jobId} onChange={e => setJobId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm">
-                  <option value="">None</option>
-                  {jobs.map(j => <option key={j.id} value={j.id}>{j.title}{j.company ? ` — ${j.company}` : ''}</option>)}
-                </select>
+              <div className="sm:col-span-2 rounded-xl border border-indigo-200 bg-indigo-50/40 p-3 space-y-3">
+                <p className="text-[11px] font-extrabold uppercase tracking-wide text-indigo-900">Who this profile was shared to</p>
+                <p className="text-xs text-slate-600 -mt-1">Same candidate can be submitted to many clients. Each save is one share, not a duplicate.</p>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 uppercase tracking-wide">Client</label>
+                  <select
+                    value={clientId}
+                    onChange={e => {
+                      const id = e.target.value
+                      setClientId(id)
+                      const cl = clients.find(c => c.id === id)
+                      if (cl) set('client_name', cl.name)
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                  >
+                    <option value="">Select client…</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 uppercase tracking-wide">Role / JD submitted</label>
+                  <select
+                    value={jobId}
+                    onChange={e => {
+                      const id = e.target.value
+                      setJobId(id)
+                      const job = jobs.find(j => j.id === id)
+                      if (job) {
+                        set('applying_for', job.title)
+                        if (job.company) set('client_name', job.company)
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                  >
+                    <option value="">Select role…</option>
+                    {jobs.map(j => <option key={j.id} value={j.id}>{j.title}{j.company ? ` — ${j.company}` : ''}</option>)}
+                  </select>
+                </div>
               </div>
+              {input('applying_for', 'Role name (if not in list)')}
+              {input('client_name', 'Client name (if not in list)')}
               <div>
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1 uppercase tracking-wide">Hire type</label>
                 <select value={form.hire_type} onChange={e => set('hire_type', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm">

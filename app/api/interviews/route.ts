@@ -380,6 +380,21 @@ export async function POST(req: NextRequest) {
     reason: 'interview_scheduled',
   })
 
+  try {
+    await pool.query(
+      `UPDATE submissions SET stage = 'interview', updated_at = NOW()
+       WHERE id = (
+         SELECT id FROM submissions
+         WHERE tenant_id = $1 AND resume_id = $2
+           AND ($3::uuid IS NULL OR job_post_id = $3)
+           AND stage NOT IN ('rejected','rejected_by_candidate','submission_withdrawn','position_closed','joined')
+         ORDER BY updated_at DESC
+         LIMIT 1
+       )`,
+      [ctx.tenantId, body.resume_id, body.job_post_id ?? null],
+    )
+  } catch { /* submissions table / no matching row */ }
+
   // Send invite email to candidate
   const sendInvite = body.send_invite !== false
   if (sendInvite) {

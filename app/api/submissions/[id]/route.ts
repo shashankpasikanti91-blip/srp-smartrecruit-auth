@@ -92,6 +92,13 @@ export async function PATCH(
     sets.push(`submission_date = $${i++}`)
     vals.push(body.submission_date || null)
   }
+  if (body.job_post_id !== undefined) {
+    if (body.job_post_id && !isValidUUID(body.job_post_id)) {
+      return NextResponse.json({ error: 'Invalid job_post_id' }, { status: 400 })
+    }
+    sets.push(`job_post_id = $${i++}`)
+    vals.push(body.job_post_id || null)
+  }
   if (!sets.length) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
   sets.push('updated_at = NOW()')

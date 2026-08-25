@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   Brain, Loader2, Mail, MessageCircle, Phone, FileText, User, Sparkles,
-  Pencil, Download, Eye, Save, X,
+  Pencil, Download, Eye, Save, X, Send,
 } from 'lucide-react'
 import {
   Candidate360Panels,
@@ -40,6 +40,7 @@ type Summary = {
   resume_score?: number | null
   communication_status?: string
   submission_status?: string
+  submission_count?: number
   interview_status?: string
   offer_status?: string
   documents_count?: number
@@ -98,12 +99,17 @@ function ownerLabel(owner: Header['owner']) {
 
 const KPI_TONES = ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g1', 'g4', 'g3'] as const
 
-function SummaryCard({ label, value, tone }: { label: string; value: string | number; tone: string }) {
+function SummaryCard({ label, value, tone, onClick }: { label: string; value: string | number; tone: string; onClick?: () => void }) {
   return (
-    <div className={`kpi-card kpi-card--gradient kpi-card--${tone} !min-h-[76px]`}>
+    <button
+      type="button"
+      disabled={!onClick}
+      onClick={onClick}
+      className={`kpi-card kpi-card--gradient kpi-card--${tone} !min-h-[76px] text-left ${onClick ? 'cursor-pointer hover:opacity-90' : 'cursor-default'}`}
+    >
       <p className="kpi-card__label">{label}</p>
       <p className="kpi-card__value text-lg truncate">{value}</p>
-    </div>
+    </button>
   )
 }
 
@@ -311,6 +317,11 @@ export function Candidate360PageView({
                         {h.status}
                       </span>
                     )}
+                    {String(h?.stage || '').toLowerCase() === 'submitted' && !(Array.isArray(data?.submissions) && data.submissions.length) && (
+                      <span className="text-[10px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                        Status only — not linked to a client/role
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs font-semibold text-slate-600 mt-1">
                     {[h?.current_role, h?.current_employer, h?.location].filter(Boolean).join(' · ') || '—'}
@@ -368,6 +379,14 @@ export function Candidate360PageView({
                     <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
                   </a>
                 )}
+                <button
+                  type="button"
+                  data-testid="submit-to-client-btn"
+                  onClick={() => setTab('submissions')}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-extrabold hover:bg-indigo-500"
+                >
+                  <Send className="w-3.5 h-3.5" /> Submit to client
+                </button>
                 {jobId && onOpenJob && (
                   <button
                     type="button"
@@ -391,7 +410,18 @@ export function Candidate360PageView({
           {!loading && !error && (
             <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 border-b border-slate-100">
               {kpis.map((k, i) => (
-                <SummaryCard key={k.label} label={k.label} value={k.value} tone={KPI_TONES[i % KPI_TONES.length]} />
+                <SummaryCard
+                  key={k.label}
+                  label={k.label}
+                  value={k.value}
+                  tone={KPI_TONES[i % KPI_TONES.length]}
+                  onClick={
+                    k.label === 'Submission' ? () => setTab('submissions')
+                    : k.label === 'Interview' ? () => setTab('interviews')
+                    : k.label === 'Offer' ? () => setTab('offers')
+                    : undefined
+                  }
+                />
               ))}
             </div>
           )}

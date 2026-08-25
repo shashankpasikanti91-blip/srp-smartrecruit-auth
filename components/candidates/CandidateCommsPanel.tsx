@@ -216,20 +216,35 @@ export function CandidateJobsPanel({ candidateId }: { candidateId: string }) {
   }
 
   if (rows.length === 0) {
-    return <p className="px-5 py-8 text-sm font-medium text-slate-500 text-center">No jobs linked to this candidate yet.</p>
+    return (
+      <p className="px-5 py-8 text-sm font-medium text-slate-500 text-center">
+        This profile is not shared to any client yet. Same CV can go to many clients — that is not a duplicate.
+        Open Submissions and pick client + role.
+      </p>
+    )
   }
 
   return (
-    <ul className="divide-y divide-slate-100">
-      {rows.map((j, i) => (
-        <li key={String(j.id ?? i)} className="px-5 py-3">
-          <p className="text-sm font-extrabold text-slate-900">{String(j.title ?? 'Job')}</p>
-          <p className="text-xs font-medium text-slate-600 mt-0.5">
-            {String(j.short_id ?? '')} · {String(j.company ?? '—')} · {String(j.source ?? 'assigned')}
-          </p>
-        </li>
-      ))}
-    </ul>
+    <div data-testid="jobs-applied-list">
+      <p className="px-5 pt-4 pb-1 text-[11px] font-extrabold uppercase tracking-widest text-slate-500">
+        {rows.length} share{rows.length === 1 ? '' : 's'} · one profile
+      </p>
+      <ul className="divide-y divide-slate-100">
+        {rows.map((j, i) => (
+          <li key={String(j.submission_id ?? j.id ?? i)} className="px-5 py-3">
+            <p className="text-sm font-extrabold text-slate-900">
+              {String(j.title ?? j.applying_for ?? 'Role')}
+            </p>
+            <p className="text-xs font-medium text-slate-600 mt-0.5">
+              Client: {String(j.client ?? j.company ?? j.client_name ?? '—')}
+              {j.job_short_id ? ` · ${String(j.job_short_id)}` : ''}
+              {j.stage ? ` · ${String(j.stage).replace(/_/g, ' ')}` : j.source === 'assigned' ? ' · assigned, not submitted' : ''}
+              {j.submission_short_id ? ` · ${String(j.submission_short_id)}` : ''}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

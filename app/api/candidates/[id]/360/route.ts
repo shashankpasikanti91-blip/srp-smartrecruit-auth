@@ -53,9 +53,11 @@ export async function GET(
   ] = await Promise.all([
     pool.query(
       `SELECT s.id, s.short_id, s.stage, s.client_name, s.applying_for, s.updated_at, s.created_at,
-              jp.title AS job_title
+              s.job_post_id, jp.title AS job_title,
+              COALESCE(cl.name, jp.company, s.client_name) AS client
        FROM submissions s
        LEFT JOIN job_posts jp ON jp.id = s.job_post_id
+       LEFT JOIN clients cl ON cl.id = jp.client_id
        WHERE s.tenant_id = $1 AND s.resume_id = $2
        ORDER BY s.updated_at DESC LIMIT 40`,
       [ctx.tenantId, id],
@@ -106,7 +108,10 @@ export async function GET(
     ai_match_score: candidate.ai_score,
     resume_score: candidate.ai_score,
     communication_status: candidate.last_contacted_at ? 'Contacted' : 'No contact',
-    submission_status: submissions.rows[0]?.stage ?? 'None',
+    submission_status: submissions.rows[0]
+      ? `${submissions.rows[0].stage}${submissions.rows[0].job_title || submissions.rows[0].applying_for ? ` · ${submissions.rows[0].job_title || submissions.rows[0].applying_for}` : ''}${submissions.rows[0].client ? ` · ${submissions.rows[0].client}` : ''}${submissions.rows.length > 1 ? ` (+${submissions.rows.length - 1})` : ''}`
+      : 'None',
+    submission_count: submissions.rows.length,
     interview_status: interviews.rows[0]?.status ?? 'None',
     offer_status: offers.rows[0]?.status ?? 'None',
     documents_count: docs.rows[0]?.n ?? 0,

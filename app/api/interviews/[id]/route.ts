@@ -57,7 +57,10 @@ export async function PATCH(
   const vals: unknown[]   = []
   let p = 1
 
-  const VALID_STATUSES = ['scheduled', 'confirmed', 'rescheduled', 'completed', 'cancelled', 'no_show']
+  const VALID_STATUSES = [
+    'scheduled', 'confirmed', 'rescheduled', 'postponed', 'completed',
+    'cancelled', 'no_show', 'selected', 'awaiting_feedback', 'rejected',
+  ]
 
   if (body.status !== undefined) {
     if (!VALID_STATUSES.includes(body.status)) {

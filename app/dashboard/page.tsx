@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ScrollableTable } from '@/components/dashboard/ScrollableTable'
 import { EditCandidateModal } from '@/components/candidates/EditCandidateModal'
 import { SubmissionDetailsModal } from '@/components/candidates/SubmissionDetailsModal'
+import { CandidateAllocatePanel } from '@/components/candidates/CandidateAllocatePanel'
 import { Candidate360TabBar, Candidate360Panels, isCandidate360PanelTab } from '@/components/candidates/Candidate360View'
 import { CandidateColumnPicker } from '@/components/candidates/CandidateColumnPicker'
 import { AppearanceSettings } from '@/components/settings/AppearanceSettings'
@@ -1603,6 +1604,7 @@ export default function DashboardPage() {
   const [selectedJobView, setSelectedJobView] = useState<Job | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
+  const [allocateFor, setAllocateFor] = useState<Candidate | null>(null)
   const [matchCounts, setMatchCounts] = useState<Record<string, number>>({})
   const [topSkills, setTopSkills] = useState<Array<{ skill: string; count: number }>>([])
 
@@ -2283,6 +2285,12 @@ export default function DashboardPage() {
   }
 
   const moveStage = async (candidateId: string, stage: string) => {
+    const mapped = new Set(['submitted', 'interview', 'offer', 'hr_onboarding', 'joined'])
+    if (mapped.has(stage)) {
+      const row = candidates.find(c => c.id === candidateId) ?? selectedCandidate
+      if (row) setAllocateFor(row)
+      return
+    }
     // Optimistic update
     setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, pipeline_stage: stage } : c))
     setSelectedCandidate(prev => prev?.id === candidateId ? { ...prev, pipeline_stage: stage } : prev)
@@ -5820,6 +5828,24 @@ export default function DashboardPage() {
             setSubmissionCandidate(selectedCandidate)
           }}
         />
+      )}
+
+      {allocateFor && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 p-3" onClick={e => { if (e.target === e.currentTarget) setAllocateFor(null) }}>
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xl">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+              <p className="text-sm font-extrabold text-slate-900">Submit {allocateFor.candidate_name} to a client / role</p>
+              <button type="button" className="text-xs font-bold text-slate-500" onClick={() => setAllocateFor(null)}>Close</button>
+            </div>
+            <CandidateAllocatePanel
+              candidateId={allocateFor.id}
+              candidateName={allocateFor.candidate_name}
+              candidateEmail={allocateFor.candidate_email}
+              defaultJobId={allocateFor.job_posts?.id}
+              onChanged={() => { loadData(); setAllocateFor(null) }}
+            />
+          </div>
+        </div>
       )}
 
       {editCandidate && (

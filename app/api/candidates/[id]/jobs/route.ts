@@ -18,34 +18,67 @@ export async function GET(
   )
   if (!cand.rows[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const jobs: Record<string, unknown>[] = []
-  const seen = new Set<string>()
-
-  if (cand.rows[0].job_post_id) {
-    const { rows } = await pool.query(
-      `SELECT id, short_id, title, company, location, status FROM job_posts WHERE id = $1 AND tenant_id = $2`,
-      [cand.rows[0].job_post_id, ctx.tenantId]
-    )
-    for (const j of rows) {
-      seen.add(j.id)
-      jobs.push({ ...j, source: 'assigned' })
-    }
-  }
+  // One profile, many client shares. Each submission is a row — not a duplicate candidate.
+  const shares: Record<string, unknown>[] = []
+  const seenJobs = new Set<string>()
 
   try {
     const { rows } = await pool.query(
-      `SELECT DISTINCT jp.id, jp.short_id, jp.title, jp.company, jp.location, jp.status, s.stage
+      `SELECT
+         s.id AS submission_id,
+         s.short_id AS submission_short_id,
+         s.stage,
+         s.client_name,
+         s.applying_for,
+         s.submission_date,
+         s.updated_at,
+         s.job_post_id,
+         jp.id AS job_id,
+         jp.short_id AS job_short_id,
+         jp.title,
+         jp.location,
+         jp.status AS job_status,
+         COALESCE(cl.name, jp.company, s.client_name) AS client,
+         jp.client_id
        FROM submissions s
-       JOIN job_posts jp ON jp.id = s.job_post_id
-       WHERE s.tenant_id = $1 AND s.resume_id = $2 AND s.job_post_id IS NOT NULL`,
+       LEFT JOIN job_posts jp ON jp.id = s.job_post_id AND jp.tenant_id = s.tenant_id
+       LEFT JOIN clients cl ON cl.id = jp.client_id
+       WHERE s.tenant_id = $1 AND s.resume_id = $2
+       ORDER BY s.updated_at DESC`,
       [ctx.tenantId, id]
     )
-    for (const j of rows) {
-      if (seen.has(j.id)) continue
-      seen.add(j.id)
-      jobs.push({ ...j, source: 'submission' })
+    for (const r of rows) {
+      if (r.job_id) seenJobs.add(r.job_id)
+      shares.push({
+        ...r,
+        source: 'submission',
+        id: r.job_id ?? r.submission_id,
+        short_id: r.job_short_id ?? r.submission_short_id,
+        company: r.client,
+      })
     }
-  } catch { /* ignore */ }
+  } catch { /* older DBs without submissions */ }
 
-  return NextResponse.json({ jobs })
+  if (cand.rows[0].job_post_id && !seenJobs.has(cand.rows[0].job_post_id)) {
+    const { rows } = await pool.query(
+      `SELECT jp.id, jp.short_id, jp.title, jp.company, jp.location, jp.status,
+              COALESCE(cl.name, jp.company) AS client
+       FROM job_posts jp
+       LEFT JOIN clients cl ON cl.id = jp.client_id
+       WHERE jp.id = $1 AND jp.tenant_id = $2`,
+      [cand.rows[0].job_post_id, ctx.tenantId]
+    )
+    for (const j of rows) {
+      shares.push({
+        ...j,
+        job_id: j.id,
+        job_short_id: j.short_id,
+        client: j.client,
+        source: 'assigned',
+        stage: null,
+      })
+    }
+  }
+
+  return NextResponse.json({ jobs: shares, shares, count: shares.length })
 }
