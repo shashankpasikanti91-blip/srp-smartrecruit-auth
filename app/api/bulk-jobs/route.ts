@@ -190,6 +190,105 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
+  const cookieHeader = req.headers.get('cookie') || ''
+  const baseUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || 'http://127.0.0.1:3010'
+
+  if (body.action === 'retry_failed') {
+    const id = typeof body.id === 'string' ? body.id : ''
+    if (!id || !isValidUUID(id)) {
+      return NextResponse.json({ error: 'id required' }, { status: 400 })
+    }
+
+    const jobRes = await pool.query<{
+      id: string
+      job_post_id: string | null
+      status: string
+    }>(
+      `SELECT id, job_post_id, status FROM bulk_screening_jobs WHERE id = $1 AND tenant_id = $2`,
+      [id, ctx.tenantId],
+    )
+    const job = jobRes.rows[0]
+    if (!job) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (job.status === 'queued' || job.status === 'running') {
+      return NextResponse.json({ error: 'Job is already processing' }, { status: 409 })
+    }
+
+    let jdText = sanitizeDbText(body.jd_text, 50_000)
+    const jobPostId = job.job_post_id
+    if (jobPostId) {
+      const row = await fetchJobJdSource(pool, ctx.tenantId, jobPostId)
+      if (row && !jdText) jdText = buildJdFromJobRow(row)
+    }
+    if (!jdText) {
+      return NextResponse.json({ error: 'Job has no JD to retry against' }, { status: 400 })
+    }
+
+    await pool.query(
+      `UPDATE bulk_screening_items
+       SET status = 'skipped',
+           error = COALESCE(NULLIF(btrim(error), ''), 'empty resume'),
+           updated_at = NOW()
+       WHERE bulk_job_id = $1
+         AND status = 'failed'
+         AND (resume_text IS NULL OR btrim(resume_text) = '')`,
+      [id],
+    )
+
+    const reset = await pool.query<{ id: string }>(
+      `UPDATE bulk_screening_items
+       SET status = 'pending',
+           error = NULL,
+           retry_count = 0,
+           candidate_id = NULL,
+           result_json = NULL,
+           updated_at = NOW()
+       WHERE bulk_job_id = $1 AND status = 'failed'
+       RETURNING id`,
+      [id],
+    )
+    if (!reset.rowCount) {
+      return NextResponse.json({ error: 'No failed items to retry' }, { status: 400 })
+    }
+
+    await pool.query(
+      `UPDATE bulk_screening_jobs j
+       SET completed = (SELECT COUNT(*)::int FROM bulk_screening_items i WHERE i.bulk_job_id = j.id AND i.status = 'done'),
+           failed = 0,
+           skipped = (SELECT COUNT(*)::int FROM bulk_screening_items i WHERE i.bulk_job_id = j.id AND i.status IN ('skipped', 'abandoned')),
+           status = 'queued',
+           error_summary = NULL,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [id],
+    )
+
+    after(() =>
+      processBulkJob(
+        id,
+        ctx.tenantId,
+        ctx.userId,
+        ctx.userEmail,
+        jdText,
+        jobPostId,
+        cookieHeader,
+        baseUrl,
+      ).catch(err => {
+        console.error('[bulk-jobs retry]', err)
+        void pool.query(
+          `UPDATE bulk_screening_jobs SET status = 'failed', error_summary = $1, updated_at = NOW() WHERE id = $2`,
+          [err instanceof Error ? err.message : 'failed', id],
+        )
+      }),
+    )
+
+    return NextResponse.json({
+      bulk_job_id: id,
+      status: 'queued',
+      retried: reset.rowCount,
+      message: 'Failed items queued for retry.',
+    }, { status: 202 })
+  }
+
   const resumes = Array.isArray(body.resumes) ? body.resumes as ResumeIn[] : []
   if (!resumes.length) {
     return NextResponse.json({ error: 'resumes required' }, { status: 400 })
@@ -250,8 +349,6 @@ export async function POST(req: NextRequest) {
   }
 
   // Process in background — HTTP returns immediately (no gateway timeout)
-  const cookieHeader = req.headers.get('cookie') || ''
-  const baseUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || 'http://127.0.0.1:3010'
   after(() =>
     processBulkJob(
       bulkJobId,

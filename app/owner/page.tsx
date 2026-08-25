@@ -453,7 +453,7 @@ export default function OwnerDashboard() {
                   { label: 'Bulk Queue Running', value: health?.queues?.running ?? '—' },
                   { label: 'Bulk Queue Pending', value: health?.queues?.pending ?? '—' },
                   { label: 'Failed Bulk Jobs', value: health?.queues?.failedJobs ?? '—' },
-                  { label: 'Failed Bulk Items', value: health?.queues?.failedItems ?? '—' },
+                  { label: 'Live Failed Bulk Items', value: health?.queues?.failedItems ?? '—' },
                 ].map(card => (
                   <div key={card.label} className="glass-card-dark rounded-2xl p-5">
                     <p className="text-xs text-gray-500">{card.label}</p>
@@ -461,6 +461,9 @@ export default function OwnerDashboard() {
                   </div>
                 ))}
               </div>
+              <p className="text-xs text-gray-500">
+                Failed bulk items count CVs still failing on queued, running, or failed jobs. Leftovers on completed jobs are abandoned and do not count.
+              </p>
               {health?.application && (
                 <p className="text-xs text-gray-500">
                   App v{health.application.version} · {health.application.env} · uptime {health.application.uptimeSec}s

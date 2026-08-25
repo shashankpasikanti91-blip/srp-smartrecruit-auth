@@ -101,8 +101,10 @@ async function checkQueues(): Promise<QueueHealth> {
       ),
       pool.query<{ count: string }>(
         `SELECT COUNT(*)::text AS count
-         FROM bulk_screening_items
-         WHERE status = 'failed'`
+         FROM bulk_screening_items i
+         JOIN bulk_screening_jobs j ON j.id = i.bulk_job_id
+         WHERE i.status = 'failed'
+           AND j.status IN ('queued', 'running', 'failed')`
       ),
     ])
     const byStatus: Record<string, number> = {}
@@ -110,7 +112,7 @@ async function checkQueues(): Promise<QueueHealth> {
       byStatus[row.status] = parseInt(row.count, 10) || 0
     }
     const running = byStatus.running ?? 0
-    const pending = byStatus.pending ?? 0
+    const pending = (byStatus.queued ?? 0) + (byStatus.pending ?? 0)
     const failedJobs = byStatus.failed ?? 0
     const failedItems = parseInt(items.rows[0]?.count ?? '0', 10) || 0
     return {

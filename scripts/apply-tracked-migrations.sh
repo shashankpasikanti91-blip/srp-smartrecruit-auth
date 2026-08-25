@@ -38,6 +38,7 @@ FILES=(
   migrate_v35_job_posts_enriched.sql
   migrate_v36_rag_graph.sql
   migrate_v37_audit_ai.sql
+  migrate_v38_bulk_stale.sql
 )
 
 echo "=== Applying tracked migrations (additive only) ==="
