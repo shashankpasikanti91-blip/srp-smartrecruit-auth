@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Eye, History, Loader2, Send, X } from 'lucide-react'
+import { History, Loader2, Send, X } from 'lucide-react'
 import { ScrollableTable } from '@/components/dashboard/ScrollableTable'
 import { OpsListChrome } from '@/components/recruitment/OpsListChrome'
 import { EntityIdLink } from '@/components/ui/EntityIdLink'
@@ -308,11 +308,12 @@ export function SubmissionsTab({
                   <td className="col-person">
                     {s.feedback_recorded_by || (s.feedback_detail ? s.recruiter_name : null) || '—'}
                   </td>
-                  <td className="col-actions">
-                    <button type="button" onClick={() => openDetail(s)} className="inline-flex items-center gap-1 text-xs font-bold text-indigo-700 hover:underline">
-                      <Eye className="w-3.5 h-3.5" /> Update feedback
+                  <td className="col-actions whitespace-nowrap">
+                    <button type="button" onClick={() => openDetail(s)} className="text-xs font-bold text-indigo-700 hover:underline">
+                      Update feedback
                     </button>
-                    <button type="button" onClick={() => onOpenCandidate?.(s.resume_id || s.candidate_short_id)} className="ml-2 text-xs font-bold text-slate-600 hover:underline">
+                    <span className="text-slate-300 mx-1">·</span>
+                    <button type="button" onClick={() => onOpenCandidate?.(s.resume_id || s.candidate_short_id)} className="text-xs font-bold text-slate-600 hover:underline">
                       Open profile
                     </button>
                   </td>

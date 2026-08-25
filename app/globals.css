@@ -1041,9 +1041,18 @@ button, input, select, textarea {
 .ent-table th,
 .ent-table td {
   border: 1px solid #d8e2ec;
-  padding: 8px 12px;
+  padding: 6px 10px;
+  height: 40px;
   vertical-align: middle;
-  white-space: nowrap;
+  white-space: nowrap !important;
+  line-height: 1.25;
+}
+.ent-table td > *,
+.ent-table th > * {
+  white-space: nowrap !important;
+}
+.ent-table .col-actions {
+  white-space: nowrap !important;
 }
 .ent-table th {
   background: #ecfdf3;
@@ -1085,9 +1094,10 @@ button, input, select, textarea {
 .ent-table .col-actions { min-width: 9rem; }
 .ent-table .col-text {
   min-width: 11rem;
-  max-width: 18rem;
-  white-space: normal;
-  line-height: 1.35;
+  max-width: 22rem;
+  white-space: nowrap !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Field layout (drawers / modals) ─────────────────────── */
