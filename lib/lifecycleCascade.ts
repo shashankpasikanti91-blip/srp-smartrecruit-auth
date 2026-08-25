@@ -165,46 +165,64 @@ export async function ensureInterviewForSubmission(
     }
 
     const shortId = await nextYearSeqId(pool, { tenantId: input.tenantId, table: 'interviews', prefix: 'INT' })
-    const status = when ? 'scheduled' : 'to_schedule'
-    const email = (input.candidateEmail ?? '').trim()
+    const preferredStatus = when ? 'scheduled' : 'to_schedule'
+    const email = (input.candidateEmail ?? '').trim() || null
     const format = input.format ?? 'video'
+    const slot = when ?? new Date(Date.now() + 24 * 3600_000)
 
     let inserted: InterviewRow | null = null
-    try {
-      const { rows } = await pool.query<InterviewRow>(
-        `INSERT INTO interviews
-           (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
-            interviewer_id, scheduled_at, duration_minutes, format, notes, status, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
-         RETURNING id, short_id, status, scheduled_at, resume_id, job_post_id`,
-        [
-          shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
-          input.candidateName, email, input.userId,
-          when ? when.toISOString() : null,
-          60, format, input.notes ?? null, status,
-        ],
-      )
-      inserted = rows[0]
-    } catch {
-      const { rows } = await pool.query<InterviewRow>(
-        `INSERT INTO interviews
-           (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
-            interviewer_id, scheduled_at, duration_minutes, format, notes, status, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
-         RETURNING id, short_id, status, scheduled_at, resume_id, job_post_id`,
-        [
-          shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
-          input.candidateName, email || 'unscheduled@local',
-          input.userId,
-          when ? when.toISOString() : new Date().toISOString(),
-          60, format, input.notes ?? 'Pending interview slot', status,
-        ],
-      )
-      inserted = rows[0]
+    const attempts: Array<{ status: string; at: string | null; email: string | null }> = [
+      { status: preferredStatus, at: when ? when.toISOString() : null, email },
+      { status: 'scheduled', at: slot.toISOString(), email: email || 'unscheduled@local' },
+    ]
+    let lastErr: unknown = null
+    for (const attempt of attempts) {
+      try {
+        const { rows } = await pool.query<InterviewRow>(
+          `INSERT INTO interviews
+             (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
+              interviewer_id, scheduled_at, duration_minutes, format, notes, status, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+           RETURNING id, short_id, status, scheduled_at, resume_id, job_post_id`,
+          [
+            shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
+            input.candidateName, attempt.email, input.userId,
+            attempt.at, 60, format, input.notes ?? (when ? null : 'Pending interview slot'),
+            attempt.status,
+          ],
+        )
+        inserted = rows[0] ?? null
+        if (inserted) break
+      } catch (e) {
+        lastErr = e
+      }
     }
+    if (!inserted) {
+      try {
+        const { rows } = await pool.query<InterviewRow>(
+          `INSERT INTO interviews
+             (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
+              interviewer_id, scheduled_at, status, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'scheduled',NOW())
+           RETURNING id, short_id, status, scheduled_at, resume_id, job_post_id`,
+          [
+            shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
+            input.candidateName, email || 'unscheduled@local', input.userId,
+            slot.toISOString(),
+          ],
+        )
+        inserted = rows[0] ?? null
+      } catch (e) {
+        lastErr = e
+      }
+    }
+    if (!inserted) {
+      console.error('[lifecycleCascade.ensureInterview] insert failed', lastErr)
+      return null
+    }
+    const status = inserted.status || preferredStatus
 
-    if (!inserted) return null
-
+    try {
     await writeTimeline({
       tenantId: input.tenantId,
       entityType: 'interview',
@@ -264,6 +282,9 @@ export async function ensureInterviewForSubmission(
       resumeId: input.resumeId,
       details: { short_id: shortId, status, job_post_id: input.jobPostId },
     })
+    } catch (e) {
+      console.error('[lifecycleCascade.ensureInterview] side effects (row still saved)', e)
+    }
 
     return { interview: inserted, created: true, upgraded: false }
   } catch (e) {
