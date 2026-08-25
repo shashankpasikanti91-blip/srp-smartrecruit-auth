@@ -179,6 +179,7 @@ function LoginContent() {
                 <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide">Email address</label>
                 <input
                   type="email"
+                  data-testid="login-email"
                   autoComplete="email"
                   required
                   value={email}
@@ -196,6 +197,7 @@ function LoginContent() {
                 <div className="relative">
                   <input
                     type={showPw ? 'text' : 'password'}
+                    data-testid="login-password"
                     autoComplete="current-password"
                     required
                     value={password}
@@ -231,6 +233,7 @@ function LoginContent() {
 
               <button
                 type="submit"
+                data-testid="login-submit"
                 disabled={loading}
                 className="w-full py-3.5 min-h-[44px] rounded-xl bg-[#F97316] hover:bg-[#ea580c] disabled:opacity-60 text-[#0B1F14] text-sm font-bold transition-colors flex items-center justify-center gap-2"
               >

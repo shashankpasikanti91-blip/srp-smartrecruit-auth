@@ -27,6 +27,7 @@ import { upsertWorkflowInstance }        from '@/lib/workflowEngine'
 import { resolveDateFilter, resolveMineScope } from '@/lib/opsList'
 import { sanitizeText } from '@/lib/validate'
 import { advanceFromDomain, interviewStatusToLifecycle } from '@/lib/lifecycle'
+import { ensureInterviewForSubmission } from '@/lib/lifecycleCascade'
 
 async function newInterviewId(tenantId: string): Promise<string> {
   return nextYearSeqId(pool, { tenantId, table: 'interviews', prefix: 'INT' })
@@ -66,16 +67,16 @@ export async function GET(req: NextRequest) {
     params.push(`%${q}%`)
     p++
   }
-  if (mine) {
+  if (mine && !resumeId) {
     conditions.push(`(i.interviewer_id = $${p} OR r.user_id = $${p})`)
     params.push(ctx.userId)
     p++
   }
   if (dateRange) {
-    conditions.push(`i.scheduled_at::date >= $${p++}::date`)
-    params.push(dateRange.from)
-    conditions.push(`i.scheduled_at::date <= $${p++}::date`)
-    params.push(dateRange.to)
+    conditions.push(`(i.scheduled_at IS NULL OR (
+      i.scheduled_at::date >= $${p++}::date AND i.scheduled_at::date <= $${p++}::date
+    ))`)
+    params.push(dateRange.from, dateRange.to)
   }
 
   const where = conditions.join(' AND ')
@@ -109,7 +110,9 @@ export async function GET(req: NextRequest) {
      ${fromSql}
      WHERE ${where}
      ORDER BY
-       CASE WHEN LOWER(COALESCE(i.status, '')) IN ('completed', 'cancelled', 'canceled', 'no_show', 'noshow') THEN 1 ELSE 0 END ASC,
+       CASE WHEN LOWER(COALESCE(i.status, '')) = 'to_schedule' OR i.scheduled_at IS NULL THEN 0
+            WHEN LOWER(COALESCE(i.status, '')) IN ('completed', 'cancelled', 'canceled', 'no_show', 'noshow') THEN 2
+            ELSE 1 END ASC,
        CASE WHEN LOWER(COALESCE(i.status, '')) IN ('completed', 'cancelled', 'canceled', 'no_show', 'noshow') THEN i.scheduled_at END DESC NULLS LAST,
        i.scheduled_at ASC NULLS LAST
      LIMIT $${p} OFFSET $${p + 1}`,
@@ -137,16 +140,16 @@ export async function GET(req: NextRequest) {
     sumParams.push(`%${q}%`)
     sp++
   }
-  if (mine) {
+  if (mine && !resumeId) {
     sumConditions.push(`(i.interviewer_id = $${sp} OR r.user_id = $${sp})`)
     sumParams.push(ctx.userId)
     sp++
   }
   if (dateRange) {
-    sumConditions.push(`i.scheduled_at::date >= $${sp++}::date`)
-    sumParams.push(dateRange.from)
-    sumConditions.push(`i.scheduled_at::date <= $${sp++}::date`)
-    sumParams.push(dateRange.to)
+    sumConditions.push(`(i.scheduled_at IS NULL OR (
+      i.scheduled_at::date >= $${sp++}::date AND i.scheduled_at::date <= $${sp++}::date
+    ))`)
+    sumParams.push(dateRange.from, dateRange.to)
   }
   const sumWhere = sumConditions.join(' AND ')
   const { rows: statusRows } = await pool.query<{ status: string; c: string }>(
@@ -208,14 +211,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  if (!body.resume_id || !body.candidate_name || !body.candidate_email || !body.scheduled_at) {
-    return NextResponse.json({
-      error: '`resume_id`, `candidate_name`, `candidate_email`, and `scheduled_at` are required',
-    }, { status: 422 })
+  if (!body.resume_id) {
+    return NextResponse.json({ error: '`resume_id` is required' }, { status: 422 })
+  }
+
+  const resumeRow = await pool.query<{ candidate_name: string; candidate_email: string | null }>(
+    `SELECT candidate_name, candidate_email FROM resumes WHERE id = $1 AND tenant_id = $2`,
+    [body.resume_id, ctx.tenantId],
+  )
+  if (!body.candidate_name) body.candidate_name = resumeRow.rows[0]?.candidate_name || 'Candidate'
+  if (!body.candidate_email) body.candidate_email = resumeRow.rows[0]?.candidate_email || ''
+
+  const actor = { tenantId: ctx.tenantId, userId: ctx.userId, userEmail: ctx.userEmail }
+
+  // Pending slot: no datetime — still appears on Interviews
+  if (!body.scheduled_at) {
+    const pending = await ensureInterviewForSubmission({
+      ...actor,
+      resumeId: body.resume_id,
+      jobPostId: body.job_post_id,
+      candidateName: body.candidate_name,
+      candidateEmail: body.candidate_email,
+      format: body.format,
+      notes: body.notes,
+    })
+    if (!pending) return NextResponse.json({ error: 'Could not create interview' }, { status: 500 })
+    return NextResponse.json({ interview: pending.interview }, { status: pending.created ? 201 : 200 })
   }
 
   const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRx.test(body.candidate_email)) {
+  if (body.candidate_email && !emailRx.test(body.candidate_email)) {
     return NextResponse.json({ error: 'Invalid candidate_email' }, { status: 422 })
   }
 
@@ -227,9 +252,20 @@ export async function POST(req: NextRequest) {
   const durationMins  = body.duration_minutes ?? 60
   const interviewerId = body.interviewer_id ?? ctx.userId
   const format        = body.format ?? 'video'
-  const shortId       = await newInterviewId(ctx.tenantId)
   const round         = body.round ?? 1
   const timezone      = body.timezone ?? 'Asia/Kuala_Lumpur'
+
+  const upserted = await ensureInterviewForSubmission({
+    ...actor,
+    resumeId: body.resume_id,
+    jobPostId: body.job_post_id,
+    candidateName: body.candidate_name,
+    candidateEmail: body.candidate_email,
+    scheduledAt,
+    format,
+    notes: body.notes,
+  })
+  const shortId = upserted?.interview.short_id ?? await newInterviewId(ctx.tenantId)
 
   let meetLink:        string | null = null
   let calendarEventId: string | null = null
@@ -270,9 +306,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Insert interview record (round/timezone require v22 migration — fall back if missing)
+  // Insert interview record unless cascade already created/upgraded one
   let interview: { id: string; short_id: string; scheduled_at: string; meet_link: string | null; calendar_event_id: string | null; status: string }
-  try {
+  if (upserted?.interview) {
+    interview = {
+      id: upserted.interview.id,
+      short_id: upserted.interview.short_id,
+      scheduled_at: upserted.interview.scheduled_at ?? scheduledAt.toISOString(),
+      meet_link: meetLink,
+      calendar_event_id: calendarEventId,
+      status: upserted.interview.status,
+    }
+    if (meetLink || calendarEventId) {
+      await pool.query(
+        `UPDATE interviews SET meet_link = COALESCE($1, meet_link), calendar_event_id = COALESCE($2, calendar_event_id),
+                interviewer_id = COALESCE(interviewer_id, $3), updated_at = NOW()
+         WHERE id = $4 AND tenant_id = $5`,
+        [meetLink, calendarEventId, interviewerId, interview.id, ctx.tenantId],
+      )
+    }
+  } else {
+    try {
     const { rows: inserted } = await pool.query(
       `INSERT INTO interviews
          (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
@@ -309,7 +363,10 @@ export async function POST(req: NextRequest) {
     )
     interview = inserted[0]
   }
+  }
 
+  const skipDup = Boolean(upserted && !upserted.created && !upserted.upgraded)
+  if (!skipDup) {
   await ensureAutoFollowUp({
     tenantId: ctx.tenantId,
     userId: ctx.userId,
@@ -379,6 +436,7 @@ export async function POST(req: NextRequest) {
     actorEmail: ctx.userEmail,
     reason: 'interview_scheduled',
   })
+  }
 
   try {
     await pool.query(
@@ -396,7 +454,7 @@ export async function POST(req: NextRequest) {
   } catch { /* submissions table / no matching row */ }
 
   // Send invite email to candidate
-  const sendInvite = body.send_invite !== false
+  const sendInvite = body.send_invite === true && Boolean(body.candidate_email)
   if (sendInvite) {
     const dateStr = scheduledAt.toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',

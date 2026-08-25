@@ -11,7 +11,8 @@ import { createNotification } from '@/lib/notificationCenter'
 import { upsertWorkflowInstance } from '@/lib/workflowEngine'
 import { runCollaborativeChain } from '@/lib/agentCollaboration'
 import { mergeHrOps } from '@/lib/opsList'
-import { advanceFromDomain, offerStatusToLifecycle } from '@/lib/lifecycle'
+import { advanceFromDomain, hasOtherOpenSubmissions, offerStatusToLifecycle } from '@/lib/lifecycle'
+import { closeShareForJob } from '@/lib/lifecycleCascade'
 
 export async function PATCH(
   req: NextRequest,
@@ -22,10 +23,18 @@ export async function PATCH(
   const { id } = await params
   if (!isValidUUID(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
-  const prev = await pool.query<{ status: string; resume_id: string; approval_status: string | null }>(
-    'SELECT status, resume_id, approval_status FROM offer_cases WHERE id = $1 AND tenant_id = $2',
-    [id, ctx.tenantId]
-  )
+  let prev: { rows: { status: string; resume_id: string; approval_status: string | null; submission_id?: string | null }[] }
+  try {
+    prev = await pool.query(
+      'SELECT status, resume_id, approval_status, submission_id FROM offer_cases WHERE id = $1 AND tenant_id = $2',
+      [id, ctx.tenantId],
+    )
+  } catch {
+    prev = await pool.query(
+      'SELECT status, resume_id, approval_status FROM offer_cases WHERE id = $1 AND tenant_id = $2',
+      [id, ctx.tenantId],
+    )
+  }
   if (!prev.rows[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const oldStatus = prev.rows[0].status
 
@@ -162,6 +171,7 @@ export async function PATCH(
   if (!rows[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const newStatus = rows[0].status as string
+  try {
   if (body.status !== undefined && newStatus !== oldStatus) {
     try {
       await pool.query(
@@ -265,16 +275,45 @@ export async function PATCH(
   })
 
   if (body.status !== undefined && newStatus !== oldStatus) {
-    await advanceFromDomain({
-      tenantId: ctx.tenantId,
-      resumeId: prev.rows[0].resume_id,
-      toStage: offerStatusToLifecycle(newStatus),
-      relatedEntityType: 'offer',
-      relatedEntityId: id,
-      actorUserId: ctx.userId,
-      actorEmail: ctx.userEmail,
-      reason: `offer_status:${oldStatus}->${newStatus}`,
-    })
+    if (['offer_rejected', 'cancelled', 'dropped'].includes(newStatus)) {
+      try {
+        if (prev.rows[0].submission_id) {
+          await pool.query(
+            `UPDATE submissions SET stage = 'rejected_by_candidate', updated_at = NOW()
+             WHERE id = $1 AND tenant_id = $2
+               AND stage NOT IN ('joined')`,
+            [prev.rows[0].submission_id, ctx.tenantId],
+          )
+        }
+      } catch { /* ignore */ }
+      await closeShareForJob({
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        userEmail: ctx.userEmail,
+        resumeId: prev.rows[0].resume_id,
+        submissionId: prev.rows[0].submission_id,
+        reason: `offer_${newStatus}`,
+      })
+    }
+    const nextLife = offerStatusToLifecycle(newStatus)
+    const skipPersonReject = (nextLife === 'rejected' || nextLife === 'withdrawn')
+      && await hasOtherOpenSubmissions({
+        tenantId: ctx.tenantId,
+        resumeId: prev.rows[0].resume_id,
+        exceptSubmissionId: prev.rows[0].submission_id,
+      })
+    if (!skipPersonReject) {
+      await advanceFromDomain({
+        tenantId: ctx.tenantId,
+        resumeId: prev.rows[0].resume_id,
+        toStage: nextLife,
+        relatedEntityType: 'offer',
+        relatedEntityId: id,
+        actorUserId: ctx.userId,
+        actorEmail: ctx.userEmail,
+        reason: `offer_status:${oldStatus}->${newStatus}`,
+      })
+    }
   } else if (body.joined_status === 'joined') {
     await advanceFromDomain({
       tenantId: ctx.tenantId,
@@ -286,6 +325,9 @@ export async function PATCH(
       actorEmail: ctx.userEmail,
       reason: 'joined_status:joined',
     })
+  }
+  } catch (e) {
+    console.error('[offers PATCH] side effects (update still saved)', e)
   }
 
   return NextResponse.json({ offer: rows[0] })

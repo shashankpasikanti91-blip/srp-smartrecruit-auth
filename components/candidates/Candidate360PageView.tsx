@@ -580,7 +580,7 @@ export function Candidate360PageView({
                     <Brain className="w-4 h-4" />
                     <p className="text-xs font-extrabold uppercase tracking-widest">AI Screenings</p>
                   </div>
-                  {c?.ai_screening_data && typeof c.ai_screening_data === 'object' ? (
+                  {c?.ai_screening_data && typeof c.ai_screening_data === 'object' && !Array.isArray(c.ai_screening_data) && !('error' in (c.ai_screening_data as object)) ? (
                     <ScreeningReportErrorBoundary>
                       <ScreeningReportView data={c.ai_screening_data as ScreenResult} variant="compact" showHeader briefFirst={false} />
                     </ScreeningReportErrorBoundary>

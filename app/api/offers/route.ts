@@ -13,6 +13,7 @@ import { upsertWorkflowInstance } from '@/lib/workflowEngine'
 import { resolveDateFilter, resolveMineScope, deriveDocsStatus, parseHrOps } from '@/lib/opsList'
 import { DOCUMENT_SLOTS } from '@/lib/documentStorage'
 import { advanceFromDomain, offerStatusToLifecycle } from '@/lib/lifecycle'
+import { ensureOfferForSelection } from '@/lib/lifecycleCascade'
 
 const HR_SLOTS = [...DOCUMENT_SLOTS]
 
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
     params.push(resumeId)
     p++
   }
-  if (mine) {
+  if (mine && !(resumeId && isValidUUID(resumeId))) {
     sql += ` AND o.user_id = $${p}`
     params.push(ctx.userId)
     p++
@@ -253,6 +254,42 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const resume_id = body.resume_id as string
   if (!isValidUUID(resume_id)) return NextResponse.json({ error: 'Invalid resume_id' }, { status: 400 })
+
+  const submissionId = body.submission_id && isValidUUID(body.submission_id) ? body.submission_id as string : null
+  const ensured = await ensureOfferForSelection({
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    userEmail: ctx.userEmail,
+    resumeId: resume_id,
+    submissionId,
+  })
+  if (ensured && !body.force) {
+    if (body.offer_salary || body.expected_joining || body.status) {
+      const sets: string[] = []
+      const vals: unknown[] = []
+      let i = 1
+      if (body.status) {
+        sets.push(`status = $${i++}`)
+        vals.push(normalizeOfferStatus(sanitizeText(body.status, 50) || ensured.offer.status))
+      }
+      if (body.offer_salary !== undefined) {
+        sets.push(`offer_salary = $${i++}`)
+        vals.push(sanitizeText(body.offer_salary, 120))
+      }
+      if (body.expected_joining !== undefined) {
+        sets.push(`expected_joining = $${i++}`)
+        vals.push(body.expected_joining || null)
+      }
+      sets.push('updated_at = NOW()')
+      vals.push(ensured.offer.id, ctx.tenantId)
+      const patched = await pool.query(
+        `UPDATE offer_cases SET ${sets.join(', ')} WHERE id = $${i} AND tenant_id = $${i + 1} RETURNING *`,
+        vals,
+      )
+      return NextResponse.json({ offer: patched.rows[0] ?? ensured.offer }, { status: ensured.created ? 201 : 200 })
+    }
+    return NextResponse.json({ offer: ensured.offer }, { status: ensured.created ? 201 : 200 })
+  }
 
   const shortId = await nextYearSeqId(pool, { tenantId: ctx.tenantId, table: 'offer_cases', prefix: 'OFF' })
 

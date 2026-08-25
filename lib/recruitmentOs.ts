@@ -64,6 +64,7 @@ export const SUBMISSION_STAGES = [
 export type SubmissionStage = (typeof SUBMISSION_STAGES)[number]['value']
 
 export const INTERVIEW_STATUSES = [
+  { value: 'to_schedule', label: 'To schedule' },
   { value: 'scheduled', label: 'Scheduled' },
   { value: 'rescheduled', label: 'Rescheduled' },
   { value: 'postponed', label: 'Postponed' },

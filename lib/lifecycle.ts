@@ -107,10 +107,11 @@ export function submissionStageToLifecycle(stage: string | null | undefined): Li
       return null
     case 'submitted':
     case 'client_review':
-    case 'shortlisted':
     case 'waiting_feedback':
       return 'submitted'
+    case 'shortlisted':
     case 'interview':
+    case 'interview_scheduled':
     case 'interview_completed':
       return 'interview'
     case 'selected':
@@ -136,6 +137,7 @@ export function submissionStageToLifecycle(stage: string | null | undefined): Li
 
 export function interviewStatusToLifecycle(status: string | null | undefined): LifecycleStage | null {
   switch ((status ?? '').toLowerCase()) {
+    case 'to_schedule':
     case 'scheduled':
     case 'confirmed':
     case 'rescheduled':
@@ -372,6 +374,8 @@ export async function advanceFromDomain(opts: {
   actorUserId: string
   actorEmail: string
   reason?: string
+  /** Leave rejected/withdrawn/on_hold when re-submitting the same person to another job. */
+  force?: boolean
 }): Promise<ApplyTransitionResult | null> {
   if (!opts.toStage) return null
   return applyTransition({
@@ -384,6 +388,28 @@ export async function advanceFromDomain(opts: {
     actorUserId: opts.actorUserId,
     actorEmail: opts.actorEmail,
     reason: opts.reason,
-    advanceOnly: true,
+    advanceOnly: !opts.force,
+    force: opts.force,
   })
+}
+
+const CLOSED_SUBMISSION_STAGES = [
+  'rejected', 'rejected_by_candidate', 'submission_withdrawn',
+  'position_closed', 'duplicate', 'joined',
+]
+
+/** Other open shares mean this person is still in the funnel — do not lock them as rejected. */
+export async function hasOtherOpenSubmissions(opts: {
+  tenantId: string
+  resumeId: string
+  exceptSubmissionId?: string | null
+}): Promise<boolean> {
+  const { rows } = await pool.query<{ n: string }>(
+    `SELECT COUNT(*)::text AS n FROM submissions
+     WHERE tenant_id = $1 AND resume_id = $2
+       AND ($3::uuid IS NULL OR id <> $3)
+       AND LOWER(COALESCE(stage, '')) <> ALL($4::text[])`,
+    [opts.tenantId, opts.resumeId, opts.exceptSubmissionId ?? null, CLOSED_SUBMISSION_STAGES],
+  )
+  return Number(rows[0]?.n ?? 0) > 0
 }

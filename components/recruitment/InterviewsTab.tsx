@@ -38,6 +38,7 @@ type CandPick = { id: string; short_id: string; candidate_name: string; candidat
 
 const STATUS_PILLS = [
   { id: '', label: 'All' },
+  { id: 'to_schedule', label: 'To schedule' },
   { id: 'scheduled', label: 'Scheduled' },
   { id: 'confirmed', label: 'Confirmed' },
   { id: 'awaiting_feedback', label: 'Awaiting feedback' },
@@ -303,8 +304,9 @@ export function InterviewsTab({
                 <tr><td colSpan={16} className="text-center py-10 text-slate-400">No interviews in this filter</td></tr>
               ) : rows.map(iv => {
                 const round = Number(iv.round ?? 1)
-                const d = formatIsoDate(iv.scheduled_at) || '—'
-                const t = formatIsoTime(iv.scheduled_at) || '—'
+                const pending = iv.status === 'to_schedule' || !iv.scheduled_at
+                const d = pending ? 'To schedule' : (formatIsoDate(iv.scheduled_at) || '—')
+                const t = pending ? '—' : (formatIsoTime(iv.scheduled_at) || '—')
                 const firstDate = round <= 1 ? d : '—'
                 const firstTime = round <= 1 ? t : '—'
                 const secondDate = round >= 2 ? d : '—'

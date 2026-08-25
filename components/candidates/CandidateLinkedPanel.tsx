@@ -49,6 +49,7 @@ export function CandidateLinkedPanel({
         candidateId={candidateId}
         candidateName={identity.name || 'Candidate'}
         candidateEmail={identity.email}
+        mode={kind}
       />
     )
   }

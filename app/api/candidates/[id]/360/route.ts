@@ -5,12 +5,20 @@ import { isValidUUID } from '@/lib/validate'
 import { fetchCandidateById } from '@/lib/candidateFetch'
 import { buildCandidateTimeline } from '@/lib/candidateTimeline'
 import { getCandidateDossierStatus } from '@/lib/dossierChecks'
+import { submissionStageToLifecycle } from '@/lib/lifecycle'
 import {
   ensureOwnership,
   getActiveOwnership,
   getOwnershipHistory,
   isOwnershipExpired,
 } from '@/lib/ownership'
+
+const CLOSED_SUB_STAGES = new Set([
+  'rejected', 'rejected_by_candidate', 'submission_withdrawn',
+  'position_closed', 'duplicate', 'joined', 'hold', 'withdrawn', 'no_show',
+])
+const CLOSED_IV_STATUSES = new Set(['cancelled', 'rejected', 'no_show', 'interviewer_no_show'])
+const CLOSED_OFFER_STATUSES = new Set(['cancelled', 'offer_rejected', 'dropped'])
 
 export async function GET(
   req: NextRequest,
@@ -103,17 +111,34 @@ export async function GET(
   const dossier = getCandidateDossierStatus(candidate)
   const profile = candidate.candidate_profile ?? {}
 
+  const latestOpenSub = submissions.rows.find(
+    r => !CLOSED_SUB_STAGES.has(String(r.stage ?? '').toLowerCase()),
+  )
+  const displaySub = latestOpenSub ?? submissions.rows[0]
+  const latestOpenIv = interviews.rows.find(
+    r => !CLOSED_IV_STATUSES.has(String(r.status ?? '').toLowerCase()),
+  )
+  const latestOpenOff = offers.rows.find(
+    r => !CLOSED_OFFER_STATUSES.has(String(r.status ?? '').toLowerCase()),
+  )
+  const derivedStage =
+    latestOpenOff ? 'offer'
+    : latestOpenIv ? 'interview'
+    : latestOpenSub
+      ? (submissionStageToLifecycle(String(latestOpenSub.stage)) ?? 'submitted')
+      : (submissionStageToLifecycle(displaySub?.stage) ?? candidate.pipeline_stage)
+
   const summary = {
     profile_completion: dossier.dossierPercent,
     ai_match_score: candidate.ai_score,
     resume_score: candidate.ai_score,
     communication_status: candidate.last_contacted_at ? 'Contacted' : 'No contact',
-    submission_status: submissions.rows[0]
-      ? `${submissions.rows[0].stage}${submissions.rows[0].job_title || submissions.rows[0].applying_for ? ` · ${submissions.rows[0].job_title || submissions.rows[0].applying_for}` : ''}${submissions.rows[0].client ? ` · ${submissions.rows[0].client}` : ''}${submissions.rows.length > 1 ? ` (+${submissions.rows.length - 1})` : ''}`
+    submission_status: displaySub
+      ? `${displaySub.stage}${displaySub.job_title || displaySub.applying_for ? ` · ${displaySub.job_title || displaySub.applying_for}` : ''}${displaySub.client ? ` · ${displaySub.client}` : ''}${submissions.rows.length > 1 ? ` (+${submissions.rows.length - 1})` : ''}`
       : 'None',
     submission_count: submissions.rows.length,
-    interview_status: interviews.rows[0]?.status ?? 'None',
-    offer_status: offers.rows[0]?.status ?? 'None',
+    interview_status: (latestOpenIv ?? interviews.rows[0])?.status ?? 'None',
+    offer_status: (latestOpenOff ?? offers.rows[0])?.status ?? 'None',
     documents_count: docs.rows[0]?.n ?? 0,
     notes_count: notesCount.rows[0]?.n ?? 0,
     activity_count: timeline.events?.length ?? 0,
@@ -132,7 +157,7 @@ export async function GET(
       ai_score: candidate.ai_score,
       match_category: candidate.match_category,
       status: candidate.status,
-      stage: candidate.pipeline_stage,
+      stage: derivedStage,
       lifecycle: profile.lifecycle_status ?? null,
       availability: profile.availability ?? profile.work_authorization ?? null,
       notice_period: profile.notice_period ?? null,

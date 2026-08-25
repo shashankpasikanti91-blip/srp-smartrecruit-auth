@@ -6,7 +6,15 @@ import { logAudit } from '@/lib/audit'
 import { upsertWorkflowInstance } from '@/lib/workflowEngine'
 import { writeTimeline } from '@/lib/timelineEngine'
 import { createNotification } from '@/lib/notificationCenter'
-import { advanceFromDomain, submissionStageToLifecycle } from '@/lib/lifecycle'
+import { advanceFromDomain, hasOtherOpenSubmissions, submissionStageToLifecycle } from '@/lib/lifecycle'
+import {
+  closeShareForJob,
+  ensureInterviewForSubmission,
+  ensureOfferForSelection,
+  submissionStageClosesShare,
+  submissionStageNeedsInterview,
+  submissionStageNeedsOffer,
+} from '@/lib/lifecycleCascade'
 
 async function logSubmissionHistory(
   submissionId: string,
@@ -72,8 +80,15 @@ export async function PATCH(
   const { id } = await params
   if (!isValidUUID(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
-  const prev = await pool.query<{ stage: string; resume_id: string }>(
-    'SELECT stage, resume_id FROM submissions WHERE id = $1 AND tenant_id = $2',
+  const prev = await pool.query<{
+    stage: string
+    resume_id: string
+    job_post_id: string | null
+    client_name: string | null
+    applying_for: string | null
+  }>(
+    `SELECT stage, resume_id, job_post_id, client_name, applying_for
+     FROM submissions WHERE id = $1 AND tenant_id = $2`,
     [id, ctx.tenantId]
   )
   if (!prev.rows[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -116,8 +131,12 @@ export async function PATCH(
     vals
   )
 
-  const cand = await pool.query<{ short_id: string }>(
-    'SELECT short_id FROM resumes WHERE id = $1',
+  const cand = await pool.query<{
+    short_id: string
+    candidate_name: string
+    candidate_email: string | null
+  }>(
+    'SELECT short_id, candidate_name, candidate_email FROM resumes WHERE id = $1',
     [prev.rows[0].resume_id]
   )
   const newStage = rows[0].stage as string
@@ -135,8 +154,11 @@ export async function PATCH(
     try {
     const stageTitles: Record<string, string> = {
       submitted: 'Submitted to Client',
+      client_review: 'Client Reviewing',
       client_reviewing: 'Client Reviewing',
+      shortlisted: 'Client Shortlisted',
       client_shortlisted: 'Client Shortlisted',
+      interview: 'Interview Scheduled',
       interview_scheduled: 'Interview Scheduled',
       interview_completed: 'Interview Completed',
       waiting_feedback: 'Awaiting Feedback',
@@ -147,6 +169,7 @@ export async function PATCH(
       position_closed: 'Position Closed',
       hold: 'Position On Hold',
       withdrawn: 'Submission Withdrawn',
+      submission_withdrawn: 'Submission Withdrawn',
       offer_released: 'Offer Released',
       offer_accepted: 'Offer Accepted',
       offer_declined: 'Offer Declined',
@@ -187,17 +210,63 @@ export async function PATCH(
       actorEmail: ctx.userEmail,
       detail: `${oldStage} → ${newStage}`,
     })
-    await advanceFromDomain({
+    const lifeStage = submissionStageToLifecycle(newStage)
+    const isTerminalPerson = lifeStage === 'rejected' || lifeStage === 'withdrawn' || lifeStage === 'on_hold'
+    const otherOpen = isTerminalPerson
+      ? await hasOtherOpenSubmissions({
+          tenantId: ctx.tenantId,
+          resumeId: prev.rows[0].resume_id,
+          exceptSubmissionId: id,
+        })
+      : false
+    if (!(otherOpen && isTerminalPerson)) {
+      await advanceFromDomain({
+        tenantId: ctx.tenantId,
+        resumeId: prev.rows[0].resume_id,
+        toStage: lifeStage,
+        jobPostId: rows[0].job_post_id ?? prev.rows[0].job_post_id ?? null,
+        relatedEntityType: 'submission',
+        relatedEntityId: id,
+        actorUserId: ctx.userId,
+        actorEmail: ctx.userEmail,
+        reason: `submission_stage:${oldStage}->${newStage}`,
+      })
+    }
+    const actor = {
       tenantId: ctx.tenantId,
-      resumeId: prev.rows[0].resume_id,
-      toStage: submissionStageToLifecycle(newStage),
-      jobPostId: rows[0].job_post_id ?? null,
-      relatedEntityType: 'submission',
-      relatedEntityId: id,
-      actorUserId: ctx.userId,
-      actorEmail: ctx.userEmail,
-      reason: `submission_stage:${oldStage}->${newStage}`,
-    })
+      userId: ctx.userId,
+      userEmail: ctx.userEmail,
+    }
+    const resumeId = prev.rows[0].resume_id
+    const jobPostId = (rows[0].job_post_id ?? prev.rows[0].job_post_id) as string | null
+    if (submissionStageClosesShare(newStage)) {
+      await closeShareForJob({
+        ...actor,
+        resumeId,
+        jobPostId,
+        submissionId: id,
+        reason: `submission_${newStage}`,
+      })
+    } else if (submissionStageNeedsInterview(newStage)) {
+      await ensureInterviewForSubmission({
+        ...actor,
+        resumeId,
+        jobPostId,
+        submissionId: id,
+        candidateName: cand.rows[0]?.candidate_name || 'Candidate',
+        candidateEmail: cand.rows[0]?.candidate_email,
+        notes: `From submission ${rows[0].short_id ?? id}`,
+      })
+    }
+    if (submissionStageNeedsOffer(newStage) && !submissionStageClosesShare(newStage)) {
+      await ensureOfferForSelection({
+        ...actor,
+        resumeId,
+        submissionId: id,
+        jobPostId,
+        candidateName: cand.rows[0]?.candidate_name,
+      })
+    }
     } catch (e) {
       console.error('[submissions PATCH] side effects (update still saved)', e)
     }

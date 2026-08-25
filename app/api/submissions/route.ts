@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     params.push(resumeId)
     idx++
   }
-  if (mine) {
+  if (mine && !(resumeId && isValidUUID(resumeId))) {
     conditions.push(`s.user_id = $${idx}`)
     params.push(ctx.userId)
     idx++
@@ -344,6 +344,7 @@ export async function POST(req: NextRequest) {
         actorUserId: ctx.userId,
         actorEmail: ctx.userEmail,
         reason: `submission_created:${inserted.stage}`,
+        force: true,
       })
     } catch (e) {
       console.error('[submissions POST] lifecycle (share still saved)', e)

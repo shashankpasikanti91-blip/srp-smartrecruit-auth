@@ -2285,8 +2285,7 @@ export default function DashboardPage() {
   }
 
   const moveStage = async (candidateId: string, stage: string) => {
-    const mapped = new Set(['submitted', 'interview', 'offer', 'hr_onboarding', 'joined'])
-    if (mapped.has(stage)) {
+    if (stage === 'submitted') {
       const row = candidates.find(c => c.id === candidateId) ?? selectedCandidate
       if (row) setAllocateFor(row)
       return
@@ -5842,6 +5841,7 @@ export default function DashboardPage() {
               candidateName={allocateFor.candidate_name}
               candidateEmail={allocateFor.candidate_email}
               defaultJobId={allocateFor.job_posts?.id}
+              mode="submissions"
               onChanged={() => { loadData(); setAllocateFor(null) }}
             />
           </div>

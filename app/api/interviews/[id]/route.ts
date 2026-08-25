@@ -14,7 +14,8 @@ import { writeTimeline }              from '@/lib/timelineEngine'
 import { createNotification }         from '@/lib/notificationCenter'
 import { upsertWorkflowInstance }     from '@/lib/workflowEngine'
 import { runCollaborativeChain }      from '@/lib/agentCollaboration'
-import { advanceFromDomain, interviewStatusToLifecycle } from '@/lib/lifecycle'
+import { advanceFromDomain, interviewStatusToLifecycle, hasOtherOpenSubmissions } from '@/lib/lifecycle'
+import { ensureOfferForSelection, closeShareForJob } from '@/lib/lifecycleCascade'
 
 export async function PATCH(
   req: NextRequest,
@@ -58,8 +59,9 @@ export async function PATCH(
   let p = 1
 
   const VALID_STATUSES = [
-    'scheduled', 'confirmed', 'rescheduled', 'postponed', 'completed',
-    'cancelled', 'no_show', 'selected', 'awaiting_feedback', 'rejected',
+    'to_schedule', 'scheduled', 'confirmed', 'rescheduled', 'postponed', 'completed',
+    'cancelled', 'no_show', 'interviewer_no_show', 'selected', 'awaiting_feedback',
+    'rejected', 'offer_discussion',
   ]
 
   if (body.status !== undefined) {
@@ -72,6 +74,9 @@ export async function PATCH(
     const dt = new Date(body.scheduled_at)
     if (isNaN(dt.getTime())) return NextResponse.json({ error: 'Invalid scheduled_at' }, { status: 422 })
     updates.push(`scheduled_at = $${p++}`); vals.push(dt.toISOString())
+    if (body.status === undefined && (oldStatus === 'to_schedule' || !oldStatus)) {
+      updates.push(`status = $${p++}`); vals.push('scheduled')
+    }
   }
   if (body.duration_minutes) { updates.push(`duration_minutes = $${p++}`); vals.push(body.duration_minutes) }
   if (body.notes !== undefined)    { updates.push(`notes = $${p++}`);    vals.push(body.notes) }
@@ -105,14 +110,18 @@ export async function PATCH(
     details:      { changes: body, old_status: oldStatus, new_status: newStatus },
   })
 
-  if (body.status !== undefined && newStatus !== oldStatus) {
+  if (newStatus !== oldStatus) {
+    try {
     const statusTitles: Record<string, string> = {
+      to_schedule: 'Interview — awaiting slot',
       scheduled: 'Interview Scheduled',
       confirmed: 'Interview Confirmed',
       rescheduled: 'Interview Rescheduled',
       completed: 'Interview Completed',
       cancelled: 'Interview Cancelled',
       no_show: 'Interview No-Show',
+      selected: 'Candidate Selected',
+      awaiting_feedback: 'Awaiting Interview Feedback',
     }
     await writeTimeline({
       tenantId: ctx.tenantId,
@@ -146,11 +155,11 @@ export async function PATCH(
       actorEmail: ctx.userEmail,
       detail: `${oldStatus} → ${newStatus}`,
     })
-    if (newStatus === 'completed') {
+    if (newStatus === 'completed' || newStatus === 'selected') {
       await runCollaborativeChain({
         tenantId: ctx.tenantId,
         userId: ctx.userId,
-        triggerEvent: 'interview_completed',
+        triggerEvent: newStatus === 'selected' ? 'candidate_selected' : 'interview_completed',
         resumeId: interview.resume_id,
         jobPostId: interview.job_post_id,
         entityType: 'interview',
@@ -158,17 +167,82 @@ export async function PATCH(
         candidateName: interview.candidate_name,
       })
     }
-    await advanceFromDomain({
-      tenantId: ctx.tenantId,
-      resumeId: interview.resume_id,
-      toStage: interviewStatusToLifecycle(newStatus),
-      jobPostId: interview.job_post_id,
-      relatedEntityType: 'interview',
-      relatedEntityId: id,
-      actorUserId: ctx.userId,
-      actorEmail: ctx.userEmail,
-      reason: `interview_status:${oldStatus}->${newStatus}`,
-    })
+    if (newStatus === 'rejected' || newStatus === 'no_show' || newStatus === 'cancelled') {
+      let submissionId: string | null = null
+      try {
+        const sub = await pool.query<{ id: string }>(
+          `SELECT id FROM submissions
+           WHERE tenant_id = $1 AND resume_id = $2
+             AND ($3::uuid IS NULL OR job_post_id = $3)
+           ORDER BY updated_at DESC LIMIT 1`,
+          [ctx.tenantId, interview.resume_id, interview.job_post_id],
+        )
+        submissionId = sub.rows[0]?.id ?? null
+        if (submissionId && newStatus !== 'cancelled') {
+          await pool.query(
+            `UPDATE submissions SET stage = 'rejected', updated_at = NOW()
+             WHERE id = $1 AND tenant_id = $2
+               AND stage NOT IN ('joined','submission_withdrawn')`,
+            [submissionId, ctx.tenantId],
+          )
+        }
+      } catch { /* ignore */ }
+      await closeShareForJob({
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        userEmail: ctx.userEmail,
+        resumeId: interview.resume_id,
+        jobPostId: interview.job_post_id,
+        submissionId,
+        reason: `interview_${newStatus}`,
+      })
+    }
+    if (newStatus === 'selected' || newStatus === 'offer_discussion') {
+      let submissionId: string | null = null
+      try {
+        const sub = await pool.query<{ id: string }>(
+          `SELECT id FROM submissions
+           WHERE tenant_id = $1 AND resume_id = $2
+             AND ($3::uuid IS NULL OR job_post_id = $3)
+             AND stage NOT IN ('rejected','rejected_by_candidate','submission_withdrawn','position_closed')
+           ORDER BY updated_at DESC LIMIT 1`,
+          [ctx.tenantId, interview.resume_id, interview.job_post_id],
+        )
+        submissionId = sub.rows[0]?.id ?? null
+      } catch { /* ignore */ }
+      await ensureOfferForSelection({
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        userEmail: ctx.userEmail,
+        resumeId: interview.resume_id,
+        submissionId,
+        jobPostId: interview.job_post_id,
+        interviewId: id,
+        candidateName: interview.candidate_name,
+      })
+    }
+    const nextLife = interviewStatusToLifecycle(newStatus)
+    const skipPersonReject = nextLife === 'rejected'
+      && await hasOtherOpenSubmissions({
+        tenantId: ctx.tenantId,
+        resumeId: interview.resume_id,
+      })
+    if (!skipPersonReject) {
+      await advanceFromDomain({
+        tenantId: ctx.tenantId,
+        resumeId: interview.resume_id,
+        toStage: nextLife,
+        jobPostId: interview.job_post_id,
+        relatedEntityType: 'interview',
+        relatedEntityId: id,
+        actorUserId: ctx.userId,
+        actorEmail: ctx.userEmail,
+        reason: `interview_status:${oldStatus}->${newStatus}`,
+      })
+    }
+    } catch (e) {
+      console.error('[interviews PATCH] side effects (update still saved)', e)
+    }
   }
 
   return NextResponse.json({ interview: updated[0] })

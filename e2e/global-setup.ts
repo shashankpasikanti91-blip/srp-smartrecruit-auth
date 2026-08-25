@@ -50,16 +50,40 @@ export default async function globalSetup() {
   const context = await browser.newContext({ baseURL: origin })
   const page = await context.newPage()
 
-  // Warm auth + dashboard so Turbopack compile doesn't eat the sign-in click
-  await page.request.get('/api/auth/csrf').catch(() => {})
-  await page.request.get('/api/auth/providers').catch(() => {})
-  await page.request.get('/api/auth/session').catch(() => {})
-
   try {
+    const csrfRes = await page.request.get('/api/auth/csrf')
+    const csrfJson = await csrfRes.json().catch(() => ({}))
+    const csrfToken = csrfJson?.csrfToken as string | undefined
+    if (csrfToken) {
+      const loginRes = await page.request.post('/api/auth/callback/credentials', {
+        form: {
+          csrfToken,
+          email,
+          password,
+          json: 'true',
+          callbackUrl: `${origin}/dashboard`,
+        },
+      })
+      const sessionRes = await page.request.get('/api/auth/session')
+      const session = await sessionRes.json().catch(() => ({}))
+      if (sessionRes.ok() && session?.user) {
+        await context.storageState({ path: authFile })
+        await browser.close()
+        console.log(`[e2e global-setup] Saved storage state → ${authFile}`)
+        return
+      }
+      console.warn(
+        `[e2e global-setup] Credentials callback ${loginRes.status()}; falling back to UI login.`,
+      )
+    }
+
     await fillCredentials(page, email, password)
     await page.getByText('Compiling...').waitFor({ state: 'hidden', timeout: 90_000 }).catch(() => {})
-    await page.getByRole('button', { name: /Sign in to SmartRecruit/i }).click()
+    await page.getByTestId('login-submit').click()
     await page.waitForURL(/\/dashboard/, { timeout: 90_000, waitUntil: 'commit' })
+    await context.storageState({ path: authFile })
+    await browser.close()
+    console.log(`[e2e global-setup] Saved storage state → ${authFile}`)
   } catch {
     const invalid = await page.locator('text=Invalid email or password').isVisible().catch(() => false)
     const enterCreds = await page.getByText(/Please enter your email and password/i).isVisible().catch(() => false)
@@ -71,11 +95,5 @@ export default async function globalSetup() {
       `[e2e global-setup] Login did not reach /dashboard (invalid=${invalid}, emptyFields=${enterCreds}). ` +
         `Snippet: ${bodyText.replace(/\s+/g, ' ').slice(0, 200)}`,
     )
-    return
   }
-
-  await context.storageState({ path: authFile })
-  await browser.close()
-
-  console.log(`[e2e global-setup] Saved storage state → ${authFile}`)
 }
