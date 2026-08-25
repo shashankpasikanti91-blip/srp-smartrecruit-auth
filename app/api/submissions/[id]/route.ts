@@ -60,8 +60,15 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const ctx = await requireTenant(req, 'candidates.update')
+  const ctx = await requireTenant(req)
   if (ctx instanceof NextResponse) return ctx
+  const canPatch =
+    ctx.permissions.candidates.update
+    || ctx.permissions.pipeline.update
+    || ctx.permissions.candidates.create
+  if (!canPatch) {
+    return NextResponse.json({ error: 'Forbidden: you cannot update submissions' }, { status: 403 })
+  }
   const { id } = await params
   if (!isValidUUID(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
@@ -125,6 +132,7 @@ export async function PATCH(
   })
 
   if (newStage !== oldStage) {
+    try {
     const stageTitles: Record<string, string> = {
       submitted: 'Submitted to Client',
       client_reviewing: 'Client Reviewing',
@@ -190,6 +198,9 @@ export async function PATCH(
       actorEmail: ctx.userEmail,
       reason: `submission_stage:${oldStage}->${newStage}`,
     })
+    } catch (e) {
+      console.error('[submissions PATCH] side effects (update still saved)', e)
+    }
   }
 
   return NextResponse.json({ submission: rows[0] })

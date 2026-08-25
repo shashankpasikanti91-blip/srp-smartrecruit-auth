@@ -5,24 +5,36 @@
 
 /** Year-sequence short IDs: SUB-2026-000234 */
 export async function nextYearSeqId(
-  pool: { query: (sql: string, params?: unknown[]) => Promise<{ rows: { n: string }[] }> },
+  pool: { query: (sql: string, params?: unknown[]) => Promise<{ rows: { n?: string }[] }> },
   opts: { tenantId: string; table: string; prefix: 'SUB' | 'INT' | 'OFF' | 'FOL' },
 ): Promise<string> {
   const year = new Date().getFullYear()
   const like = `${opts.prefix}-${year}-%`
+  const table = ['submissions', 'interviews', 'offer_cases', 'follow_ups', 'offers'].includes(opts.table)
+    ? opts.table
+    : 'submissions'
+  const lockKey = `srp_year_seq_${opts.prefix}_${year}`
   try {
+    await pool.query('SELECT pg_advisory_lock(hashtext($1))', [lockKey])
+    // short_id is globally UNIQUE — sequence must be global, not per-tenant,
+    // or tenant B's SUB-2026-000001 collides with tenant A and POST returns 500.
     const { rows } = await pool.query(
-      `SELECT COUNT(*)::text AS n FROM ${opts.table}
-       WHERE tenant_id = $1 AND short_id LIKE $2`,
-      [opts.tenantId, like],
+      `SELECT COALESCE(MAX(
+         CASE WHEN short_id ~ $2 THEN substring(short_id from '([0-9]+)$')::int ELSE 0 END
+       ), 0)::text AS n
+       FROM ${table}
+       WHERE short_id LIKE $1`,
+      [like, `^${opts.prefix}-${year}-[0-9]+$`],
     )
     const seq = String(parseInt(rows[0]?.n ?? '0', 10) + 1).padStart(6, '0')
     return `${opts.prefix}-${year}-${seq}`
   } catch {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-    let id = `${opts.prefix}-`
+    let id = `${opts.prefix}-${year}-`
     for (let i = 0; i < 6; i++) id += chars[Math.floor(Math.random() * chars.length)]
     return id
+  } finally {
+    await pool.query('SELECT pg_advisory_unlock(hashtext($1))', [lockKey]).catch(() => undefined)
   }
 }
 

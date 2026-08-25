@@ -41,6 +41,7 @@ test.describe('Candidate submit mapping', () => {
       submit.ok() || submit.status() === 409,
       JSON.stringify(submitJson),
     ).toBeTruthy()
+    expect(submit.status(), JSON.stringify(submitJson)).not.toBe(500)
 
     const three60 = await request.get(`/api/candidates/${cand.id}/360`)
     expect(three60.ok()).toBeTruthy()

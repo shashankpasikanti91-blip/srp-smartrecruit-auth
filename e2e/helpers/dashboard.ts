@@ -5,6 +5,7 @@ export const DASHBOARD_TABS: { label: string; heading: string | RegExp }[] = [
   { label: 'Dashboard', heading: /Dashboard|Workspace|Recruitment|Overview|My Workspace/i },
   { label: 'Jobs', heading: /Job/i },
   { label: 'Candidates', heading: /Candidates/i },
+  { label: 'Internal Talent Pool', heading: /Internal Talent|Talent Pool/i },
   { label: 'Clients', heading: /Clients/i },
   { label: 'Submissions', heading: /Client Submissions|Submissions/i },
   { label: 'Interviews', heading: /Interview Scheduling|Interviews/i },

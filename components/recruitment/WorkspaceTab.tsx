@@ -196,8 +196,6 @@ export function WorkspaceTab({
     'Time To Hire',
     'Offer Accept %',
     'Fill Rate',
-    'Pipeline Conv. %',
-    'Interview Conv. %',
   ])
 
   const recruiterKpis = kpis.filter(c => !MANAGEMENT_KPI_LABELS.has(c.label))
@@ -253,7 +251,7 @@ export function WorkspaceTab({
         </div>
       )}
 
-      <div className="kpi-grid">
+      <div className="kpi-grid" data-testid="recruiter-kpi-grid">
         {recruiterKpis.map(c => (
           <KpiGradientCard
             key={c.label}
@@ -271,6 +269,8 @@ export function WorkspaceTab({
                 Submissions: 'submissions',
                 Interviews: 'interviews',
                 Offers: 'selected',
+                'Pipeline Conv. %': 'submissions',
+                'Interview Conv. %': 'interviews',
                 'Pending Documents': 'documents',
                 'Follow-ups overdue': 'followups',
               }
@@ -285,7 +285,7 @@ export function WorkspaceTab({
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#166534]">Team KPIs</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {teamKpis.map(c => (
               <KpiGradientCard
                 key={c.label}

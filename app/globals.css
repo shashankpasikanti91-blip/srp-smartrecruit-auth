@@ -487,12 +487,6 @@ aside ::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.7); }
 @media (min-width: 640px) {
   .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (min-width: 1024px) {
-  .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
-@media (min-width: 1280px) {
-  .kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-}
 .kpi-grid > * { height: 100%; }
 
 /* Option / tool card equal grid (3 columns) */

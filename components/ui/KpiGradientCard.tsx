@@ -55,6 +55,7 @@ export function KpiGradientCard({
         type="button"
         onClick={onClick}
         className={`${cls} text-left w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]`}
+        data-testid={`kpi-card-${label}`}
       >
         {body}
       </button>

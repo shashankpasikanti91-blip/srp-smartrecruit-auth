@@ -193,17 +193,29 @@ export function CandidateAuditPanel({ candidateId }: { candidateId: string }) {
 export function CandidateJobsPanel({ candidateId }: { candidateId: string }) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([])
   const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       setLoading(true)
+      setErr(null)
       try {
         const res = await fetch(`/api/candidates/${candidateId}/jobs`)
-        const data = await res.json()
-        if (!cancelled) setRows(data.jobs ?? [])
+        const data = await res.json().catch(() => ({}))
+        if (!cancelled) {
+          if (!res.ok) {
+            setErr(typeof data.error === 'string' ? data.error : 'Could not load jobs applied')
+            setRows([])
+          } else {
+            setRows(data.jobs ?? data.shares ?? [])
+          }
+        }
       } catch {
-        if (!cancelled) setRows([])
+        if (!cancelled) {
+          setErr('Could not load jobs applied')
+          setRows([])
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -213,6 +225,10 @@ export function CandidateJobsPanel({ candidateId }: { candidateId: string }) {
 
   if (loading) {
     return <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-indigo-600" /></div>
+  }
+
+  if (err) {
+    return <p className="px-5 py-8 text-sm font-medium text-rose-600 text-center">{err}</p>
   }
 
   if (rows.length === 0) {
