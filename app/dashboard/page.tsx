@@ -1203,7 +1203,7 @@ function IntegrationsTab() {
                 { num: '1', title: 'Choose a connector', desc: 'Click any card below. Cards marked "Soon" are coming in the next update.' },
                 { num: '2', title: 'Enter your API key', desc: 'Get the API key from that platform\'s settings page. Paste it in the form and save.' },
                 { num: '3', title: 'Toggle it on', desc: 'Use the On/Off button to activate or pause the connection anytime without losing credentials.' },
-                { num: '4', title: 'It works automatically', desc: 'Once active, SmartRecruit uses it — e.g. n8n triggers fire after every screening, email providers send your Compose drafts.' },
+                { num: '4', title: 'Use the connection', desc: 'Email and WhatsApp send from Compose when that provider is connected. n8n stores your webhook for workflows you run — it does not auto-fire after screening.' },
               ].map(step => (
                 <div key={step.num} className="flex items-start gap-2 bg-white rounded-lg px-3 py-2.5 border border-blue-100">
                   <span className="w-5 h-5 rounded-full bg-[#166534] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step.num}</span>
@@ -1216,7 +1216,7 @@ function IntegrationsTab() {
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">📋 Naukri — post & import jobs</span>
-              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">⚡ n8n — automate your pipeline</span>
+              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">n8n — your webhook, your workflows</span>
               <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">📧 Gmail / Outlook — send from Compose</span>
               <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">💬 WhatsApp — candidate notifications</span>
             </div>
