@@ -83,7 +83,7 @@ export function Candidate360TabBar({
   const tabs: Candidate360Tab[] = [
     'profile',
     'record',
-    ...(hasAiData ? (['ai'] as const) : []),
+    'ai',
     'resume',
     'documents',
     'jobs',
@@ -102,9 +102,9 @@ export function Candidate360TabBar({
   ]
 
   return (
-    <div className="flex flex-wrap border-b border-slate-200 gap-x-0.5 bg-white px-1 sticky top-0 z-10">
+    <div className="flex flex-nowrap overflow-x-auto border-b border-slate-200 gap-x-0.5 bg-white px-1 sticky top-0 z-10">
       {tabs.map(t => (
-        <button key={t} type="button" onClick={() => onTabChange(t)}
+        <button key={t} type="button" data-testid={`c360-tab-${t}`} onClick={() => onTabChange(t)}
           className={`relative px-3 py-2.5 text-xs font-black tracking-tight transition-all whitespace-nowrap rounded-t-lg ${
             tab === t
               ? 'text-indigo-800 bg-indigo-50 border-b-2 border-indigo-600'
@@ -112,7 +112,10 @@ export function Candidate360TabBar({
           }`}>
           {TAB_LABELS[t]}
           {t === 'record' && recordWarn && (
-            <span className="absolute top-1.5 right-0.5 w-2 h-2 rounded-full bg-amber-400 shadow shadow-amber-300/80" title="Missing recommended ATS fields" />
+            <span className="absolute top-1.5 right-0.5 w-2 h-2 rounded-full bg-amber-400" title="Missing recommended ATS fields" />
+          )}
+          {t === 'ai' && hasAiData && (
+            <span className="absolute top-1.5 right-0.5 w-2 h-2 rounded-full bg-violet-500" title="Screening on file" />
           )}
         </button>
       ))}

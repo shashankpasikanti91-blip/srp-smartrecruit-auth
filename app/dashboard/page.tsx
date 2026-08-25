@@ -2947,7 +2947,7 @@ export default function DashboardPage() {
             </button>
           )}
 
-          <nav className="flex-1 px-2 py-2.5 space-y-0.5 overflow-y-auto min-h-0" aria-label="Main">
+          <nav className="flex-1 px-2 py-2.5 space-y-0.5 overflow-y-auto min-h-0" aria-label="Workspace">
             {(['recruitment', 'ai', 'ops'] as const).map(section => {
               if (section === 'ai') {
                 return (
@@ -3508,7 +3508,7 @@ export default function DashboardPage() {
                           {showCandCol('name') && <th>Name</th>}
                           {showCandCol('phone') && <th>Phone</th>}
                           {showCandCol('email') && <th>Email</th>}
-                          {showCandCol('nric') && <th>National ID</th>}
+                          {showCandCol('nric') && <th>NRIC</th>}
                           {showCandCol('client') && <th>Client</th>}
                           {showCandCol('hire_type') && <th>Hire Type</th>}
                           {showCandCol('applying_for') && <th>Applying For</th>}

@@ -188,7 +188,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             </button>
           </div>
 
-          <nav className="flex-1 px-2 py-2.5 space-y-0.5 overflow-y-auto min-h-0" aria-label="Main">
+          <nav className="flex-1 px-2 py-2.5 space-y-0.5 overflow-y-auto min-h-0" aria-label="Workspace">
             {(['recruitment', 'ops'] as const).map(section => {
               const items = sidebarNavItems.filter(i => i.section === section)
               if (items.length === 0) return null

@@ -17,9 +17,9 @@ test.describe('Candidates tracker filters', () => {
   })
 
   test('shows ID column in table', async ({ page }) => {
-    const table = page.locator('.ent-table')
+    const table = page.locator('.ent-table').first()
     await expect(table).toBeVisible({ timeout: 15_000 })
-    await expect(table.getByRole('columnheader', { name: 'ID' })).toBeVisible()
+    await expect(table.getByRole('columnheader', { name: 'ID', exact: true })).toBeVisible()
   })
 
   test('search input accepts RES-ID placeholder hint', async ({ page }) => {
@@ -110,17 +110,14 @@ test.describe('Candidates tracker filters', () => {
 
     await page.locator('.ent-table tbody tr').first().click()
     await expect(page).toHaveURL(/\/dashboard\/candidates\/[0-9a-f-]{36}/i, { timeout: 15_000 })
-    await expect(page.getByRole('button', { name: /Documents|Timeline|Notes|Overview/i }).first()).toBeVisible({
-      timeout: 15_000,
-    })
-    const docsBtn = page.getByRole('button', { name: /^Documents$/i }).or(page.getByRole('tab', { name: /Documents/i }))
-    if (await docsBtn.first().isVisible().catch(() => false)) {
-      await docsBtn.first().click()
-    }
-    const timelineBtn = page.getByRole('button', { name: /^Timeline$/i }).or(page.getByRole('tab', { name: /Timeline/i }))
-    if (await timelineBtn.first().isVisible().catch(() => false)) {
-      await timelineBtn.first().click()
-    }
+
+    const panel = page.getByRole('main')
+    const docs = panel.getByTestId('c360-tab-documents').or(panel.getByRole('button', { name: /^Documents$/i }))
+    const timeline = panel.getByTestId('c360-tab-timeline').or(panel.getByRole('button', { name: /^Timeline$/i }))
+    await expect(docs).toBeVisible({ timeout: 15_000 })
+    await expect(timeline).toBeVisible()
+    await docs.click()
+    await timeline.click()
     await expect(page).toHaveURL(/\/dashboard\/candidates\//)
   })
 })
