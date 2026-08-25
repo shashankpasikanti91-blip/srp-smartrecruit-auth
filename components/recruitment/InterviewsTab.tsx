@@ -5,7 +5,7 @@ import { Calendar, Loader2, Plus, X } from 'lucide-react'
 import { ScrollableTable } from '@/components/dashboard/ScrollableTable'
 import { OpsListChrome } from '@/components/recruitment/OpsListChrome'
 import { EntityIdLink } from '@/components/ui/EntityIdLink'
-import { INTERVIEW_STATUSES, labelFor } from '@/lib/recruitmentOs'
+import { INTERVIEW_STATUSES } from '@/lib/recruitmentOs'
 import { presetToRange, type DatePreset } from '@/lib/datePresets'
 import { formatExpYears, formatIsoDate, formatIsoTime } from '@/lib/opsList'
 import { formatPhoneInternational } from '@/lib/phoneFormat'
@@ -277,30 +277,31 @@ export function InterviewsTab({
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-indigo-600" /></div>
       ) : (
         <ScrollableTable stickyX>
-          <table className="ent-table w-full">
+          <table className="ent-table">
             <thead>
               <tr>
-                <th className="font-extrabold">Cand. ID</th>
-                <th className="font-extrabold">1st Date</th>
-                <th className="font-extrabold">1st Time</th>
-                <th className="font-extrabold">2nd Date</th>
-                <th className="font-extrabold">2nd Time</th>
-                <th className="font-extrabold">Name</th>
-                <th className="font-extrabold">Phone</th>
-                <th className="font-extrabold">Email</th>
-                <th className="font-extrabold">Client / Project</th>
-                <th className="font-extrabold">Position</th>
-                <th className="font-extrabold">Exp.</th>
-                <th className="font-extrabold">Current Sal.</th>
-                <th className="font-extrabold">Expected Sal.</th>
-                <th className="font-extrabold">Feedback</th>
-                <th className="font-extrabold">Actions</th>
+                <th className="col-id">Cand. ID</th>
+                <th className="col-id">Int. ID</th>
+                <th className="col-date">1st Date</th>
+                <th className="col-date">1st Time</th>
+                <th className="col-date">2nd Date</th>
+                <th className="col-date">2nd Time</th>
+                <th className="col-name">Name</th>
+                <th className="col-phone">Phone</th>
+                <th className="col-email">Email</th>
+                <th className="col-client">Client / Project</th>
+                <th className="col-role">Position</th>
+                <th className="col-num">Exp.</th>
+                <th className="col-num">Current Sal.</th>
+                <th className="col-num">Expected Sal.</th>
+                <th className="col-status">Feedback</th>
+                <th className="col-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={15} className="text-center py-10 text-slate-400">No interviews in this filter</td></tr>
-              ) : rows.map((iv, i) => {
+                <tr><td colSpan={16} className="text-center py-10 text-slate-400">No interviews in this filter</td></tr>
+              ) : rows.map(iv => {
                 const round = Number(iv.round ?? 1)
                 const d = formatIsoDate(iv.scheduled_at) || '—'
                 const t = formatIsoTime(iv.scheduled_at) || '—'
@@ -308,57 +309,53 @@ export function InterviewsTab({
                 const firstTime = round <= 1 ? t : '—'
                 const secondDate = round >= 2 ? d : '—'
                 const secondTime = round >= 2 ? t : '—'
-                const fbText = typeof iv.feedback === 'string' && iv.feedback
-                  ? iv.feedback
-                  : labelFor(INTERVIEW_STATUSES, iv.status)
                 return (
-                  <tr key={iv.id} className={i % 2 ? 'bg-slate-50/70' : ''}>
-                    <td>
+                  <tr key={iv.id}>
+                    <td className="col-id">
                       <EntityIdLink
                         kind="candidate"
                         id={iv.candidate_short_id}
                         onClick={iv.resume_id || iv.candidate_short_id ? () => onOpenCandidate?.(iv.resume_id || iv.candidate_short_id!) : undefined}
                       />
-                      <p className="text-[10px] font-mono text-slate-400 mt-0.5">
-                        <EntityIdLink kind="interview" id={iv.short_id} onClick={() => openEdit(iv)} />
-                      </p>
                     </td>
-                    <td className="text-xs whitespace-nowrap">{firstDate}</td>
-                    <td className="text-xs whitespace-nowrap">{firstTime}</td>
-                    <td className="text-xs whitespace-nowrap">{secondDate}</td>
-                    <td className="text-xs whitespace-nowrap">{secondTime}</td>
-                    <td>
+                    <td className="col-id">
+                      <EntityIdLink kind="interview" id={iv.short_id} onClick={() => openEdit(iv)} />
+                    </td>
+                    <td className="col-date">{firstDate}</td>
+                    <td className="col-date">{firstTime}</td>
+                    <td className="col-date">{secondDate}</td>
+                    <td className="col-date">{secondTime}</td>
+                    <td className="col-name">
                       <button
                         type="button"
-                        className="text-left font-bold text-sm text-indigo-700 hover:underline"
+                        className="text-left font-semibold text-[13px] text-slate-900 hover:text-indigo-700"
                         onClick={() => (iv.resume_id || iv.candidate_short_id) && onOpenCandidate?.(iv.resume_id || iv.candidate_short_id!)}
                       >
                         {iv.candidate_name}
                       </button>
                     </td>
-                    <td className="text-xs whitespace-nowrap">{formatPhoneInternational(iv.candidate_phone) || iv.candidate_phone || '—'}</td>
-                    <td className="text-xs max-w-[160px] truncate" title={iv.candidate_email || ''}>{iv.candidate_email || '—'}</td>
-                    <td className="text-sm max-w-[180px] truncate" title={iv.job_client_name || ''}>{iv.job_client_name || '—'}</td>
-                    <td className="text-sm max-w-[140px] truncate">{iv.job_title || '—'}</td>
-                    <td className="text-xs">{formatExpYears(iv.years_experience)}</td>
-                    <td className="text-xs">{iv.current_salary || '—'}</td>
-                    <td className="text-xs">{iv.expected_salary || '—'}</td>
-                    <td>
+                    <td className="col-phone">{formatPhoneInternational(iv.candidate_phone) || iv.candidate_phone || '—'}</td>
+                    <td className="col-email">{iv.candidate_email || '—'}</td>
+                    <td className="col-client">{iv.job_client_name || '—'}</td>
+                    <td className="col-role">{iv.job_title || '—'}</td>
+                    <td className="col-num">{formatExpYears(iv.years_experience)}</td>
+                    <td className="col-num">{iv.current_salary || '—'}</td>
+                    <td className="col-num">{iv.expected_salary || '—'}</td>
+                    <td className="col-status" onClick={e => e.stopPropagation()}>
                       <select
                         value={iv.status}
                         onChange={e => patchInterview(iv.id, { status: e.target.value })}
-                        className="text-xs rounded-lg border border-slate-200 px-2 py-1 bg-white appearance-none max-w-[130px] mb-1 block"
+                        className="text-xs font-semibold rounded-full border border-slate-200 px-2 py-0.5 bg-white appearance-none"
                       >
                         {INTERVIEW_STATUSES.map(s => (
                           <option key={s.value} value={s.value}>{s.label}</option>
                         ))}
                       </select>
-                      <p className="text-[10px] text-slate-500 truncate max-w-[140px]" title={fbText}>{fbText}</p>
                     </td>
-                    <td className="space-x-1 whitespace-nowrap">
+                    <td className="col-actions">
                       <button type="button" onClick={() => openEdit(iv)} className="text-xs font-bold text-indigo-600 hover:underline">Edit</button>
                       {iv.status !== 'cancelled' && (
-                        <button type="button" onClick={() => cancelInterview(iv.id)} className="text-xs text-red-600 hover:underline">Cancel</button>
+                        <button type="button" onClick={() => cancelInterview(iv.id)} className="ml-2 text-xs text-red-600 hover:underline">Cancel</button>
                       )}
                     </td>
                   </tr>

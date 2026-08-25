@@ -346,28 +346,29 @@ export function SelectedPipelineTab({
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-indigo-600" /></div>
       ) : subView === 'docs' ? (
         <ScrollableTable stickyX>
-          <table className="ent-table w-full">
+          <table className="ent-table">
             <thead>
               <tr>
-                <th className="font-extrabold">Emp./Cand. ID</th>
-                <th className="font-extrabold">Name</th>
-                <th className="font-extrabold">Phone</th>
-                <th className="font-extrabold">Email</th>
-                <th className="font-extrabold">Client / Project</th>
-                <th className="font-extrabold">Position</th>
-                <th className="font-extrabold">Exp</th>
-                <th className="font-extrabold">Current Sal.</th>
-                <th className="font-extrabold">Expected Sal.</th>
-                <th className="font-extrabold">Interview feedback</th>
-                <th className="font-extrabold">Docs status</th>
-                <th className="font-extrabold">Slots filled</th>
-                <th className="font-extrabold">Actions</th>
+                <th className="col-id">Emp./Cand. ID</th>
+                <th className="col-id">Offer ID</th>
+                <th className="col-name">Name</th>
+                <th className="col-phone">Phone</th>
+                <th className="col-email">Email</th>
+                <th className="col-client">Client / Project</th>
+                <th className="col-role">Position</th>
+                <th className="col-num">Exp</th>
+                <th className="col-num">Current Sal.</th>
+                <th className="col-num">Expected Sal.</th>
+                <th className="col-text">Interview feedback</th>
+                <th className="col-status">Docs status</th>
+                <th className="col-status">Slots filled</th>
+                <th className="col-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
               {offers.length === 0 ? (
-                <tr><td colSpan={13} className="text-center py-10 text-slate-400">No selected / docs cases</td></tr>
-              ) : offers.map((o, i) => {
+                <tr><td colSpan={14} className="text-center py-10 text-slate-400">No selected / docs cases</td></tr>
+              ) : offers.map(o => {
                 const filled = typeof o.slots_filled === 'number' ? o.slots_filled : 0
                 const requiredTotal = checklistItems.filter(i => i.required).length
                 const total = typeof o.slots_total === 'number' && o.slots_total > 0
@@ -376,50 +377,52 @@ export function SelectedPipelineTab({
                 const pct = total ? Math.min(100, Math.round((filled / total) * 100)) : 0
                 const missingRequired = checklistItems.filter(i => i.required).map(i => i.label)
                 return (
-                  <tr key={o.id} className={i % 2 ? 'bg-slate-50/70' : ''}>
-                    <td>
+                  <tr key={o.id}>
+                    <td className="col-id">
                       <EntityIdLink kind="candidate" id={o.candidate_short_id} onClick={() => onOpenCandidate?.(o.candidate_short_id)} />
                     </td>
-                    <td>
-                      <button type="button" className="text-left text-indigo-700 hover:underline font-bold text-sm"
+                    <td className="col-id">
+                      <EntityIdLink kind="offer" id={o.short_id} onClick={() => setDocsOffer(o)} />
+                    </td>
+                    <td className="col-name">
+                      <button type="button" className="text-left font-semibold text-[13px] text-slate-900 hover:text-indigo-700"
                         onClick={() => onOpenCandidate?.(o.candidate_short_id)}>
                         {o.candidate_name}
                       </button>
                     </td>
-                    <td className="text-xs whitespace-nowrap">{formatPhoneInternational(o.candidate_phone) || o.candidate_phone || '—'}</td>
-                    <td className="text-xs max-w-[150px] truncate" title={o.candidate_email || ''}>{o.candidate_email || '—'}</td>
-                    <td className="text-sm max-w-[180px] truncate" title={clientOf(o)}>{clientOf(o)}</td>
-                    <td className="text-sm max-w-[140px] truncate">{positionOf(o)}</td>
-                    <td className="text-xs">{formatExpYears(o.years_experience)}</td>
-                    <td className="text-xs">{o.current_salary || '—'}</td>
-                    <td className="text-xs">{o.expected_salary || o.offer_salary || '—'}</td>
-                    <td className="text-xs max-w-[140px] truncate" title={o.interview_feedback_text || ''}>
+                    <td className="col-phone">{formatPhoneInternational(o.candidate_phone) || o.candidate_phone || '—'}</td>
+                    <td className="col-email">{o.candidate_email || '—'}</td>
+                    <td className="col-client">{clientOf(o)}</td>
+                    <td className="col-role">{positionOf(o)}</td>
+                    <td className="col-num">{formatExpYears(o.years_experience)}</td>
+                    <td className="col-num">{o.current_salary || '—'}</td>
+                    <td className="col-num">{o.expected_salary || o.offer_salary || '—'}</td>
+                    <td className="col-text" title={o.interview_feedback_text || ''}>
                       {o.interview_feedback_text || '—'}
                     </td>
-                    <td>
+                    <td className="col-status">
                       <select
                         value={o.docs_status ?? 'not_started'}
                         onChange={e => patchOffer(o.id, { docs_status: e.target.value })}
-                        className="text-xs rounded-lg border border-slate-200 px-2 py-1 bg-white appearance-none max-w-[160px]"
+                        className="text-xs font-semibold rounded-full border border-slate-200 px-2 py-0.5 bg-white appearance-none"
                       >
                         {DOCS_STATUS_OPTIONS.map(d => (
                           <option key={d.value} value={d.value}>{d.label}</option>
                         ))}
                       </select>
                     </td>
-                    <td title={missingRequired.length ? `Required for ${country}: ${missingRequired.join(', ')}` : `Checklist: ${country}`}>
+                    <td className="col-status" title={missingRequired.length ? `Required for ${country}: ${missingRequired.join(', ')}` : `Checklist: ${country}`}>
                       <div className="w-24 h-2 rounded-full bg-slate-100 overflow-hidden mb-1">
                         <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
                       </div>
                       <span className="text-xs font-bold text-slate-600">{pct}% · {filled}/{total}</span>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{country} checklist</p>
                     </td>
-                    <td className="whitespace-nowrap space-x-2">
+                    <td className="col-actions">
                       <button type="button" className="text-xs font-bold text-indigo-700 hover:underline"
                         onClick={() => setDocsOffer(o)}>
                         Docs
                       </button>
-                      <button type="button" className="text-xs font-bold text-slate-600 hover:underline"
+                      <button type="button" className="ml-2 text-xs font-bold text-slate-600 hover:underline"
                         onClick={() => onOpenCandidate?.(o.candidate_short_id)}>
                         View
                       </button>
@@ -432,63 +435,51 @@ export function SelectedPipelineTab({
         </ScrollableTable>
       ) : (
         <ScrollableTable stickyX>
-          <table className="ent-table w-full">
+          <table className="ent-table">
             <thead>
               <tr>
-                <th className="font-extrabold">Open</th>
-                <th className="font-extrabold">Emp / Cand. ID</th>
-                <th className="font-extrabold">Name</th>
-                <th className="font-extrabold">Phone</th>
-                <th className="font-extrabold">Email</th>
-                <th className="font-extrabold">Client (Full)</th>
-                <th className="font-extrabold">Position</th>
-                <th className="font-extrabold">Exp</th>
-                <th className="font-extrabold">Current Sal.</th>
-                <th className="font-extrabold">Expected Sal.</th>
-                <th className="font-extrabold">DOJ</th>
-                <th className="font-extrabold">HR discussion</th>
-                <th className="font-extrabold">Budget OK</th>
-                <th className="font-extrabold">Offer letter</th>
-                <th className="font-extrabold">Joined status</th>
-                <th className="font-extrabold">Joined date</th>
-                <th className="font-extrabold">HR Ops</th>
+                <th className="col-id">Offer ID</th>
+                <th className="col-id">Emp / Cand. ID</th>
+                <th className="col-name">Name</th>
+                <th className="col-phone">Phone</th>
+                <th className="col-email">Email</th>
+                <th className="col-client">Client (Full)</th>
+                <th className="col-role">Position</th>
+                <th className="col-num">Exp</th>
+                <th className="col-num">Current Sal.</th>
+                <th className="col-num">Expected Sal.</th>
+                <th className="col-date">DOJ</th>
+                <th className="col-status">HR discussion</th>
+                <th className="col-num">Budget OK</th>
+                <th className="col-status">Offer letter</th>
+                <th className="col-status">Joined status</th>
+                <th className="col-date">Joined date</th>
+                <th className="col-actions">HR Ops</th>
               </tr>
             </thead>
             <tbody>
               {offers.length === 0 ? (
                 <tr><td colSpan={17} className="text-center py-10 text-slate-400">No HR / offer cases</td></tr>
-              ) : offers.map((o, i) => (
-                <tr key={o.id} className={i % 2 ? 'bg-slate-50/70' : ''}>
-                  <td>
-                    <button
-                      type="button"
-                      className="text-xs font-bold text-indigo-700 hover:underline"
-                      onClick={() => setExpandedId(expandedId === o.id ? null : o.id)}
-                      title={o.short_id || 'Open offer'}
-                    >
-                      Open
-                    </button>
-                    {o.short_id ? (
-                      <p className="text-[10px] font-mono text-slate-400 mt-0.5">
-                        <EntityIdLink kind="offer" id={o.short_id} onClick={() => setExpandedId(o.id)} />
-                      </p>
-                    ) : null}
+              ) : offers.map(o => (
+                <tr key={o.id}>
+                  <td className="col-id">
+                    <EntityIdLink kind="offer" id={o.short_id} onClick={() => setExpandedId(expandedId === o.id ? null : o.id)} />
                   </td>
-                  <td>
+                  <td className="col-id">
                     <EntityIdLink kind="candidate" id={o.candidate_short_id} onClick={() => onOpenCandidate?.(o.candidate_short_id)} />
                   </td>
-                  <td>
-                    <button type="button" className="text-left text-indigo-700 hover:underline font-bold text-sm"
+                  <td className="col-name">
+                    <button type="button" className="text-left font-semibold text-[13px] text-slate-900 hover:text-indigo-700"
                       onClick={() => onOpenCandidate?.(o.candidate_short_id)}>
                       {o.candidate_name}
                     </button>
                   </td>
-                  <td className="text-xs whitespace-nowrap">{formatPhoneInternational(o.candidate_phone) || o.candidate_phone || '—'}</td>
-                  <td className="text-xs max-w-[150px] truncate">{o.candidate_email || '—'}</td>
-                  <td className="text-sm max-w-[180px] truncate" title={clientOf(o)}>{clientOf(o)}</td>
-                  <td className="text-sm max-w-[140px] truncate">{positionOf(o)}</td>
-                  <td className="text-xs">{formatExpYears(o.years_experience)}</td>
-                  <td className="text-xs">{o.current_salary || '—'}</td>
+                  <td className="col-phone">{formatPhoneInternational(o.candidate_phone) || o.candidate_phone || '—'}</td>
+                  <td className="col-email">{o.candidate_email || '—'}</td>
+                  <td className="col-client">{clientOf(o)}</td>
+                  <td className="col-role">{positionOf(o)}</td>
+                  <td className="col-num">{formatExpYears(o.years_experience)}</td>
+                  <td className="col-num">{o.current_salary || '—'}</td>
                   <td>
                     <input
                       defaultValue={o.expected_salary ?? o.offer_salary ?? ''}

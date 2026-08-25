@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Briefcase, Filter, Loader2, Search, Sparkles, Users, X } from 'lucide-react'
 import { ScrollableTable } from '@/components/dashboard/ScrollableTable'
 import { formatPhoneInternational } from '@/lib/phoneFormat'
+import { EntityIdLink } from '@/components/ui/EntityIdLink'
 
 type ApiCandidate = {
   id: string
@@ -227,21 +228,22 @@ export function InternalTalentPoolTab({}: {}) {
           <table className="ent-table">
             <thead>
               <tr>
-                <th>Candidate</th>
-                <th>Phone</th>
-                <th>Email</th>
-                <th>Current Role</th>
-                <th>Primary Skills</th>
-                <th>Experience</th>
-                <th>Location</th>
-                <th>Visa</th>
-                <th>Expected Salary</th>
-                <th>Notice</th>
-                <th className="text-center">AI Match</th>
-                <th>Status</th>
-                <th>Recruiter</th>
-                <th>Updated</th>
-                <th className="text-center">Actions</th>
+                <th className="col-id">ID</th>
+                <th className="col-name">Name</th>
+                <th className="col-phone">Phone</th>
+                <th className="col-email">Email</th>
+                <th className="col-role">Current Role</th>
+                <th className="col-text">Primary Skills</th>
+                <th className="col-num">Experience</th>
+                <th className="col-person">Location</th>
+                <th className="col-hire">Visa</th>
+                <th className="col-num">Expected Salary</th>
+                <th className="col-num">Notice</th>
+                <th className="col-status">AI Match</th>
+                <th className="col-status">Status</th>
+                <th className="col-person">Recruiter</th>
+                <th className="col-date">Updated</th>
+                <th className="col-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -258,68 +260,42 @@ export function InternalTalentPoolTab({}: {}) {
                 const status = c.pipeline_stage ?? c.status ?? '—'
 
                 return (
-                  <tr key={c.id} className="hover:bg-[#ecfdf3]/80 transition-colors cursor-pointer" onClick={() => setPreviewId(c.id)}>
-                    <td>
-                      <div className="flex flex-col">
-                        <p className="font-semibold text-gray-900 text-sm">{c.candidate_name}</p>
-                        <p className="text-xs text-gray-500">{c.short_id ? `RES-${c.short_id}` : c.id.slice(0, 8)}</p>
-                      </div>
+                  <tr key={c.id} onClick={() => setPreviewId(c.id)}>
+                    <td className="col-id">
+                      <EntityIdLink kind="candidate" id={c.short_id} onClick={() => window.location.assign(`/dashboard/candidates/${c.id}`)} />
                     </td>
-                    <td className="text-sm text-gray-700 whitespace-nowrap">{formatPhoneInternational(c.candidate_phone) || c.candidate_phone || '—'}</td>
-                    <td className="text-sm text-gray-700 max-w-[160px] truncate" title={c.candidate_email || ''}>{c.candidate_email || '—'}</td>
-                    <td className="text-sm text-gray-700">{currentRole || '—'}</td>
-                    <td className="text-sm text-gray-700">{firstSkills(c.ai_skills, 3)}</td>
-                    <td className="text-sm text-gray-600">{totalExp || '—'}</td>
-                    <td className="text-sm text-gray-600">{loc || '—'}</td>
-                    <td className="text-sm text-gray-600">{visa || '—'}</td>
-                    <td className="text-sm text-gray-600">{salary || '—'}</td>
-                    <td className="text-sm text-gray-600">{notice || '—'}</td>
-                    <td className="text-center">
+                    <td className="col-name">
+                      <p className="font-semibold text-[13px] text-slate-900">{c.candidate_name}</p>
+                    </td>
+                    <td className="col-phone">{formatPhoneInternational(c.candidate_phone) || c.candidate_phone || '—'}</td>
+                    <td className="col-email">{c.candidate_email || '—'}</td>
+                    <td className="col-role">{currentRole || '—'}</td>
+                    <td className="col-text">{firstSkills(c.ai_skills, 3)}</td>
+                    <td className="col-num">{totalExp || '—'}</td>
+                    <td className="col-person">{loc || '—'}</td>
+                    <td className="col-hire">{visa || '—'}</td>
+                    <td className="col-num">{salary || '—'}</td>
+                    <td className="col-num">{notice || '—'}</td>
+                    <td className="col-status">
                       {c.ai_score != null ? (
                         <span className="ui-badge ui-badge--purple inline-flex items-center gap-1">
                           <Sparkles className="w-3 h-3" /> {c.ai_score}
                         </span>
-                      ) : <span className="text-gray-400 text-sm">—</span>}
+                      ) : '—'}
                     </td>
-                    <td>
+                    <td className="col-status">
                       <span className="ui-badge ui-badge--slate">{status}</span>
                     </td>
-                    <td className="text-sm text-gray-600">{recruiter}</td>
-                    <td className="text-sm text-gray-500 whitespace-nowrap">{updated}</td>
-                    <td className="text-center" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => window.location.assign(`/dashboard/candidates/${c.id}`)}
-                          className="px-2 py-1 rounded-lg text-xs font-semibold text-[#166534] hover:text-[#14532d] bg-[#ecfdf3] border border-[#166534]/20"
-                        >
-                          View Profile
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => window.location.assign(`/dashboard/candidates/${c.id}`)}
-                          className="px-2 py-1 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-200"
-                          title="Open Candidate 360"
-                        >
-                          360
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => window.location.assign(`/dashboard/candidates/${c.id}`)}
-                          className="px-2 py-1 rounded-lg text-xs font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 border border-emerald-200"
-                          title="Assign candidate to a job (use the Assign Job dropdown in Candidate 360)."
-                        >
-                          Assign
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => window.location.assign(`/dashboard/candidates/${c.id}`)}
-                          className="px-2 py-1 rounded-lg text-xs font-semibold text-[#c2410c] hover:text-[#9a3412] bg-[#fff7ed] border border-[#F97316]/30"
-                          title="Create submission (complete submission fields in Candidate 360 record)."
-                        >
-                          Submit
-                        </button>
-                      </div>
+                    <td className="col-person">{recruiter}</td>
+                    <td className="col-date">{updated}</td>
+                    <td className="col-actions" onClick={e => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => window.location.assign(`/dashboard/candidates/${c.id}`)}
+                        className="px-2 py-1 rounded-lg text-xs font-semibold text-[#166534] bg-[#ecfdf3] border border-[#166534]/20"
+                      >
+                        View Profile
+                      </button>
                     </td>
                   </tr>
                 )

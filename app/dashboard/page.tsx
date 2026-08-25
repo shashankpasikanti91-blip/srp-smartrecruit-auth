@@ -3489,7 +3489,7 @@ export default function DashboardPage() {
                 ) : (
                   <>
                   <ScrollableTable stickyX>
-                    <table className="ent-table w-full">
+                    <table className="ent-table">
                       <thead>
                         <tr>
                           <th className="w-8">
@@ -3504,19 +3504,19 @@ export default function DashboardPage() {
                               aria-label="Select all on page"
                             />
                           </th>
-                          {showCandCol('id') && <th>ID</th>}
-                          {showCandCol('name') && <th>Name</th>}
-                          {showCandCol('phone') && <th>Phone</th>}
-                          {showCandCol('email') && <th>Email</th>}
-                          {showCandCol('nric') && <th>NRIC</th>}
-                          {showCandCol('client') && <th>Client</th>}
-                          {showCandCol('hire_type') && <th>Hire Type</th>}
-                          {showCandCol('applying_for') && <th>Applying For</th>}
-                          {showCandCol('experience') && <th>Experience</th>}
-                          {showCandCol('source') && <th>Source</th>}
-                          {showCandCol('ai_score') && <th>AI Score</th>}
-                          {showCandCol('screened_job') && <th>Screened Job</th>}
-                          {showCandCol('location') && <th>Location</th>}
+                          {showCandCol('id') && <th className="col-id">ID</th>}
+                          {showCandCol('name') && <th className="col-name">Name</th>}
+                          {showCandCol('phone') && <th className="col-phone">Phone</th>}
+                          {showCandCol('email') && <th className="col-email">Email</th>}
+                          {showCandCol('nric') && <th className="col-id">NRIC</th>}
+                          {showCandCol('client') && <th className="col-client">Client</th>}
+                          {showCandCol('hire_type') && <th className="col-hire">Hire Type</th>}
+                          {showCandCol('applying_for') && <th className="col-role">Applying For</th>}
+                          {showCandCol('experience') && <th className="col-num">Experience</th>}
+                          {showCandCol('source') && <th className="col-status">Source</th>}
+                          {showCandCol('ai_score') && <th className="col-status">AI Score</th>}
+                          {showCandCol('screened_job') && <th className="col-role">Screened Job</th>}
+                          {showCandCol('location') && <th className="col-person">Location</th>}
                           {showCandCol('current_role') && <th>Current Role</th>}
                           {showCandCol('parsed') && <th>Parsed</th>}
                           {showCandCol('status') && <th>Status</th>}

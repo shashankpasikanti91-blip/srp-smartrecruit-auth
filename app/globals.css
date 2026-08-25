@@ -1005,10 +1005,13 @@ button, input, select, textarea {
    ENTERPRISE TABLE  (ent-table)
    ══════════════════════════════════════════════════════════ */
 .ent-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  table-layout: auto;
+  font-size: 13px;
   color: var(--dash-text);
+  border: 1px solid #cbd5e1;
 }
 .ent-table-wrap {
   background: var(--dash-surface);
@@ -1022,6 +1025,11 @@ button, input, select, textarea {
   scrollbar-width: auto;
   scrollbar-color: #64748b #e2e8f0;
 }
+.ent-table-wrap > table.ent-table,
+.ent-table-wrap .ent-table {
+  width: max-content;
+  min-width: 100%;
+}
 .ent-table-wrap::-webkit-scrollbar { height: 10px; width: 10px; }
 .ent-table-wrap::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 6px; }
 .ent-table-wrap::-webkit-scrollbar-thumb { background: #64748b; border-radius: 6px; border: 2px solid #e2e8f0; }
@@ -1030,33 +1038,57 @@ button, input, select, textarea {
   /* Keeps horizontal scroll bar visible at bottom of viewport-capped panel */
   overscroll-behavior: contain;
 }
+.ent-table th,
+.ent-table td {
+  border: 1px solid #d8e2ec;
+  padding: 8px 12px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
 .ent-table th {
   background: #ecfdf3;
-  color: #1e293b;
+  color: #14532d;
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border-bottom: 1px solid #bbf7d0;
-  padding: 9px 12px;
-  white-space: nowrap;
+  letter-spacing: 0.05em;
   text-align: left;
   position: sticky;
   top: 0;
   z-index: 2;
+  box-shadow: inset 0 -1px 0 #86efac;
 }
 .ent-table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid #f1f5f9;
-  vertical-align: middle;
   color: var(--dash-text);
+  background: #fff;
 }
-.ent-table tbody tr:last-child td { border-bottom: none; }
+.ent-table tbody tr:nth-child(even) td { background: #f8fafc; }
 .ent-table tbody tr {
   cursor: pointer;
   transition: background 0.12s ease;
 }
-.ent-table tbody tr:hover td { background: #f8fafc; }
+.ent-table tbody tr:hover td { background: #f0fdf4; }
+
+/* Excel-like column widths — content gets room; extra columns scroll */
+.ent-table .col-check { min-width: 2.5rem; width: 2.5rem; }
+.ent-table .col-id { min-width: 8.25rem; }
+.ent-table .col-name { min-width: 11rem; }
+.ent-table .col-phone { min-width: 9.5rem; }
+.ent-table .col-email { min-width: 14rem; }
+.ent-table .col-client { min-width: 10rem; }
+.ent-table .col-role { min-width: 12rem; }
+.ent-table .col-hire { min-width: 7.5rem; }
+.ent-table .col-person { min-width: 8.5rem; }
+.ent-table .col-date { min-width: 7rem; text-align: center; }
+.ent-table .col-num { min-width: 5.5rem; text-align: center; }
+.ent-table .col-status { min-width: 11rem; }
+.ent-table .col-actions { min-width: 9rem; }
+.ent-table .col-text {
+  min-width: 11rem;
+  max-width: 18rem;
+  white-space: normal;
+  line-height: 1.35;
+}
 
 /* ── Field layout (drawers / modals) ─────────────────────── */
 .field-label {

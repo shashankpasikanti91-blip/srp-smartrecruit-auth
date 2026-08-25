@@ -239,86 +239,80 @@ export function SubmissionsTab({
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-indigo-600" /></div>
       ) : (
         <ScrollableTable stickyX>
-          <table className="ent-table w-full">
+          <table className="ent-table">
             <thead>
               <tr>
-                <th className="font-extrabold">Cand. ID</th>
-                <th className="font-extrabold">Name</th>
-                <th className="font-extrabold">Phone</th>
-                <th className="font-extrabold">Email</th>
-                <th className="font-extrabold">Client / Project</th>
-                <th className="font-extrabold">Position</th>
-                <th className="font-extrabold">Recruiter</th>
-                <th className="font-extrabold">Submitted</th>
-                <th className="font-extrabold">Feedback date</th>
-                <th className="font-extrabold">Feedback status</th>
-                <th className="font-extrabold">Detail</th>
-                <th className="font-extrabold">Recorded by</th>
-                <th className="font-extrabold">Actions</th>
+                <th className="col-id">Cand. ID</th>
+                <th className="col-id">Sub. ID</th>
+                <th className="col-name">Name</th>
+                <th className="col-phone">Phone</th>
+                <th className="col-email">Email</th>
+                <th className="col-client">Client</th>
+                <th className="col-hire">Hire Type</th>
+                <th className="col-role">Role</th>
+                <th className="col-person">Recruiter</th>
+                <th className="col-date">Submitted</th>
+                <th className="col-date">Feedback date</th>
+                <th className="col-status">Feedback status</th>
+                <th className="col-text">Detail</th>
+                <th className="col-person">Recorded by</th>
+                <th className="col-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={13} className="text-center py-10 text-slate-400">No submissions in this filter</td></tr>
-              ) : rows.map((s, i) => (
-                <tr key={s.id} className={i % 2 ? 'bg-slate-50/70' : ''}>
-                  <td>
+                <tr><td colSpan={15} className="text-center py-10 text-slate-400">No submissions in this filter</td></tr>
+              ) : rows.map(s => (
+                <tr key={s.id}>
+                  <td className="col-id">
                     <EntityIdLink
                       kind="candidate"
                       id={s.candidate_short_id}
                       onClick={() => onOpenCandidate?.(s.resume_id || s.candidate_short_id)}
                     />
                   </td>
-                  <td>
+                  <td className="col-id">
+                    <EntityIdLink kind="submission" id={s.short_id} onClick={() => openDetail(s)} />
+                  </td>
+                  <td className="col-name">
                     <button
                       type="button"
-                      className="text-left text-indigo-700 hover:underline font-bold text-sm"
+                      className="text-left font-semibold text-[13px] text-slate-900 hover:text-indigo-700"
                       onClick={() => onOpenCandidate?.(s.resume_id || s.candidate_short_id)}
                     >
                       {s.candidate_name}
                     </button>
-                    <p className="text-[10px] font-mono text-slate-400">
-                      <EntityIdLink kind="submission" id={s.short_id} onClick={() => openDetail(s)} />
-                    </p>
                   </td>
-                  <td className="text-xs whitespace-nowrap">{formatPhoneInternational(s.candidate_phone) || s.candidate_phone || '—'}</td>
-                  <td className="text-xs max-w-[160px] truncate" title={s.candidate_email || ''}>{s.candidate_email || '—'}</td>
-                  <td className="text-sm max-w-[180px] truncate" title={s.client_project || s.client_name || ''}>
-                    {s.client_project || s.client_name || '—'}
-                  </td>
-                  <td className="text-sm">{s.applying_for || s.job_title || '—'}</td>
-                  <td className="text-sm">{s.recruiter_name || '—'}</td>
-                  <td className="text-xs text-slate-600 whitespace-nowrap">
-                    {formatIsoDate(s.submission_date) || '—'}
-                  </td>
-                  <td className="text-xs text-slate-600 whitespace-nowrap">
-                    {formatIsoDate(s.feedback_date) || '—'}
-                  </td>
-                  <td onClick={e => e.stopPropagation()}>
-                    <span className={`inline-flex mb-1 px-2 py-0.5 rounded-lg text-[10px] font-extrabold uppercase border ${stageBadgeClass(s.stage)}`}>
-                      {labelFor(SUBMISSION_STAGES, s.stage)}
-                    </span>
+                  <td className="col-phone">{formatPhoneInternational(s.candidate_phone) || s.candidate_phone || '—'}</td>
+                  <td className="col-email">{s.candidate_email || '—'}</td>
+                  <td className="col-client">{s.client_project || s.client_name || '—'}</td>
+                  <td className="col-hire capitalize">{s.hire_type ? s.hire_type.replace(/_/g, ' ') : '—'}</td>
+                  <td className="col-role">{s.applying_for || s.job_title || '—'}</td>
+                  <td className="col-person">{s.recruiter_name || '—'}</td>
+                  <td className="col-date">{formatIsoDate(s.submission_date) || '—'}</td>
+                  <td className="col-date">{formatIsoDate(s.feedback_date) || '—'}</td>
+                  <td className="col-status" onClick={e => e.stopPropagation()}>
                     <select
                       value={s.stage}
                       onChange={e => patchStage(s.id, e.target.value)}
-                      className="block text-xs rounded-lg border border-slate-200 px-2 py-1 bg-white appearance-none max-w-[160px]"
+                      className={`text-xs font-semibold rounded-full border px-2 py-0.5 appearance-none ${stageBadgeClass(s.stage)}`}
                     >
                       {SUBMISSION_STAGES.map(st => (
                         <option key={st.value} value={st.value}>{st.label}</option>
                       ))}
                     </select>
                   </td>
-                  <td className="text-xs text-slate-600 max-w-[140px] truncate" title={s.feedback_detail || ''}>
+                  <td className="col-text" title={s.feedback_detail || ''}>
                     {s.feedback_detail || '—'}
                   </td>
-                  <td className="text-xs text-slate-600">
+                  <td className="col-person">
                     {s.feedback_recorded_by || (s.feedback_detail ? s.recruiter_name : null) || '—'}
                   </td>
-                  <td className="whitespace-nowrap space-x-2">
+                  <td className="col-actions">
                     <button type="button" onClick={() => openDetail(s)} className="inline-flex items-center gap-1 text-xs font-bold text-indigo-700 hover:underline">
                       <Eye className="w-3.5 h-3.5" /> Update feedback
                     </button>
-                    <button type="button" onClick={() => onOpenCandidate?.(s.resume_id || s.candidate_short_id)} className="text-xs font-bold text-slate-600 hover:underline">
+                    <button type="button" onClick={() => onOpenCandidate?.(s.resume_id || s.candidate_short_id)} className="ml-2 text-xs font-bold text-slate-600 hover:underline">
                       Open profile
                     </button>
                   </td>
