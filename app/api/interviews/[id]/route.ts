@@ -268,6 +268,7 @@ export async function PATCH(
         reason: `interview_status:${oldStatus}->${newStatus}`,
       })
     }
+    }
   } catch (e) {
     console.error('[interviews PATCH] after save (update still applied)', e)
   }
