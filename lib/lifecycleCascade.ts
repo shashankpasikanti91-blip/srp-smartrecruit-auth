@@ -354,18 +354,32 @@ export async function ensureOfferForSelection(
       )
       inserted = rows[0]
     } catch {
-      const { rows } = await pool.query<OfferRow>(
-        `INSERT INTO offer_cases
-           (tenant_id, resume_id, submission_id, user_id, status, hr_checklist, notes)
-         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)
-         RETURNING id, short_id, status, resume_id`,
-        [
-          input.tenantId, input.resumeId, input.submissionId ?? null, input.userId,
-          'selected', JSON.stringify(checklist),
-          'Auto-created after selection',
-        ],
-      )
-      inserted = rows[0]
+      try {
+        const { rows } = await pool.query<OfferRow>(
+          `INSERT INTO offer_cases
+             (tenant_id, resume_id, submission_id, user_id, status, hr_checklist, notes)
+           VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)
+           RETURNING id, short_id, status, resume_id`,
+          [
+            input.tenantId, input.resumeId, input.submissionId ?? null, input.userId,
+            'selected', JSON.stringify(checklist),
+            'Auto-created after selection',
+          ],
+        )
+        inserted = rows[0]
+      } catch {
+        const { rows } = await pool.query<OfferRow>(
+          `INSERT INTO offer_cases
+             (tenant_id, resume_id, user_id, status, notes)
+           VALUES ($1,$2,$3,$4,$5)
+           RETURNING id, short_id, status, resume_id`,
+          [
+            input.tenantId, input.resumeId, input.userId,
+            'selected', 'Auto-created after selection',
+          ],
+        )
+        inserted = rows[0]
+      }
     }
 
     if (!inserted) return null

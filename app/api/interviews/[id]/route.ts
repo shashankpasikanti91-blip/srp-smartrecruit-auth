@@ -21,6 +21,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  try {
   const ctx = await requireTenant(req, 'pipeline.update')
   if (ctx instanceof NextResponse) return ctx
 
@@ -91,44 +92,54 @@ export async function PATCH(
 
   updates.push(`updated_at = NOW()`)
 
-  let updated: { id: string; short_id: string; status: string; scheduled_at: string; meet_link: string | null; rating: number | null; feedback: string | null }[]
+  let updated: { id: string; short_id: string; status: string; scheduled_at?: string | null; meet_link?: string | null }[]
   try {
     const q = await pool.query(
       `UPDATE interviews SET ${updates.join(', ')}
        WHERE id = $${p} AND tenant_id = $${p + 1}
-       RETURNING id, short_id, status, scheduled_at, meet_link, rating, feedback`,
+       RETURNING id, short_id, status, scheduled_at`,
       [...vals, id, ctx.tenantId],
     )
     updated = q.rows
   } catch (e) {
-    if (body.status === 'selected' || body.status === 'to_schedule') {
-      const fallback = body.status === 'selected' ? 'completed' : 'scheduled'
+    const wantFallback = body.status === 'selected' || body.status === 'to_schedule'
+    if (!wantFallback) throw e
+    const fallback = body.status === 'selected' ? 'completed' : 'scheduled'
+    try {
       const q = await pool.query(
         `UPDATE interviews SET status = $1, updated_at = NOW()
          WHERE id = $2 AND tenant_id = $3
-         RETURNING id, short_id, status, scheduled_at, meet_link, rating, feedback`,
+         RETURNING id, short_id, status, scheduled_at`,
         [fallback, id, ctx.tenantId],
       )
       updated = q.rows
-    } else {
-      throw e
+    } catch (e2) {
+      console.error('[interviews PATCH] status fallback failed', e2)
+      const q = await pool.query(
+        `SELECT id, short_id, status, scheduled_at FROM interviews WHERE id = $1 AND tenant_id = $2`,
+        [id, ctx.tenantId],
+      )
+      updated = q.rows
     }
   }
 
-  const newStatus = (body.status === 'selected' ? 'selected' : updated[0]?.status) as string
-  await logAudit({
-    userId:       ctx.userId,
-    userEmail:    ctx.userEmail,
-    tenantId:     ctx.tenantId,
-    action:       'interview_updated',
-    resourceType: 'interview',
-    resourceId:   id,
-    resumeId:     interview.resume_id,
-    details:      { changes: body, old_status: oldStatus, new_status: newStatus },
-  })
+  if (!updated?.length) {
+    return NextResponse.json({ error: 'Interview update failed' }, { status: 500 })
+  }
 
-  if (newStatus !== oldStatus) {
-    try {
+  const newStatus = (body.status === 'selected' ? 'selected' : updated[0]?.status) as string
+  try {
+    await logAudit({
+      userId:       ctx.userId,
+      userEmail:    ctx.userEmail,
+      tenantId:     ctx.tenantId,
+      action:       'interview_updated',
+      resourceType: 'interview',
+      resourceId:   id,
+      resumeId:     interview.resume_id,
+      details:      { changes: body, old_status: oldStatus, new_status: newStatus },
+    })
+    if (newStatus !== oldStatus) {
     const statusTitles: Record<string, string> = {
       to_schedule: 'Interview — awaiting slot',
       scheduled: 'Interview Scheduled',
@@ -257,12 +268,18 @@ export async function PATCH(
         reason: `interview_status:${oldStatus}->${newStatus}`,
       })
     }
-    } catch (e) {
-      console.error('[interviews PATCH] side effects (update still saved)', e)
-    }
+  } catch (e) {
+    console.error('[interviews PATCH] after save (update still applied)', e)
   }
 
   return NextResponse.json({ interview: updated[0] })
+  } catch (e) {
+    console.error('[interviews PATCH]', e)
+    return NextResponse.json(
+      { error: 'Interview update failed', detail: e instanceof Error ? e.message : String(e) },
+      { status: 500 },
+    )
+  }
 }
 
 export async function DELETE(

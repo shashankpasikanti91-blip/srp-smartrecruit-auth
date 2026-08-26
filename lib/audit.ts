@@ -79,22 +79,26 @@ export async function logAudit(ev: AuditEvent): Promise<void> {
   }
 
   if (ev.tenantId && ev.resumeId) {
-    const title = ev.action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-    await writeTimeline({
-      tenantId: ev.tenantId,
-      entityType: mapResourceToEntity(ev.resourceType),
-      entityId: ev.resourceId ?? ev.resumeId,
-      resumeId: ev.resumeId,
-      eventType: ev.action,
-      title,
-      detail: ev.reason
-        ?? (ev.oldValue != null && ev.newValue != null
-          ? `${ev.oldValue} → ${ev.newValue}`
-          : null),
-      actorUserId: ev.userId,
-      actorEmail: ev.userEmail,
-      meta: ev.details,
-    })
+    try {
+      const title = ev.action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+      await writeTimeline({
+        tenantId: ev.tenantId,
+        entityType: mapResourceToEntity(ev.resourceType),
+        entityId: ev.resourceId ?? ev.resumeId,
+        resumeId: ev.resumeId,
+        eventType: ev.action,
+        title,
+        detail: ev.reason
+          ?? (ev.oldValue != null && ev.newValue != null
+            ? `${ev.oldValue} → ${ev.newValue}`
+            : null),
+        actorUserId: ev.userId,
+        actorEmail: ev.userEmail,
+        meta: ev.details,
+      })
+    } catch {
+      /* timeline is best-effort — never fail the domain write */
+    }
   }
 }
 

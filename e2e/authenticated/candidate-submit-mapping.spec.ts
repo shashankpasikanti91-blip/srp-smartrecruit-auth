@@ -184,7 +184,8 @@ test.describe('Candidate submit mapping', () => {
     test.skip(!interviewId, 'Need an interview row')
     if (!interviewId) return
     const sel = await request.patch(`/api/interviews/${interviewId}`, { data: { status: 'selected' } })
-    expect(sel.status()).toBeLessThan(500)
+    const selBody = await sel.json().catch(() => ({}))
+    expect(sel.status(), JSON.stringify(selBody)).toBeLessThan(500)
     expect(sel.ok()).toBeTruthy()
     const offers = await request.get(`/api/offers?resume_id=${cand.id}`)
     expect(offers.ok()).toBeTruthy()
