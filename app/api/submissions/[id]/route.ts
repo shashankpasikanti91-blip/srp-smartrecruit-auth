@@ -272,5 +272,23 @@ export async function PATCH(
     }
   }
 
+  if (submissionStageNeedsInterview(newStage) && !submissionStageClosesShare(newStage)) {
+    try {
+      await ensureInterviewForSubmission({
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        userEmail: ctx.userEmail,
+        resumeId: prev.rows[0].resume_id,
+        jobPostId: (rows[0].job_post_id ?? prev.rows[0].job_post_id) as string | null,
+        submissionId: id,
+        candidateName: cand.rows[0]?.candidate_name || 'Candidate',
+        candidateEmail: cand.rows[0]?.candidate_email,
+        notes: `From submission ${rows[0].short_id ?? id}`,
+      })
+    } catch (e) {
+      console.error('[submissions PATCH] ensure interview (update still saved)', e)
+    }
+  }
+
   return NextResponse.json({ submission: rows[0] })
 }

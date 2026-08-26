@@ -33,6 +33,7 @@ const FILES = [
   'migrate_v36_rag_graph.sql',
   'migrate_v37_audit_ai.sql',
   'migrate_v38_bulk_stale.sql',
+  'migrate_v39_interview_pipeline.sql',
 ]
 
 const url = process.env.DATABASE_URL

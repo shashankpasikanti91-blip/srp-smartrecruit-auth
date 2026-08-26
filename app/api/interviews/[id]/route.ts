@@ -91,14 +91,31 @@ export async function PATCH(
 
   updates.push(`updated_at = NOW()`)
 
-  const { rows: updated } = await pool.query(
-    `UPDATE interviews SET ${updates.join(', ')}
-     WHERE id = $${p} AND tenant_id = $${p + 1}
-     RETURNING id, short_id, status, scheduled_at, meet_link, rating, feedback`,
-    [...vals, id, ctx.tenantId]
-  )
+  let updated: { id: string; short_id: string; status: string; scheduled_at: string; meet_link: string | null; rating: number | null; feedback: string | null }[]
+  try {
+    const q = await pool.query(
+      `UPDATE interviews SET ${updates.join(', ')}
+       WHERE id = $${p} AND tenant_id = $${p + 1}
+       RETURNING id, short_id, status, scheduled_at, meet_link, rating, feedback`,
+      [...vals, id, ctx.tenantId],
+    )
+    updated = q.rows
+  } catch (e) {
+    if (body.status === 'selected' || body.status === 'to_schedule') {
+      const fallback = body.status === 'selected' ? 'completed' : 'scheduled'
+      const q = await pool.query(
+        `UPDATE interviews SET status = $1, updated_at = NOW()
+         WHERE id = $2 AND tenant_id = $3
+         RETURNING id, short_id, status, scheduled_at, meet_link, rating, feedback`,
+        [fallback, id, ctx.tenantId],
+      )
+      updated = q.rows
+    } else {
+      throw e
+    }
+  }
 
-  const newStatus = updated[0]?.status as string
+  const newStatus = (body.status === 'selected' ? 'selected' : updated[0]?.status) as string
   await logAudit({
     userId:       ctx.userId,
     userEmail:    ctx.userEmail,
