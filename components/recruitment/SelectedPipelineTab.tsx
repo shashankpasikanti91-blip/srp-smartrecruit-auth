@@ -43,6 +43,7 @@ type OfferRow = {
   slots_filled?: number
   slots_total?: number
   employment_type?: string | null
+  country_code?: string | null
   recruiter_name?: string | null
   interview_feedback_text?: string | null
   hr_discussion?: string
@@ -182,6 +183,7 @@ export function SelectedPipelineTab({
           offer_salary: newOffer.offer_salary || undefined,
           expected_joining: newOffer.expected_joining || undefined,
           employment_type: employmentType,
+          country_code: country,
         }),
       })
       if (res.ok) {
@@ -306,7 +308,7 @@ export function SelectedPipelineTab({
               <label className="field-label">Employment type</label>
               <select value={employmentType} onChange={e => setEmploymentType(e.target.value as EmploymentType)} className="form-input !w-auto !py-1.5 !text-sm appearance-none">
                 <option value="local">Local</option>
-                <option value="foreign">Foreign worker</option>
+                <option value="foreign">Expat (foreign)</option>
               </select>
             </div>
           </div>
@@ -592,8 +594,14 @@ export function SelectedPipelineTab({
         <DocsUploadPanel
           resumeId={docsOffer.resume_id}
           candidateName={docsOffer.candidate_name}
+          offerId={docsOffer.id}
+          country={docsOffer.country_code || country}
+          employmentType={(docsOffer.employment_type === 'foreign' ? 'foreign' : employmentType) as EmploymentType}
           onClose={() => setDocsOffer(null)}
           onUploaded={load}
+          onMetaChange={(c, e) => {
+            void patchOffer(docsOffer.id, { country_code: c, employment_type: e })
+          }}
         />
       )}
     </div>

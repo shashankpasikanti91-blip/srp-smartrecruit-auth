@@ -33,6 +33,7 @@ export type InterviewEnsureInput = CascadeActor & {
   scheduledAt?: Date | string | null
   format?: 'video' | 'phone' | 'in_person'
   notes?: string | null
+  round?: number | null
 }
 
 export type OfferEnsureInput = CascadeActor & {
@@ -63,20 +64,39 @@ async function findOpenInterview(opts: {
   tenantId: string
   resumeId: string
   jobPostId?: string | null
+  round?: number | null
 }): Promise<InterviewRow | null> {
-  const { rows } = await pool.query<InterviewRow>(
-    `SELECT id, short_id, status, scheduled_at, resume_id, job_post_id
-     FROM interviews
-     WHERE tenant_id = $1 AND resume_id = $2
-       AND LOWER(COALESCE(status, '')) NOT IN ('cancelled','rejected','no_show','interviewer_no_show')
-       AND ($3::uuid IS NULL OR job_post_id IS NULL OR job_post_id = $3)
-     ORDER BY
-       CASE WHEN status = 'to_schedule' THEN 0 ELSE 1 END,
-       scheduled_at DESC NULLS LAST
-     LIMIT 1`,
-    [opts.tenantId, opts.resumeId, opts.jobPostId ?? null],
-  )
-  return rows[0] ?? null
+  const round = opts.round != null && Number(opts.round) >= 1 ? Math.floor(Number(opts.round)) : null
+  try {
+    const { rows } = await pool.query<InterviewRow>(
+      `SELECT id, short_id, status, scheduled_at, resume_id, job_post_id
+       FROM interviews
+       WHERE tenant_id = $1 AND resume_id = $2
+         AND LOWER(COALESCE(status, '')) NOT IN ('cancelled','rejected','no_show','interviewer_no_show')
+         AND ($3::uuid IS NULL OR job_post_id IS NULL OR job_post_id = $3)
+         AND ($4::int IS NULL OR COALESCE(round, 1) = $4)
+       ORDER BY
+         CASE WHEN status = 'to_schedule' THEN 0 ELSE 1 END,
+         scheduled_at DESC NULLS LAST
+       LIMIT 1`,
+      [opts.tenantId, opts.resumeId, opts.jobPostId ?? null, round],
+    )
+    return rows[0] ?? null
+  } catch {
+    const { rows } = await pool.query<InterviewRow>(
+      `SELECT id, short_id, status, scheduled_at, resume_id, job_post_id
+       FROM interviews
+       WHERE tenant_id = $1 AND resume_id = $2
+         AND LOWER(COALESCE(status, '')) NOT IN ('cancelled','rejected','no_show','interviewer_no_show')
+         AND ($3::uuid IS NULL OR job_post_id IS NULL OR job_post_id = $3)
+       ORDER BY
+         CASE WHEN status = 'to_schedule' THEN 0 ELSE 1 END,
+         scheduled_at DESC NULLS LAST
+       LIMIT 1`,
+      [opts.tenantId, opts.resumeId, opts.jobPostId ?? null],
+    )
+    return rows[0] ?? null
+  }
 }
 
 async function findOpenOffer(opts: {
@@ -112,10 +132,14 @@ export async function ensureInterviewForSubmission(
 ): Promise<{ interview: InterviewRow; created: boolean; upgraded: boolean } | null> {
   try {
     const when = parseWhen(input.scheduledAt ?? null)
+    const roundVal = input.round != null && Number(input.round) >= 1
+      ? Math.floor(Number(input.round))
+      : null
     const existing = await findOpenInterview({
       tenantId: input.tenantId,
       resumeId: input.resumeId,
       jobPostId: input.jobPostId,
+      round: roundVal,
     })
 
     if (existing) {
@@ -168,12 +192,25 @@ export async function ensureInterviewForSubmission(
     const preferredStatus = when ? 'scheduled' : 'to_schedule'
     const email = (input.candidateEmail ?? '').trim() || null
     const format = input.format ?? 'video'
-    const slot = when ?? new Date(Date.now() + 24 * 3600_000)
+    const scheduledAtVal = when ? when.toISOString() : null
+    const insertRound = roundVal ?? 1
 
     let inserted: InterviewRow | null = null
     const safeEmail = email || 'unscheduled@local'
     const notes = input.notes ?? (when ? null : 'Pending interview slot')
     const insertSql: Array<{ sql: string; params: unknown[] }> = [
+      {
+        sql: `INSERT INTO interviews
+             (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
+              interviewer_id, user_id, scheduled_at, duration_minutes, format, notes, status, round, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$11,$12,$13,NOW())
+           RETURNING id, short_id, status, scheduled_at, resume_id, job_post_id`,
+        params: [
+          shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
+          input.candidateName, safeEmail, input.userId,
+          scheduledAtVal, 60, format, notes, preferredStatus, insertRound,
+        ],
+      },
       {
         sql: `INSERT INTO interviews
              (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
@@ -183,8 +220,7 @@ export async function ensureInterviewForSubmission(
         params: [
           shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
           input.candidateName, safeEmail, input.userId,
-          when ? when.toISOString() : slot.toISOString(),
-          60, format, notes, 'scheduled',
+          scheduledAtVal, 60, format, notes, preferredStatus,
         ],
       },
       {
@@ -196,7 +232,7 @@ export async function ensureInterviewForSubmission(
         params: [
           shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
           input.candidateName, safeEmail, input.userId,
-          slot.toISOString(), 60, format, notes, 'scheduled',
+          scheduledAtVal, 60, format, notes, preferredStatus,
         ],
       },
       {
@@ -208,7 +244,19 @@ export async function ensureInterviewForSubmission(
         params: [
           shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
           input.candidateName, safeEmail, input.userId,
-          slot.toISOString(), 60, format, notes, 'scheduled',
+          scheduledAtVal, 60, format, notes, preferredStatus,
+        ],
+      },
+      {
+        sql: `INSERT INTO interviews
+             (short_id, tenant_id, resume_id, job_post_id, candidate_name, candidate_email,
+              interviewer_id, user_id, scheduled_at, duration_minutes, format, notes, status, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$11,$12,NOW())
+           RETURNING id, short_id, status, scheduled_at, resume_id, job_post_id`,
+        params: [
+          shortId, input.tenantId, input.resumeId, input.jobPostId ?? null,
+          input.candidateName, safeEmail, input.userId,
+          scheduledAtVal, 60, format, notes, 'scheduled',
         ],
       },
     ]

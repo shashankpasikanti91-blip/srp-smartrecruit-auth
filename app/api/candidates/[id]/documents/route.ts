@@ -3,18 +3,17 @@ import { requireTenant } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import { isValidUUID } from '@/lib/validate'
 import {
-  DOCUMENT_SLOTS,
   validateUpload,
   saveCandidateDocumentFile,
   mimeForExt,
   extFromFilename,
   isValidDocumentSlot,
   slotLabel,
-  type DocumentSlot,
 } from '@/lib/documentStorage'
-import { getDocumentChecklist } from '@/lib/recruitmentOs'
 import { resolveChecklistCountry, resolveEmploymentType } from '@/lib/dossierChecks'
+import { resolveDocumentChecklist, syncOfferDocsStatusForResume } from '@/lib/resolveDocumentChecklist'
 import { logAudit } from '@/lib/audit'
+import type { EmploymentType } from '@/lib/recruitmentOs'
 
 async function assertCandidate(tenantId: string, resumeId: string) {
   const { rows } = await pool.query<{ id: string; short_id: string }>(
@@ -43,16 +42,17 @@ export async function GET(
     [id, ctx.tenantId]
   )
   const profile = profileRes.rows[0]?.candidate_profile ?? {}
-  const country = resolveChecklistCountry(profileRes.rows[0]?.nationality_hint)
-  const employmentType = resolveEmploymentType(profile)
-  const checklist = getDocumentChecklist(country, employmentType)
-  const checklistKeys = checklist.map(c => c.key)
-  // Always include core slots + country checklist (+ any already-uploaded slots)
-  const displaySlots = Array.from(new Set([
-    'resume',
-    ...checklistKeys.filter(k => isValidDocumentSlot(k) || DOCUMENT_SLOTS.includes(k as DocumentSlot)),
-    ...DOCUMENT_SLOTS.slice(0, 7),
-  ]))
+  const qCountry = req.nextUrl.searchParams.get('country')
+  const qEmp = req.nextUrl.searchParams.get('employment_type')
+  const country = qCountry
+    ? resolveChecklistCountry(qCountry)
+    : resolveChecklistCountry(profileRes.rows[0]?.nationality_hint)
+  const employmentType: EmploymentType =
+    qEmp === 'foreign' || qEmp === 'local' ? qEmp : resolveEmploymentType(profile)
+  const resolved = await resolveDocumentChecklist(ctx.tenantId, country, employmentType)
+  const checklist = resolved.items
+  const checklistKeys = checklist.map(c => c.key).filter(k => isValidDocumentSlot(k))
+  const displaySlots = Array.from(new Set(checklistKeys))
 
   const { rows } = await pool.query(
     `SELECT cd.id, cd.slot_type, cd.label, cd.created_at, cd.updated_at,
@@ -88,8 +88,8 @@ export async function GET(
   const requiredKeys = new Set(checklist.filter(c => c.required).map(c => c.key))
   const slots = displaySlots.map(slot => {
     const row = rows.find((r: { slot_type: string }) => r.slot_type === slot)
-    const label = slotLabel(slot)
     const checklistItem = checklist.find(c => c.key === slot)
+    const label = checklistItem?.label || slotLabel(slot)
     if (row) {
       return {
         ...row,
@@ -110,7 +110,13 @@ export async function GET(
     }
   })
 
-  return NextResponse.json({ documents: slots, country, employment_type: employmentType, checklist })
+  return NextResponse.json({
+    documents: slots,
+    country,
+    employment_type: employmentType,
+    checklist,
+    source: resolved.source,
+  })
 }
 
 export async function POST(
@@ -215,6 +221,8 @@ export async function POST(
       details: { slot_type: slotType, version_no: versionNo, file_name: file.name },
       tenantId: ctx.tenantId,
     })
+
+    void syncOfferDocsStatusForResume({ tenantId: ctx.tenantId, resumeId: id })
 
     return NextResponse.json({ document_id: documentId, version: dv.rows[0] }, { status: 201 })
   } catch (e) {

@@ -29,6 +29,8 @@ test.describe('Ops lists — columns & actions', () => {
     await expect(table.getByRole('columnheader', { name: 'Int. ID' })).toBeVisible()
     await expect(table.getByRole('columnheader', { name: '1st Date' })).toBeVisible()
     await expect(table.getByRole('columnheader', { name: '2nd Time' })).toBeVisible()
+    await expect(table.getByRole('columnheader', { name: '3rd Date' })).toBeVisible()
+    await expect(table.getByRole('columnheader', { name: '4th Time' })).toBeVisible()
     await expect(table.getByRole('columnheader', { name: 'Current Sal.' })).toBeVisible()
     await expect(table.getByRole('columnheader', { name: 'Expected Sal.' })).toBeVisible()
   })
@@ -56,10 +58,7 @@ test.describe('Ops lists — columns & actions', () => {
     if (await docsBtn.isVisible().catch(() => false)) {
       await docsBtn.click()
       await expect(page.getByRole('heading', { name: /Upload docs/i })).toBeVisible({ timeout: 10_000 })
-      await expect(page.getByText(/Resume \/ CV/i)).toBeVisible()
-      await page.getByRole('button').filter({ has: page.locator('svg') }).first().click({ force: true }).catch(() => {})
-      // Close via X if still open
-      const close = page.locator('button').filter({ has: page.locator('svg.lucide-x, svg') }).first()
+      await expect(page.getByTestId('docs-employment-type')).toBeVisible()
       await page.keyboard.press('Escape').catch(() => {})
     }
   })

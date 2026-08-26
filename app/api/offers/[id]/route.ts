@@ -13,6 +13,7 @@ import { runCollaborativeChain } from '@/lib/agentCollaboration'
 import { mergeHrOps } from '@/lib/opsList'
 import { advanceFromDomain, hasOtherOpenSubmissions, offerStatusToLifecycle } from '@/lib/lifecycle'
 import { closeShareForJob } from '@/lib/lifecycleCascade'
+import { resolveDocumentChecklist } from '@/lib/resolveDocumentChecklist'
 
 export async function PATCH(
   req: NextRequest,
@@ -110,6 +111,35 @@ export async function PATCH(
   if (body.approval_status !== undefined) {
     sets.unshift(`approval_status = $${i++}`)
     vals.push(sanitizeText(body.approval_status, 40))
+  }
+  if (body.employment_type !== undefined || body.country_code !== undefined) {
+    const cur = await pool.query<{
+      employment_type: string | null
+      country_code: string | null
+      hr_checklist: Record<string, boolean> | null
+    }>(
+      `SELECT employment_type, country_code, hr_checklist FROM offer_cases WHERE id = $1 AND tenant_id = $2`,
+      [id, ctx.tenantId],
+    )
+    const emp = (body.employment_type ?? cur.rows[0]?.employment_type) === 'foreign' ? 'foreign' : 'local'
+    const country = String(body.country_code ?? cur.rows[0]?.country_code ?? 'MY').toUpperCase()
+    if (body.employment_type !== undefined) {
+      sets.unshift(`employment_type = $${i++}`)
+      vals.push(emp)
+    }
+    if (body.country_code !== undefined) {
+      sets.unshift(`country_code = $${i++}`)
+      vals.push(sanitizeText(body.country_code, 10)?.toUpperCase() ?? country)
+    }
+    try {
+      const { items } = await resolveDocumentChecklist(ctx.tenantId, country, emp)
+      const prevCheck = (cur.rows[0]?.hr_checklist && typeof cur.rows[0].hr_checklist === 'object')
+        ? cur.rows[0].hr_checklist as Record<string, boolean>
+        : {}
+      const next = Object.fromEntries(items.map(it => [it.key, Boolean(prevCheck[it.key])]))
+      sets.unshift(`hr_checklist = $${i++}::jsonb`)
+      vals.push(JSON.stringify(next))
+    } catch { /* ignore rebuild */ }
   }
   if (body.docs_status !== undefined) {
     const ds = sanitizeText(body.docs_status, 40) ?? 'not_started'

@@ -11,11 +11,9 @@ import { logAudit } from '@/lib/audit'
 import { createNotification } from '@/lib/notificationCenter'
 import { upsertWorkflowInstance } from '@/lib/workflowEngine'
 import { resolveDateFilter, resolveMineScope, deriveDocsStatus, parseHrOps } from '@/lib/opsList'
-import { DOCUMENT_SLOTS } from '@/lib/documentStorage'
 import { advanceFromDomain, offerStatusToLifecycle } from '@/lib/lifecycle'
 import { ensureOfferForSelection } from '@/lib/lifecycleCascade'
-
-const HR_SLOTS = [...DOCUMENT_SLOTS]
+import { checklistFromCache, loadTenantChecklists, resolveDocumentChecklist } from '@/lib/resolveDocumentChecklist'
 
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, 'candidates.read')
@@ -132,15 +130,15 @@ export async function GET(req: NextRequest) {
       [ctx.tenantId, resumeIds],
     )
     for (const id of resumeIds) {
-      const out: Record<string, boolean> = {}
-      for (const slot of HR_SLOTS) out[slot] = false
-      slotByResume.set(id, out)
+      slotByResume.set(id, {})
     }
     for (const r of docRows) {
       const out = slotByResume.get(r.resume_id)
       if (out) out[r.slot_type] = r.has_file
     }
   }
+
+  const checklistCache = await loadTenantChecklists(ctx.tenantId)
 
   let offers = rows.map((o: {
     resume_id: string
@@ -149,17 +147,27 @@ export async function GET(req: NextRequest) {
     remarks?: string | null
     salary_breakdown?: unknown
     interview_feedback?: unknown
+    employment_type?: string | null
+    country_code?: string | null
   }) => {
-    const liveSlots = slotByResume.get(o.resume_id) ?? Object.fromEntries(HR_SLOTS.map(s => [s, false]))
+    const liveSlots = slotByResume.get(o.resume_id) ?? {}
     const merged = { ...(o.hr_checklist ?? {}), ...liveSlots }
-    const filled = HR_SLOTS.filter(s => merged[s]).length
+    const checklist = checklistFromCache(
+      checklistCache,
+      o.country_code || 'MY',
+      o.employment_type,
+    )
+    const required = checklist.filter(i => i.required !== false)
+    const keys = required.length ? required.map(i => i.key) : checklist.map(i => i.key)
+    const filled = keys.filter(k => merged[k] || liveSlots[k]).length
+    const total = keys.length || 1
     const explicit = (() => {
       try {
         const m = (o.remarks ?? '').match(/docs_status:(\w+)/)
         return m?.[1] ?? null
       } catch { return null }
     })()
-    const docs_status = deriveDocsStatus(o.status, filled, HR_SLOTS.length, explicit)
+    const docs_status = deriveDocsStatus(o.status, filled, total, explicit)
     const hr_ops = parseHrOps(o.salary_breakdown, o.remarks)
     let interview_feedback_text: string | null = null
     if (typeof o.interview_feedback === 'string') interview_feedback_text = o.interview_feedback
@@ -176,7 +184,7 @@ export async function GET(req: NextRequest) {
       hr_checklist: merged,
       doc_slots: liveSlots,
       slots_filled: filled,
-      slots_total: HR_SLOTS.length,
+      slots_total: total,
       docs_status,
       hr_discussion: hr_ops.hr_discussion ?? 'pending',
       budget_ok: hr_ops.budget_ok ?? false,
@@ -292,6 +300,12 @@ export async function POST(req: NextRequest) {
   }
 
   const shortId = await nextYearSeqId(pool, { tenantId: ctx.tenantId, table: 'offer_cases', prefix: 'OFF' })
+  const empType = body.employment_type === 'foreign' ? 'foreign' : 'local'
+  const countryCode = (sanitizeText(body.country_code, 10) ?? 'MY').toUpperCase()
+  const resolved = await resolveDocumentChecklist(ctx.tenantId, countryCode, empType)
+  const seededChecklist = body.hr_checklist && typeof body.hr_checklist === 'object'
+    ? body.hr_checklist
+    : Object.fromEntries(resolved.items.map(i => [i.key, false]))
 
   let rows: { id: string; resume_id: string; status: string; short_id?: string; approval_status?: string }[]
   try {
@@ -309,15 +323,15 @@ export async function POST(req: NextRequest) {
         sanitizeText(body.status, 50) ? normalizeOfferStatus(sanitizeText(body.status, 50)!) : 'selected',
         sanitizeText(body.offer_salary, 120),
         body.expected_joining || null,
-        sanitizeText(body.employment_type, 50),
-        JSON.stringify(body.hr_checklist ?? {}),
+        empType,
+        JSON.stringify(seededChecklist),
         sanitizeText(body.notes, 5000),
         shortId,
         JSON.stringify(body.salary_breakdown ?? {}),
         sanitizeText(body.benefits, 5000),
         sanitizeText(body.remarks, 5000),
         body.offer_expiry || null,
-        sanitizeText(body.country_code, 10) ?? 'MY',
+        sanitizeText(body.country_code, 10) ?? countryCode,
         body.offer_draft ?? null,
       ],
     )
@@ -335,8 +349,8 @@ export async function POST(req: NextRequest) {
         sanitizeText(body.status, 50) ? normalizeOfferStatus(sanitizeText(body.status, 50)!) : 'selected',
         sanitizeText(body.offer_salary, 120),
         body.expected_joining || null,
-        sanitizeText(body.employment_type, 50),
-        JSON.stringify(body.hr_checklist ?? {}),
+        empType,
+        JSON.stringify(seededChecklist),
         sanitizeText(body.notes, 5000),
       ],
     )

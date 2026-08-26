@@ -43,13 +43,14 @@ export async function PATCH(
 
   let body: {
     status?:          string
-    scheduled_at?:    string
+    scheduled_at?:    string | null
     duration_minutes?: number
     notes?:           string
     rating?:          number
     feedback?:        string
     location?:        string
     meet_link?:       string
+    round?:           number
   }
   try { body = await req.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
@@ -71,13 +72,25 @@ export async function PATCH(
     }
     updates.push(`status = $${p++}`); vals.push(body.status)
   }
-  if (body.scheduled_at) {
+  if (body.scheduled_at === null || body.scheduled_at === '') {
+    updates.push(`scheduled_at = $${p++}`); vals.push(null)
+    if (body.status === undefined) {
+      updates.push(`status = $${p++}`); vals.push('to_schedule')
+    }
+  } else if (body.scheduled_at) {
     const dt = new Date(body.scheduled_at)
     if (isNaN(dt.getTime())) return NextResponse.json({ error: 'Invalid scheduled_at' }, { status: 422 })
     updates.push(`scheduled_at = $${p++}`); vals.push(dt.toISOString())
     if (body.status === undefined && (oldStatus === 'to_schedule' || !oldStatus)) {
       updates.push(`status = $${p++}`); vals.push('scheduled')
     }
+  }
+  if (body.round !== undefined) {
+    const r = Number(body.round)
+    if (!Number.isFinite(r) || r < 1 || r > 20) {
+      return NextResponse.json({ error: 'round must be 1–20' }, { status: 422 })
+    }
+    updates.push(`round = $${p++}`); vals.push(Math.floor(r))
   }
   if (body.duration_minutes) { updates.push(`duration_minutes = $${p++}`); vals.push(body.duration_minutes) }
   if (body.notes !== undefined)    { updates.push(`notes = $${p++}`);    vals.push(body.notes) }

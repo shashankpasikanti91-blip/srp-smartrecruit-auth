@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Download, Eye, Loader2, RotateCcw, Upload, XCircle, Clock, AlertTriangle } from 'lucide-react'
+import { CHECKLIST_COUNTRIES, type EmploymentType } from '@/lib/recruitmentOs'
 
 type DocVersion = {
   id: string
@@ -66,26 +67,41 @@ export function CandidateDocumentsPanel({ candidateId }: { candidateId: string }
   const [history, setHistory] = useState<Record<string, HistRow[]>>({})
   const [fileOk, setFileOk] = useState<Record<string, boolean | null>>({})
   const [previewKey, setPreviewKey] = useState<string | null>(null)
+  const [country, setCountry] = useState('MY')
+  const [employmentType, setEmploymentType] = useState<EmploymentType>('local')
+  const [dragOver, setDragOver] = useState<string | null>(null)
+  const hydrated = useRef(false)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (c?: string, emp?: EmploymentType) => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/candidates/${candidateId}/documents`)
+      const useC = c ?? country
+      const useEmp = emp ?? employmentType
+      const params = new URLSearchParams({ country: useC, employment_type: useEmp })
+      const res = await fetch(`/api/candidates/${candidateId}/documents?${params}`)
       const data = await res.json()
       if (!res.ok) {
         setError(data.error ?? 'Could not load documents')
         return
       }
       setDocs(data.documents ?? [])
+      if (!hydrated.current) {
+        if (typeof data.country === 'string' && data.country) setCountry(data.country)
+        if (data.employment_type === 'foreign' || data.employment_type === 'local') {
+          setEmploymentType(data.employment_type)
+        }
+        hydrated.current = true
+      }
     } catch {
       setError('Network error')
     } finally {
       setLoading(false)
     }
-  }, [candidateId])
+  }, [candidateId, country, employmentType])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { hydrated.current = false }, [candidateId])
 
   const probeVersion = useCallback(async (slotId: string, versionNo: number) => {
     const key = `${slotId}:${versionNo}`
@@ -177,8 +193,41 @@ export function CandidateDocumentsPanel({ candidateId }: { candidateId: string }
       <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-950/[0.02] p-4 sm:p-5 space-y-3">
       <p className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest">Document Center</p>
       <p className="text-xs text-slate-500 -mt-1">
-        Slots follow country checklist when nationality is set. Required items are marked. You can upload multiple files per slot (each becomes a new version).
+        Switch Local / Expat to load the mapped checklist. Drag and drop files onto a slot.
       </p>
+      <div className="flex flex-wrap gap-2">
+        <label className="text-[10px] font-extrabold uppercase text-slate-600">
+          Country
+          <select
+            data-testid="docs-country"
+            value={country}
+            onChange={e => {
+              const v = e.target.value
+              setCountry(v)
+              void load(v, employmentType)
+            }}
+            className="mt-1 block text-xs font-bold rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+          >
+            {CHECKLIST_COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+          </select>
+        </label>
+        <label className="text-[10px] font-extrabold uppercase text-slate-600">
+          Employment
+          <select
+            data-testid="docs-employment-type"
+            value={employmentType}
+            onChange={e => {
+              const v = e.target.value as EmploymentType
+              setEmploymentType(v)
+              void load(country, v)
+            }}
+            className="mt-1 block text-xs font-bold rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+          >
+            <option value="local">Local</option>
+            <option value="foreign">Expat (foreign)</option>
+          </select>
+        </label>
+      </div>
       <div className="space-y-3">
         {docs.map(slot => {
           const ver = getVersion(slot)
@@ -188,7 +237,20 @@ export function CandidateDocumentsPanel({ candidateId }: { candidateId: string }
           const probeKey = hasFile && slot.id ? `${slot.id}:${ver!.version_no}` : ''
           const okState = probeKey ? fileOk[probeKey] : undefined
           return (
-            <div key={slot.slot_type} className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-950/[0.02]">
+            <div
+              key={slot.slot_type}
+              data-testid={`doc-slot-${slot.slot_type}`}
+              onDragOver={e => { e.preventDefault(); setDragOver(slot.slot_type) }}
+              onDragLeave={() => setDragOver(cur => cur === slot.slot_type ? null : cur)}
+              onDrop={e => {
+                e.preventDefault()
+                setDragOver(null)
+                if (e.dataTransfer.files?.length) void uploadMany(slot.slot_type, e.dataTransfer.files)
+              }}
+              className={`rounded-xl border bg-white p-4 shadow-sm ring-1 ring-slate-950/[0.02] ${
+                dragOver === slot.slot_type ? 'border-indigo-400 bg-indigo-50/60' : 'border-slate-200/90'
+              }`}
+            >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">

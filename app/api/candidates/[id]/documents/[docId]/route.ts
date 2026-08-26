@@ -5,6 +5,7 @@ import { isValidUUID, sanitizeText } from '@/lib/validate'
 import { logAudit } from '@/lib/audit'
 import { writeTimeline } from '@/lib/timelineEngine'
 import { createNotification } from '@/lib/notificationCenter'
+import { syncOfferDocsStatusForResume } from '@/lib/resolveDocumentChecklist'
 
 const STATUSES = [
   'pending_verification',
@@ -125,6 +126,11 @@ export async function PATCH(
     )
     history = h.rows
   } catch { /* ignore */ }
+
+  void syncOfferDocsStatusForResume({
+    tenantId: ctx.tenantId,
+    resumeId: id,
+  })
 
   return NextResponse.json({ document: rows[0], history })
 }

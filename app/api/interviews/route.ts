@@ -234,6 +234,7 @@ export async function POST(req: NextRequest) {
       candidateEmail: body.candidate_email,
       format: body.format,
       notes: body.notes,
+      round: body.round,
     })
     if (!pending) {
       return NextResponse.json(
@@ -269,6 +270,7 @@ export async function POST(req: NextRequest) {
     scheduledAt,
     format,
     notes: body.notes,
+    round,
   })
   const shortId = upserted?.interview.short_id ?? await newInterviewId(ctx.tenantId)
 

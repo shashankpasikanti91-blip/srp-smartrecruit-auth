@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Plus, Save, Settings2, Bell } from 'lucide-react'
+import { Loader2, Plus, Save, Settings2, Bell, Trash2 } from 'lucide-react'
+import { CHECKLIST_COUNTRIES, getDocumentChecklist } from '@/lib/recruitmentOs'
 
 type Template = {
   id: string
@@ -95,7 +96,11 @@ export function HrConfigTab() {
         )
         const data = await res.json()
         const items = data.checklist?.items ?? []
-        setChecklistItems(Array.isArray(items) ? items : [])
+        setChecklistItems(
+          Array.isArray(items) && items.length
+            ? items
+            : getDocumentChecklist(checklistCountry, checklistEmployment),
+        )
       }
     } finally {
       setLoading(false)
@@ -402,27 +407,97 @@ export function HrConfigTab() {
           <div className="flex flex-wrap gap-3">
             <select className="form-input font-bold" value={checklistCountry}
               onChange={e => setChecklistCountry(e.target.value)}>
-              {['MY', 'IN', 'SG', 'AU', 'CA', 'AE', 'OTHER'].map(c => <option key={c} value={c}>{c}</option>)}
+              {CHECKLIST_COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
             </select>
             <select className="form-input font-bold" value={checklistEmployment}
               onChange={e => setChecklistEmployment(e.target.value as 'local' | 'foreign')}>
               <option value="local">Local</option>
-              <option value="foreign">Foreign</option>
+              <option value="foreign">Expat (foreign)</option>
             </select>
             <button type="button" onClick={saveChecklist} disabled={saving}
               className="btn-primary inline-flex items-center gap-1.5 font-extrabold">
-              <Plus className="w-4 h-4" /> Save Country Checklist
+              <Save className="w-4 h-4" /> Save mapping
             </button>
           </div>
-          <ul className="space-y-2">
+          <p className="text-xs text-slate-500">Map which documents to collect for Local vs Expat. Offer &amp; Candidate 360 use this list.</p>
+          <ul className="space-y-2" data-testid="checklist-mapper">
             {checklistItems.map((item, idx) => (
-              <li key={`${item.key}-${idx}`} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <span className="text-sm font-extrabold text-slate-900 flex-1">{item.label}</span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase">{item.key}</span>
-                {item.required && <span className="text-[10px] font-extrabold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">Required</span>}
+              <li key={`${item.key}-${idx}`} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <input
+                  value={item.key}
+                  onChange={e => setChecklistItems(list => list.map((it, i) => i === idx ? { ...it, key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') } : it))}
+                  className="w-32 text-xs font-mono font-bold rounded border border-slate-200 px-2 py-1"
+                  placeholder="key"
+                />
+                <input
+                  value={item.label}
+                  onChange={e => setChecklistItems(list => list.map((it, i) => i === idx ? { ...it, label: e.target.value } : it))}
+                  className="flex-1 min-w-[10rem] text-sm font-bold rounded border border-slate-200 px-2 py-1"
+                  placeholder="Label"
+                />
+                <label className="text-[10px] font-extrabold uppercase text-slate-600 inline-flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={item.required !== false}
+                    onChange={e => setChecklistItems(list => list.map((it, i) => i === idx ? { ...it, required: e.target.checked } : it))}
+                  />
+                  Required
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setChecklistItems(list => list.filter((_, i) => i !== idx))}
+                  className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50"
+                  aria-label="Remove document"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </li>
             ))}
           </ul>
+          <div className="flex flex-wrap gap-2">
+            <select
+              className="form-input !py-1.5 !text-sm font-bold"
+              defaultValue=""
+              onChange={e => {
+                const key = e.target.value
+                if (!key) return
+                const pack = [
+                  ...getDocumentChecklist('MY', 'local'),
+                  ...getDocumentChecklist('MY', 'foreign'),
+                  ...getDocumentChecklist('IN', 'local'),
+                ]
+                const found = pack.find(p => p.key === key)
+                if (checklistItems.some(i => i.key === key)) return
+                setChecklistItems(list => [...list, { key, label: found?.label || key.replace(/_/g, ' '), required: found?.required ?? true }])
+                e.target.value = ''
+              }}
+            >
+              <option value="">Add from known slots…</option>
+              {Array.from(new Map([
+                ...getDocumentChecklist('MY', 'local'),
+                ...getDocumentChecklist('MY', 'foreign'),
+                ...getDocumentChecklist('IN', 'local'),
+              ].map(i => [i.key, i])).values())
+                .filter(i => !checklistItems.some(x => x.key === i.key))
+                .map(i => (
+                  <option key={i.key} value={i.key}>{i.label}</option>
+                ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setChecklistItems(list => [...list, { key: `doc_${list.length + 1}`, label: 'New document', required: false }])}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-extrabold border border-indigo-200 text-indigo-700 bg-indigo-50"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add custom document
+            </button>
+            <button
+              type="button"
+              onClick={() => setChecklistItems(getDocumentChecklist(checklistCountry, checklistEmployment))}
+              className="text-xs font-extrabold text-slate-600 hover:underline"
+            >
+              Reset to defaults
+            </button>
+          </div>
         </div>
       )}
     </div>

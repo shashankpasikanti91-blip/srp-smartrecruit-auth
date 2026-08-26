@@ -50,8 +50,8 @@ export async function GET(req: NextRequest) {
   const where = conditions.join(' AND ')
   const { rows } = await pool.query(
     `SELECT
-       i.short_id, i.candidate_name, i.candidate_email, i.scheduled_at, i.duration_minutes,
-       i.format, i.status, i.round, i.feedback, i.rating,
+       i.short_id, i.resume_id, i.job_post_id, i.candidate_name, i.candidate_email, i.scheduled_at,
+       i.duration_minutes, i.format, i.status, i.round, i.feedback, i.rating,
        r.short_id AS candidate_short_id, r.candidate_phone,
        jp.title AS job_title, COALESCE(jp.company, cl.name) AS job_client_name,
        au.name AS interviewer_name
@@ -61,29 +61,50 @@ export async function GET(req: NextRequest) {
      LEFT JOIN clients cl ON cl.id = jp.client_id
      LEFT JOIN auth_users au ON au.id = i.interviewer_id
      WHERE ${where}
-     ORDER BY i.scheduled_at ASC
+     ORDER BY i.scheduled_at ASC NULLS LAST
      LIMIT 5000`,
     params,
   )
 
+  type Row = typeof rows[number]
+  const groups = new Map<string, Row[]>()
+  for (const r of rows) {
+    const key = `${r.resume_id || r.candidate_short_id || r.short_id}::${r.job_post_id || ''}`
+    const list = groups.get(key) ?? []
+    list.push(r)
+    groups.set(key, list)
+  }
+
+  const slotIso = (list: Row[], round: number) => {
+    const hit = list.find(x => Number(x.round ?? 1) === round)
+    return hit?.scheduled_at ? new Date(hit.scheduled_at as string).toISOString() : ''
+  }
+
   const headers = [
     'Interview ID', 'Cand. ID', 'Name', 'Phone', 'Email', 'Client/Project', 'Position',
-    '1st Date/Time', 'Status', 'Feedback', 'Rating', 'Interviewer',
+    '1st Date/Time', '2nd Date/Time', '3rd Date/Time', '4th Date/Time',
+    'Status', 'Feedback', 'Rating', 'Interviewer',
   ]
-  const data = rows.map(r => [
-    r.short_id,
-    r.candidate_short_id,
-    cleanCandidateName(r.candidate_name as string) || r.candidate_name,
-    formatPhoneInternational(r.candidate_phone as string) || r.candidate_phone || '',
-    r.candidate_email,
-    r.job_client_name,
-    r.job_title,
-    r.scheduled_at ? new Date(r.scheduled_at as string).toISOString() : '',
-    r.status,
-    typeof r.feedback === 'string' ? r.feedback : (r.feedback ? JSON.stringify(r.feedback) : ''),
-    r.rating,
-    r.interviewer_name,
-  ])
+  const data = Array.from(groups.values()).map(list => {
+    const r = list.slice().sort((a, b) => Number(a.round ?? 1) - Number(b.round ?? 1))[0]
+    return [
+      list.map(x => x.short_id).join(' / '),
+      r.candidate_short_id,
+      cleanCandidateName(r.candidate_name as string) || r.candidate_name,
+      formatPhoneInternational(r.candidate_phone as string) || r.candidate_phone || '',
+      r.candidate_email,
+      r.job_client_name,
+      r.job_title,
+      slotIso(list, 1),
+      slotIso(list, 2),
+      slotIso(list, 3),
+      slotIso(list, 4),
+      r.status,
+      typeof r.feedback === 'string' ? r.feedback : (r.feedback ? JSON.stringify(r.feedback) : ''),
+      r.rating,
+      r.interviewer_name,
+    ]
+  })
 
   if (format === 'xlsx' || format === 'excel') {
     return xlsxDownload('interviews-export.xlsx', 'Interviews', headers, data)

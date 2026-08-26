@@ -132,8 +132,10 @@ export function validateUpload(file: { name: string; size: number }) {
   return null
 }
 
-export function isValidDocumentSlot(slot: string): slot is DocumentSlot {
-  return (DOCUMENT_SLOTS as readonly string[]).includes(slot)
+export function isValidDocumentSlot(slot: string): boolean {
+  if (!slot || slot.length > 40) return false
+  if ((DOCUMENT_SLOTS as readonly string[]).includes(slot)) return true
+  return /^[a-z][a-z0-9_]+$/.test(slot)
 }
 
 export function slotLabel(slot: string): string {
