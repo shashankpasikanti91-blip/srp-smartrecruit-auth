@@ -18,42 +18,133 @@ on:
 
 jobs:
   provision:
-    name: SSH provision on Hetzner
+    name: Hash + SQL provision on Hetzner
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
-      - name: Provision via SSH
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Hash temporary password
+        id: hash
+        env:
+          PROVISION_TEMP_PASSWORD: ${{ inputs.temp_password }}
+        run: |
+          npm i --no-save bcryptjs@2.4.3
+          HASH=$(node -e "process.stdout.write(require('bcryptjs').hashSync(process.env.PROVISION_TEMP_PASSWORD, 12))")
+          echo "::add-mask::$HASH"
+          echo "password_hash=$HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Upsert user via psql on Hetzner
         uses: appleboy/ssh-action@v1.0.3
         env:
           PROVISION_EMAIL: ${{ inputs.email }}
-          PROVISION_TEMP_PASSWORD: ${{ inputs.temp_password }}
           PROVISION_NAME: ${{ inputs.name }}
+          PROVISION_HASH: ${{ steps.hash.outputs.password_hash }}
         with:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
           port: ${{ secrets.HETZNER_PORT || 22 }}
-          command_timeout: 15m
-          envs: PROVISION_EMAIL,PROVISION_TEMP_PASSWORD,PROVISION_NAME
+          command_timeout: 10m
+          envs: PROVISION_EMAIL,PROVISION_NAME,PROVISION_HASH
           script: |
             set -euo pipefail
-            cd /opt/srp-smartrecruit-auth
-            git fetch origin
-            git checkout main
-            git reset --hard origin/main
-            set -a
-            # shellcheck disable=SC1091
-            . ./.env
-            set +a
-            NET=$(docker inspect srp-auth-db -f '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n1)
-            # Keep compose hostname "db" for the one-shot container
-            docker run --rm \
-              --network "$NET" \
-              -v /opt/srp-smartrecruit-auth/scripts/provision-lifelong-user.ts:/tmp/provision-lifelong-user.ts:ro \
-              -w /tmp \
-              -e DATABASE_URL \
-              -e PROVISION_EMAIL \
-              -e PROVISION_TEMP_PASSWORD \
-              -e PROVISION_NAME \
-              node:22-bookworm \
-              bash -lc 'npm i --no-save --legacy-peer-deps bcryptjs@2.4.3 pg dotenv tsx && npx tsx /tmp/provision-lifelong-user.ts'
+            docker exec -i srp-auth-db \
+              psql -U srp_auth -d srp_auth -v ON_ERROR_STOP=1 \
+              -v email="$PROVISION_EMAIL" \
+              -v name="$PROVISION_NAME" \
+              -v hash="$PROVISION_HASH" <<'SQL'
+            BEGIN;
+
+            CREATE TEMP TABLE _prov(email text, name text, hash text);
+            INSERT INTO _prov(email, name, hash) VALUES (lower(:'email'), :'name', :'hash');
+
+            WITH p AS (SELECT email, name, hash FROM _prov),
+            upserted AS (
+              INSERT INTO auth_users (email, name, password_hash, role, provider, is_active, product_access)
+              SELECT email, name, hash, 'owner', 'credentials', TRUE,
+                     ARRAY['recruit','ess','analytics','governance','ai']
+              FROM p
+              ON CONFLICT (email) DO UPDATE SET
+                password_hash = EXCLUDED.password_hash,
+                name = COALESCE(NULLIF(EXCLUDED.name, ''), auth_users.name),
+                role = 'owner',
+                provider = 'credentials',
+                is_active = TRUE,
+                product_access = ARRAY['recruit','ess','analytics','governance','ai'],
+                failed_login_count = 0,
+                locked_until = NULL,
+                updated_at = NOW()
+              RETURNING id
+            ),
+            u AS (SELECT id FROM upserted),
+            mem AS (
+              SELECT tm.tenant_id
+              FROM tenant_members tm
+              JOIN u ON u.id = tm.user_id
+              ORDER BY tm.created_at ASC NULLS LAST
+              LIMIT 1
+            ),
+            new_tenant AS (
+              INSERT INTO tenants (name, slug, plan, max_users)
+              SELECT
+                (SELECT name FROM _prov) || ' Workspace',
+                left(regexp_replace(split_part((SELECT email FROM _prov), '@', 1), '[^a-zA-Z0-9]+', '-', 'g'), 40)
+                  || '-' || substr(md5(random()::text), 1, 4),
+                'enterprise',
+                999
+              WHERE NOT EXISTS (SELECT 1 FROM mem)
+              RETURNING id
+            ),
+            tenant AS (
+              SELECT tenant_id AS id FROM mem
+              UNION ALL
+              SELECT id FROM new_tenant
+            ),
+            bump AS (
+              UPDATE tenants
+                 SET plan = 'enterprise',
+                     max_users = GREATEST(COALESCE(max_users, 0), 999),
+                     updated_at = NOW()
+               WHERE id IN (SELECT id FROM tenant)
+              RETURNING id
+            ),
+            member AS (
+              INSERT INTO tenant_members (tenant_id, user_id, role, invite_accepted, permissions)
+              SELECT (SELECT id FROM tenant LIMIT 1), (SELECT id FROM u), 'owner', TRUE, '{}'::jsonb
+              ON CONFLICT (tenant_id, user_id) DO UPDATE
+                SET role = 'owner', invite_accepted = TRUE, updated_at = NOW()
+              RETURNING tenant_id
+            ),
+            sub_upd AS (
+              UPDATE subscriptions
+                 SET plan = 'enterprise',
+                     status = 'active',
+                     billing_cycle = 'lifetime',
+                     amount_cents = 0,
+                     current_period_end = '2099-12-31'::timestamptz,
+                     updated_at = NOW()
+               WHERE user_id = (SELECT id FROM u)
+              RETURNING id
+            ),
+            sub_ins AS (
+              INSERT INTO subscriptions (user_id, plan, status, billing_cycle, amount_cents, currency, current_period_end)
+              SELECT (SELECT id FROM u), 'enterprise', 'active', 'lifetime', 0, 'usd', '2099-12-31'::timestamptz
+              WHERE NOT EXISTS (SELECT 1 FROM sub_upd)
+              RETURNING id
+            )
+            SELECT
+              (SELECT email FROM _prov) AS email,
+              (SELECT id FROM u) AS user_id,
+              (SELECT id FROM tenant LIMIT 1) AS tenant_id,
+              'enterprise'::text AS plan,
+              'lifelong'::text AS access;
+
+            COMMIT;
+            SQL
