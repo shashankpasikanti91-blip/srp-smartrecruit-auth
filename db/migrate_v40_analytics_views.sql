@@ -82,39 +82,62 @@ SELECT
   j.updated_at
 FROM job_posts j;
 
--- Dimension: candidates (resumes) — tolerant of optional lifecycle_stage
+-- Dimension: candidates (resumes) — tolerant of optional lifecycle_stage / name / email columns
 DO $$
+DECLARE
+  has_lifecycle boolean;
+  name_expr text;
+  email_expr text;
 BEGIN
-  IF EXISTS (
+  SELECT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'resumes' AND column_name = 'lifecycle_stage'
+  ) INTO has_lifecycle;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'resumes' AND column_name = 'candidate_name'
   ) THEN
-    EXECUTE $v$
-      CREATE OR REPLACE VIEW analytics_dim_candidates AS
-      SELECT
-        r.id,
-        r.tenant_id,
-        r.candidate_name AS name,
-        r.email,
-        r.lifecycle_stage,
-        r.created_at,
-        r.updated_at
-      FROM resumes r
-    $v$;
+    name_expr := 'r.candidate_name';
+  ELSIF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'resumes' AND column_name = 'full_name'
+  ) THEN
+    name_expr := 'r.full_name';
   ELSE
-    EXECUTE $v$
-      CREATE OR REPLACE VIEW analytics_dim_candidates AS
-      SELECT
-        r.id,
-        r.tenant_id,
-        r.candidate_name AS name,
-        r.email,
-        NULL::text AS lifecycle_stage,
-        r.created_at,
-        r.updated_at
-      FROM resumes r
-    $v$;
+    name_expr := 'NULL::text';
   END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'resumes' AND column_name = 'candidate_email'
+  ) THEN
+    email_expr := 'r.candidate_email';
+  ELSIF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'resumes' AND column_name = 'email'
+  ) THEN
+    email_expr := 'r.email';
+  ELSE
+    email_expr := 'NULL::text';
+  END IF;
+
+  EXECUTE format($v$
+    CREATE OR REPLACE VIEW analytics_dim_candidates AS
+    SELECT
+      r.id,
+      r.tenant_id,
+      %s AS name,
+      %s AS email,
+      %s AS lifecycle_stage,
+      r.created_at,
+      r.updated_at
+    FROM resumes r
+  $v$,
+    name_expr,
+    email_expr,
+    CASE WHEN has_lifecycle THEN 'r.lifecycle_stage' ELSE 'NULL::text' END
+  );
 END $$;
 
 -- Dimension: clients
