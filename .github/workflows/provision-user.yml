@@ -42,11 +42,14 @@ jobs:
             git checkout main
             git reset --hard origin/main
             mkdir -p /opt/srp-smartrecruit-auth/scripts
+            docker exec srp-auth-app mkdir -p /app/scripts
             docker cp /opt/srp-smartrecruit-auth/scripts/provision-lifelong-user.ts \
               srp-auth-app:/app/scripts/provision-lifelong-user.ts
             docker exec \
               -e PROVISION_EMAIL \
               -e PROVISION_TEMP_PASSWORD \
               -e PROVISION_NAME \
+              -e DATABASE_URL \
+              -w /app \
               srp-auth-app \
-              npx tsx scripts/provision-lifelong-user.ts
+              npx tsx /app/scripts/provision-lifelong-user.ts
