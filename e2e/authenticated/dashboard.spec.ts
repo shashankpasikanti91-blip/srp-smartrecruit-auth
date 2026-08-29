@@ -12,10 +12,11 @@ test.describe('Authenticated dashboard', () => {
     await expectTabHeading(page, 'Candidates')
   })
 
-  test('KPI strip is a balanced 3-column grid', async ({ page }) => {
+  test('KPI strip shows live recruiter cards', async ({ page }) => {
     await gotoDashboard(page)
     const grid = page.getByTestId('recruiter-kpi-grid')
     await expect(grid).toBeVisible({ timeout: 25_000 })
-    await expect(grid.locator('[data-testid^="kpi-card-"]')).toHaveCount(9)
+    // Phase D live strip: 10 recruiter cards (management KPIs render in a separate team strip)
+    await expect(grid.locator('[data-testid^="kpi-card-"]')).toHaveCount(10)
   })
 })

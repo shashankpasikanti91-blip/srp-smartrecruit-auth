@@ -206,10 +206,11 @@ test.describe('Demo AI + mapping flows', () => {
     await expect(page).toHaveURL(/\/dashboard\/candidates\//)
     await expect(page.getByText(CRASH)).toHaveCount(0)
 
-    for (const name of [/Overview/i, /Timeline/i, /Notes/i, /Documents/i]) {
-      const btn = page.getByRole('button', { name }).or(page.getByRole('tab', { name }))
-      if (await btn.first().isVisible().catch(() => false)) {
-        await btn.first().click()
+    // Prefer dedicated tab testids — labels like "Notes" can match disabled KPI tiles
+    for (const id of ['timeline', 'notes', 'attachments', 'submissions'] as const) {
+      const btn = page.getByTestId(`c360-tab-${id}`)
+      if (await btn.isVisible().catch(() => false)) {
+        await btn.click()
         await expect(page.getByText(CRASH)).toHaveCount(0)
       }
     }

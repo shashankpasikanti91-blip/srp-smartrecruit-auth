@@ -63,13 +63,13 @@ test.describe('Module mapping — APIs, dashboard grid, submit', () => {
     expect(list.ok()).toBeTruthy()
   })
 
-  test('dashboard KPI grid is a 3×3 (9 cards, 3 columns)', async ({ page }) => {
+  test('dashboard KPI grid shows live strip (≥9 cards, multi-column)', async ({ page }) => {
     await gotoDashboard(page)
     await openTab(page, 'Dashboard')
     const grid = page.getByTestId('recruiter-kpi-grid')
     await expect(grid).toBeVisible({ timeout: 25_000 })
     const cards = grid.locator('[data-testid^="kpi-card-"]')
-    await expect(cards).toHaveCount(9)
+    await expect(cards).toHaveCount(10)
     await expect(page.getByText(/^Server error$/i)).toHaveCount(0)
 
     const first = await cards.nth(0).boundingBox()

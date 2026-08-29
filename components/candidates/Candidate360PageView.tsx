@@ -99,16 +99,30 @@ function ownerLabel(owner: Header['owner']) {
 
 const KPI_TONES = ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g1', 'g4', 'g3'] as const
 
+function humanizeStatus(raw: string | number | null | undefined): string {
+  if (raw == null) return '—'
+  const s = String(raw).trim()
+  if (!s || s === '—') return '—'
+  if (/^\d+(\.\d+)?%?$/.test(s)) return s
+  return s
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, c => c.toUpperCase())
+}
+
 function SummaryCard({ label, value, tone, onClick }: { label: string; value: string | number; tone: string; onClick?: () => void }) {
+  const display = humanizeStatus(value)
   return (
     <button
       type="button"
       disabled={!onClick}
       onClick={onClick}
+      title={display}
       className={`kpi-card kpi-card--gradient kpi-card--${tone} !min-h-[76px] text-left ${onClick ? 'cursor-pointer hover:opacity-90' : 'cursor-default'}`}
     >
       <p className="kpi-card__label">{label}</p>
-      <p className="kpi-card__value text-lg truncate">{value}</p>
+      <p className="kpi-card__value text-sm sm:text-base leading-snug break-words whitespace-normal">{display}</p>
     </button>
   )
 }
