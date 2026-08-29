@@ -45,9 +45,38 @@ EXCEPTION WHEN undefined_table THEN
 END $$;
 
 ALTER TABLE public.interviews DROP CONSTRAINT IF EXISTS interviews_status_check;
+
+-- Normalize legacy / out-of-band values before re-adding the check (safe on re-run).
+UPDATE public.interviews
+   SET status = 'scheduled'
+ WHERE status IS NULL OR btrim(status) = '';
+
+UPDATE public.interviews
+   SET status = 'to_schedule'
+ WHERE lower(status) IN ('pending', 'new', 'draft', 'to schedule');
+
+UPDATE public.interviews
+   SET status = 'awaiting_feedback'
+ WHERE lower(status) IN ('waiting_feedback', 'feedback_pending', 'feedback');
+
+UPDATE public.interviews
+   SET status = 'completed'
+ WHERE lower(status) IN ('done', 'finished');
+
+-- Any remaining unknown values → scheduled (keeps deploy unblocked)
+UPDATE public.interviews
+   SET status = 'scheduled'
+ WHERE status NOT IN (
+    'to_schedule', 'scheduled', 'rescheduled', 'postponed', 'confirmed', 'completed',
+    'no_show', 'interviewer_no_show', 'cancelled', 'rejected', 'selected',
+    'awaiting_feedback', 'offer_discussion', 'offer_released',
+    'offer_accepted', 'offer_rejected'
+  );
+
+-- Keep parity with migrate_v39 (includes to_schedule) so re-applying v22 on prod never fails.
 ALTER TABLE public.interviews
   ADD CONSTRAINT interviews_status_check CHECK (status IN (
-    'scheduled', 'rescheduled', 'postponed', 'confirmed', 'completed',
+    'to_schedule', 'scheduled', 'rescheduled', 'postponed', 'confirmed', 'completed',
     'no_show', 'interviewer_no_show', 'cancelled', 'rejected', 'selected',
     'awaiting_feedback', 'offer_discussion', 'offer_released',
     'offer_accepted', 'offer_rejected'

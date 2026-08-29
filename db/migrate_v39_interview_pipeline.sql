@@ -15,13 +15,20 @@ BEGIN
   END LOOP;
 END $$;
 
-ALTER TABLE public.interviews
-  ADD CONSTRAINT interviews_status_check CHECK (status IN (
-    'to_schedule', 'scheduled', 'rescheduled', 'postponed', 'confirmed', 'completed',
-    'no_show', 'interviewer_no_show', 'cancelled', 'rejected', 'selected',
-    'awaiting_feedback', 'offer_discussion', 'offer_released',
-    'offer_accepted', 'offer_rejected'
-  ));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'interviews_status_check'
+  ) THEN
+    ALTER TABLE public.interviews
+      ADD CONSTRAINT interviews_status_check CHECK (status IN (
+        'to_schedule', 'scheduled', 'rescheduled', 'postponed', 'confirmed', 'completed',
+        'no_show', 'interviewer_no_show', 'cancelled', 'rejected', 'selected',
+        'awaiting_feedback', 'offer_discussion', 'offer_released',
+        'offer_accepted', 'offer_rejected'
+      ));
+  END IF;
+END $$;
 
 ALTER TABLE public.interviews ADD COLUMN IF NOT EXISTS interviewer_id UUID;
 

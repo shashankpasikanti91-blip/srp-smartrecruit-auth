@@ -40,6 +40,9 @@ FILES=(
   migrate_v37_audit_ai.sql
   migrate_v38_bulk_stale.sql
   migrate_v39_interview_pipeline.sql
+  migrate_v40_analytics_views.sql
+  migrate_v41_rag_meta.sql
+  migrate_v42_whatsapp_webhooks.sql
 )
 
 echo "=== Applying tracked migrations (additive only) ==="
