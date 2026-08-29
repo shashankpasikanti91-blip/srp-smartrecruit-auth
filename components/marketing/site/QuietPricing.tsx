@@ -6,8 +6,13 @@ export default function QuietPricing() {
     <section id="pricing" className="bg-[#FCFCFA] py-20 sm:py-24 border-t border-[#E5E7EB]">
       <div className="max-w-6xl mx-auto px-5 sm:px-8">
         <p className="text-[11px] tracking-[0.2em] uppercase text-[#166534] font-semibold">{PRICING.eyebrow}</p>
-        <h2 className="mt-3 font-display text-3xl sm:text-4xl text-[#111827] max-w-xl leading-tight">Pay for the desk you actually run.</h2>
+        <h2 className="mt-3 font-display text-3xl sm:text-4xl text-[#111827] max-w-xl leading-tight">
+          Pricing built for a Recruitment OS — not a cheap scanner.
+        </h2>
         <p className="mt-4 text-[#4B5563] max-w-lg">{PRICING.subtitle}</p>
+        {'currencyNote' in PRICING && PRICING.currencyNote ? (
+          <p className="mt-2 text-xs text-[#6b7280] max-w-lg">{PRICING.currencyNote}</p>
+        ) : null}
         <div className="mt-12 grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {PRICING.plans.map((plan) => (
             <article
@@ -26,6 +31,9 @@ export default function QuietPricing() {
                 {plan.price}
                 <span className="text-sm font-normal text-[#6b7280]"> / {plan.period}</span>
               </p>
+              {'priceUsd' in plan && plan.priceUsd && plan.price !== 'Custom' && (
+                <p className="text-xs text-[#6b7280] mt-1">Guide {plan.priceUsd}/mo</p>
+              )}
               <p className="mt-2 text-sm text-[#4B5563] mb-5">{plan.description}</p>
               <ul className="space-y-2 flex-1 mb-6">
                 {plan.features.map((f) => (

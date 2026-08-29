@@ -1,113 +1,70 @@
 /**
- * Local smoke: migrate check + optional index/retrieve against DATABASE_URL.
- * Usage: npx tsx scripts/smoke-rag.ts
+ * Live RAG smoke against configured DATABASE_URL.
+ * Run: npx tsx scripts/smoke-rag.ts
+ *
+ * Optional env:
+ *   SMOKE_TENANT_ID — UUID to scope chunk counts + optional retrieval probe
+ *   SMOKE_RAG_QUERY  — query string (default: "Java engineer")
  */
-import pg from 'pg'
-import { config } from 'dotenv'
-
-config({ path: '.env.local' })
+import 'dotenv/config'
+import { pool } from '../lib/db'
+import { checkRagReadiness } from '../lib/rag/readiness'
 
 async function main() {
-  const url = process.env.DATABASE_URL
-  if (!url) {
-    console.error('DATABASE_URL required')
-    process.exit(1)
+  const readiness = await checkRagReadiness()
+  const tenantId = process.env.SMOKE_TENANT_ID?.trim()
+  const query = (process.env.SMOKE_RAG_QUERY ?? 'Java engineer').trim()
+
+  let tenantChunks = 0
+  let retrievalCount = 0
+
+  if (readiness.status === 'ready' && tenantId) {
+    const counts = await pool.query<{ c: string }>(
+      `SELECT COUNT(*)::text AS c FROM rag_chunks WHERE tenant_id = $1`,
+      [tenantId],
+    )
+    tenantChunks = parseInt(counts.rows[0]?.c ?? '0', 10)
+
+    try {
+      const { retrieveChunks } = await import('../lib/rag/retrieve')
+      const hits = await retrieveChunks({
+        tenantId,
+        query,
+        topK: 5,
+        allowResumes: true,
+        allowJobs: true,
+      })
+      retrievalCount = hits.length
+    } catch (e) {
+      console.error(JSON.stringify({
+        ok: false,
+        readiness,
+        tenant_id: tenantId,
+        tenant_chunks: tenantChunks,
+        error: e instanceof Error ? e.message : 'retrieval failed',
+      }, null, 2))
+      process.exit(1)
+    }
   }
-  const pool = new pg.Pool({ connectionString: url })
-  try {
-    const ext = await pool.query(
-      `SELECT extname FROM pg_extension WHERE extname = 'vector'`,
-    )
-    const tables = await pool.query(
-      `SELECT to_regclass('public.rag_chunks') AS rag,
-              to_regclass('public.talent_edges') AS edges`,
-    )
-    const tenants = await pool.query(`SELECT COUNT(*)::int AS n FROM tenants`)
-    const resumes = await pool.query(
-      `SELECT COUNT(*)::int AS n FROM resumes WHERE COALESCE(raw_text, '') <> ''`,
-    )
-    console.log(
-      JSON.stringify(
-        {
-          vector: ext.rows.map(r => r.extname),
-          tables: tables.rows[0],
-          tenants: tenants.rows[0].n,
-          resumes_with_text: resumes.rows[0].n,
-        },
-        null,
-        2,
-      ),
-    )
 
-    if (!ext.rows.length || !tables.rows[0].rag) {
-      console.error('FAIL: vector extension or rag_chunks missing — run migrations')
-      process.exit(2)
-    }
+  const ok = readiness.status === 'ready'
+  console.log(JSON.stringify({
+    ok,
+    readiness,
+    tenant_id: tenantId ?? null,
+    tenant_chunks: tenantId ? tenantChunks : null,
+    retrieval_hits: tenantId ? retrievalCount : null,
+    query: tenantId ? query : null,
+    note: tenantId
+      ? 'Live retrieval probe completed'
+      : 'Set SMOKE_TENANT_ID for tenant-scoped retrieval probe',
+  }, null, 2))
 
-    // Optional: index one resume + retrieve if AI key present
-    const hasKey = Boolean(
-      (process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY || '').trim(),
-    )
-    if (!hasKey) {
-      console.log('SKIP index/retrieve — no OPENAI/OPENROUTER key')
-      return
-    }
-
-    const { rows: tenantRows } = await pool.query<{ id: string }>(
-      `SELECT id FROM tenants ORDER BY created_at NULLS LAST LIMIT 1`,
-    )
-    const { rows: resumeRows } = await pool.query<{ id: string; user_id: string }>(
-      `SELECT id, user_id FROM resumes
-       WHERE tenant_id = $1 AND COALESCE(raw_text, '') <> ''
-       ORDER BY updated_at DESC NULLS LAST LIMIT 1`,
-      [tenantRows[0]?.id],
-    )
-    if (!tenantRows[0] || !resumeRows[0]) {
-      console.log('SKIP index — no tenant/resume text')
-      return
-    }
-    const userId =
-      resumeRows[0].user_id ||
-      (
-        await pool.query<{ id: string }>(
-          `SELECT id FROM auth_users ORDER BY created_at NULLS LAST LIMIT 1`,
-        )
-      ).rows[0]?.id
-    if (!userId) {
-      console.log('SKIP index — no auth user id for usage logging')
-      return
-    }
-
-    const { indexResumeCorpus } = await import('../lib/rag/indexCorpus')
-    const { retrieveChunks } = await import('../lib/rag/retrieve')
-    const indexed = await indexResumeCorpus({
-      tenantId: tenantRows[0].id,
-      resumeId: resumeRows[0].id,
-      userId,
-    })
-    console.log('indexed', indexed)
-    const chunks = await retrieveChunks({
-      tenantId: tenantRows[0].id,
-      query: 'skills experience',
-      topK: 3,
-      userId,
-    })
-    console.log(
-      'retrieve',
-      chunks.map(c => ({
-        source: c.source_type,
-        id: c.source_id.slice(0, 8),
-        sim: c.score,
-        preview: c.content.slice(0, 80),
-      })),
-    )
-    console.log('SMOKE_OK')
-  } finally {
-    await pool.end()
-  }
+  await pool.end().catch(() => {})
+  process.exit(ok ? 0 : 1)
 }
 
-main().catch(e => {
+main().catch((e) => {
   console.error(e)
   process.exit(1)
 })

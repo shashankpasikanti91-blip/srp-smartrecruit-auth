@@ -46,7 +46,18 @@ export default async function globalSetup() {
 
   console.log(`[e2e global-setup] Signing in as ${email} at ${origin} …`)
 
-  const browser = await chromium.launch({ headless: true })
+  let browser
+  try {
+    browser = await chromium.launch({ headless: true })
+  } catch (launchErr) {
+    console.warn(
+      '[e2e global-setup] Chromium launch failed — guest tests can still run. ' +
+        `Install browsers with: npx playwright install chromium. (${launchErr instanceof Error ? launchErr.message : launchErr})`,
+    )
+    fs.writeFileSync(authFile, JSON.stringify({ cookies: [], origins: [] }))
+    return
+  }
+
   const context = await browser.newContext({ baseURL: origin })
   const page = await context.newPage()
 

@@ -2,6 +2,12 @@ import { pool } from './db'
 import { ensureAutoFollowUp } from './autoFollowUps'
 import { createNotification } from './notificationCenter'
 
+/**
+ * Recommend-only agent framework (V2).
+ * Agents create pending suggestions for human approval — they never auto-send email/WhatsApp
+ * or mutate pipeline without an explicit approve API. LangGraph is NOT REQUIRED.
+ */
+
 export type AgentType =
   | 'submission' | 'interview' | 'offer' | 'document'
   | 'joining' | 'visa' | 'follow_up'

@@ -373,11 +373,106 @@ export async function sendEmailFromTenant(
     }
   }
 
-  // SMTP fallback
+  // Tenant Integrations SMTP / SendGrid / Mailgun / Outlook (before platform env)
+  try {
+    const { rows: integRows } = await pool.query<{ slug: string; config: Record<string, string> }>(
+      `SELECT slug, config FROM integrations
+       WHERE tenant_id = $1
+         AND slug IN ('smtp', 'sendgrid', 'mailgun', 'outlook')
+         AND COALESCE(config->>'connection_status', '') = 'connected'
+       ORDER BY CASE slug
+         WHEN 'smtp' THEN 0 WHEN 'outlook' THEN 1 WHEN 'sendgrid' THEN 2 ELSE 3 END
+       LIMIT 1`,
+      [tenantId]
+    )
+    if (integRows[0]) {
+      const slug = integRows[0].slug
+      const cfg = integRows[0].config ?? {}
+      const toStr = Array.isArray(msg.to) ? msg.to.join(', ') : msg.to
+      const textBody = msg.text || msg.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+
+      if (slug === 'sendgrid' && cfg.api_key && cfg.from_email) {
+        const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${cfg.api_key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            personalizations: [{
+              to: (Array.isArray(msg.to) ? msg.to : [msg.to]).map(email => ({ email })),
+              subject: msg.subject,
+            }],
+            from: { email: cfg.from_email, name: cfg.from_name ?? 'SRP Smartrecruit' },
+            content: [
+              { type: 'text/plain', value: textBody },
+              { type: 'text/html', value: msg.html },
+            ],
+            ...(msg.replyTo ? { reply_to: { email: msg.replyTo } } : {}),
+          }),
+        })
+        if (!res.ok) throw new Error(`SendGrid ${res.status}: ${await res.text()}`)
+        return { sent_via: 'sendgrid', from: cfg.from_email }
+      }
+
+      if (slug === 'mailgun' && cfg.api_key && cfg.domain && cfg.from_email) {
+        const formData = new FormData()
+        formData.append('from', `${cfg.from_name ?? 'SRP Smartrecruit'} <${cfg.from_email}>`)
+        formData.append('to', toStr)
+        formData.append('subject', msg.subject)
+        formData.append('text', textBody)
+        formData.append('html', msg.html)
+        if (msg.replyTo) formData.append('h:Reply-To', msg.replyTo)
+        const res = await fetch(`https://api.mailgun.net/v3/${cfg.domain}/messages`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${Buffer.from(`api:${cfg.api_key}`).toString('base64')}`,
+          },
+          body: formData,
+        })
+        if (!res.ok) throw new Error(`Mailgun ${res.status}: ${await res.text()}`)
+        return { sent_via: 'mailgun', from: cfg.from_email }
+      }
+
+      if ((slug === 'smtp' || slug === 'outlook') && cfg.host && cfg.username && cfg.password) {
+        const nodemailer = await import('nodemailer')
+        const port = parseInt(cfg.port ?? '587', 10)
+        const transport = nodemailer.default.createTransport({
+          host: cfg.host,
+          port,
+          secure: port === 465,
+          auth: { user: cfg.username, pass: cfg.password },
+          tls: { rejectUnauthorized: false },
+        })
+        const fromEmail = cfg.from_email || cfg.username
+        await transport.sendMail({
+          from: `"${cfg.from_name ?? 'SRP Smartrecruit'}" <${fromEmail}>`,
+          to: toStr,
+          cc: msg.cc ? (Array.isArray(msg.cc) ? msg.cc.join(', ') : msg.cc) : undefined,
+          replyTo: msg.replyTo,
+          subject: msg.subject,
+          html: msg.html,
+          text: msg.text,
+        })
+        return { sent_via: slug, from: fromEmail }
+      }
+    }
+  } catch (integErr) {
+    // If integrations send failed hard (not "missing"), rethrow; else fall through to env SMTP
+    const m = integErr instanceof Error ? integErr.message : String(integErr)
+    if (m.includes('SendGrid') || m.includes('Mailgun') || m.includes('SMTP') || m.includes('ECONNREFUSED')) {
+      throw integErr
+    }
+    console.warn('[email] integrations fallback skipped:', m)
+  }
+
+  // Platform SMTP env fallback
   const smtpUser = process.env.SMTP_USER ?? ''
   const smtpPass = process.env.SMTP_PASS ?? ''
   if (!smtpUser || !smtpPass) {
-    throw new Error('No email connection configured. Connect Gmail or Outlook in Settings → Email, or set SMTP_USER/SMTP_PASS env vars.')
+    throw new Error(
+      'No email connection configured. Connect Gmail/Outlook OAuth, or Integrations → SMTP/SendGrid (Save + Test), or set SMTP_USER/SMTP_PASS.',
+    )
   }
 
   const nodemailer = await import('nodemailer')

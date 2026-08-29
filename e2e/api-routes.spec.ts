@@ -3,10 +3,13 @@ import { test, expect } from '@playwright/test'
 test.describe('Public API routes', () => {
   test('GET /api/health returns ok', async ({ request }) => {
     const res = await request.get('/api/health')
-    expect(res.ok()).toBeTruthy()
+    expect(res.status()).toBe(200)
     const body = await res.json()
-    expect(body).toMatchObject({ ok: true })
+    // Liveness: HTTP 200 + application probe. database.ok may be false if Postgres is down.
+    expect(body.application?.ok).toBeTruthy()
     expect(typeof body.ts).toBe('number')
+    expect(body).toHaveProperty('database')
+    expect(body).toHaveProperty('rag')
   })
 
   test('GET /api/auth/csrf returns csrfToken', async ({ request }) => {

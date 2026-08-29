@@ -12,6 +12,7 @@ type RagStatus = {
   job_sources: number
   last_indexed_at: string | null
   error?: string
+  readiness?: { status: string; detail?: string; pgvector?: boolean; rag_chunks?: boolean }
 }
 
 type ReindexResult = {
@@ -104,24 +105,36 @@ export function RagReindexPanel() {
             <Loader2 className="w-5 h-5 animate-spin text-teal-600" />
           </div>
         ) : status ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <Stat label="Vector DB" value={status.vector_ready ? 'Ready' : 'Offline'} warn={!status.vector_ready} />
-            <Stat label="Resume chunks" value={String(status.resume_chunks)} />
-            <Stat label="Job chunks" value={String(status.job_chunks)} />
-            <Stat
-              label="Last indexed"
-              value={
-                status.last_indexed_at
-                  ? new Date(status.last_indexed_at).toLocaleString()
-                  : '—'
-              }
-            />
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <Stat label="Vector DB" value={status.vector_ready ? 'Ready' : 'Offline'} warn={!status.vector_ready} />
+              <Stat label="Resume chunks" value={String(status.resume_chunks)} />
+              <Stat label="Job chunks" value={String(status.job_chunks)} />
+              <Stat
+                label="Last indexed"
+                value={
+                  status.last_indexed_at
+                    ? new Date(status.last_indexed_at).toLocaleString()
+                    : '—'
+                }
+              />
+            </div>
+            {status.readiness ? (
+              <p className={`text-[11px] font-semibold rounded-lg px-3 py-2 border ${
+                status.readiness.status === 'ready'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-amber-50 text-amber-900 border-amber-200'
+              }`}>
+                Prod gate: {status.readiness.status}
+                {status.readiness.detail ? ` — ${status.readiness.detail}` : ''}
+              </p>
+            ) : null}
           </div>
         ) : null}
 
         {!status?.vector_ready && !loading ? (
           <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            pgvector is not available on this database. Indexing will soft-fail until the vector extension is installed.
+            pgvector is not available on this database. NOT production-ready for RAG until the vector extension is installed (see docs/RAG-PRODUCTION-GATE.md). Indexing will soft-fail.
           </p>
         ) : null}
 

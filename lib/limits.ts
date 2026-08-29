@@ -20,7 +20,7 @@ export async function checkJobPostLimit(userId: string): Promise<{ allowed: bool
   if (current >= limit) {
     return {
       allowed: false,
-      reason: `Free plan allows up to ${limit} active job posts. Upgrade to Pro for unlimited.`,
+      reason: `Starter plan allows up to ${limit} active job posts. Upgrade to Professional (₹9,999/mo) for unlimited.`,
     }
   }
   return { allowed: true }
@@ -45,7 +45,10 @@ export async function checkAiScreenLimit(userId: string): Promise<{ allowed: boo
   if (current >= limit) {
     return {
       allowed: false,
-      reason: `Free plan allows ${limit} AI screenings per month. Upgrade to Pro for unlimited.`,
+      reason:
+        plan === 'pro'
+          ? `Professional plan allows ${limit} AI screenings per month. Contact sales for Agency (unlimited) or Enterprise.`
+          : `Starter plan allows ${limit} AI screenings per month. Upgrade to Professional (₹9,999/mo) for higher volume.`,
     }
   }
   return { allowed: true }

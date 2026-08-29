@@ -22,6 +22,8 @@ import { sendEmailFromTenant,
          disconnectEmailProvider }         from '@/lib/email-oauth'
 import { logAudit }                        from '@/lib/audit'
 import { insertCommLog }                   from '@/lib/commLog'
+import { writeTimeline }                   from '@/lib/timelineEngine'
+import { isValidUUID }                     from '@/lib/validate'
 
 export async function POST(req: NextRequest) {
   const ctx = await requireTenant(req)
@@ -70,7 +72,7 @@ export async function POST(req: NextRequest) {
       replyTo: body.replyTo,
     })
 
-    await insertCommLog({
+    const logId = await insertCommLog({
       userId: ctx.userId,
       tenantId: ctx.tenantId,
       channel: 'email',
@@ -79,10 +81,26 @@ export async function POST(req: NextRequest) {
       body: plain,
       status: 'sent',
       deliveryStatus: 'sent',
-      resumeId: body.resume_id ?? null,
-      jobPostId: body.job_post_id ?? null,
-      clientId: body.client_id ?? null,
+      resumeId: body.resume_id && isValidUUID(body.resume_id) ? body.resume_id : null,
+      jobPostId: body.job_post_id && isValidUUID(body.job_post_id) ? body.job_post_id : null,
+      clientId: body.client_id && isValidUUID(body.client_id) ? body.client_id : null,
+      direction: 'outbound',
     })
+
+    if (body.resume_id && isValidUUID(body.resume_id)) {
+      await writeTimeline({
+        tenantId: ctx.tenantId,
+        entityType: 'email',
+        entityId: logId ?? body.resume_id,
+        resumeId: body.resume_id,
+        eventType: 'comm_sent',
+        title: 'Email sent',
+        detail: `${body.subject} → ${toList.join(', ')}`,
+        actorUserId: ctx.userId,
+        actorEmail: ctx.userEmail,
+        meta: { sent_via: result.sent_via, from: result.from, job_post_id: body.job_post_id },
+      })
+    }
 
     await logAudit({
       userId:       ctx.userId,
@@ -90,15 +108,18 @@ export async function POST(req: NextRequest) {
       tenantId:     ctx.tenantId,
       action:       'email_sent',
       resourceType: 'email',
+      resumeId:     body.resume_id && isValidUUID(body.resume_id) ? body.resume_id : undefined,
       details: {
         to:       toList,
         subject:  body.subject,
         sent_via: result.sent_via,
         from:     result.from,
+        log_id:   logId,
       },
+      module: 'comms',
     })
 
-    return NextResponse.json({ ok: true, sent_via: result.sent_via, from: result.from })
+    return NextResponse.json({ ok: true, sent_via: result.sent_via, from: result.from, id: logId })
   } catch (err: unknown) {
     console.error('[email/send]', err)
     await insertCommLog({

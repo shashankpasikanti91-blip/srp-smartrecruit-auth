@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireTenant } from '@/lib/tenant'
+import { requireTenant, requireGovernanceAccess } from '@/lib/tenant'
 import { pool } from '@/lib/db'
-
 /**
  * GET /api/rag/status
  * Admin/owner — corpus health for Deep RAG (tenant-scoped).
@@ -10,20 +9,17 @@ export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, 'candidates.update')
   if (ctx instanceof NextResponse) return ctx
 
-  if (ctx.tenantRole !== 'admin' && ctx.tenantRole !== 'owner') {
-    return NextResponse.json({ error: 'Forbidden — admin or owner only' }, { status: 403 })
-  }
-
+  const denied = requireGovernanceAccess(ctx)
+  if (denied) return denied
   try {
-    const ext = await pool.query(
-      `SELECT 1 FROM pg_extension WHERE extname = 'vector' LIMIT 1`,
-    )
-    const vectorReady = ext.rows.length > 0
+    const { checkRagReadiness } = await import('@/lib/rag/readiness')
+    const readiness = await checkRagReadiness()
 
-    if (!vectorReady) {
+    if (readiness.status !== 'ready') {
       return NextResponse.json({
         ok: true,
         vector_ready: false,
+        readiness,
         resume_chunks: 0,
         job_chunks: 0,
         resume_sources: 0,
@@ -54,6 +50,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       vector_ready: true,
+      readiness,
       resume_chunks: Number(r?.resume_chunks ?? 0),
       job_chunks: Number(r?.job_chunks ?? 0),
       resume_sources: Number(r?.resume_sources ?? 0),

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireTenant } from '@/lib/tenant'
+import { requireTenant, requireGovernanceAccess } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 
 export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req, 'governance.read')
   if (ctx instanceof NextResponse) return ctx
-  if (ctx.tenantRole !== 'owner' && ctx.tenantRole !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const denied = requireGovernanceAccess(ctx)
+  if (denied) return denied
 
   const days = parseInt(req.nextUrl.searchParams.get('days') ?? '7', 10)
   const since = new Date()

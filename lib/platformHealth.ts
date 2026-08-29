@@ -7,6 +7,7 @@ import path from 'path'
 import { pool } from '@/lib/db'
 import { getAIStatus } from '@/lib/aiClient'
 import { documentsRoot, legacyResumesRoot } from '@/lib/documentStorage'
+import { checkRagReadiness, type RagReadiness } from '@/lib/rag/readiness'
 
 const startedAt = Date.now()
 
@@ -18,6 +19,14 @@ export type QueueHealth = {
   pending: number
   failedJobs: number
   failedItems: number
+}
+
+export type RagHealth = {
+  ok: boolean
+  status: RagReadiness['status']
+  pgvector: boolean
+  rag_chunks: boolean
+  detail?: string
 }
 
 export type PlatformHealthSnapshot = {
@@ -35,13 +44,14 @@ export type PlatformHealthSnapshot = {
   storage: ProbeResult
   email: ProbeResult
   queues: QueueHealth
+  rag: RagHealth
 }
 
 function appVersion(): string {
   return (
     process.env.APP_VERSION ||
     process.env.npm_package_version ||
-    '1.3.0'
+    '1.4.0'
   )
 }
 
@@ -80,6 +90,33 @@ async function checkDatabase(): Promise<ProbeResult & { inRecovery?: boolean }> 
       return { ok: true }
     } catch {
       return { ok: false, detail: 'DB unavailable' }
+    }
+  }
+}
+
+function ragRequiredInEnv(): boolean {
+  const env = process.env.ENVIRONMENT ?? process.env.NODE_ENV ?? 'development'
+  if (env !== 'production') return false
+  return process.env.RAG_REQUIRED !== '0'
+}
+
+async function checkRag(): Promise<RagHealth> {
+  try {
+    const r = await checkRagReadiness()
+    return {
+      ok: r.status === 'ready',
+      status: r.status,
+      pgvector: r.pgvector,
+      rag_chunks: r.rag_chunks,
+      ...(r.status === 'ready' ? {} : { detail: r.detail }),
+    }
+  } catch {
+    return {
+      ok: false,
+      status: 'not_ready',
+      pgvector: false,
+      rag_chunks: false,
+      detail: 'RAG readiness probe failed',
     }
   }
 }
@@ -130,10 +167,11 @@ async function checkQueues(): Promise<QueueHealth> {
 
 export async function collectPlatformHealth(): Promise<PlatformHealthSnapshot> {
   const t0 = Date.now()
-  const [database, storage, queues] = await Promise.all([
+  const [database, storage, queues, rag] = await Promise.all([
     checkDatabase(),
     checkStorage(),
     checkQueues(),
+    checkRag(),
   ])
 
   const aiRaw = getAIStatus()
@@ -157,10 +195,12 @@ export async function collectPlatformHealth(): Promise<PlatformHealthSnapshot> {
     uptimeSec: Math.floor((Date.now() - startedAt) / 1000),
   }
 
+  const ragBlocksOk = ragRequiredInEnv() && !rag.ok
   const ok =
     database.ok &&
     storage.ok &&
-    application.ok
+    application.ok &&
+    !ragBlocksOk
 
   return {
     ok,
@@ -172,5 +212,6 @@ export async function collectPlatformHealth(): Promise<PlatformHealthSnapshot> {
     storage: { ok: storage.ok, ...(storage.ok ? {} : { detail: storage.detail }) },
     email,
     queues,
+    rag,
   }
 }

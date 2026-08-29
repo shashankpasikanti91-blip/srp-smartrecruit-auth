@@ -26,9 +26,18 @@ export async function fillCredentials(
   const passwordInput = page.getByTestId('login-password')
   await emailInput.waitFor({ state: 'visible' })
   await emailInput.click()
+  await emailInput.fill('')
   await emailInput.fill(email)
+  // React controlled inputs can drop the first fill under Turbopack — retry once
+  if ((await emailInput.inputValue()) !== email) {
+    await emailInput.fill(email)
+  }
   await passwordInput.click()
+  await passwordInput.fill('')
   await passwordInput.fill(password)
+  if ((await passwordInput.inputValue()) !== password) {
+    await passwordInput.fill(password)
+  }
   await expect(emailInput).toHaveValue(email)
   await expect(passwordInput).toHaveValue(password)
 }

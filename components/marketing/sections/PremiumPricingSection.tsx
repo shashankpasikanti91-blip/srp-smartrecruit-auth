@@ -21,6 +21,9 @@ export default function PremiumPricingSection({ showAllPlans = true }: PremiumPr
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#F97316] mb-3">{PRICING.eyebrow}</p>
           <h2 className="font-display text-display-lg font-extrabold text-white">{PRICING.title}</h2>
           <p className="mt-4 text-slate-400">{PRICING.subtitle}</p>
+          {'currencyNote' in PRICING && PRICING.currencyNote ? (
+            <p className="mt-2 text-xs text-slate-500">{PRICING.currencyNote}</p>
+          ) : null}
         </div>
         <div className={`grid gap-5 ${showAllPlans ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4' : 'max-w-lg mx-auto'}`}>
           {plans.map((plan) => (
@@ -38,7 +41,13 @@ export default function PremiumPricingSection({ showAllPlans = true }: PremiumPr
                 </span>
               )}
               <h3 className="text-lg font-bold text-white">{plan.name}</h3>
-              <p className="mt-2 text-3xl font-extrabold text-white">{plan.price}<span className="text-sm font-normal text-slate-500"> / {plan.period}</span></p>
+              <p className="mt-2 text-3xl font-extrabold text-white">
+                {plan.price}
+                <span className="text-sm font-normal text-slate-500"> / {plan.period}</span>
+              </p>
+              {'priceUsd' in plan && plan.priceUsd && plan.price !== 'Custom' && (
+                <p className="text-xs text-slate-500 mt-1">Guide {plan.priceUsd}/mo</p>
+              )}
               <p className="text-sm text-slate-500 mt-2 mb-6">{plan.description}</p>
               <ul className="space-y-2 flex-1 mb-6">
                 {plan.features.slice(0, showAllPlans ? undefined : 4).map((f) => (

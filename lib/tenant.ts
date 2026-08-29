@@ -34,11 +34,23 @@ export interface TenantContext {
   tenantSlug: string
   tenantName: string
   tenantPlan: string
-  tenantRole: 'owner' | 'admin' | 'recruiter' | 'member' | 'viewer'
+  tenantRole: TenantRole
   permissions: TenantPermissions
   /** Correlation id for this request (header or generated). APIs are not wrapped by proxy.ts. */
   requestId: string
 }
+
+/** Tenant-scoped roles. Platform super_admin is owner-panel only, not a tenant_members role. */
+export type TenantRole =
+  | 'owner'
+  | 'admin'
+  | 'recruitment_head'
+  | 'manager'
+  | 'team_lead'
+  | 'recruiter'
+  | 'hr'
+  | 'member'
+  | 'viewer'
 
 export interface TenantPermissions {
   jobs:           { create: boolean; read: boolean; update: boolean; delete: boolean }
@@ -55,6 +67,9 @@ export interface TenantPermissions {
   ess:            { access: boolean; admin: boolean }
   reports:        { read: boolean }
   governance:     { read: boolean }
+  /** P7 module gates (04-RBAC.md) */
+  recruiters:     { module: boolean }
+  audit:          { tenant_read: boolean }
 }
 
 export interface TenantRow {
@@ -157,7 +172,54 @@ function mergePermissions(stored: unknown, role: string): TenantPermissions {
     ess: { ...base.ess, ...(s.ess ?? {}) },
     reports: { ...base.reports, ...(s.reports ?? {}) },
     governance: { ...base.governance, ...(s.governance ?? {}) },
+    recruiters: { ...base.recruiters, ...(s.recruiters ?? {}) },
+    audit: { ...base.audit, ...(s.audit ?? {}) },
   }
+}
+
+/** Owner / Tenant Admin / Recruitment Head / Manager — Recruiters module (04-RBAC P7). */
+export function canAccessRecruitersModule(role: string, perms?: TenantPermissions): boolean {
+  if (perms?.recruiters?.module === true) return true
+  return role === 'owner' || role === 'admin' || role === 'recruitment_head' || role === 'manager'
+}
+
+/** Owner / Tenant Admin — full tenant audit + governance. */
+export function canAccessTenantAudit(role: string, perms?: TenantPermissions): boolean {
+  if (perms?.audit?.tenant_read === true) return true
+  return role === 'owner' || role === 'admin'
+}
+
+export function canAccessGovernance(role: string, perms?: TenantPermissions): boolean {
+  if (perms?.governance?.read === true && (role === 'owner' || role === 'admin')) return true
+  return role === 'owner' || role === 'admin'
+}
+
+/** Standard 403 for tenant-scoped routes (includes request id). */
+export function forbiddenTenant(ctx: TenantContext, message = 'Forbidden'): NextResponse {
+  const res = NextResponse.json({ error: message }, { status: 403 })
+  res.headers.set('x-request-id', ctx.requestId)
+  return res
+}
+
+export function requireGovernanceAccess(ctx: TenantContext): NextResponse | null {
+  if (!canAccessGovernance(ctx.tenantRole, ctx.permissions)) {
+    return forbiddenTenant(ctx, 'Forbidden — governance access requires owner or admin')
+  }
+  return null
+}
+
+export function requireTenantAuditAccess(ctx: TenantContext): NextResponse | null {
+  if (!canAccessTenantAudit(ctx.tenantRole, ctx.permissions)) {
+    return forbiddenTenant(ctx, 'Forbidden — tenant-wide audit requires owner or admin')
+  }
+  return null
+}
+
+export function requireRecruitersModuleAccess(ctx: TenantContext): NextResponse | null {
+  if (!canAccessRecruitersModule(ctx.tenantRole, ctx.permissions)) {
+    return forbiddenTenant(ctx, 'Forbidden — recruiters module requires manager or admin')
+  }
+  return null
 }
 
 /**
@@ -327,6 +389,8 @@ export function defaultOwnerPermissions(): TenantPermissions {
     ess:            { access: true, admin: true },
     reports:        { read: true },
     governance:     { read: true },
+    recruiters:     { module: true },
+    audit:          { tenant_read: true },
   }
 }
 
@@ -346,6 +410,56 @@ export function defaultAdminPermissions(): TenantPermissions {
     ess:            { access: true, admin: true },
     reports:        { read: true },
     governance:     { read: true },
+    recruiters:     { module: true },
+    audit:          { tenant_read: true },
+  }
+}
+
+/** TA leadership — recruiters module + tenant analytics; not full governance. */
+export function defaultRecruitmentHeadPermissions(): TenantPermissions {
+  return {
+    ...defaultRecruiterPermissions(),
+    users:          { invite: true, manage: false },
+    analytics:      { self: true, tenant: true },
+    reports:        { read: true },
+    recruiters:     { module: true },
+    audit:          { tenant_read: false },
+    governance:     { read: false },
+    integrations:   { read: true, update: false },
+  }
+}
+
+export function defaultManagerPermissions(): TenantPermissions {
+  return defaultRecruitmentHeadPermissions()
+}
+
+export function defaultTeamLeadPermissions(): TenantPermissions {
+  return {
+    ...defaultRecruiterPermissions(),
+    analytics:  { self: true, tenant: false },
+    recruiters: { module: false },
+    audit:      { tenant_read: false },
+  }
+}
+
+export function defaultHrPermissions(): TenantPermissions {
+  return {
+    jobs:           { create: false, read: true, update: false, delete: false },
+    candidates:     { create: false, read: true, update: true, delete: false },
+    pipeline:       { read: true, update: true },
+    ai_screen:      { use: false },
+    ai_compose:     { use: false },
+    jd_intel:       { use: false },
+    boolean_search: { use: false },
+    integrations:   { read: false, update: false },
+    billing:        { read: false, update: false },
+    users:          { invite: false, manage: false },
+    analytics:      { self: false, tenant: false },
+    ess:            { access: true, admin: true },
+    reports:        { read: false },
+    governance:     { read: false },
+    recruiters:     { module: false },
+    audit:          { tenant_read: false },
   }
 }
 
@@ -365,6 +479,8 @@ export function defaultRecruiterPermissions(): TenantPermissions {
     ess:            { access: true, admin: false },
     reports:        { read: false },
     governance:     { read: false },
+    recruiters:     { module: false },
+    audit:          { tenant_read: false },
   }
 }
 
@@ -384,13 +500,31 @@ export function defaultMemberPermissions(): TenantPermissions {
     ess:            { access: true, admin: false },
     reports:        { read: false },
     governance:     { read: false },
+    recruiters:     { module: false },
+    audit:          { tenant_read: false },
   }
 }
 
 export const ROLE_PRESET: Record<string, () => TenantPermissions> = {
-  owner:     defaultOwnerPermissions,
-  admin:     defaultAdminPermissions,
-  recruiter: defaultRecruiterPermissions,
-  member:    defaultMemberPermissions,
-  viewer:    defaultMemberPermissions,
+  owner:            defaultOwnerPermissions,
+  admin:            defaultAdminPermissions,
+  recruitment_head: defaultRecruitmentHeadPermissions,
+  manager:          defaultManagerPermissions,
+  team_lead:        defaultTeamLeadPermissions,
+  recruiter:        defaultRecruiterPermissions,
+  hr:               defaultHrPermissions,
+  member:           defaultMemberPermissions,
+  viewer:           defaultMemberPermissions,
 }
+
+/** Roles allowed in invite / role-change dropdowns (tenant-scoped). */
+export const INVITE_TENANT_ROLES: TenantRole[] = [
+  'admin',
+  'recruitment_head',
+  'manager',
+  'team_lead',
+  'recruiter',
+  'hr',
+  'member',
+  'viewer',
+]

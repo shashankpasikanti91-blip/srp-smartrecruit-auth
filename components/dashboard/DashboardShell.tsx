@@ -54,6 +54,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [aiNavExpanded, setAiNavExpanded] = useState(true)
+  const [recruitmentNavExpanded, setRecruitmentNavExpanded] = useState(true)
+  const [opsNavExpanded, setOpsNavExpanded] = useState(true)
   const [aiNavQuery, setAiNavQuery] = useState('')
 
   const [tenantRole, setTenantRole] = useState<string | null>(null)
@@ -88,10 +90,24 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   }, [status, session?.user])
 
   const isTenantAdminOrOwner = tenantRole === 'owner' || tenantRole === 'admin'
-  const canSeeAnalytics = isTenantAdminOrOwner || Boolean(tenantPermissions?.analytics?.tenant)
+  const canSeeAnalytics = isTenantAdminOrOwner
+    || tenantRole === 'recruitment_head'
+    || tenantRole === 'manager'
+    || Boolean(tenantPermissions?.analytics?.tenant)
+  void canSeeAnalytics
   const canSeeReports = isTenantAdminOrOwner
-  const canSeeClients = isTenantAdminOrOwner || tenantRole === 'recruiter'
+    || tenantRole === 'recruitment_head'
+    || tenantRole === 'manager'
+  const canSeeClients = isTenantAdminOrOwner
+    || tenantRole === 'recruiter'
+    || tenantRole === 'recruitment_head'
+    || tenantRole === 'manager'
+    || tenantRole === 'team_lead'
   const canSeeRecruiters = isTenantAdminOrOwner
+    || tenantRole === 'recruitment_head'
+    || tenantRole === 'manager'
+    || Boolean((tenantPermissions as { recruiters?: { module?: boolean } } | null)?.recruiters?.module)
+  const canSeeGovernance = isTenantAdminOrOwner
 
   const activeTab = useMemo(() => {
     if (pathname?.startsWith('/dashboard/candidates/')) return 'candidates'
@@ -129,12 +145,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       { tab: 'comms', icon: Mail, label: 'Communications', badge: null, section: 'ops' },
       ...(canSeeReports ? [{ tab: 'hrconfig' as DashboardTab, icon: Shield, label: 'HRMS', badge: null, section: 'ops' as const }] : []),
       { tab: 'ess' as DashboardTab, icon: Building2, label: 'ESS', badge: null, section: 'ops' },
-      ...(isTenantAdminOrOwner ? [{ tab: 'governance' as DashboardTab, icon: Shield, label: 'Governance', badge: null, section: 'ops' as const }] : []),
+      ...(canSeeGovernance ? [{ tab: 'governance' as DashboardTab, icon: Shield, label: 'Governance', badge: null, section: 'ops' as const }] : []),
       { tab: 'settings' as DashboardTab, icon: Shield, label: 'Settings', badge: null, section: 'ops' },
     )
 
     return base
-  }, [agentPendingCount, canSeeClients, canSeeRecruiters, canSeeReports, isTenantAdminOrOwner])
+  }, [agentPendingCount, canSeeClients, canSeeRecruiters, canSeeReports, canSeeGovernance])
 
   const goTab = (tab: DashboardTab) => {
     setMobileNavOpen(false)
@@ -146,6 +162,34 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     if (s.id === 'gen-post') router.push(`/dashboard?tab=jobs&ai_action=gen-post`)
     else router.push(`/dashboard?tab=${encodeURIComponent(s.tab)}`)
   }
+
+  const renderNavButton = (
+    tab: DashboardTab,
+    Icon: any,
+    label: string,
+    badge: string | null,
+  ) => (
+    <button
+      key={`nav-${tab}-${label}`}
+      type="button"
+      onClick={() => goTab(tab)}
+      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-semibold transition-all duration-150 ${
+        activeTab === tab ? 'bg-[var(--sidebar-active)] text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-white/10'
+      }`}
+    >
+      <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${activeTab === tab ? 'text-white' : 'text-slate-400'}`} />
+      <span className="flex-1 text-left truncate">{label}</span>
+      {badge && (
+        <span
+          className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded flex-shrink-0 ${
+            activeTab === tab ? 'bg-white/25 text-white' : 'bg-teal-500/20 text-teal-200'
+          }`}
+        >
+          {badge}
+        </span>
+      )}
+    </button>
+  )
 
   return (
     <div className="min-h-dvh dashboard-root bg-[#FCFCFA] overflow-x-clip">
@@ -193,36 +237,31 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               const items = sidebarNavItems.filter(i => i.section === section)
               if (items.length === 0) return null
               const sectionLabel = section === 'recruitment' ? 'Recruitment' : 'Operations'
+              const expanded = section === 'recruitment' ? recruitmentNavExpanded : opsNavExpanded
+              const setExpanded = section === 'recruitment' ? setRecruitmentNavExpanded : setOpsNavExpanded
+              const panelId = section === 'recruitment' ? 'recruitment-nav' : 'ops-nav'
               return (
                 <div key={section} className={section === 'recruitment' ? '' : 'mt-3 pt-2 border-t border-white/10'}>
-                  <p className="px-2.5 mb-1.5 text-[9px] font-extrabold uppercase tracking-widest text-slate-400">{sectionLabel}</p>
-                  {items.map(({ tab, icon: Icon, label, badge }) => (
-                    <button
-                      key={`${section}-${tab}-${label}`}
-                      type="button"
-                      onClick={() => goTab(tab)}
-                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-semibold transition-all duration-150 ${
-                        activeTab === tab ? 'bg-[var(--sidebar-active)] text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${activeTab === tab ? 'text-white' : 'text-slate-400'}`} />
-                      <span className="flex-1 text-left truncate">{label}</span>
-                      {badge && (
-                        <span
-                          className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded flex-shrink-0 ${
-                            activeTab === tab ? 'bg-white/25 text-white' : 'bg-teal-500/20 text-teal-200'
-                          }`}
-                        >
-                          {badge}
-                        </span>
-                      )}
-                    </button>
-                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setExpanded(v => !v)}
+                    aria-expanded={expanded}
+                    aria-controls={panelId}
+                    className="w-full flex items-center gap-1 px-2.5 mb-1.5 rounded-md text-slate-400 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]"
+                  >
+                    <span className="flex-1 text-left text-[9px] font-extrabold uppercase tracking-widest">{sectionLabel}</span>
+                    {expanded ? <ChevronUp className="w-3 h-3 flex-shrink-0" aria-hidden /> : <ChevronDown className="w-3 h-3 flex-shrink-0" aria-hidden />}
+                  </button>
+                  {expanded && (
+                    <div id={panelId} role="group" aria-label={sectionLabel}>
+                      {items.map(({ tab, icon: Icon, label, badge }) => renderNavButton(tab, Icon, label, badge))}
+                    </div>
+                  )}
                 </div>
               )
             })}
 
-            {/* AI tools shortcuts */}
+            {/* AI Hub + tool shortcuts (master Navigation TARGET: Hub primary; shortcuts inside collapsed group) */}
             <div className="mt-3 pt-2 border-t border-white/10">
               <button
                 type="button"
@@ -231,12 +270,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 aria-controls="ai-tools-nav"
                 className="w-full flex items-center gap-1 px-2.5 mb-2 rounded-md text-slate-400 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]"
               >
-                <span className="flex-1 text-left text-[9px] font-extrabold uppercase tracking-widest">AI Tools</span>
+                <span className="flex-1 text-left text-[9px] font-extrabold uppercase tracking-widest">AI Hub</span>
                 {aiNavExpanded ? <ChevronUp className="w-3 h-3 flex-shrink-0" aria-hidden /> : <ChevronDown className="w-3 h-3 flex-shrink-0" aria-hidden />}
               </button>
 
               {aiNavExpanded && (
-                <div id="ai-tools-nav" role="group" aria-label="AI tool shortcuts">
+                <div id="ai-tools-nav" role="group" aria-label="AI Hub tools">
                   <div className="px-1.5 mb-1.5">
                     <label htmlFor="ai-nav-search" className="sr-only">Search AI tools</label>
                     <div className="relative">

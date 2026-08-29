@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireTenant } from '@/lib/tenant'
+import { requireTenant, requireGovernanceAccess } from '@/lib/tenant'
 import { pool } from '@/lib/db'
 import { isValidUUID, sanitizeText } from '@/lib/validate'
 import { logAudit } from '@/lib/audit'
@@ -17,10 +17,8 @@ export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req)
   if (ctx instanceof NextResponse) return ctx
 
-  const isApprover = ctx.tenantRole === 'owner' || ctx.tenantRole === 'admin'
-  if (!isApprover) {
-    return NextResponse.json({ error: 'Only owners and admins can view delete approvals' }, { status: 403 })
-  }
+  const denied = requireGovernanceAccess(ctx)
+  if (denied) return denied
 
   try {
     await ensureDeleteRequestsTable()

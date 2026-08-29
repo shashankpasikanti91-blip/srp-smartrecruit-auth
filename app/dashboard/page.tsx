@@ -48,6 +48,7 @@ import { GovernanceTab } from '@/components/governance/GovernanceTab'
 import { SecurityCenterTab } from '@/components/security/SecurityCenterTab'
 import { EmailCalendarHub } from '@/components/security/EmailCalendarHub'
 import { BrandMark, AppSplash } from '@/components/ui/BrandMark'
+import { connectionStatusLabel } from '@/lib/connectionStatus'
 import {
   getCandidateDossierChecks as buildDossierChecks,
   getCandidateDossierStatus as buildDossierStatus,
@@ -55,7 +56,7 @@ import {
   type DossierCheck,
 } from '@/lib/dossierChecks'
 import { formatLifecycle, HIRE_TYPES, HIRE_TYPE_LABELS, LIFECYCLE_STATUSES, LIFECYCLE_LABELS, VISA_TYPES, VISA_TYPE_LABELS } from '@/lib/candidateLifecycle'
-import { PLAN_LIMITS } from '@/lib/planLimits'
+import { PLAN_LIMITS, formatPlanLimitLabel, type PlanKey } from '@/lib/planLimits'
 import {
   JOB_POST_PLATFORMS,
   JOB_POST_PLATFORM_META,
@@ -1115,9 +1116,9 @@ function IntegrationsTab() {
     const data = await res.json()
     setSaving(false)
     if (!res.ok) { setSaveMsg(`Error: ${data.error}`); return }
-    setSaveMsg('Integration saved successfully!')
+    setSaveMsg(data.note || 'Saved securely. Run Test Connection before treating as Connected.')
     load()
-    setTimeout(() => { setSelected(null); setFormValues({}); setSaveMsg('') }, 1200)
+    setTimeout(() => { setSelected(null); setFormValues({}); setSaveMsg('') }, 1800)
   }
 
   async function toggle(intgId: string, e: React.MouseEvent) {
@@ -1130,20 +1131,34 @@ function IntegrationsTab() {
     load()
   }
 
-  async function testTelegram(e: React.MouseEvent) {
-    e.stopPropagation()
-    setSaveMsg('Testing Telegram…')
+  async function testConnector(connectorId: string, e?: React.MouseEvent) {
+    e?.stopPropagation()
+    setSaveMsg('Testing connection…')
+    const type =
+      connectorId === 'telegram' ? 'telegram'
+        : connectorId === 'whatsapp' || connectorId === 'whatsapp_twilio_legacy' ? 'whatsapp'
+          : 'connector'
     const res = await fetch('/api/integrations/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'telegram' }),
+      body: JSON.stringify({ type, connector_id: connectorId, provider: connectorId }),
     })
     const data = await res.json()
-    setSaveMsg(data.ok ? `Telegram OK (@${data.bot}) · ${data.latency_ms}ms` : `Telegram: ${data.error || data.status}`)
+    setSaveMsg(
+      data.ok
+        ? `Connected · ${data.latency_ms ?? ''}ms${data.bot ? ` (@${data.bot})` : ''}`
+        : `${connectionStatusLabel(data.status)}: ${data.error || data.status}`
+    )
+    await load()
   }
 
   const categories = [...new Set((catalogue as Record<string, string>[]).map(c => c.category))]
-  const connectedCount = integrations.filter(i => i.is_active).length
+  const connectedCount = integrations.filter(i => i.connected === true || i.connection_status === 'connected').length
+
+  function statusFor(existing: Record<string, unknown> | undefined): string {
+    if (!existing) return 'not_configured'
+    return String(existing.connection_status || (existing.connected ? 'connected' : 'not_tested'))
+  }
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-24 gap-3">
@@ -1187,23 +1202,25 @@ function IntegrationsTab() {
         </div>
       </div>
 
-      {/* How to use guide */}
+      {/* How to use guide — product model */}
       <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/90 to-slate-50 p-5 shadow-sm ring-1 ring-slate-950/[0.02]">
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg bg-[#166534] flex items-center justify-center flex-shrink-0 mt-0.5">
             <Zap className="w-4 h-4 text-white" />
           </div>
           <div className="flex-1">
-            <h3 className="text-sm font-bold text-blue-900 mb-1">How to use Integrations</h3>
+            <h3 className="text-sm font-bold text-blue-900 mb-1">How Integrations work</h3>
             <p className="text-xs text-blue-700 leading-relaxed mb-3">
-              Integrations let SRP SmartRecruit work with the tools you already use. Each connection requires an <strong>API key or credentials</strong> from that service. Here&apos;s how to get started:
+              This page only <strong>connects</strong> providers (API keys). It does <strong>not</strong> send messages by itself.
+              After a connector shows <strong>Connected</strong>, open <strong>Communications</strong> to send email / WhatsApp to a candidate email or phone.
+              Live recruitment numbers (submissions, interviews, offers) appear on the main <strong>Dashboard</strong> — not inside each connector.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
-                { num: '1', title: 'Choose a connector', desc: 'Click any card below. Cards marked "Soon" are coming in the next update.' },
-                { num: '2', title: 'Enter your API key', desc: 'Get the API key from that platform\'s settings page. Paste it in the form and save.' },
-                { num: '3', title: 'Toggle it on', desc: 'Use the On/Off button to activate or pause the connection anytime without losing credentials.' },
-                { num: '4', title: 'Use the connection', desc: 'Email and WhatsApp send from Compose when that provider is connected. n8n stores your webhook for workflows you run — it does not auto-fire after screening.' },
+                { num: '1', title: 'Choose a connector', desc: 'Open a card below. “Soon” means not available yet — do not invent keys.' },
+                { num: '2', title: 'Follow “How to get credentials”', desc: 'Each modal lists where to click in Meta, Gmail, SendGrid, etc. Keys come from that provider — never from SRP.' },
+                { num: '3', title: 'Save, then Test Connection', desc: 'Save stores secrets for this workspace only. Status stays “Saved — not tested” until Test succeeds.' },
+                { num: '4', title: 'Send from Communications', desc: 'Go to Communications → Send. Enter email or phone, optional Candidate/Job link, then Send. Dashboard KPIs update from your recruitment work.' },
               ].map(step => (
                 <div key={step.num} className="flex items-start gap-2 bg-white rounded-lg px-3 py-2.5 border border-blue-100">
                   <span className="w-5 h-5 rounded-full bg-[#166534] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step.num}</span>
@@ -1215,10 +1232,10 @@ function IntegrationsTab() {
               ))}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">📋 Naukri — post & import jobs</span>
-              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">n8n — your webhook, your workflows</span>
-              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">📧 Gmail / Outlook — send from Compose</span>
-              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">💬 WhatsApp — candidate notifications</span>
+              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">Integrations = wire pipes</span>
+              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">Communications = send + history</span>
+              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">Dashboard = live ops KPIs</span>
+              <span className="text-[11px] bg-white border border-blue-200 text-blue-700 rounded-full px-2.5 py-1 font-semibold">WhatsApp → phone · Email → address</span>
             </div>
           </div>
         </div>
@@ -1241,6 +1258,8 @@ function IntegrationsTab() {
               {catConnectors.map(connector => {
                 const existing = getStatus(connector.id as string)
                 const isActive = existing?.is_active as boolean | undefined
+                const connStatus = statusFor(existing)
+                const isConnected = connStatus === 'connected'
                 const isComingSoon = connector.mode === 'coming_soon'
                 const hasFields = ((connector.fields as unknown[]) ?? []).filter((f: unknown) => (f as Record<string, string>).type !== 'info').length > 0
 
@@ -1249,9 +1268,11 @@ function IntegrationsTab() {
                     className={`bg-white rounded-xl border flex flex-col transition-all ${
                       isComingSoon
                         ? 'opacity-55 cursor-not-allowed border-gray-200'
-                        : existing
+                        : isConnected
                           ? 'border-emerald-200 hover:border-emerald-300 hover:shadow-sm cursor-pointer'
-                          : 'border-gray-200 hover:border-blue-300 hover:shadow-sm cursor-pointer'
+                          : existing
+                            ? 'border-amber-200 hover:border-amber-300 hover:shadow-sm cursor-pointer'
+                            : 'border-gray-200 hover:border-blue-300 hover:shadow-sm cursor-pointer'
                     }`}
                     onClick={() => { if (!isComingSoon) openConfigure(connector) }}>
 
@@ -1271,9 +1292,9 @@ function IntegrationsTab() {
                           </div>
                           {existing ? (
                             <div className="flex items-center gap-1 mt-0.5">
-                              <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-                              <span className={`text-[11px] font-medium ${isActive ? 'text-emerald-600' : 'text-gray-400'}`}>
-                                {isActive ? 'Active' : 'Inactive'}
+                              <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                              <span className={`text-[11px] font-medium ${isConnected ? 'text-emerald-600' : 'text-amber-700'}`}>
+                                {connectionStatusLabel(connStatus)}
                               </span>
                             </div>
                           ) : (
@@ -1315,12 +1336,12 @@ function IntegrationsTab() {
                     {/* Card footer */}
                     {!isComingSoon && (
                       <div className={`px-4 py-2.5 rounded-b-xl border-t flex items-center justify-between ${
-                        existing ? 'bg-emerald-50/40 border-emerald-100' : 'bg-gray-50 border-gray-100'
+                        isConnected ? 'bg-emerald-50/40 border-emerald-100' : existing ? 'bg-amber-50/40 border-amber-100' : 'bg-gray-50 border-gray-100'
                       }`}>
                         {existing ? (
                           <>
-                            <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                              <CheckCircle className="w-3 h-3" /> Connected
+                            <span className={`text-xs font-medium flex items-center gap-1 ${isConnected ? 'text-emerald-600' : 'text-amber-700'}`}>
+                              <CheckCircle className="w-3 h-3" /> {connectionStatusLabel(connStatus)}
                             </span>
                             <span className="text-xs text-blue-600 font-semibold hover:underline">Edit →</span>
                           </>
@@ -1345,16 +1366,16 @@ function IntegrationsTab() {
       {/* Config modal */}
       {selected && (
         <div className="fixed inset-0 bg-slate-900/35 backdrop-blur-[2px] z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-gray-200" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-gray-200 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 sticky top-0 bg-white z-10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-2xl bg-gray-50 border border-gray-200">
                   {selected.icon as string}
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-gray-900">{selected.name as string}</h3>
-                  <p className="text-xs text-gray-400">Enter your credentials to connect</p>
+                  <p className="text-xs text-gray-400">Setup only — send from Communications after Connected</p>
                 </div>
               </div>
               <button onClick={() => setSelected(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all">
@@ -1362,11 +1383,48 @@ function IntegrationsTab() {
               </button>
             </div>
 
-            {/* Description */}
-            <div className="px-6 pt-4 pb-2">
+            <div className="px-6 pt-4 pb-2 space-y-3">
               <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
                 <p className="text-xs text-gray-500 leading-relaxed">{selected.description as string}</p>
               </div>
+
+              {Array.isArray(selected.unlocks) && (selected.unlocks as string[]).length > 0 && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 px-4 py-3">
+                  <p className="text-[11px] font-bold text-emerald-900 uppercase tracking-wide mb-1.5">What you can do after Connected</p>
+                  <ul className="space-y-1">
+                    {(selected.unlocks as string[]).map((u) => (
+                      <li key={u} className="text-xs text-emerald-800 flex gap-2">
+                        <CheckCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                        <span>{u}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {Array.isArray(selected.setup_steps) && (selected.setup_steps as string[]).length > 0 && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50/70 px-4 py-3">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <p className="text-[11px] font-bold text-blue-900 uppercase tracking-wide">How to get credentials</p>
+                    {typeof selected.docs_url === 'string' && selected.docs_url && (
+                      <a
+                        href={selected.docs_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-semibold text-blue-700 hover:underline"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        Official docs ↗
+                      </a>
+                    )}
+                  </div>
+                  <ol className="space-y-2 list-decimal list-inside">
+                    {(selected.setup_steps as string[]).map((step) => (
+                      <li key={step.slice(0, 48)} className="text-xs text-blue-800 leading-relaxed">{step}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
             </div>
 
             {/* Fields */}
@@ -1409,9 +1467,11 @@ function IntegrationsTab() {
             {/* Save message */}
             {saveMsg && (
               <div className={`mx-6 mb-2 p-3 rounded-lg text-xs font-medium flex items-center gap-2 ${
-                saveMsg.startsWith('Error')
+                saveMsg.startsWith('Error') || saveMsg.includes('failed') || saveMsg.includes('Configuration')
                   ? 'bg-red-50 text-red-700 border border-red-200'
-                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : saveMsg.startsWith('Connected')
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-amber-50 text-amber-800 border border-amber-200'
               }`}>
                 {saveMsg.startsWith('Error') ? <AlertCircle className="w-4 h-4 flex-shrink-0" /> : <CheckCircle className="w-4 h-4 flex-shrink-0" />}
                 {saveMsg}
@@ -1419,22 +1479,20 @@ function IntegrationsTab() {
             )}
 
             {/* Actions */}
-            <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
+            <div className="flex gap-3 px-6 py-4 border-t border-gray-100 sticky bottom-0 bg-white">
               <button onClick={() => { setSelected(null); setSaveMsg('') }}
                 className="px-5 py-2.5 rounded-xl bg-gray-100 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-all">
                 Cancel
               </button>
-              {selected.id === 'telegram' && (
-                <button type="button" onClick={testTelegram}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                  Test Connection
-                </button>
-              )}
+              <button type="button" onClick={e => testConnector(String(selected.id), e)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                Test Connection
+              </button>
               <button onClick={save} disabled={saving}
                 className="flex-1 py-2.5 rounded-xl bg-[#166534] text-white text-sm font-bold disabled:opacity-50 hover:bg-[#14532d] transition-all flex items-center justify-center gap-2 shadow-sm">
                 {saving
                   ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</>
-                  : <><Key className="w-4 h-4" />Save & Connect</>}
+                  : <><Key className="w-4 h-4" />Save credentials</>}
               </button>
             </div>
           </div>
@@ -1702,6 +1760,11 @@ export default function DashboardPage() {
   const [composeOutput, setComposeOutput] = useState('')
   const [composeError, setComposeError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [composeSendTo, setComposeSendTo] = useState('')
+  const [composeSendSubject, setComposeSendSubject] = useState('')
+  const [composeSendResumeId, setComposeSendResumeId] = useState('')
+  const [composeSending, setComposeSending] = useState(false)
+  const [composeSendResult, setComposeSendResult] = useState('')
 
   // Job post generator state
   const [genPostJob, setGenPostJob] = useState<Job | null>(null)
@@ -2108,8 +2171,13 @@ export default function DashboardPage() {
   // Fetch tenant-wide funnel for admin/owner analytics view
   useEffect(() => {
     if (activeTab !== 'analytics') return
-    const isAdminOrOwner = tenantRole === 'owner' || tenantRole === 'admin'
-    if (!isAdminOrOwner) return
+    const canTenantAnalytics =
+      tenantRole === 'owner' ||
+      tenantRole === 'admin' ||
+      tenantRole === 'recruitment_head' ||
+      tenantRole === 'manager' ||
+      Boolean(tenantPermissions?.analytics?.tenant)
+    if (!canTenantAnalytics) return
     let cancelled = false
     setTenantFunnelLoading(true)
     fetch('/api/analytics/tenant?days=90')
@@ -2617,6 +2685,16 @@ export default function DashboardPage() {
       const content = (data.content ?? '').trim()
       if (!content) { setComposeError('AI returned empty content — try again.'); return }
       setComposeOutput(content)
+      // Prefill send subject from first line / email type when empty
+      if (!composeSendSubject.trim()) {
+        const firstLine = content.split('\n').find(l => l.trim())?.trim() ?? ''
+        setComposeSendSubject(
+          firstLine.length > 8 && firstLine.length < 120
+            ? firstLine.replace(/^Subject:\s*/i, '')
+            : `${emailType.replace(/_/g, ' ')} — ${composeFields.role_title || 'Recruitment'}`.slice(0, 120)
+        )
+      }
+      setComposeSendResult('')
     } catch (e) {
       setComposeError(String(e))
     } finally {
@@ -2634,6 +2712,43 @@ export default function DashboardPage() {
       document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta)
     }
     setCopied(true); setTimeout(() => setCopied(false), 2000)
+  }
+
+  const sendComposeEmail = async () => {
+    if (!composeOutput.trim() || !composeSendTo.trim()) return
+    setComposeSending(true)
+    setComposeSendResult('')
+    try {
+      const html = composeOutput
+        .split('\n')
+        .map(line => `<p>${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') || '&nbsp;'}</p>`)
+        .join('')
+      const res = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: composeSendTo.trim(),
+          subject: composeSendSubject.trim() || 'Message from SRP SmartRecruit',
+          html,
+          text: composeOutput,
+          resume_id: composeSendResumeId.trim() || undefined,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setComposeSendResult(
+          `Error: ${data.error || 'Send failed'}. Connect Gmail/Outlook OAuth or Integrations → SMTP (Save + Test), then retry.`,
+        )
+        return
+      }
+      setComposeSendResult(
+        `Sent via ${data.sent_via || 'email'} · logged in Communications${data.id ? ` (${String(data.id).slice(0, 8)}…)` : ''}. Open Communications or Candidate timeline to review.`,
+      )
+    } catch (e) {
+      setComposeSendResult(`Error: ${e instanceof Error ? e.message : 'Network error'}`)
+    } finally {
+      setComposeSending(false)
+    }
   }
 
   const openJobDetails = (job: Job) => {
@@ -2837,11 +2952,11 @@ export default function DashboardPage() {
   const sessionWithRole = session as { user: { role?: string; email?: string; name?: string; image?: string } }
   const isOwner = sessionWithRole.user?.role === 'owner' || user?.email === process.env.NEXT_PUBLIC_OWNER_EMAIL
   const isTenantAdminOrOwner = tenantRole === 'owner' || tenantRole === 'admin'
-  const canSeeAnalytics = isTenantAdminOrOwner || Boolean(tenantPermissions?.analytics?.tenant)
-  const canSeeReports = isTenantAdminOrOwner
+  const canSeeAnalytics = isTenantAdminOrOwner || tenantRole === 'recruitment_head' || tenantRole === 'manager' || Boolean(tenantPermissions?.analytics?.tenant)
+  const canSeeReports = isTenantAdminOrOwner || tenantRole === 'recruitment_head' || tenantRole === 'manager'
   const canSeeGovernance = isTenantAdminOrOwner
-  const canSeeClients = isTenantAdminOrOwner || tenantRole === 'recruiter'
-  const canSeeRecruiters = isTenantAdminOrOwner // Owner / Tenant Admin (+ manager when role exists)
+  const canSeeClients = isTenantAdminOrOwner || tenantRole === 'recruiter' || tenantRole === 'recruitment_head' || tenantRole === 'manager' || tenantRole === 'team_lead'
+  const canSeeRecruiters = isTenantAdminOrOwner || tenantRole === 'recruitment_head' || tenantRole === 'manager' // Owner / Tenant Admin / Head / Manager
 
   const sidebarNavItems: Array<{ tab: DashboardTab; icon: typeof TrendingUp; label: string; badge: string | null; section: 'recruitment' | 'ai' | 'ops' }> = [
     { tab: 'workspace', icon: TrendingUp, label: 'Dashboard', badge: agentPendingCount > 0 ? String(agentPendingCount) : null, section: 'recruitment' },
@@ -4283,6 +4398,80 @@ export default function DashboardPage() {
                     )}
                   </div>
                 </div>
+
+                {composeOutput && (
+                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 space-y-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-emerald-950">Send this draft</h3>
+                      <p className="text-xs text-emerald-800/80 mt-0.5">
+                        Uses connected Gmail/Outlook OAuth or Integrations → SMTP/SendGrid (must be <strong>Connected</strong>).
+                        Message is logged to Communications and Candidate timeline when a candidate is linked.
+                      </p>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">To (email)</label>
+                        <input
+                          value={composeSendTo}
+                          onChange={e => setComposeSendTo(e.target.value)}
+                          placeholder="candidate@company.com"
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Subject</label>
+                        <input
+                          value={composeSendSubject}
+                          onChange={e => setComposeSendSubject(e.target.value)}
+                          placeholder="Interview invitation"
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Link candidate (optional UUID)</label>
+                      <input
+                        value={composeSendResumeId}
+                        onChange={e => setComposeSendResumeId(e.target.value)}
+                        placeholder="Paste candidate id for timeline"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white"
+                      />
+                    </div>
+                    {composeSendResult && (
+                      <div className={`text-xs rounded-lg px-3 py-2 border ${
+                        composeSendResult.startsWith('Error')
+                          ? 'bg-red-50 text-red-700 border-red-200'
+                          : 'bg-white text-emerald-800 border-emerald-200'
+                      }`}>
+                        {composeSendResult}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={sendComposeEmail}
+                        disabled={composeSending || !composeSendTo.trim()}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-[#166534] hover:bg-[#14532d] disabled:opacity-50"
+                      >
+                        {composeSending ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</> : <><Send className="w-4 h-4" /> Send email</>}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('comms')}
+                        className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      >
+                        Open Communications
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('integrations')}
+                        className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      >
+                        Integrations setup
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -4940,10 +5129,7 @@ export default function DashboardPage() {
                         <div>
                           <p className="text-xs text-gray-500 mb-0.5">Access Level</p>
                           <p className="text-sm text-gray-700">
-                            {profileData.subscription.plan === 'free'
-                              ? '20 AI screens/mo, 5 active jobs'
-                              : 'Unlimited AI screens & jobs'
-                            }
+                            {formatPlanLimitLabel((profileData.subscription.plan || 'free') as PlanKey)}
                           </p>
                         </div>
                       </div>
@@ -4952,15 +5138,17 @@ export default function DashboardPage() {
                           <div className="flex items-start gap-3">
                             <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                             <div className="flex-1">
-                              <p className="text-sm font-semibold text-gray-900 mb-1">Upgrade to Pro</p>
-                              <p className="text-xs text-gray-600 mb-3">Unlock unlimited AI screenings, unlimited job posts, priority support, and API access.</p>
+                              <p className="text-sm font-semibold text-gray-900 mb-1">Upgrade to Professional</p>
+                              <p className="text-xs text-gray-600 mb-3">
+                                Professional ₹9,999/mo (guide $119) · Agency ₹24,999/mo (guide $299). Full AI Hub, pipeline, and multi-seat desks.
+                              </p>
                               <div className="flex flex-wrap gap-2">
-                                <a href="mailto:pasikantishashank24@gmail.com?subject=Upgrade%20to%20Pro%20Plan%20-%20SRP%20SmartRecruit&body=Hi%2C%20I%27d%20like%20to%20upgrade%20my%20account%20to%20the%20Pro%20plan.%0A%0AEmail%3A%20" 
+                                <a href="mailto:pasikantishashank24@gmail.com?subject=Upgrade%20to%20Professional%20-%20SRP%20SmartRecruit&body=Hi%2C%20I%27d%20like%20to%20upgrade%20to%20Professional%20(%E2%82%B99%2C999%2Fmo).%0A%0AEmail%3A%20" 
                                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-white text-xs font-semibold transition-all shadow-sm hover:opacity-90"
                                   style={{ background: '#0B1F3A' }}>
                                   <Zap className="w-3.5 h-3.5" /> Upgrade Now
                                 </a>
-                                <a href="https://srpailabs.com" target="_blank" rel="noopener noreferrer"
+                                <a href="/pricing" 
                                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-medium transition-all">
                                   <ExternalLink className="w-3.5 h-3.5" /> View Plans
                                 </a>
@@ -4999,7 +5187,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {[
-                          { label: 'AI Screens',   value: profileData.usage.screens_this_month,  limit: profileData.subscription.plan === 'free' ? PLAN_LIMITS.free.ai_screens_per_month : null, icon: Brain,      color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                          { label: 'AI Screens',   value: profileData.usage.screens_this_month,  limit: profileData.subscription.plan === 'free' ? PLAN_LIMITS.free.ai_screens_per_month : profileData.subscription.plan === 'pro' ? PLAN_LIMITS.pro.ai_screens_per_month : null, icon: Brain,      color: 'text-indigo-600', bg: 'bg-indigo-50' },
                           { label: 'AI Compose',   value: profileData.usage.composes_this_month, limit: null,                                                  icon: Mail,       color: 'text-blue-600',   bg: 'bg-blue-50' },
                           { label: 'Candidates',   value: profileData.usage.total_candidates,    limit: null,                                                  icon: Users,      color: 'text-blue-600',   bg: 'bg-blue-50' },
                           { label: 'Active Jobs',  value: profileData.usage.active_jobs,         limit: profileData.subscription.plan === 'free' ? PLAN_LIMITS.free.job_posts : null,   icon: Briefcase,  color: 'text-amber-600',  bg: 'bg-amber-50' },
@@ -5287,6 +5475,10 @@ export default function DashboardPage() {
                           >
                             <option value="recruiter">Recruiter</option>
                             <option value="admin">Admin</option>
+                            <option value="recruitment_head">Recruitment Head</option>
+                            <option value="manager">Manager</option>
+                            <option value="team_lead">Team Lead</option>
+                            <option value="hr">HR</option>
                             <option value="member">Member</option>
                             <option value="viewer">Viewer</option>
                           </select>

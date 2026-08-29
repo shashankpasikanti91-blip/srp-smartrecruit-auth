@@ -75,7 +75,15 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
     mailgun: [{ name: 'api_key', label: 'Mailgun API Key', type: 'password' }, { name: 'domain', label: 'Mailgun Domain' }, { name: 'from_email', label: 'From Email' }],
     outlook: [{ name: 'host', label: 'SMTP Host', placeholder: 'smtp.office365.com' }, { name: 'port', label: 'Port', placeholder: '587' }, { name: 'username', label: 'Username' }, { name: 'password', label: 'Password', type: 'password' }, { name: 'from_email', label: 'From Email' }],
     telegram: [{ name: 'bot_token', label: 'Bot Token', type: 'password' }, { name: 'default_chat_id', label: 'Default Chat ID (optional)' }],
-    whatsapp: [{ name: 'account_sid', label: 'Twilio Account SID' }, { name: 'auth_token', label: 'Twilio Auth Token', type: 'password' }, { name: 'whatsapp_number', label: 'WhatsApp Number', placeholder: 'whatsapp:+14155238886' }],
+    whatsapp: [
+      { name: 'access_token', label: 'Meta Access Token', type: 'password', placeholder: 'Prefer Integrations → WhatsApp (Meta)' },
+      { name: 'phone_number_id', label: 'Phone Number ID', type: 'text' },
+      { name: 'waba_id', label: 'WABA ID (optional)', type: 'text' },
+      { name: 'api_version', label: 'API version', type: 'text', placeholder: 'v19.0' },
+      { name: 'account_sid', label: 'Twilio SID (legacy only)', type: 'text' },
+      { name: 'auth_token', label: 'Twilio Auth Token (legacy)', type: 'password' },
+      { name: 'whatsapp_number', label: 'Twilio WhatsApp From (legacy)', placeholder: 'whatsapp:+14155238886' },
+    ],
   }
 
   const CHANNELS = [
@@ -301,7 +309,7 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
           <p className="text-sm font-extrabold text-slate-800">{section === 'linkedin' ? 'LinkedIn Messages' : 'SMS'}</p>
           <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
-            Coming soon — schema hooks are ready; live provider integration is out of scope for this release.
+            FUTURE — requires external provider approval. Not connected. Do not configure secrets here until the connector is live.
           </p>
         </div>
       )}
@@ -365,13 +373,21 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-900 truncate">{String(log.to_address)}</p>
+                          <p className="text-sm font-bold text-slate-900 truncate">
+                            {String(log.direction) === 'inbound' ? '← ' : ''}
+                            {String(log.to_address || log.recipient || '—')}
+                          </p>
                           <p className="text-xs text-slate-500 truncate mt-0.5">{String(log.subject || log.body_preview || '—')}</p>
                           <p className="text-[10px] text-slate-400 mt-1">{new Date(String(log.created_at)).toLocaleString()}</p>
                         </div>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 capitalize ${statusTone(displayStatus(log))}`}>
-                          {displayStatus(log)}
-                        </span>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          {String(log.direction) === 'inbound' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-violet-200 bg-violet-50 text-violet-800 font-semibold">Inbound</span>
+                          )}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full border capitalize ${statusTone(displayStatus(log))}`}>
+                            {displayStatus(log)}
+                          </span>
+                        </div>
                       </div>
                     </button>
                   ))}
@@ -467,7 +483,13 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-700 mb-1 block">To</label>
-            <input value={to} onChange={e => setTo(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm" placeholder="candidate@email.com" />
+            <input value={to} onChange={e => setTo(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm" placeholder={channel === 'whatsapp' || channel === 'telegram' ? '+9198XXXXXXXX' : 'candidate@email.com'} />
+            {(channel === 'whatsapp') && (
+              <p className="text-[11px] text-slate-500 mt-1">
+                Prefer configuring Meta WhatsApp under <strong>Integrations</strong> (Save + Test). Then send here to a phone number. Webhook:{' '}
+                <code className="text-[10px] bg-slate-100 px-1 rounded">/api/webhooks/whatsapp</code> for delivery + inbound.
+              </p>
+            )}
           </div>
           {['smtp', 'sendgrid', 'mailgun', 'outlook'].includes(channel) && (
             <div>
@@ -593,8 +615,18 @@ export function CommsHubTab({ onNavigate }: { onNavigate?: (tab: string) => void
                       <p className="text-sm font-medium text-gray-800 capitalize">{p.connector_id as string}</p>
                       <p className="text-xs text-gray-500">Channel: {p.channel as string}</p>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full border ${p.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
-                      {p.is_active ? 'Active' : 'Inactive'}
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                      (p.connection_status === 'connected' || p.connected)
+                        ? 'bg-green-50 text-green-700 border-green-200'
+                        : p.is_active
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : 'bg-gray-50 text-gray-500 border-gray-200'
+                    }`}>
+                      {(p.connection_status === 'connected' || p.connected)
+                        ? 'Connected'
+                        : p.is_active
+                          ? 'Saved — not tested'
+                          : 'Inactive'}
                     </span>
                   </div>
                 ))}

@@ -1,19 +1,20 @@
 export { PRICING as PRICING_PAGE } from './homepage'
 
 export const PRICING_META = {
-  title: 'Pricing | SRP Recruit AI',
+  title: 'Pricing | SRP SmartRecruit',
   description:
-    'Agency-friendly plans for bulk resume screening, AI matching, and recruiter pipeline management. Start free, scale as your desk grows.',
+    'Recruitment OS plans from Starter (free) to Professional ₹9,999/mo, Agency ₹24,999/mo, and Enterprise. AI screening, pipeline, and multi-tenant workspaces.',
 } as const
 
 export const PRICING_HERO = {
   eyebrow: 'Pricing',
-  title: 'Straightforward plans for agency teams',
+  title: 'Priced for a full Recruitment OS — not a ₹2,999 gadget',
 } as const
 
 export const PRICING_TRUST = [
-  'No long-term contracts on standard plans',
-  'Human review remains central to every workflow',
+  'INR list prices with USD guide for global teams',
+  'No long-term lock-in on standard monthly plans',
+  'Human review stays central to every AI workflow',
   'Tenant-scoped workspaces for agency data separation',
-  'Upgrade or downgrade as your screening volume changes',
+  'Manual billing confirmation until in-app checkout ships',
 ] as const

@@ -1,5 +1,6 @@
 import { pool } from './db'
 import { writeTimeline } from './timelineEngine'
+import { logRequest } from './requestLog'
 
 export interface AuditEvent {
   userId: string
@@ -22,10 +23,30 @@ export interface AuditEvent {
   actorType?: 'human' | 'system' | 'agent' | 'support_session' | null
 }
 
-/**
- * Write an audit log entry + optional timeline event. Fires-and-forgets — never throws.
- */
-export async function logAudit(ev: AuditEvent): Promise<void> {
+/** Actions where a failed audit write should block the caller (fail closed). */
+const HIGH_RISK_ACTIONS = new Set([
+  'integration_delete',
+  'integration_disconnect',
+  'member_role_change',
+  'member_remove',
+  'member_invite',
+  'secret_rotate',
+  'provider_delete',
+  'tenant_settings_security',
+  'ownership_transfer',
+  'candidate_merge',
+  'candidate_delete',
+  'job_delete',
+  'governance_action',
+  'mfa_disable',
+  'session_revoke_all',
+])
+
+export function isHighRiskAuditAction(action: string): boolean {
+  return HIGH_RISK_ACTIONS.has(action) || action.startsWith('destructive_')
+}
+
+async function insertAuditRow(ev: AuditEvent): Promise<boolean> {
   try {
     await pool.query(
       `INSERT INTO audit_logs
@@ -55,8 +76,8 @@ export async function logAudit(ev: AuditEvent): Promise<void> {
         ev.actorType ?? 'human',
       ]
     )
+    return true
   } catch {
-    // Fallback without new columns (pre-v23)
     try {
       await pool.query(
         `INSERT INTO audit_logs
@@ -73,8 +94,46 @@ export async function logAudit(ev: AuditEvent): Promise<void> {
           ev.tenantId ?? null,
         ]
       )
+      return true
     } catch {
-      /* audit failure must never break the caller */
+      return false
+    }
+  }
+}
+
+function alertAuditFailure(ev: AuditEvent, mode: 'open' | 'closed'): void {
+  logRequest({
+    requestId: ev.correlationId ?? `audit_${Date.now()}`,
+    level: 'CRITICAL',
+    method: 'AUDIT',
+    path: '/internal/audit',
+    status: 500,
+    tenantId: ev.tenantId,
+    userId: ev.userId,
+    module: ev.module ?? ev.resourceType,
+    action: ev.action,
+    message: mode === 'closed'
+      ? 'High-risk audit write failed — action blocked'
+      : 'Audit write failed (fail-open)',
+    meta: { resourceType: ev.resourceType, resourceId: ev.resourceId, mode },
+  })
+}
+
+/**
+ * Write an audit log entry + optional timeline event.
+ * Default: fail-open (never throws) for availability.
+ * High-risk actions: use logAuditStrict / requireAudit: true to fail closed.
+ */
+export async function logAudit(
+  ev: AuditEvent & { requireAudit?: boolean }
+): Promise<{ ok: boolean }> {
+  const requireAudit = ev.requireAudit === true || isHighRiskAuditAction(ev.action)
+  const ok = await insertAuditRow(ev)
+
+  if (!ok) {
+    alertAuditFailure(ev, requireAudit ? 'closed' : 'open')
+    if (requireAudit) {
+      throw new AuditWriteError(ev.action)
     }
   }
 
@@ -99,6 +158,20 @@ export async function logAudit(ev: AuditEvent): Promise<void> {
     } catch {
       /* timeline is best-effort — never fail the domain write */
     }
+  }
+
+  return { ok }
+}
+
+/** Fail-closed audit for destructive / security-sensitive mutations. */
+export async function logAuditStrict(ev: AuditEvent): Promise<void> {
+  await logAudit({ ...ev, requireAudit: true })
+}
+
+export class AuditWriteError extends Error {
+  constructor(action: string) {
+    super(`Audit trail unavailable; blocked high-risk action: ${action}`)
+    this.name = 'AuditWriteError'
   }
 }
 

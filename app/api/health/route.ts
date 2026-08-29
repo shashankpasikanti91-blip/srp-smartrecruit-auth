@@ -15,5 +15,6 @@ export async function GET() {
     storage: health.storage,
     email: health.email,
     queues: health.queues,
+    rag: health.rag,
   })
 }

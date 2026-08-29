@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireTenant }            from '@/lib/tenant'
+import { requireTenant, canAccessTenantAudit } from '@/lib/tenant'
 import { pool }                     from '@/lib/db'
 
 export const maxDuration = 30
@@ -8,8 +8,8 @@ export async function GET(req: NextRequest) {
   const ctx = await requireTenant(req)
   if (ctx instanceof NextResponse) return ctx
 
-  // Within a tenant: owners/admins see all members' logs, others see own
-  const isAdmin = ctx.tenantRole === 'owner' || ctx.tenantRole === 'admin'
+  // Within a tenant: owners/admins (or audit.tenant_read) see all members' logs, others see own
+  const isAdmin = canAccessTenantAudit(ctx.tenantRole, ctx.permissions)
 
   const url = new URL(req.url)
   const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1'))

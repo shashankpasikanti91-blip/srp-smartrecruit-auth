@@ -1,6 +1,6 @@
 {
   "name": "srp-ailabs-auth",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -8,6 +8,9 @@
     "start": "next start -p 3000",
     "lint": "eslint app components content --max-warnings 0",
     "test:contacts": "npx --yes tsx scripts/verify-contacts.ts",
+    "test:unit": "npx --yes tsx scripts/unit-security.ts",
+    "test:rag-eval": "npx --yes tsx scripts/eval-rag.ts",
+    "test:rag-smoke": "npx --yes tsx scripts/smoke-rag.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",

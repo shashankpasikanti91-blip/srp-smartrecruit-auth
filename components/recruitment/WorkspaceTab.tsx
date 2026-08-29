@@ -1,11 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Briefcase, Calendar, Loader2, Sparkles, TrendingUp, Users, Bell, Send, Award,
-  FileWarning, Clock, Target, BarChart3,
+  FileWarning, Clock, Target, BarChart3, Radio,
 } from 'lucide-react'
-import type { RecruiterKpi } from '@/lib/kpiEngine'
+import type { RecruiterKpi, LiveOpsStrip } from '@/lib/kpiEngine'
+
+const LIVE_POLL_MS = 45_000
 import { AgentInboxPanel } from '@/components/recruitment/AgentInboxPanel'
 import { DailyBriefingPanel } from '@/components/recruitment/DailyBriefingPanel'
 import { VisualWorkflow } from '@/components/recruitment/VisualWorkflow'
@@ -66,6 +68,9 @@ export function WorkspaceTab({
   isManager?: boolean
 }) {
   const [kpi, setKpi] = useState<RecruiterKpi | null>(null)
+  const [live, setLive] = useState<LiveOpsStrip | null>(null)
+  const [liveAt, setLiveAt] = useState<number | null>(null)
+  const [liveError, setLiveError] = useState<string | null>(null)
   const [coach, setCoach] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [coachLoading, setCoachLoading] = useState(false)
@@ -73,9 +78,28 @@ export function WorkspaceTab({
   const [interviews, setInterviews] = useState<InterviewRow[]>([])
   const [jobs, setJobs] = useState<JobRow[]>([])
   const [insights, setInsights] = useState<Insights | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const refreshLive = useCallback(async () => {
+    try {
+      const res = await fetch('/api/analytics/live?days=30&scope=auto', { cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setLiveError(typeof data.error === 'string' ? data.error : `Live KPIs unavailable (${res.status})`)
+        return
+      }
+      if (data.strip) {
+        setLive(data.strip as LiveOpsStrip)
+        setLiveAt(Date.now())
+        setLiveError(null)
+      }
+    } catch {
+      setLiveError('Network error refreshing live KPIs')
+    }
+  }, [])
+
+  const load = useCallback(async (opts?: { soft?: boolean }) => {
+    if (!opts?.soft) setLoading(true)
     try {
       const today = new Date()
       const dateFrom = today.toISOString().slice(0, 10)
@@ -110,17 +134,35 @@ export function WorkspaceTab({
 
       const insData = await insRes.json().catch(() => null)
       setInsights(insData)
+      await refreshLive()
     } finally {
-      setLoading(false)
+      if (!opts?.soft) setLoading(false)
     }
-  }, [])
+  }, [refreshLive])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { void load() }, [load])
 
   useEffect(() => {
-    // Auto-load AI insights once workspace data is ready (non-blocking)
     void loadCoach()
   }, [])
+
+  useEffect(() => {
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      void refreshLive()
+    }
+    pollRef.current = setInterval(tick, LIVE_POLL_MS)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void refreshLive()
+    }
+    window.addEventListener('focus', onVis)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+      window.removeEventListener('focus', onVis)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [refreshLive])
 
   const loadCoach = async () => {
     setCoachLoading(true)
@@ -155,9 +197,15 @@ export function WorkspaceTab({
   }
 
   const pipeline = { ...(kpi?.pipeline_by_stage ?? {}), ...(insights?.funnel ?? {}) }
-  const openJobs = jobs.filter(j => (j.status ?? 'active') === 'active').length || jobs.length
-  const activeCandidates = Object.values(pipeline).reduce((a, b) => a + b, 0)
-  // kpiEngine already returns 0–100 percentages — do not multiply again
+  const openJobs = live?.open_jobs ?? (jobs.filter(j => (j.status ?? 'active') === 'active').length || jobs.length)
+  const activeCandidates = live?.active_candidates ?? Object.values(pipeline).reduce((a, b) => a + b, 0)
+  const submissionsN = live?.submissions ?? kpi?.submissions ?? 0
+  const interviewsScheduled = live?.interviews_scheduled ?? kpi?.interviews_scheduled ?? 0
+  const interviewsCompleted = live?.interviews_completed ?? kpi?.interviews_completed ?? 0
+  const offersActive = live?.offers_active ?? kpi?.offers_active ?? 0
+  const followOverdue = live?.follow_ups_overdue ?? kpi?.follow_ups_overdue ?? 0
+  const joiningSoon = live?.joining_soon ?? (insights?.queues?.joining_tomorrow?.length ?? 0)
+  const interviewsUpcoming = live?.interviews_upcoming ?? interviews.length
   const convRate = kpi ? Math.round(kpi.submission_conversion_rate || 0) : null
   const intConv = kpi ? Math.round(kpi.interview_conversion_rate || 0) : null
   const fillProxy = activeCandidates > 0 && kpi
@@ -168,6 +216,7 @@ export function WorkspaceTab({
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   })
   const greetName = userName?.split(' ')[0] || 'there'
+  const liveAgeSec = liveAt ? Math.max(0, Math.round((Date.now() - liveAt) / 1000)) : null
 
   const kpis: {
     label: string
@@ -179,17 +228,18 @@ export function WorkspaceTab({
     trend?: 'up' | 'down' | 'flat'
   }[] = [
     { label: 'Open Jobs', value: openJobs, sub: 'Active postings', tone: 'g1', icon: <Briefcase className="w-4 h-4" />, trend: 'flat' },
-    { label: 'Active Candidates', value: activeCandidates, sub: 'In pipeline', tone: 'g2', icon: <Users className="w-4 h-4" />, trend: activeCandidates > 0 ? 'up' : 'flat' },
-    { label: 'Submissions', value: kpi?.submissions ?? 0, sub: 'Last 30 days', tone: 'g3', icon: <Send className="w-4 h-4" />, trend: (kpi?.submissions ?? 0) > 0 ? 'up' : 'flat' },
-    { label: 'Interviews', value: `${kpi?.interviews_scheduled ?? 0}`, sub: `${kpi?.interviews_completed ?? 0} completed`, tone: 'g4', icon: <Calendar className="w-4 h-4" />, trend: 'flat' },
-    { label: 'Offers', value: kpi?.offers_active ?? 0, sub: 'Active offers', tone: 'g5', icon: <Award className="w-4 h-4" />, trend: (kpi?.offers_active ?? 0) > 0 ? 'up' : 'flat' },
+    { label: 'Active Candidates', value: activeCandidates, sub: live?.scope === 'tenant' ? 'Workspace pipeline' : 'In pipeline', tone: 'g2', icon: <Users className="w-4 h-4" />, trend: activeCandidates > 0 ? 'up' : 'flat' },
+    { label: 'Submissions', value: submissionsN, sub: `Last ${live?.period_days ?? 30} days`, tone: 'g3', icon: <Send className="w-4 h-4" />, trend: submissionsN > 0 ? 'up' : 'flat' },
+    { label: 'Interviews', value: `${interviewsScheduled}`, sub: `${interviewsCompleted} completed · ${interviewsUpcoming} next 7d`, tone: 'g4', icon: <Calendar className="w-4 h-4" />, trend: interviewsUpcoming > 0 ? 'up' : 'flat' },
+    { label: 'Offers', value: offersActive, sub: live?.offers_pending ? `${live.offers_pending} pending` : 'Active offers', tone: 'g5', icon: <Award className="w-4 h-4" />, trend: offersActive > 0 ? 'up' : 'flat' },
+    { label: 'Joining / Onboard', value: joiningSoon, sub: 'Expected join ≤7 days', tone: 'g6', icon: <Target className="w-4 h-4" />, trend: joiningSoon > 0 ? 'up' : 'flat' },
     { label: 'Time To Hire', value: insights?.time_to_hire_avg_days != null ? `${insights.time_to_hire_avg_days}d` : '—', sub: 'Avg days to join', tone: 'g6', icon: <Clock className="w-4 h-4" />, trend: 'flat' },
     { label: 'Offer Accept %', value: insights?.offer_acceptance_rate != null ? `${insights.offer_acceptance_rate}%` : '—', sub: 'Acceptance rate', tone: 'g7', icon: <Target className="w-4 h-4" />, trend: 'flat' },
     { label: 'Fill Rate', value: fillProxy != null ? `${fillProxy}%` : '—', sub: 'Hired / pipeline', tone: 'g1', icon: <BarChart3 className="w-4 h-4" />, trend: 'flat' },
     { label: 'Pipeline Conv. %', value: convRate != null ? `${convRate}%` : '—', sub: 'Submission conversion', tone: 'g2', icon: <TrendingUp className="w-4 h-4" />, trend: convRate != null && convRate >= 20 ? 'up' : 'flat' },
     { label: 'Interview Conv. %', value: intConv != null ? `${intConv}%` : '—', sub: 'Interview conversion', tone: 'g4', icon: <TrendingUp className="w-4 h-4" />, trend: 'flat' },
     { label: 'Pending Documents', value: insights?.pending_docs ?? 0, sub: 'Doc collection', warn: (insights?.pending_docs ?? 0) > 0, tone: 'g6', icon: <FileWarning className="w-4 h-4" />, trend: (insights?.pending_docs ?? 0) > 0 ? 'down' : 'flat' },
-    { label: 'Follow-ups overdue', value: kpi?.follow_ups_overdue ?? 0, sub: 'Needs attention', warn: (kpi?.follow_ups_overdue ?? 0) > 0, tone: 'g7', icon: <Bell className="w-4 h-4" />, trend: (kpi?.follow_ups_overdue ?? 0) > 0 ? 'down' : 'flat' },
+    { label: 'Follow-ups overdue', value: followOverdue, sub: 'Needs attention', warn: followOverdue > 0, tone: 'g7', icon: <Bell className="w-4 h-4" />, trend: followOverdue > 0 ? 'down' : 'flat' },
   ]
 
   const MANAGEMENT_KPI_LABELS = new Set([
@@ -211,9 +261,9 @@ export function WorkspaceTab({
   return (
     <div className="space-y-5">
       <div className="dash-section-head !border-0 !pb-0 !mb-2">
-        <div className="flex items-start gap-4">
+        <div className="flex items-start gap-4 min-w-0 flex-1">
           <div className="dash-section-icon"><TrendingUp className="w-5 h-5" /></div>
-          <div>
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="page-title text-xl sm:text-2xl">
                 {isManager ? `${roleLabel} Dashboard` : 'Recruiter Dashboard'}
@@ -221,15 +271,38 @@ export function WorkspaceTab({
               <span className="text-[10px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full bg-[#ecfdf3] text-[#166534] border border-[#166534]/25">
                 {roleLabel}
               </span>
+              <span
+                className={`inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-full border ${
+                  liveError ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-sky-50 text-sky-800 border-sky-200'
+                }`}
+                title={liveError ?? (live?.scope === 'tenant' ? 'Workspace rollup' : 'Your personal KPIs')}
+              >
+                <Radio className={`w-3 h-3 ${liveError ? '' : 'animate-pulse'}`} />
+                {liveError
+                  ? 'Live paused'
+                  : `Live · ${liveAgeSec != null ? (liveAgeSec < 5 ? 'just now' : `${liveAgeSec}s ago`) : '…'}`}
+              </span>
+              {live?.scope === 'tenant' && (
+                <span className="text-[10px] font-bold text-slate-500 px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200">
+                  Team view
+                </span>
+              )}
             </div>
             <p className="desc-text mt-1">Welcome back, {greetName}. {dateLabel}</p>
             <p className="text-sm font-medium text-slate-500 mt-1">
               {isManager
-                ? 'Team performance, hiring funnel, pending approvals, and AI insights'
-                : 'Your recruitment command center — KPIs, queues, and AI briefing'}
+                ? 'Team KPIs refresh every ~45s — submissions, interviews, offers & onboarding'
+                : 'Your recruitment command center — KPIs refresh live while this page is open'}
             </p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => { void refreshLive(); void load({ soft: true }) }}
+          className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-200 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 shadow-sm"
+        >
+          Refresh now
+        </button>
       </div>
 
       {isManager && insights?.leaderboard && insights.leaderboard.length > 0 && (
@@ -269,6 +342,7 @@ export function WorkspaceTab({
                 Submissions: 'submissions',
                 Interviews: 'interviews',
                 Offers: 'selected',
+                'Joining / Onboard': 'selected',
                 'Pipeline Conv. %': 'submissions',
                 'Interview Conv. %': 'interviews',
                 'Pending Documents': 'documents',
@@ -309,10 +383,10 @@ export function WorkspaceTab({
           requirement: openJobs,
           job: openJobs,
           candidates: activeCandidates,
-          submissions: kpi?.submissions ?? 0,
-          interviews: kpi?.interviews_scheduled ?? 0,
-          offers: kpi?.offers_active ?? 0,
-          joining: insights?.queues?.joining_tomorrow?.length ?? 0,
+          submissions: submissionsN,
+          interviews: interviewsScheduled,
+          offers: offersActive,
+          joining: joiningSoon,
           completed: pipeline.hired ?? 0,
         }}
         onStageClick={(stage) => {

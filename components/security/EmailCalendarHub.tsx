@@ -110,7 +110,7 @@ export function EmailCalendarHub() {
       <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 flex gap-2 text-xs text-blue-800">
         <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
         <span>
-          Teams online meetings use Outlook Calendar Graph when connected. WhatsApp Business Cloud is Advanced / Coming soon.
+          Teams online meetings use Outlook Calendar Graph when connected. WhatsApp Business Cloud (Meta) is configured under Integrations — Connected only after Test succeeds.
           Use Communications Hub for send history — no separate hub.
         </span>
       </div>

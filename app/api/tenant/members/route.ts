@@ -5,14 +5,25 @@
  * DELETE /api/tenant/members/[id]    — remove member
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { requireTenant, ROLE_PRESET, getTenantMembers, TenantPermissions } from '@/lib/tenant'
+import { requireTenant, ROLE_PRESET, getTenantMembers, TenantPermissions, INVITE_TENANT_ROLES, canAccessRecruitersModule, checkPermission } from '@/lib/tenant'
 import { pool } from '@/lib/db'
+import { logAuditStrict, AuditWriteError } from '@/lib/audit'
 import crypto from 'crypto'
 
 // ── GET: list all members ─────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-  const ctx = await requireTenant(req, 'users.manage')
+  const ctx = await requireTenant(req)
   if (ctx instanceof NextResponse) return ctx
+
+  const canList =
+    canAccessRecruitersModule(ctx.tenantRole, ctx.permissions) ||
+    checkPermission(ctx.permissions, 'users.manage')
+  if (!canList) {
+    return NextResponse.json(
+      { error: 'Forbidden — team list requires recruiters module or user management access' },
+      { status: 403 },
+    )
+  }
 
   const members = await getTenantMembers(ctx.tenantId)
   return NextResponse.json({ members })
@@ -25,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json() as {
     email: string
-    role: 'admin' | 'recruiter' | 'member' | 'viewer'
+    role: (typeof INVITE_TENANT_ROLES)[number]
     permissions?: Partial<TenantPermissions>
   }
 
@@ -33,7 +44,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Valid email required' }, { status: 400 })
   }
 
-  const validRoles = ['admin', 'recruiter', 'member', 'viewer']
+  const validRoles = [...INVITE_TENANT_ROLES]
   if (!validRoles.includes(body.role)) {
     return NextResponse.json({ error: `role must be one of: ${validRoles.join(', ')}` }, { status: 400 })
   }
@@ -133,6 +144,22 @@ export async function POST(req: NextRequest) {
     emailSent = true
   } catch (e) {
     console.error('[tenant/members] invite email failed (non-fatal):', e)
+  }
+
+  try {
+    await logAuditStrict({
+      userId: ctx.userId,
+      userEmail: ctx.userEmail,
+      tenantId: ctx.tenantId,
+      action: 'member_invite',
+      resourceType: 'tenant_member',
+      details: { email: body.email, role: body.role, emailSent },
+      module: 'tenant',
+    })
+  } catch (e) {
+    if (e instanceof AuditWriteError) {
+      return NextResponse.json({ error: e.message }, { status: 503 })
+    }
   }
 
   return NextResponse.json({ ok: true, inviteLink, inviteToken, role: body.role, emailSent })

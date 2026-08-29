@@ -35,19 +35,20 @@ async function dispatchMessage(
   to: string,
   subject: string,
   body: string,
-): Promise<void> {
+): Promise<{ providerMessageId?: string }> {
   switch (connector_id) {
     case 'smtp':
     case 'outlook':
-      await sendViaSMTP(cfg, to, subject, body); break
+      await sendViaSMTP(cfg, to, subject, body); return {}
     case 'sendgrid':
-      await sendViaSendGrid(cfg, to, subject, body); break
+      await sendViaSendGrid(cfg, to, subject, body); return {}
     case 'mailgun':
-      await sendViaMailgun(cfg, to, subject, body); break
+      await sendViaMailgun(cfg, to, subject, body); return {}
     case 'telegram':
-      await sendViaTelegram(cfg, to, subject, body); break
+      await sendViaTelegram(cfg, to, subject, body); return {}
     case 'whatsapp':
-      await sendViaWhatsApp(cfg, to, subject, body); break
+    case 'whatsapp_twilio_legacy':
+      return await sendViaWhatsApp(cfg, to, subject, body)
     default:
       throw new Error(`Unsupported channel: ${connector_id}`)
   }
@@ -139,13 +140,48 @@ async function sendViaTelegram(
   if (!res.ok) throw new Error(`Telegram ${res.status}: ${await res.text()}`)
 }
 
-// ─── WhatsApp (Twilio) dispatcher ────────────────────────────────────────────
+// ─── WhatsApp dispatcher (Meta Cloud SoT; Twilio legacy) ─────────────────────
 async function sendViaWhatsApp(
   cfg: Record<string, string>,
   to: string,
   _subject: string,
   body: string
-): Promise<void> {
+): Promise<{ providerMessageId?: string }> {
+  // Meta WhatsApp Cloud API (V2 SoT)
+  if (cfg.access_token && cfg.phone_number_id) {
+    const version = (cfg.api_version || 'v19.0').replace(/^\/*/, '')
+    const toDigits = to.replace(/^whatsapp:/i, '').replace(/\D/g, '')
+    if (!toDigits) throw new Error('WhatsApp recipient phone required')
+    const res = await fetch(
+      `https://graph.facebook.com/${version}/${cfg.phone_number_id}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${cfg.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: toDigits,
+          type: 'text',
+          text: { body },
+        }),
+      }
+    )
+    const text = await res.text()
+    if (!res.ok) throw new Error(`WhatsApp Meta ${res.status}: ${text}`)
+    try {
+      const json = JSON.parse(text) as { messages?: { id?: string }[] }
+      return { providerMessageId: json.messages?.[0]?.id }
+    } catch {
+      return {}
+    }
+  }
+
+  // Legacy Twilio path
+  if (!cfg.account_sid || !cfg.auth_token || !cfg.whatsapp_number) {
+    throw new Error('WhatsApp not configured — set Meta access_token + phone_number_id (preferred) or Twilio credentials')
+  }
   const formData = new URLSearchParams()
   formData.append('From', cfg.whatsapp_number)
   formData.append('To', to.startsWith('whatsapp:') ? to : `whatsapp:${to}`)
@@ -163,7 +199,68 @@ async function sendViaWhatsApp(
       body: formData.toString(),
     }
   )
-  if (!res.ok) throw new Error(`Twilio ${res.status}: ${await res.text()}`)
+  const twText = await res.text()
+  if (!res.ok) throw new Error(`Twilio ${res.status}: ${twText}`)
+  try {
+    const json = JSON.parse(twText) as { sid?: string }
+    return { providerMessageId: json.sid }
+  } catch {
+    return {}
+  }
+}
+
+async function resolveSendConfig(
+  userId: string,
+  tenantId: string | null,
+  connectorId: string,
+): Promise<Record<string, string> | null> {
+  const provRows = await pool.query(
+    `SELECT config FROM communication_providers
+     WHERE user_id = $1 AND provider_name = $2 AND is_active = true LIMIT 1`,
+    [userId, connectorId]
+  )
+  if (provRows.rows.length) {
+    const cfg = (provRows.rows[0].config as Record<string, string>) ?? {}
+    if (connectorId !== 'whatsapp' || cfg.access_token || cfg.account_sid) return cfg
+  }
+
+  // Tenant Integrations SoT (WhatsApp Meta + email connectors)
+  if (tenantId) {
+    const emailSlugs = ['smtp', 'sendgrid', 'mailgun', 'outlook', 'gmail']
+    if (connectorId === 'whatsapp' || connectorId === 'whatsapp_twilio_legacy') {
+      const integ = await pool.query(
+        `SELECT config FROM integrations
+         WHERE tenant_id = $1 AND slug IN ('whatsapp', 'whatsapp_twilio_legacy')
+         ORDER BY CASE WHEN slug = 'whatsapp' THEN 0 ELSE 1 END
+         LIMIT 1`,
+        [tenantId]
+      )
+      if (integ.rows[0]?.config) return integ.rows[0].config as Record<string, string>
+    } else if (emailSlugs.includes(connectorId)) {
+      const integ = await pool.query(
+        `SELECT config FROM integrations
+         WHERE tenant_id = $1 AND slug = $2
+           AND COALESCE(config->>'connection_status', '') IN ('connected', 'not_tested')
+         LIMIT 1`,
+        [tenantId, connectorId]
+      )
+      if (integ.rows[0]?.config) return integ.rows[0].config as Record<string, string>
+      // Prefer any connected email connector if exact slug missing
+      if (connectorId === 'smtp' || connectorId === 'gmail') {
+        const any = await pool.query(
+          `SELECT slug, config FROM integrations
+           WHERE tenant_id = $1 AND slug IN ('smtp','sendgrid','mailgun','outlook')
+             AND config->>'connection_status' = 'connected'
+           ORDER BY CASE slug WHEN 'smtp' THEN 0 WHEN 'sendgrid' THEN 1 WHEN 'mailgun' THEN 2 ELSE 3 END
+           LIMIT 1`,
+          [tenantId]
+        )
+        if (any.rows[0]?.config) return any.rows[0].config as Record<string, string>
+      }
+    }
+  }
+  if (provRows.rows[0]?.config) return provRows.rows[0].config as Record<string, string>
+  return null
 }
 
 function renderTemplate(template: string, vars: Record<string, string>): string {
@@ -404,26 +501,20 @@ Welcome aboard!
           : channel === 'telegram' ? 'telegram'
             : 'smtp'
 
-      const provRows = await pool.query(
-        `SELECT config, provider_name FROM communication_providers
-         WHERE user_id = $1 AND is_active = true
-           AND (provider_name = $2 OR channel = $3 OR ($2 = 'smtp' AND provider_name IN ('smtp','outlook','sendgrid','mailgun')))
-         ORDER BY CASE WHEN provider_name = $2 THEN 0 ELSE 1 END
-         LIMIT 1`,
-        [userId, connector, channel]
-      )
-      if (!provRows.rows.length) {
-        return NextResponse.json({ error: 'No active provider for retry' }, { status: 422 })
+      const cfg = await resolveSendConfig(userId, tenantId, connector)
+      if (!cfg) {
+        return NextResponse.json({ error: 'No active provider for retry — configure Integrations or Communications → Providers' }, { status: 422 })
       }
-      const cfg = provRows.rows[0].config as Record<string, string>
-      const connectorId = String(provRows.rows[0].provider_name ?? connector)
+      const connectorId = connector
       const to = String(prev.recipient ?? '')
       const finalSubject = String(prev.subject ?? '')
       const finalBody = String(prev.body ?? prev.body_preview ?? '')
       let status = 'sent'
       let errorMsg: string | null = null
+      let providerMessageId: string | undefined
       try {
-        await dispatchMessage(connectorId, cfg, to, finalSubject, finalBody)
+        const result = await dispatchMessage(connectorId, cfg, to, finalSubject, finalBody)
+        providerMessageId = result.providerMessageId
       } catch (e) {
         status = 'failed'
         errorMsg = e instanceof Error ? e.message : String(e)
@@ -443,13 +534,15 @@ Welcome aboard!
         recruiterUserId: userId,
         retryOf: logId,
         threadKey: (prev.thread_key as string) ?? null,
+        providerMessageId: providerMessageId ?? null,
+        direction: 'outbound',
       })
       if (tenantId) {
         await logAudit({
           userId, userEmail: tenantEmail, tenantId,
           action: 'comm_retry', resourceType: 'communication', resourceId: newId ?? logId,
           resumeId: (prev.resume_id as string) ?? null, module: 'comms',
-          details: { retry_of: logId, status },
+          details: { retry_of: logId, status, provider_message_id: providerMessageId },
         })
         if (prev.resume_id) {
           await writeTimeline({
@@ -461,7 +554,7 @@ Welcome aboard!
         }
       }
       if (status === 'failed') return NextResponse.json({ error: errorMsg }, { status: 502 })
-      return NextResponse.json({ status: 'sent', id: newId })
+      return NextResponse.json({ status: 'sent', id: newId, provider_message_id: providerMessageId ?? null })
     }
 
     // ── Manual delivery / read status ─────────────────────────────────────
@@ -536,31 +629,30 @@ Welcome aboard!
         return NextResponse.json({ error: 'message body is empty' }, { status: 400 })
       }
 
-      const provRows = await pool.query(
-        `SELECT config FROM communication_providers
-         WHERE user_id = $1 AND provider_name = $2 AND is_active = true LIMIT 1`,
-        [userId, connector_id]
-      )
-      if (!provRows.rows.length) {
+      const tenantCtx = await requireTenant(req)
+      const tenantId = tenantCtx instanceof NextResponse ? null : tenantCtx.tenantId
+      const tenantEmail = tenantCtx instanceof NextResponse ? (session.user?.email ?? '') : tenantCtx.userEmail
+
+      const cfg = await resolveSendConfig(userId, tenantId, connector_id)
+      if (!cfg) {
         return NextResponse.json({
-          error: `No active ${connector_id} provider configured. Go to Communication Hub to set it up.`
+          error: connector_id === 'whatsapp'
+            ? 'WhatsApp not configured. Open Integrations → WhatsApp Business (Meta), Save + Test Connection, then send here.'
+            : `No active ${connector_id} provider configured. Go to Integrations or Communications → Providers.`,
         }, { status: 422 })
       }
 
-      const cfg = provRows.rows[0].config as Record<string, string>
       let status = 'sent'
       let errorMsg: string | null = null
+      let providerMessageId: string | undefined
 
       try {
-        await dispatchMessage(connector_id, cfg, to, finalSubject, finalBody)
+        const result = await dispatchMessage(connector_id, cfg, to, finalSubject, finalBody)
+        providerMessageId = result.providerMessageId
       } catch (dispatchErr) {
         status = 'failed'
         errorMsg = dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr)
       }
-
-      const tenantCtx = await requireTenant(req)
-      const tenantId = tenantCtx instanceof NextResponse ? null : tenantCtx.tenantId
-      const tenantEmail = tenantCtx instanceof NextResponse ? (session.user?.email ?? '') : tenantCtx.userEmail
 
       const logId = await insertCommLog({
         userId,
@@ -576,6 +668,9 @@ Welcome aboard!
         clientId: client_id && isValidUUID(client_id) ? client_id : null,
         recruiterUserId: userId,
         threadKey: thread_key ?? resume_id ?? to,
+        providerMessageId: providerMessageId ?? null,
+        direction: 'outbound',
+        recipientPhoneE164: CHANNEL_MAP[connector_id] === 'whatsapp' ? to.replace(/\D/g, '') : null,
       })
 
       if (tenantId && resume_id && isValidUUID(resume_id)) {
@@ -589,6 +684,7 @@ Welcome aboard!
           detail: `${CHANNEL_MAP[connector_id] ?? connector_id} → ${to}`,
           actorUserId: userId,
           actorEmail: tenantEmail,
+          meta: { provider_message_id: providerMessageId, job_post_id, client_id },
         })
         await logAudit({
           userId, userEmail: tenantEmail, tenantId,
@@ -598,11 +694,23 @@ Welcome aboard!
           details: { to, channel: CHANNEL_MAP[connector_id], job_post_id, client_id },
         })
       }
+      if (tenantId && job_post_id && isValidUUID(job_post_id) && (!resume_id || !isValidUUID(resume_id))) {
+        await writeTimeline({
+          tenantId,
+          entityType: 'job',
+          entityId: job_post_id,
+          eventType: status === 'sent' ? 'comm_sent' : 'comm_failed',
+          title: status === 'sent' ? 'Message sent' : 'Message failed',
+          detail: `${CHANNEL_MAP[connector_id] ?? connector_id} → ${to}`,
+          actorUserId: userId,
+          actorEmail: tenantEmail,
+        })
+      }
 
       if (status === 'failed') {
         return NextResponse.json({ error: errorMsg }, { status: 502 })
       }
-      return NextResponse.json({ status: 'sent', id: logId })
+      return NextResponse.json({ status: 'sent', id: logId, provider_message_id: providerMessageId ?? null })
     }
 
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
@@ -714,7 +822,9 @@ export async function GET(req: NextRequest) {
       `SELECT id, channel, recipient AS to_address, subject, body, body_preview, status,
               delivery_status, error_message, failed_reason, opened_at, read_at,
               resume_id, job_post_id, client_id, thread_key, retry_of, template_name,
-              created_at, sent_at
+              created_at, sent_at,
+              COALESCE(direction, 'outbound') AS direction,
+              provider_message_id
        FROM communication_logs
        WHERE ${conditions.join(' AND ')}
        ORDER BY created_at DESC

@@ -15,14 +15,20 @@ test.describe('Credentials login flow', () => {
     await expect(page).toHaveURL(/\/login/, { timeout: 15_000 })
   })
 
-  test('correct demo credentials redirect to dashboard', async ({ page }) => {
+  test('correct demo credentials redirect to dashboard', async ({ page, request }) => {
     test.setTimeout(90_000)
+    const health = await request.get('/api/health')
+    const h = await health.json().catch(() => ({}))
+    test.skip(!(h.database?.ok ?? h.db?.ok), 'Postgres not available — skip credential login')
     await signInToDashboard(page)
     expect(page.url()).toMatch(/\/dashboard/)
   })
 
-  test('dashboard loads after login', async ({ page }) => {
+  test('dashboard loads after login', async ({ page, request }) => {
     test.setTimeout(120_000)
+    const health = await request.get('/api/health')
+    const h = await health.json().catch(() => ({}))
+    test.skip(!(h.database?.ok ?? h.db?.ok), 'Postgres not available — skip credential login')
     await signInToDashboard(page)
     await expect(page.locator('body')).not.toBeEmpty()
     await expect(page.locator('text=Something went wrong')).not.toBeVisible()
