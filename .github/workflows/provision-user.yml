@@ -20,7 +20,7 @@ jobs:
   provision:
     name: SSH provision on Hetzner
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Provision via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -33,7 +33,7 @@ jobs:
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
           port: ${{ secrets.HETZNER_PORT || 22 }}
-          command_timeout: 10m
+          command_timeout: 15m
           envs: PROVISION_EMAIL,PROVISION_TEMP_PASSWORD,PROVISION_NAME
           script: |
             set -euo pipefail
@@ -41,13 +41,19 @@ jobs:
             git fetch origin
             git checkout main
             git reset --hard origin/main
-            docker cp /opt/srp-smartrecruit-auth/scripts/provision-lifelong-user.ts \
-              srp-auth-app:/tmp/provision-lifelong-user.ts
-            docker exec \
+            set -a
+            # shellcheck disable=SC1091
+            . ./.env
+            set +a
+            NET=$(docker inspect srp-auth-db -f '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' | head -n1)
+            # Keep compose hostname "db" for the one-shot container
+            docker run --rm \
+              --network "$NET" \
+              -v /opt/srp-smartrecruit-auth:/work:ro \
+              -w /work \
+              -e DATABASE_URL \
               -e PROVISION_EMAIL \
               -e PROVISION_TEMP_PASSWORD \
               -e PROVISION_NAME \
-              -e NODE_PATH=/app/node_modules \
-              -w /app \
-              srp-auth-app \
-              npx tsx /tmp/provision-lifelong-user.ts
+              node:22-bookworm \
+              bash -lc 'npm i --no-save --legacy-peer-deps bcryptjs@2 pg dotenv tsx >/tmp/npm.log 2>&1 && npx tsx scripts/provision-lifelong-user.ts'
