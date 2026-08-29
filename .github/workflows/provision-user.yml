@@ -49,11 +49,11 @@ jobs:
             # Keep compose hostname "db" for the one-shot container
             docker run --rm \
               --network "$NET" \
-              -v /opt/srp-smartrecruit-auth:/work:ro \
-              -w /work \
+              -v /opt/srp-smartrecruit-auth/scripts/provision-lifelong-user.ts:/tmp/provision-lifelong-user.ts:ro \
+              -w /tmp \
               -e DATABASE_URL \
               -e PROVISION_EMAIL \
               -e PROVISION_TEMP_PASSWORD \
               -e PROVISION_NAME \
               node:22-bookworm \
-              bash -lc 'npm i --no-save --legacy-peer-deps bcryptjs@2 pg dotenv tsx >/tmp/npm.log 2>&1 && npx tsx scripts/provision-lifelong-user.ts'
+              bash -lc 'npm i --no-save --legacy-peer-deps bcryptjs@2.4.3 pg dotenv tsx && npx tsx /tmp/provision-lifelong-user.ts'
