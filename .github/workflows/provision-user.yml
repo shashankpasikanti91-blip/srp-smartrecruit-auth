@@ -41,11 +41,12 @@ jobs:
             git fetch origin
             git checkout main
             git reset --hard origin/main
-            # Host run: pull DATABASE_URL from production .env (compose DB hostname)
-            set -a
-            # shellcheck disable=SC1091
-            . ./.env
-            set +a
-            # App container uses host "db"; host scripts need 127.0.0.1 mapped port if present
-            export DATABASE_URL="$(printf '%s' "$DATABASE_URL" | sed 's|@db:5432/|@127.0.0.1:5432/|g')"
-            npx --yes tsx scripts/provision-lifelong-user.ts
+            mkdir -p /opt/srp-smartrecruit-auth/scripts
+            docker cp /opt/srp-smartrecruit-auth/scripts/provision-lifelong-user.ts \
+              srp-auth-app:/app/scripts/provision-lifelong-user.ts
+            docker exec \
+              -e PROVISION_EMAIL \
+              -e PROVISION_TEMP_PASSWORD \
+              -e PROVISION_NAME \
+              srp-auth-app \
+              npx tsx scripts/provision-lifelong-user.ts
