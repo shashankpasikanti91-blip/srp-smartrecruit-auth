@@ -2189,7 +2189,7 @@ export default function DashboardPage() {
       .catch(() => { if (!cancelled) setTenantFunnel(null) })
       .finally(() => { if (!cancelled) setTenantFunnelLoading(false) })
     return () => { cancelled = true }
-  }, [activeTab, tenantRole])
+  }, [activeTab, tenantRole, tenantPermissions?.analytics?.tenant])
 
   const createJob = async () => {
     if (!newJob.title) return
