@@ -47,6 +47,7 @@ jobs:
               -e PROVISION_EMAIL \
               -e PROVISION_TEMP_PASSWORD \
               -e PROVISION_NAME \
+              -e NODE_PATH=/app/node_modules \
               -w /app \
               srp-auth-app \
               npx tsx /tmp/provision-lifelong-user.ts
