@@ -35,6 +35,7 @@ jobs:
         env:
           PROVISION_TEMP_PASSWORD: ${{ inputs.temp_password }}
         run: |
+          mkdir -p /tmp/prov-hash && cd /tmp/prov-hash
           npm i --no-save bcryptjs@2.4.3
           HASH=$(node -e "process.stdout.write(require('bcryptjs').hashSync(process.env.PROVISION_TEMP_PASSWORD, 12))")
           echo "::add-mask::$HASH"
